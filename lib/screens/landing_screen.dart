@@ -2,12 +2,17 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../app_flags.dart';
 import '../models/tier.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common/brand_mark.dart';
 import '../widgets/common/effects.dart';
+import '../widgets/common/user_avatar.dart';
 import '../widgets/landing/pricing_card.dart';
+import 'account_screen.dart';
+import 'admin_users_screen.dart';
+import 'auth_screen.dart';
 import 'chat_screen.dart';
 import 'onboarding_screen.dart';
 
@@ -73,10 +78,27 @@ class _LandingScreenState extends State<LandingScreen> {
   }
 
   /// Pick a specific tier from the pricing cards / final CTA, then continue.
+  /// When accounts are enabled, subscribing requires signing up first.
   Future<void> _selectTier(SubscriptionTier tier) async {
+    final ok = await _requireAuth(
+      reason: 'Create an account to subscribe to ${TierInfo.of(tier).name}.',
+    );
+    if (!ok || !mounted) return;
     await context.read<AppState>().selectTier(tier);
     if (!mounted) return;
     _enterApp();
+  }
+
+  /// Ensures the user is signed in when accounts are enabled. Returns true if
+  /// the caller may proceed (already signed in, just authenticated, or accounts
+  /// are switched off entirely).
+  Future<bool> _requireAuth({String? reason}) async {
+    final state = context.read<AppState>();
+    if (!state.authEnabled || state.isSignedIn) return true;
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => AuthScreen(reason: reason)),
+    );
+    return result == true;
   }
 
   void _scrollTo(GlobalKey key) {
@@ -101,22 +123,50 @@ class _LandingScreenState extends State<LandingScreen> {
     );
   }
 
+  Future<void> _logIn() async {
+    final ok = await _requireAuth(reason: 'Log in to your DateWise AI account.');
+    if (!ok || !mounted) return;
+    setState(() {}); // refresh the header to show the account menu
+  }
+
+  void _openAccount() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const AccountScreen()),
+    );
+  }
+
+  void _openManageUsers() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const AdminUsersScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final hasTier = context.watch<AppState>().hasTier;
+    final state = context.watch<AppState>();
+    final hasTier = state.hasTier;
+
+    // During the free launch the pricing section and all "Pricing" navigation
+    // are hidden — the app is free, so there is nothing to price.
+    final showPricing = !AppFlags.freeLaunch;
 
     // Sections are built lazily so RevealOnScroll fires as each scrolls in.
     final sections = <Widget>[
-      _Hero(onStartCoaching: _startCoaching, onSeePlans: _scrollToPricing),
+      _Hero(
+        onStartCoaching: _startCoaching,
+        onSeePlans: showPricing ? _scrollToPricing : null,
+        hasTier: hasTier,
+      ),
       const _FeatureStrip(),
       KeyedSubtree(key: _howKey, child: const _HowItWorks()),
-      KeyedSubtree(key: _pricingKey, child: _Pricing(onSelect: _selectTier)),
+      if (showPricing)
+        KeyedSubtree(key: _pricingKey, child: _Pricing(onSelect: _selectTier)),
       KeyedSubtree(key: _storiesKey, child: const _Stories()),
       const _DownloadApp(),
       _FinalCta(onStart: _startCoaching),
       _Footer(
         onStart: _startCoaching,
-        onSeePlans: _scrollToPricing,
+        onSeePlans: showPricing ? _scrollToPricing : null,
         onStories: () => _scrollTo(_storiesKey),
         onHowItWorks: () => _scrollTo(_howKey),
       ),
@@ -158,8 +208,9 @@ class _LandingScreenState extends State<LandingScreen> {
                                 label: 'How it works',
                                 onTap: () => _scrollTo(_howKey),
                               ),
-                              _NavLink(
-                                  label: 'Pricing', onTap: _scrollToPricing),
+                              if (showPricing)
+                                _NavLink(
+                                    label: 'Pricing', onTap: _scrollToPricing),
                               _NavLink(
                                 label: 'Stories',
                                 onTap: () => _scrollTo(_storiesKey),
@@ -184,10 +235,11 @@ class _LandingScreenState extends State<LandingScreen> {
                             value: () => _scrollTo(_howKey),
                             child: const Text('How it works'),
                           ),
-                          PopupMenuItem(
-                            value: _scrollToPricing,
-                            child: const Text('Pricing'),
-                          ),
+                          if (showPricing)
+                            PopupMenuItem(
+                              value: _scrollToPricing,
+                              child: const Text('Pricing'),
+                            ),
                           PopupMenuItem(
                             value: () => _scrollTo(_storiesKey),
                             child: const Text('Stories'),
@@ -211,6 +263,19 @@ class _LandingScreenState extends State<LandingScreen> {
                               child: const Text('Start'),
                             ),
                           ),
+                    if (state.authEnabled) ...[
+                      const SizedBox(width: AppSpacing.sm),
+                      state.isSignedIn
+                          ? _AccountMenu(
+                              email: state.userEmail,
+                              avatarUrl: state.avatarUrl,
+                              isAdmin: state.isAdmin,
+                              onAccount: _openAccount,
+                              onManageUsers: _openManageUsers,
+                              onSignOut: () => context.read<AppState>().signOut(),
+                            )
+                          : _NavLink(label: 'Log in', onTap: _logIn),
+                    ],
                   ],
                 ),
               ),
@@ -277,10 +342,21 @@ class _Section extends StatelessWidget {
 }
 
 class _Hero extends StatelessWidget {
-  const _Hero({required this.onStartCoaching, required this.onSeePlans});
+  const _Hero({
+    required this.onStartCoaching,
+    this.onSeePlans,
+    this.hasTier = false,
+  });
 
   final VoidCallback onStartCoaching;
-  final VoidCallback onSeePlans;
+
+  /// Whether the visitor already has a session — switches the primary CTA from
+  /// "Start coaching free" to "Continue".
+  final bool hasTier;
+
+  /// Scrolls to the pricing section. Null during the free launch (no pricing),
+  /// which hides the "See pricing" button.
+  final VoidCallback? onSeePlans;
 
   @override
   Widget build(BuildContext context) {
@@ -338,28 +414,29 @@ class _Hero extends StatelessWidget {
             HoverScale(
               child: ElevatedButton(
                 onPressed: onStartCoaching,
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 4),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text('Start your free session'),
-                      SizedBox(width: 8),
-                      Icon(Icons.arrow_forward_rounded, size: 18),
+                      Text(hasTier ? 'Continue' : 'Start coaching free'),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.arrow_forward_rounded, size: 18),
                     ],
                   ),
                 ),
               ),
             ),
-            HoverScale(
-              child: OutlinedButton(
-                onPressed: onSeePlans,
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 4),
-                  child: Text('See pricing'),
+            if (onSeePlans != null)
+              HoverScale(
+                child: OutlinedButton(
+                  onPressed: onSeePlans,
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 4),
+                    child: Text('See pricing'),
+                  ),
                 ),
               ),
-            ),
           ],
         ),
         const SizedBox(height: AppSpacing.lg),
@@ -426,7 +503,7 @@ class _Hero extends StatelessWidget {
 class _HeroImage extends StatelessWidget {
   const _HeroImage();
 
-  static const _imageAsset = 'assets/images/hero.jpg';
+  static const _imageAsset = 'images/hero.jpg';
 
   @override
   Widget build(BuildContext context) {
@@ -1058,7 +1135,8 @@ class _StoryCard extends StatelessWidget {
                     style: theme.textTheme.titleSmall,
                   ),
                 ),
-                _TierBadge(tierInfo: tierInfo),
+                // The tier badge names a paid plan — hide it during free launch.
+                if (!AppFlags.freeLaunch) _TierBadge(tierInfo: tierInfo),
               ],
             ),
           ],
@@ -1127,6 +1205,90 @@ class _NavLinkState extends State<_NavLink> {
             child: Text(widget.label),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Header account control shown when the user is signed in: a circular avatar
+/// that opens a menu with their email and a sign-out action.
+class _AccountMenu extends StatelessWidget {
+  const _AccountMenu({
+    required this.email,
+    required this.avatarUrl,
+    required this.isAdmin,
+    required this.onAccount,
+    required this.onManageUsers,
+    required this.onSignOut,
+  });
+  final String? email;
+  final String? avatarUrl;
+  final bool isAdmin;
+  final VoidCallback onAccount;
+  final VoidCallback onManageUsers;
+  final VoidCallback onSignOut;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      tooltip: 'Account',
+      offset: const Offset(0, 48),
+      onSelected: (v) {
+        switch (v) {
+          case 'account':
+            onAccount();
+          case 'users':
+            onManageUsers();
+          case 'signout':
+            onSignOut();
+        }
+      },
+      itemBuilder: (context) => [
+        if (email != null)
+          PopupMenuItem<String>(
+            enabled: false,
+            child: Text(
+              email!,
+              style: const TextStyle(
+                  color: AppColors.textMuted, fontSize: 13),
+            ),
+          ),
+        const PopupMenuItem<String>(
+          value: 'account',
+          child: Row(
+            children: [
+              Icon(Icons.person_outline, size: 18, color: AppColors.text),
+              SizedBox(width: AppSpacing.sm),
+              Text('Account'),
+            ],
+          ),
+        ),
+        if (isAdmin)
+          const PopupMenuItem<String>(
+            value: 'users',
+            child: Row(
+              children: [
+                Icon(Icons.admin_panel_settings_outlined,
+                    size: 18, color: AppColors.primary),
+                SizedBox(width: AppSpacing.sm),
+                Text('Manage users'),
+              ],
+            ),
+          ),
+        const PopupMenuDivider(),
+        const PopupMenuItem<String>(
+          value: 'signout',
+          child: Row(
+            children: [
+              Icon(Icons.logout, size: 18, color: AppColors.text),
+              SizedBox(width: AppSpacing.sm),
+              Text('Log out'),
+            ],
+          ),
+        ),
+      ],
+      child: HoverScale(
+        child: UserAvatar(avatarUrl: avatarUrl, label: email, radius: 18),
       ),
     );
   }
@@ -1349,7 +1511,9 @@ class _Footer extends StatelessWidget {
     required this.onHowItWorks,
   });
   final VoidCallback onStart;
-  final VoidCallback onSeePlans;
+
+  /// Scrolls to pricing; null during the free launch (drops the Pricing link).
+  final VoidCallback? onSeePlans;
   final VoidCallback onStories;
   final VoidCallback onHowItWorks;
 
@@ -1389,7 +1553,7 @@ class _Footer extends StatelessWidget {
         title: 'Product',
         links: [
           ('How it works', onHowItWorks),
-          ('Pricing', onSeePlans),
+          if (onSeePlans != null) ('Pricing', onSeePlans!),
           ('Stories', onStories),
           ('Start coaching', onStart),
         ],

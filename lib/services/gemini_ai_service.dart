@@ -2,9 +2,11 @@ import 'dart:convert';
 
 import 'package:google_generative_ai/google_generative_ai.dart';
 
+import '../models/batch_photo_analysis.dart';
 import '../models/chat_message.dart';
 import '../models/photo_analysis.dart';
 import '../models/tier.dart';
+import '../models/user_profile.dart';
 import 'ai_service.dart';
 
 /// Real AI coach backed by Google Gemini (PRD section 6.2 names a Gemini flash
@@ -35,6 +37,7 @@ class GeminiAIService implements AIService {
   Stream<String> streamReply({
     required List<ChatMessage> history,
     required SubscriptionTier tier,
+    UserProfile? profile, // grounding comes from systemPromptBuilder + history
   }) async* {
     final model = _modelFor(tier);
     final contents = history
@@ -71,9 +74,27 @@ class GeminiAIService implements AIService {
     required String imageBase64,
     required SubscriptionTier tier,
     String? userNote,
+    AnalysisMode mode = AnalysisMode.deep,
   }) async {
     final model = _modelFor(tier);
-    final prompt = '''
+    final note =
+        userNote != null && userNote.isNotEmpty ? 'User note: $userNote' : '';
+    // Quick mode keeps the response tiny (no dimension breakdown, one tip) to
+    // save tokens; deep mode returns the full critique.
+    final prompt = mode == AnalysisMode.quick
+        ? '''
+Analyse this dating-profile photo as DateWise AI. Respond with ONLY valid JSON, no
+markdown, matching exactly this shape (keep it terse):
+{
+  "overallScore": <int 1-10>,
+  "verdict": "KEEP" | "RESHOOT" | "DELETE",
+  "headline": "<one punchy sentence>",
+  "matchRateDelta": <int, predicted % match-rate change if tips applied>,
+  "dimensions": [],
+  "tips": ["<one actionable tip>"]
+}
+$note'''
+        : '''
 Analyse this dating-profile photo as DateWise AI. Respond with ONLY valid JSON, no
 markdown, matching exactly this shape:
 {
@@ -90,7 +111,7 @@ markdown, matching exactly this shape:
   ],
   "tips": ["<actionable>", "<actionable>", "<actionable>"]
 }
-${userNote != null && userNote.isNotEmpty ? 'User note: $userNote' : ''}''';
+$note''';
 
     final response = await model.generateContent([
       Content.multi([
@@ -103,6 +124,50 @@ ${userNote != null && userNote.isNotEmpty ? 'User note: $userNote' : ''}''';
     final jsonStr = _extractJson(raw);
     final map = jsonDecode(jsonStr) as Map<String, dynamic>;
     return PhotoAnalysis.fromJson(map);
+  }
+
+  @override
+  Future<BatchPhotoAnalysis> analyzePhotos({
+    required List<String> imageBase64s,
+    required SubscriptionTier tier,
+    String? userNote,
+    AnalysisMode mode = AnalysisMode.deep,
+  }) async {
+    // Analyse each photo, then rank by score. (The Cloudflare backend is the
+    // default provider; this keeps the direct-Gemini path functional too.)
+    final results = await Future.wait(imageBase64s.map(
+      (b64) => analyzePhoto(
+        imageBase64: b64,
+        tier: tier,
+        userNote: userNote,
+        mode: AnalysisMode.quick,
+      ),
+    ));
+
+    final order = List.generate(results.length, (i) => i)
+      ..sort((a, b) => results[b].overallScore.compareTo(results[a].overallScore));
+
+    final photos = <RankedPhoto>[];
+    for (var rank = 0; rank < order.length; rank++) {
+      final i = order[rank];
+      final r = results[i];
+      photos.add(RankedPhoto(
+        imageIndex: i,
+        rank: rank + 1,
+        overallScore: r.overallScore,
+        verdict: r.verdict,
+        headline: r.headline,
+        why: r.tips.isNotEmpty ? r.tips.first : r.headline,
+      ));
+    }
+
+    final best = order.isEmpty ? 0 : order.first;
+    return BatchPhotoAnalysis(
+      photos: photos,
+      bestIndex: best,
+      recommendation: 'Lead with photo #${best + 1}.',
+      thumbnails: imageBase64s,
+    );
   }
 
   /// Strips ```json fences or surrounding prose the model may add.

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -41,8 +42,8 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  void _handleSend(BuildContext context, {String text = '', String? imageBase64}) {
-    context.read<AppState>().sendMessage(text: text, imageBase64: imageBase64);
+  void _handleSend(BuildContext context, {String text = '', List<String>? images}) {
+    context.read<AppState>().sendMessage(text: text, images: images);
     _scrollToBottom();
   }
 
@@ -67,8 +68,8 @@ class _ChatScreenState extends State<ChatScreen> {
       scrollController: _scrollController,
       isResponding: state.isResponding,
       canSendPhoto: state.photoCoachUnlocked,
-      onSend: ({String text = '', String? imageBase64}) =>
-          _handleSend(context, text: text, imageBase64: imageBase64),
+      onSend: ({String text = '', List<String>? images}) =>
+          _handleSend(context, text: text, images: images),
       onPhotoBlocked: () => _showUpgradeSheet(context),
       onOpenMenu: isWide ? null : () => _scaffoldKey.currentState?.openDrawer(),
       onNewThread: () => context.read<AppState>().createThread(),
@@ -107,7 +108,7 @@ class _ChatArea extends StatelessWidget {
   final ScrollController scrollController;
   final bool isResponding;
   final bool canSendPhoto;
-  final void Function({String text, String? imageBase64}) onSend;
+  final void Function({String text, List<String>? images}) onSend;
   final VoidCallback onPhotoBlocked;
   final VoidCallback? onOpenMenu;
   final VoidCallback onNewThread;
@@ -126,6 +127,7 @@ class _ChatArea extends StatelessWidget {
           title: thread?.title ?? 'DateWise AI',
           subtitle: 'with your coach · ${state.tierInfo.name}',
           onOpenMenu: onOpenMenu,
+          onNewThread: onNewThread,
         ),
         const Divider(height: 1),
         Expanded(
@@ -154,6 +156,9 @@ class _ChatArea extends StatelessWidget {
           canSendPhoto: canSendPhoto,
           onPhotoBlocked: onPhotoBlocked,
           onSend: onSend,
+          analysisMode: state.analysisMode,
+          onAnalysisModeChanged: (m) =>
+              context.read<AppState>().setAnalysisMode(m),
         ),
       ],
     );
@@ -165,11 +170,13 @@ class _TopBar extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onOpenMenu,
+    required this.onNewThread,
   });
 
   final String title;
   final String subtitle;
   final VoidCallback? onOpenMenu;
+  final VoidCallback onNewThread;
 
   @override
   Widget build(BuildContext context) {
@@ -202,18 +209,26 @@ class _TopBar extends StatelessWidget {
                 ],
               ),
             ),
-            IconButton(
-              tooltip: 'Back to home',
-              icon: const Icon(Icons.home_outlined),
-              onPressed: () {
-                // ChatScreen is shown as the app's `home` for returning users,
-                // so there's nothing to pop — push the landing page instead.
-                // (Its app bar auto-shows a back arrow to return here.)
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const LandingScreen()),
-                );
-              },
-            ),
+            // On web the chat is reached from the marketing landing page, so we
+            // keep a way back to it. On mobile the chat lives inside the native
+            // tab shell — there is no website to return to, so we offer a
+            // "New conversation" action instead.
+            kIsWeb
+                ? IconButton(
+                    tooltip: 'Back to home',
+                    icon: const Icon(Icons.home_outlined),
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => const LandingScreen()),
+                      );
+                    },
+                  )
+                : IconButton(
+                    tooltip: 'New conversation',
+                    icon: const Icon(Icons.edit_square),
+                    onPressed: onNewThread,
+                  ),
           ],
         ),
       ),

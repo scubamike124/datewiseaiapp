@@ -50,8 +50,24 @@ dependencies:
   # Unique ids for threads/messages
   uuid: ^4.5.1
 
+  # SHA256 hashing of uploaded photos → cache key so the same image is never
+  # re-analysed (saves API calls). Previously only a transitive dependency.
+  crypto: ^3.0.0
+
+  # App version (shown in Settings → About).
+  package_info_plus: ^8.0.0
+
+  # Opening external links: privacy policy, support email, store rating,
+  # and the Play "manage subscription" page.
+  url_launcher: ^6.3.0
+
   # Calls the secure photo-coach backend (Cloudflare Worker)
   http: ^1.2.2
+
+  # Accounts, auth, and the user/subscription database (admin panel backend).
+  # Entirely optional: when unconfigured (see lib/services/supabase_config.dart)
+  # the app runs exactly as before with no sign-up required.
+  supabase_flutter: ^2.8.0
 
 dev_dependencies:
   flutter_test:
@@ -60,12 +76,29 @@ dev_dependencies:
   # Provides a fake image for Image.network in widget tests.
   network_image_mock: ^2.1.1
 
+  # Generates Android/iOS launcher icons from a single source image.
+  # Regenerate with: dart run flutter_launcher_icons
+  flutter_launcher_icons: ^0.14.1
+
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+
+# App launcher icon (Android + iOS), generated from a single source image.
+# Run `dart run flutter_launcher_icons` after changing app_icon.png.
+flutter_launcher_icons:
+  image_path: "assets/icon/app_icon.png"
+  android: true
+  ios: true
+  # iOS rejects icons with transparency; flatten any alpha just in case.
+  remove_alpha_ios: true
+  # The source is a finished tile (rounded corners + dark background baked in),
+  # so we generate standard launcher icons and let the launcher apply its own
+  # mask — rather than an adaptive icon, which would double the background and
+  # clip the heart under the circular safe-zone.
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -79,7 +112,10 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/images/
+    # NOTE: kept in a folder named "images" (not "assets/images") on purpose.
+    # Flutter web would otherwise output the doubled path build/web/assets/
+    # assets/images/..., which GoDaddy/cPanel ModSecurity blocks with a 403.
+    - images/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

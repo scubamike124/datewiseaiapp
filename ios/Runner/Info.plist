@@ -45,5 +45,7 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>DateWise AI uses photos you choose from your library to coach your dating-profile pictures.</string>
 </dict>
 </plist>

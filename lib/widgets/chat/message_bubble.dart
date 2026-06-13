@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../models/chat_message.dart';
 import '../../theme/app_theme.dart';
+import 'analyzing_card.dart';
+import 'batch_photo_analysis_card.dart';
 import 'coach_text.dart';
 import 'photo_analysis_card.dart';
 
@@ -43,7 +45,13 @@ class MessageBubble extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  if (message.imageBase64 != null)
+                  if (message.imageBase64s != null)
+                    Padding(
+                      padding: EdgeInsets.only(
+                          bottom: message.text.isEmpty ? 0 : AppSpacing.sm),
+                      child: _imageGrid(message.imageBase64s!),
+                    )
+                  else if (message.imageBase64 != null)
                     Padding(
                       padding: EdgeInsets.only(
                           bottom: message.text.isEmpty ? 0 : AppSpacing.sm),
@@ -72,6 +80,34 @@ class MessageBubble extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  /// A compact grid of the user's attached photos (rank & compare uploads).
+  Widget _imageGrid(List<String> images) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 218),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          for (final b64 in images)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+              child: Image.memory(
+                base64Decode(b64),
+                width: 100,
+                height: 100,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox(
+                  width: 100,
+                  height: 100,
+                  child: Icon(Icons.broken_image, color: Colors.white),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -110,7 +146,9 @@ class MessageBubble extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (message.text.isNotEmpty)
+                  if (message.isAnalyzing)
+                    const AnalyzingCard()
+                  else if (message.text.isNotEmpty)
                     CoachText(message.text)
                   else if (message.isStreaming)
                     const _TypingDots(),
@@ -121,6 +159,8 @@ class MessageBubble extends StatelessWidget {
                     ),
                   if (message.analysis != null)
                     PhotoAnalysisCard(analysis: message.analysis!),
+                  if (message.batchAnalysis != null)
+                    BatchPhotoAnalysisCard(analysis: message.batchAnalysis!),
                 ],
               ),
             ),

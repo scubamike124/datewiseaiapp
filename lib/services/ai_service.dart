@@ -1,6 +1,8 @@
+import '../models/batch_photo_analysis.dart';
 import '../models/chat_message.dart';
 import '../models/photo_analysis.dart';
 import '../models/tier.dart';
+import '../models/user_profile.dart';
 import 'ai_config.dart';
 import 'backend_ai_service.dart';
 import 'gemini_ai_service.dart';
@@ -15,17 +17,30 @@ abstract class AIService {
   ///
   /// [history] is the full thread (oldest first), with the latest user message
   /// already appended. [tier] gates which capabilities the coach will use.
+  /// [profile] (when known) lets the coach ground advice in the user's specifics.
   Stream<String> streamReply({
     required List<ChatMessage> history,
     required SubscriptionTier tier,
+    UserProfile? profile,
   });
 
   /// Analyses an uploaded photo (Magnet tier only). Returns a structured
-  /// score/verdict/feedback result.
+  /// score/verdict/feedback result. [mode] selects a fast/cheap pass vs the
+  /// full breakdown (see [AnalysisMode]).
   Future<PhotoAnalysis> analyzePhoto({
     required String imageBase64,
     required SubscriptionTier tier,
     String? userNote,
+    AnalysisMode mode = AnalysisMode.deep,
+  });
+
+  /// Analyses several photos together (Magnet tier), scoring each and ranking
+  /// the set best→worst with an overall recommendation (rank & compare).
+  Future<BatchPhotoAnalysis> analyzePhotos({
+    required List<String> imageBase64s,
+    required SubscriptionTier tier,
+    String? userNote,
+    AnalysisMode mode = AnalysisMode.deep,
   });
 
   /// Human-readable provider label for diagnostics / settings.

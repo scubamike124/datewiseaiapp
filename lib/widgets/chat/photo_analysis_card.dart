@@ -83,7 +83,7 @@ class PhotoAnalysisCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '+${analysis.matchRateDelta}%',
+                  '${analysis.matchRateDelta >= 0 ? '+' : ''}${analysis.matchRateDelta}%',
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,

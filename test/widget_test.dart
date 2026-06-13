@@ -29,10 +29,11 @@ void main() {
       await tester.pump();
     });
 
-    // Hero copy + primary CTAs are above the fold in the test viewport.
+    // Hero copy + primary CTA are above the fold in the test viewport.
     expect(find.textContaining('matched'), findsWidgets);
-    expect(find.text('Start your free session'), findsOneWidget);
-    expect(find.text('See pricing'), findsOneWidget);
+    expect(find.text('Start coaching free'), findsOneWidget);
+    // Free launch hides pricing, so the "See pricing" CTA is not shown.
+    expect(find.text('See pricing'), findsNothing);
   });
 
   test('Tier capability gating matches the PRD matrix', () {

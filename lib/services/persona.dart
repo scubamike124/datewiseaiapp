@@ -1,3 +1,4 @@
+import '../app_flags.dart';
 import '../models/tier.dart';
 import '../models/user_profile.dart';
 
@@ -22,16 +23,38 @@ like a stylish, modern best friend. Voice rules:
 - Never moralize or hedge with "it depends" without giving a concrete answer.''';
 
   /// Builds the full system prompt for a given tier, including the capability
-  /// boundary so the model stays in-lane for the user's plan.
-  static String systemPrompt(SubscriptionTier tier) {
+  /// boundary so the model stays in-lane for the user's plan. When [profile] is
+  /// supplied, the coach grounds every answer in the user's specifics.
+  static String systemPrompt(SubscriptionTier tier, {UserProfile? profile}) {
     final info = TierInfo.of(tier);
+    final profileLine = profile != null
+        ? '\n\nThe user is a ${profile.summary}. Tailor every answer to this — '
+            'their app, gender, who they want to attract, and their dating goal. '
+            'Never give generic advice when you can make it specific to them.'
+        : '';
+
+    // Free launch: every feature is unlocked and the app is free, so the coach
+    // must never reference prices, plans, tiers, upgrades, or subscriptions.
+    if (AppFlags.freeLaunch) {
+      return '''
+$voice
+
+The user has full, free access to every DateWise AI capability:
+${_capabilitySummary(tier)}.
+
+$_tierGuidance${_tierExtra(tier)}$profileLine
+
+Never mention prices, plans, tiers, upgrades, or subscriptions — every feature
+is already available to the user at no cost.''';
+    }
+
     return '''
 $voice
 
 The user is on the **${info.name}** plan (${info.priceLabel}/wk).
 You may use ONLY these capabilities: ${_capabilitySummary(tier)}.
 
-$_tierGuidance${_tierExtra(tier)}
+$_tierGuidance${_tierExtra(tier)}$profileLine
 
 If the user asks for something outside their plan, briefly acknowledge it, give
 one genuinely useful tip you *can* offer at their tier, then invite them to

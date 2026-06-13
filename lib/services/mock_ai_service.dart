@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import '../models/batch_photo_analysis.dart';
 import '../models/chat_message.dart';
 import '../models/photo_analysis.dart';
 import '../models/tier.dart';
+import '../models/user_profile.dart';
 import 'ai_service.dart';
 
 /// Offline, deterministic coach that lets DateWise AI run end-to-end with no
@@ -22,6 +24,7 @@ class MockAIService implements AIService {
   Stream<String> streamReply({
     required List<ChatMessage> history,
     required SubscriptionTier tier,
+    UserProfile? profile, // unused: the offline coach infers intent from text
   }) async* {
     final lastUser = history.lastWhere(
       (m) => m.isUser,
@@ -254,6 +257,7 @@ class MockAIService implements AIService {
     required String imageBase64,
     required SubscriptionTier tier,
     String? userNote,
+    AnalysisMode mode = AnalysisMode.deep,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 900));
 
@@ -262,6 +266,19 @@ class MockAIService implements AIService {
     final seed = _seedFrom(imageBase64.length.toString() + imageBase64.substring(0, imageBase64.length.clamp(0, 24)));
     final overall = 5 + (seed % 5); // 5..9
     final verdict = PhotoVerdict.fromScore(overall);
+
+    // Quick mode mirrors the lean backend response: no dimension breakdown and
+    // a single tip.
+    if (mode == AnalysisMode.quick) {
+      return PhotoAnalysis(
+        overallScore: overall,
+        verdict: verdict,
+        headline: _verdictHeadline(verdict, overall),
+        matchRateDelta: 8 + (seed % 18),
+        dimensions: const [],
+        tips: [_verdictTips(verdict).first],
+      );
+    }
 
     return PhotoAnalysis(
       overallScore: overall,
@@ -302,6 +319,58 @@ class MockAIService implements AIService {
         ),
       ],
       tips: _verdictTips(verdict),
+    );
+  }
+
+  @override
+  Future<BatchPhotoAnalysis> analyzePhotos({
+    required List<String> imageBase64s,
+    required SubscriptionTier tier,
+    String? userNote,
+    AnalysisMode mode = AnalysisMode.deep,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 1200));
+
+    // Deterministic score per photo, then rank by score (highest = rank 1).
+    final scored = <({int index, int score})>[];
+    for (var i = 0; i < imageBase64s.length; i++) {
+      final b64 = imageBase64s[i];
+      final seed = _seedFrom(
+          '$i${b64.length}${b64.substring(0, b64.length.clamp(0, 24))}');
+      scored.add((index: i, score: 4 + (seed % 6))); // 4..9
+    }
+    final order = [...scored]..sort((a, b) => b.score.compareTo(a.score));
+
+    final photos = <RankedPhoto>[];
+    for (var rank = 0; rank < order.length; rank++) {
+      final s = order[rank];
+      final verdict = PhotoVerdict.fromScore(s.score);
+      photos.add(RankedPhoto(
+        imageIndex: s.index,
+        rank: rank + 1,
+        overallScore: s.score,
+        verdict: verdict,
+        headline: _verdictHeadline(verdict, s.score),
+        why: rank == 0
+            ? 'Best lighting and clearest read of your face — lead with this.'
+            : verdict == PhotoVerdict.delete
+                ? 'Weakest of the set; swap it for something brighter.'
+                : 'Solid backup, but not your strongest opener.',
+      ));
+    }
+
+    final best = order.first.index;
+    final worst = order.last;
+    final rec = order.length > 1
+        ? 'Lead with photo #${best + 1}.'
+            '${worst.score < 5 ? ' Consider dropping #${worst.index + 1}.' : ''}'
+        : 'Lead with photo #${best + 1}.';
+
+    return BatchPhotoAnalysis(
+      photos: photos,
+      bestIndex: best,
+      recommendation: rec,
+      thumbnails: imageBase64s,
     );
   }
 

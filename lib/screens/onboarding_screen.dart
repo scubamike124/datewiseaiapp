@@ -1,12 +1,16 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../app_flags.dart';
+import '../models/tier.dart';
 import '../models/user_profile.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common/brand_mark.dart';
 import 'chat_screen.dart';
+import 'home_shell.dart';
 
 /// Profile questionnaire shown after tier selection, before the first chat.
 /// Collects gender, age, who they're interested in, their goal, and the app
@@ -60,10 +64,25 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ? null
           : _cityController.text.trim(),
     );
-    await context.read<AppState>().completeOnboarding(profile);
+    final state = context.read<AppState>();
+    // Mobile reaches onboarding without picking a plan first (no landing page),
+    // so pick a sensible default silently. During the free launch every feature
+    // is unlocked, so default to Magnet (the full toolkit) — otherwise the
+    // recommended Flame plan. (On web the tier is already chosen on the landing
+    // page; this is a no-op there.)
+    if (!state.hasTier) {
+      await state.selectTier(AppFlags.freeLaunch
+          ? SubscriptionTier.magnet
+          : SubscriptionTier.flame);
+    }
+    await state.completeOnboarding(profile);
     if (!mounted) return;
+    // Web continues into the standalone chat (reached from the landing page);
+    // mobile drops into the native tab shell.
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const ChatScreen()),
+      MaterialPageRoute(
+        builder: (_) => kIsWeb ? const ChatScreen() : const HomeShell(),
+      ),
     );
   }
 
