@@ -1,4 +1,4 @@
-package com.datewise.datewise_ai
+package com.datewise.ai
 
 import io.flutter.embedding.android.FlutterActivity
 

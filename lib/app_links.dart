@@ -5,16 +5,17 @@ class AppLinks {
   AppLinks._();
 
   /// Support / contact email (used by "Contact support" → mail composer).
-  static const String supportEmail = 'support@datewise.app';
+  static const String supportEmail = 'support@datewiseai.com';
 
-  /// Optional public Privacy Policy / Terms URLs. When empty, Settings shows the
-  /// in-app pages only; when set, a "View online" link is also offered.
-  static const String privacyPolicyUrl = '';
-  static const String termsUrl = '';
+  /// Public Privacy Policy / Terms URLs (hosted on datewiseai.com; also bundled in
+  /// the web build as web/privacy.html + web/terms.html). When set, the in-app
+  /// legal screens also offer a "View online" link.
+  static const String privacyPolicyUrl = 'https://datewiseai.com/privacy-policy';
+  static const String termsUrl = 'https://datewiseai.com/terms-of-service';
 
   /// Android Play Store listing (for "Rate the app"). Matches the release
   /// `applicationId` in android/app/build.gradle.kts.
-  static const String androidPackage = 'com.datewise.datewise_ai';
+  static const String androidPackage = 'com.datewise.ai';
   static String get playStoreUrl =>
       'https://play.google.com/store/apps/details?id=$androidPackage';
 

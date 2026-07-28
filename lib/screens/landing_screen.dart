@@ -1,8 +1,10 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../app_flags.dart';
+import '../app_links.dart';
 import '../models/tier.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
@@ -1517,6 +1519,11 @@ class _Footer extends StatelessWidget {
   final VoidCallback onStories;
   final VoidCallback onHowItWorks;
 
+  /// Opens a legal page (Privacy / Terms) at its public URL in a new tab.
+  void _openUrl(String url) {
+    launchUrl(Uri.parse(url), webOnlyWindowName: '_blank');
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1569,9 +1576,8 @@ class _Footer extends StatelessWidget {
       _FooterColumn(
         title: 'Legal',
         links: [
-          ('Privacy', null),
-          ('Terms', null),
-          ('Cookies', null),
+          ('Privacy', () => _openUrl(AppLinks.privacyPolicyUrl)),
+          ('Terms', () => _openUrl(AppLinks.termsUrl)),
         ],
       ),
     ];
