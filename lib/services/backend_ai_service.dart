@@ -52,8 +52,8 @@ class BackendAIService implements AIService {
 
       if (res.statusCode != 200) {
         await res.stream.drain<void>();
-        yield* chatFallback.streamReply(
-            history: history, tier: tier, profile: profile);
+        // Production must never silently substitute mock coaching for live AI.
+        yield _productionUnavailableMessage;
         return;
       }
 
@@ -71,21 +71,21 @@ class BackendAIService implements AIService {
         }
       }
 
-      // Empty/garbled stream → fall back rather than leaving a blank reply.
       if (!emittedAny) {
-        yield* chatFallback.streamReply(
-            history: history, tier: tier, profile: profile);
+        yield _productionUnavailableMessage;
       }
     } catch (_) {
-      // Only fall back if we hadn't started streaming, to avoid a doubled reply.
       if (!emittedAny) {
-        yield* chatFallback.streamReply(
-            history: history, tier: tier, profile: profile);
+        yield _productionUnavailableMessage;
       }
     } finally {
       client.close();
     }
   }
+
+  static const String _productionUnavailableMessage =
+      "I'm having trouble reaching the DateWise coach right now. "
+      "Please try again in a moment — this is a temporary connection issue, not advice.";
 
   /// Extracts the incremental text from one SSE `data:` payload, ignoring
   /// keep-alives and any partial/non-JSON lines.

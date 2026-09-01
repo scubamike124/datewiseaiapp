@@ -20,9 +20,8 @@ class AppLinks {
       'https://play.google.com/store/apps/details?id=$androidPackage';
 
   /// Apple App Store numeric id (App Store Connect → App Information →
-  /// "Apple ID"). Empty until the app is published; when empty, the iOS
-  /// "Rate the app" action is hidden so it never opens the wrong store.
-  static const String iosAppStoreId = '';
+  /// "Apple ID"). Live listing: DateWise AI - Dating Coach.
+  static const String iosAppStoreId = '6780110141';
   static String get appStoreUrl => 'https://apps.apple.com/app/id$iosAppStoreId';
 
   /// Play "manage subscriptions" page.

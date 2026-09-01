@@ -12,7 +12,36 @@
  */
 
 const MODEL = '@cf/meta/llama-3.2-11b-vision-instruct';
-const ALLOWED_ORIGIN = '*'; // lock to 'https://kaowserf.github.io' in production
+// Allow the production apex and the verified Cloudflare Pages builds.
+const ALLOWED_ORIGINS = new Set([
+  'https://datewiseai.com',
+  'https://www.datewiseai.com',
+  'https://datewiseai.pages.dev',
+]);
+
+function isAllowedOrigin(origin) {
+  if (!origin) return false;
+  if (ALLOWED_ORIGINS.has(origin)) return true;
+  try {
+    const host = new URL(origin).hostname;
+    return host.endsWith('.datewiseai.pages.dev');
+  } catch {
+    return false;
+  }
+}
+
+// Set per-request in fetch(); default is the apex.
+let ACTIVE_CORS_ORIGIN = 'https://datewiseai.com';
+
+function corsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': ACTIVE_CORS_ORIGIN,
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Max-Age': '86400',
+    Vary: 'Origin',
+  };
+}
 
 // Reject oversized uploads before spending an AI call (the client already
 // resizes to ~768px; this guards against a modified/old client). ~1.5 MB of
@@ -21,15 +50,6 @@ const MAX_IMAGE_BASE64_CHARS = 1_500_000;
 
 // Max photos in a single "rank & compare" request.
 const MAX_BATCH = 4;
-
-function corsHeaders() {
-  return {
-    'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Max-Age': '86400',
-  };
-}
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -59,7 +79,8 @@ Be brief. Give: an overall score from 1 to 10; a verdict (KEEP, RESHOOT, or DELE
 a one-sentence headline; the predicted change in match rate as a percentage; and ONE actionable tip.`;
 
 // Second-pass text model (supports JSON mode / structured outputs).
-const TEXT_MODEL = '@cf/meta/llama-3.1-8b-instruct';
+// llama-3.1-8b-instruct was deprecated 2026-05-30 — use fp8 / fast variants.
+const TEXT_MODEL = '@cf/meta/llama-3.1-8b-instruct-fp8';
 
 // --- Chat (AI coach replies) ----------------------------------------------
 // The same free text model powers the coaching chat. Replies stream back
@@ -264,9 +285,26 @@ function extractJson(text) {
 
 // Decodes a base64 string to a plain array of byte values (what Workers AI wants).
 function base64ToBytes(b64) {
-  const bin = atob(b64);
+  const cleaned = String(b64 || '').replace(/^data:image\/\w+;base64,/, '').trim();
+  if (!cleaned || cleaned.length < 32) {
+    throw new Error('INVALID_IMAGE: empty or too short');
+  }
+  let bin;
+  try {
+    bin = atob(cleaned);
+  } catch {
+    throw new Error('INVALID_IMAGE: not valid base64');
+  }
+  if (bin.length < 8) throw new Error('INVALID_IMAGE: decoded payload too small');
   const arr = new Array(bin.length);
   for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  // JPEG SOI (FFD8) or PNG signature — reject garbage early with a clear 400.
+  const isJpeg = arr[0] === 0xff && arr[1] === 0xd8;
+  const isPng =
+    arr[0] === 0x89 && arr[1] === 0x50 && arr[2] === 0x4e && arr[3] === 0x47;
+  if (!isJpeg && !isPng) {
+    throw new Error('INVALID_IMAGE: only JPEG or PNG photos are supported');
+  }
   return arr;
 }
 
@@ -519,6 +557,9 @@ async function handleChat(env, messages) {
 
 export default {
   async fetch(request, env) {
+    const origin = request.headers.get('Origin') || '';
+    ACTIVE_CORS_ORIGIN = isAllowedOrigin(origin) ? origin : 'https://datewiseai.com';
+
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders() });
     }
@@ -603,17 +644,36 @@ export default {
     const prompt = userNote ? `${basePrompt}\nUser note: ${userNote}` : basePrompt;
 
     // --- Pass 1: vision model critiques the photo (prose) -------------------
-    const visionInput = {
-      image: base64ToBytes(imageBase64),
-      prompt,
-      max_tokens: isQuick ? 350 : 800,
-    };
-
     let visionResult;
+    let visionInputBytes;
     try {
-      visionResult = await runModel(env, MODEL, visionInput);
+      visionInputBytes = base64ToBytes(imageBase64);
     } catch (e) {
-      return json({ error: 'Workers AI error', detail: String(e) }, 502);
+      const msg = String(e.message || e);
+      if (msg.startsWith('INVALID_IMAGE:')) {
+        return json({ error: msg.replace(/^INVALID_IMAGE:\s*/, '') }, 400);
+      }
+      return json({ error: 'Could not read that image. Try a JPG or PNG under ~5MB.' }, 400);
+    }
+    try {
+      visionResult = await runModel(env, MODEL, {
+        image: visionInputBytes,
+        prompt,
+        max_tokens: isQuick ? 350 : 800,
+      });
+    } catch (e) {
+      const detail = String(e);
+      if (detail.includes('5016') || /terms/i.test(detail)) {
+        return json(
+          {
+            error:
+              'Photo coach model license needs a one-time owner acceptance. Open the Worker URL with ?agree=1 once, then retry.',
+            detail,
+          },
+          503,
+        );
+      }
+      return json({ error: 'Workers AI error', detail }, 502);
     }
 
     const critique = (visionResult && (visionResult.response ?? visionResult.description) || '').trim();

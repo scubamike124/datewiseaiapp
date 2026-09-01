@@ -23,8 +23,10 @@ class AIConfig {
   );
 
   /// Paste your deployed Worker URL here (safe to commit — not a secret).
+  /// Production: owner Cloudflare account (Workers AI fp8 text model).
+  /// Obsolete (deprecated model): datewise-photo-coach.kaowserprobd.workers.dev
   static const String _inlinePhotoCoachUrl =
-      'https://datewise-photo-coach.kaowserprobd.workers.dev';
+      'https://datewise-photo-coach.scubamike124.workers.dev';
 
   static bool get hasPhotoCoachBackend => photoCoachUrl.trim().isNotEmpty;
 
