@@ -4,6 +4,7 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 
 import '../models/batch_photo_analysis.dart';
 import '../models/chat_message.dart';
+import '../models/coach.dart';
 import '../models/photo_analysis.dart';
 import '../models/tier.dart';
 import '../models/user_profile.dart';
@@ -38,6 +39,7 @@ class GeminiAIService implements AIService {
     required List<ChatMessage> history,
     required SubscriptionTier tier,
     UserProfile? profile, // grounding comes from systemPromptBuilder + history
+    Coach? coach, // local-testing client: the system prompt is fixed at construction (Emily)
   }) async* {
     final model = _modelFor(tier);
     final contents = history

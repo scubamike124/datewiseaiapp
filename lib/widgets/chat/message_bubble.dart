@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../../models/chat_message.dart';
+import '../../models/coach.dart';
+import '../coach/coach_avatar.dart';
 import '../../theme/app_theme.dart';
 import 'analyzing_card.dart';
 import 'batch_photo_analysis_card.dart';
@@ -12,9 +14,13 @@ import 'photo_analysis_card.dart';
 /// One chat row: user messages right-aligned in a rose bubble, coach messages
 /// left-aligned with the coach avatar and rich (markdown/photo-card) content.
 class MessageBubble extends StatelessWidget {
-  const MessageBubble({super.key, required this.message});
+  const MessageBubble({super.key, required this.message, this.coach});
 
   final ChatMessage message;
+
+  /// Whose message this is (the conversation's coach). Null keeps the
+  /// original DateWise mark.
+  final Coach? coach;
 
   @override
   Widget build(BuildContext context) {
@@ -119,15 +125,18 @@ class MessageBubble extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: const BoxDecoration(
-              gradient: AppColors.romanticGradient,
-              shape: BoxShape.circle,
+          if (coach != null)
+            CoachAvatar(coach: coach!, radius: 16)
+          else
+            Container(
+              width: 32,
+              height: 32,
+              decoration: const BoxDecoration(
+                gradient: AppColors.romanticGradient,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.auto_awesome, color: Colors.white, size: 16),
             ),
-            child: const Icon(Icons.auto_awesome, color: Colors.white, size: 16),
-          ),
           const SizedBox(width: AppSpacing.sm),
           Flexible(
             child: Container(

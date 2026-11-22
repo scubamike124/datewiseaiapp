@@ -1,5 +1,6 @@
 import '../models/batch_photo_analysis.dart';
 import '../models/chat_message.dart';
+import '../models/coach.dart';
 import '../models/photo_analysis.dart';
 import '../models/tier.dart';
 import '../models/user_profile.dart';
@@ -18,10 +19,12 @@ abstract class AIService {
   /// [history] is the full thread (oldest first), with the latest user message
   /// already appended. [tier] gates which capabilities the coach will use.
   /// [profile] (when known) lets the coach ground advice in the user's specifics.
+  /// [coach] (default Emily) sets who answers and in which language.
   Stream<String> streamReply({
     required List<ChatMessage> history,
     required SubscriptionTier tier,
     UserProfile? profile,
+    Coach? coach,
   });
 
   /// Analyses an uploaded photo (Magnet tier only). Returns a structured

@@ -9,6 +9,7 @@ import '../app_flags.dart';
 import '../models/batch_photo_analysis.dart';
 import '../models/chat_message.dart';
 import '../models/chat_thread.dart';
+import '../models/coach.dart';
 import '../models/photo_analysis.dart';
 import '../models/tier.dart';
 import '../models/user_profile.dart';
@@ -169,6 +170,38 @@ class AppState extends ChangeNotifier {
   /// Real API calls made this session; cache hits don't count toward the limit.
   int _sessionPhotoCount = 0;
 
+  // --- Coach --------------------------------------------------------------
+
+  String? _coachId;
+
+  /// The coach new conversations start with (Emily until the user picks one).
+  Coach get selectedCoach => Coaches.byId(_coachId);
+
+  /// Whether the user has picked a coach yet.
+  bool get hasChosenCoach => _coachId != null;
+
+  /// The coach of the open conversation (each conversation keeps its coach).
+  Coach get activeCoach {
+    final t = activeThread;
+    return t == null ? selectedCoach : Coaches.byId(t.coachId);
+  }
+
+  /// Picks the coach for new conversations and opens a fresh conversation with
+  /// them, unless the open one is already theirs and still untouched.
+  Future<void> selectCoach(String id, {bool startConversation = true}) async {
+    final coach = Coaches.byId(id);
+    _coachId = coach.id;
+    await _storage.saveCoachId(coach.id);
+    final t = activeThread;
+    final untouched = t != null && !t.messages.any((m) => m.isUser);
+    if (startConversation && !(untouched && t.coachId == coach.id)) {
+      if (untouched) _threads.remove(t);
+      await createThread(title: coach.language == CoachLanguage.es ? 'Conversación con ${coach.name}' : 'Chat with ${coach.name}');
+    } else {
+      notifyListeners();
+    }
+  }
+
   // --- User profile -------------------------------------------------------
 
   UserProfile? _profile;
@@ -212,6 +245,7 @@ class AppState extends ChangeNotifier {
   void _load() {
     _tier = _storage.loadTier();
     _profile = _storage.loadProfile();
+    _coachId = _storage.loadCoachId();
     _analysisCache = _storage.loadAnalysisCache();
     _batchCache = _storage.loadBatchCache();
     _threads
@@ -256,11 +290,13 @@ class AppState extends ChangeNotifier {
 
   Future<ChatThread> createThread({String? title, bool greet = true}) async {
     final now = _now();
+    final coach = selectedCoach;
     final thread = ChatThread(
       id: _uuid.v4(),
-      title: title ?? 'New conversation',
+      title: title ?? (coach.language == CoachLanguage.es ? 'Nueva conversación' : 'New conversation'),
       createdAt: now,
       updatedAt: now,
+      coachId: coach.id,
     );
     if (greet) {
       thread.messages.add(
@@ -270,6 +306,7 @@ class AppState extends ChangeNotifier {
           text: CoachPersona.greeting(
             _aiTier,
             profile: _profile,
+            coach: coach,
           ),
           createdAt: now,
         ),
@@ -363,6 +400,7 @@ class AppState extends ChangeNotifier {
         history: List.of(thread.messages.where((m) => !m.isStreaming)),
         tier: tier,
         profile: _profile,
+        coach: Coaches.byId(thread.coachId),
       )) {
         coachMsg.text += chunk;
         notifyListeners();

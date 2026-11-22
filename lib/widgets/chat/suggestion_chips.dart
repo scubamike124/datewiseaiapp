@@ -20,7 +20,11 @@ class SuggestionChips extends StatelessWidget {
     required this.onSelect,
     required this.canSendPhoto,
     required this.onPhotoBlocked,
+    this.suggestions = _suggestions,
   });
+
+  /// The prompts to show (the active coach's, in their language).
+  final List<Suggestion> suggestions;
 
   /// Sends the chosen prompt text into the chat.
   final ValueChanged<String> onSelect;
@@ -44,7 +48,7 @@ class SuggestionChips extends StatelessWidget {
         child: Wrap(
           spacing: AppSpacing.sm,
           runSpacing: AppSpacing.sm,
-          children: _suggestions.map((s) {
+          children: suggestions.map((s) {
             final locked = s.requiresPhoto && !canSendPhoto;
             return _Chip(
               suggestion: s,
@@ -107,10 +111,12 @@ class _ChipState extends State<_Chip> {
             children: [
               Text(widget.suggestion.emoji, style: const TextStyle(fontSize: 15)),
               const SizedBox(width: 8),
-              Text(
-                widget.suggestion.label,
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(fontWeight: FontWeight.w500),
+              Flexible(
+                child: Text(
+                  widget.suggestion.label,
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.w500),
+                ),
               ),
               if (widget.locked) ...[
                 const SizedBox(width: 6),

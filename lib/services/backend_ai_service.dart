@@ -1,9 +1,11 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
 
 import '../models/batch_photo_analysis.dart';
 import '../models/chat_message.dart';
+import '../models/coach.dart';
 import '../models/photo_analysis.dart';
 import '../models/tier.dart';
 import '../models/user_profile.dart';
@@ -35,10 +37,11 @@ class BackendAIService implements AIService {
     required List<ChatMessage> history,
     required SubscriptionTier tier,
     UserProfile? profile,
+    Coach? coach,
   }) async* {
     final payload = jsonEncode({
       'tier': tier.name,
-      'messages': _buildMessages(history, tier, profile),
+      'messages': buildMessages(history, tier, profile, coach),
     });
 
     final client = http.Client();
@@ -53,7 +56,7 @@ class BackendAIService implements AIService {
       if (res.statusCode != 200) {
         await res.stream.drain<void>();
         // Production must never silently substitute mock coaching for live AI.
-        yield _productionUnavailableMessage;
+        yield unavailableMessage(coach);
         return;
       }
 
@@ -72,20 +75,23 @@ class BackendAIService implements AIService {
       }
 
       if (!emittedAny) {
-        yield _productionUnavailableMessage;
+        yield unavailableMessage(coach);
       }
     } catch (_) {
       if (!emittedAny) {
-        yield _productionUnavailableMessage;
+        yield unavailableMessage(coach);
       }
     } finally {
       client.close();
     }
   }
 
-  static const String _productionUnavailableMessage =
-      "I'm having trouble reaching the DateWise coach right now. "
-      "Please try again in a moment — this is a temporary connection issue, not advice.";
+  /// Shown when the live coach cannot be reached, in the coach's language.
+  static String unavailableMessage(Coach? coach) => coach?.language == CoachLanguage.es
+      ? 'Ahora mismo no puedo conectar con tu coach de DateWise. '
+          'Inténtalo de nuevo en un momento: es un problema temporal de conexión, no un consejo.'
+      : "I'm having trouble reaching the DateWise coach right now. "
+          "Please try again in a moment — this is a temporary connection issue, not advice.";
 
   /// Extracts the incremental text from one SSE `data:` payload, ignoring
   /// keep-alives and any partial/non-JSON lines.
@@ -99,15 +105,17 @@ class BackendAIService implements AIService {
 
   /// Builds the OpenAI-style message list for the worker: a system prompt
   /// (DateWise persona + the user's profile) followed by the conversation.
-  List<Map<String, String>> _buildMessages(
+  @visibleForTesting
+  List<Map<String, String>> buildMessages(
     List<ChatMessage> history,
     SubscriptionTier tier,
-    UserProfile? profile,
-  ) {
+    UserProfile? profile, [
+    Coach? coach,
+  ]) {
     final messages = <Map<String, String>>[
       {
         'role': 'system',
-        'content': CoachPersona.systemPrompt(tier, profile: profile),
+        'content': CoachPersona.systemPrompt(tier, profile: profile, coach: coach),
       },
     ];
     for (final m in history) {

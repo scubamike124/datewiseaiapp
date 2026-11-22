@@ -1,7 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
 import '../models/batch_photo_analysis.dart';
 import '../models/chat_message.dart';
+import '../models/coach.dart';
 import '../models/photo_analysis.dart';
 import '../models/tier.dart';
 import '../models/user_profile.dart';
@@ -25,6 +28,7 @@ class MockAIService implements AIService {
     required List<ChatMessage> history,
     required SubscriptionTier tier,
     UserProfile? profile, // unused: the offline coach infers intent from text
+    Coach? coach,
   }) async* {
     final lastUser = history.lastWhere(
       (m) => m.isUser,
@@ -35,7 +39,9 @@ class MockAIService implements AIService {
         createdAt: DateTime(2026),
       ),
     );
-    final reply = _composeReply(lastUser, tier, history);
+    final reply = coach?.language == CoachLanguage.es
+        ? spanishReply(lastUser.text, coach!)
+        : _composeReply(lastUser, tier, history);
 
     // Stream word-by-word with a small delay for a live-typing feel.
     final words = reply.split(' ');
@@ -43,6 +49,41 @@ class MockAIService implements AIService {
       await Future<void>.delayed(const Duration(milliseconds: 22));
       yield i == 0 ? words[i] : ' ${words[i]}';
     }
+  }
+
+  /// The offline coach's Spanish answers (Isabella, Mateo): the same intents as
+  /// the English coach, written in Spanish, so the demo build shows Spanish
+  /// coaching end to end without a network.
+  @visibleForTesting
+  static String spanishReply(String userText, Coach coach) {
+    final t = userText.toLowerCase();
+    bool has(List<String> words) => words.any(t.contains);
+    if (has(['bio', 'perfil', 'descripción', 'descripcion'])) {
+      return 'Me encanta que quieras mejorar tu perfil. Antes de escribirlo, cuéntame tres cosas: '
+          '**¿qué te gusta hacer en tu tiempo libre, qué buscas** (algo serio o conocer gente) '
+          '**y qué tono prefieres**, divertido o más sincero? Con eso te escribo una biografía que suene a ti.';
+    }
+    if (has(['primer mensaje', 'abrir', 'opener', 'saludo', 'escribirle', 'qué le escribo', 'que le escribo'])) {
+      return 'Un buen primer mensaje habla de **algo concreto de su perfil**. Por ejemplo: '
+          '"Vi que te gusta el senderismo, ¿cuál es la mejor ruta que has hecho?" '
+          'Es fácil de contestar y muestra que leíste su perfil. **¿Qué aparece en su perfil?**';
+    }
+    if (has(['enfri', 'no contesta', 'dejó de', 'dejo de', 'ya no me escribe', 'visto'])) {
+      return 'Pasa más de lo que crees, y no siempre significa desinterés. Envía **un solo mensaje ligero**, '
+          'sin reproches: "¡Oye! Me acordé de ti cuando vi esto, ¿cómo va tu semana?" '
+          'Si no responde, deja que la conversación descanse. **¿Cuánto tiempo lleva sin escribir?**';
+    }
+    if (has(['cita', 'salir', 'quedar', 'conocer'])) {
+      return 'Para una primera cita, algo sencillo y en **un lugar público**: un café o un paseo de una hora. '
+          'Avisa a un amigo de dónde estarás y llega por tu cuenta. '
+          '**¿Qué les gusta a los dos?** Así te propongo un plan concreto.';
+    }
+    if (has(['foto'])) {
+      return 'Envíame tus fotos y te digo cuáles mantener. La primera debe mostrar **tu cara con buena luz** '
+          'y una sonrisa natural.';
+    }
+    return 'Cuéntame un poco más: **¿en qué punto estás** (perfil, conversación, primera cita o relación) '
+        '**y qué te gustaría conseguir?** Así te doy un consejo concreto.';
   }
 
   String _composeReply(

@@ -1,4 +1,5 @@
 import '../app_flags.dart';
+import '../models/coach.dart';
 import '../models/tier.dart';
 import '../models/user_profile.dart';
 
@@ -12,8 +13,7 @@ class CoachPersona {
   static const String coachName = 'DateWise AI';
 
   static const String voice = '''
-You are DateWise AI, an elite, warm, and brutally honest dating coach who speaks
-like a stylish, modern best friend. Voice rules:
+Voice rules shared by every DateWise coach (your own style above comes first):
 - Direct and warm, never generic or preachy.
 - Short paragraphs, with bullet lists when useful.
 - Use **bold** for punchlines and key takeaways.
@@ -22,10 +22,39 @@ like a stylish, modern best friend. Voice rules:
 - Rewrite bios in full; give exact copy-paste opener lines.
 - Never moralize or hedge with "it depends" without giving a concrete answer.''';
 
+  /// Who is speaking and in which language. Placed first in the system prompt
+  /// so it overrides the generic "You are DateWise AI" line in [voice].
+  static String coachIdentity(Coach coach) {
+    final style = coach.styleRules.map((r) => '- $r').join('\n');
+    final language = coach.language == CoachLanguage.es
+        ? 'LANGUAGE: Reply ONLY in natural, warm, neutral Latin-American Spanish, '
+            'whatever language the user writes in. Never switch to English. '
+            'Use "tú", not "usted".'
+        : 'LANGUAGE: Reply ONLY in natural, warm English. If the user writes in '
+            'another language, still reply in English and mention once that '
+            'Isabella and Mateo coach in Spanish.';
+    return '''
+You are ${coach.name}, a dating coach in the DateWise AI app. Always speak as ${coach.name}, in the first person.
+Your style:
+$style
+$language
+Never claim to be a human; if asked, say you are ${coach.name}, DateWise's AI coach.
+Never invent facts about the user: use only what they told you, and ask when you need more.
+Decline manipulative, deceptive or pressuring tactics and suggest a respectful alternative.
+For meeting someone from the internet, include basic safety: public place, tell a friend, own transport.''';
+  }
+
   /// Builds the full system prompt for a given tier, including the capability
   /// boundary so the model stays in-lane for the user's plan. When [profile] is
-  /// supplied, the coach grounds every answer in the user's specifics.
-  static String systemPrompt(SubscriptionTier tier, {UserProfile? profile}) {
+  /// supplied, the coach grounds every answer in the user's specifics. [coach]
+  /// (default Emily) sets the voice and the reply language.
+  static String systemPrompt(SubscriptionTier tier,
+      {UserProfile? profile, Coach? coach}) {
+    final c = coach ?? Coaches.fallback;
+    return '${coachIdentity(c)}\n\n${_basePrompt(tier, profile: profile)}';
+  }
+
+  static String _basePrompt(SubscriptionTier tier, {UserProfile? profile}) {
     final info = TierInfo.of(tier);
     final profileLine = profile != null
         ? '\n\nThe user is a ${profile.summary}. Tailor every answer to this — '
@@ -86,10 +115,26 @@ sentences, then ask the single most useful question to get started.''';
     }
   }
 
-  /// First message shown when a fresh thread is created, per tier. When a
-  /// [profile] is present, the greeting is personalised and skips re-asking the
-  /// basics the user already gave during onboarding.
-  static String greeting(SubscriptionTier tier, {UserProfile? profile}) {
+  /// First message of a new conversation with [coach]: the coach's own greeting,
+  /// in the coach's language. Without a coach (legacy callers) the original
+  /// DateWise AI greeting is used.
+  static String greeting(SubscriptionTier tier,
+      {UserProfile? profile, Coach? coach}) {
+    if (coach != null) {
+      // English coaches keep the personalised line onboarding made possible;
+      // the profile labels are English, so Spanish coaches rely on the system
+      // prompt (which carries the profile) instead.
+      if (profile != null && coach.language == CoachLanguage.en) {
+        return '${coach.greeting}\n\n_I already know you are a ${profile.age}-year-old '
+            '${profile.gender.label.toLowerCase()} on ${profile.app.label}, looking for '
+            '${profile.goal.label.toLowerCase()}._';
+      }
+      return coach.greeting;
+    }
+    return _legacyGreeting(tier, profile: profile);
+  }
+
+  static String _legacyGreeting(SubscriptionTier tier, {UserProfile? profile}) {
     if (profile != null) return _personalisedGreeting(tier, profile);
     switch (tier) {
       case SubscriptionTier.spark:

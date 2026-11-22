@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/chat_thread.dart';
+import '../models/coach.dart';
 import '../models/tier.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
@@ -10,6 +11,8 @@ import '../widgets/chat/chat_input.dart';
 import '../widgets/chat/message_bubble.dart';
 import '../widgets/chat/suggestion_chips.dart';
 import '../widgets/chat/thread_sidebar.dart';
+import '../widgets/coach/coach_avatar.dart';
+import 'coach_picker_screen.dart';
 import 'landing_screen.dart';
 
 /// AI coaching chat (PRD section 5.2): threaded conversations with DateWise AI,
@@ -75,6 +78,11 @@ class _ChatScreenState extends State<ChatScreen> {
       onNewThread: () => context.read<AppState>().createThread(),
     );
 
+    // First visit: the user picks one of the four coaches before chatting.
+    if (!state.hasChosenCoach) {
+      return Scaffold(body: CoachPicker(showHeader: true, onChosen: () {}));
+    }
+
     return Scaffold(
       key: _scaffoldKey,
       drawer: isWide ? null : const Drawer(child: ThreadSidebar()),
@@ -120,12 +128,17 @@ class _ChatArea extends StatelessWidget {
     // and starter prompts (mirrors the PRD's coaching entry points).
     final isFresh =
         thread != null && !thread!.messages.any((m) => m.isUser);
+    final coach = state.activeCoach;
+    const emojis = ['✍️', '🔥', '💬', '📸'];
 
     return Column(
       children: [
         _TopBar(
           title: thread?.title ?? 'DateWise AI',
-          subtitle: 'with your coach · ${state.tierInfo.name}',
+          subtitle: coach.language == CoachLanguage.es
+              ? 'con ${coach.name} · ${coach.language.label}'
+              : 'with ${coach.name} · ${coach.language.label}',
+          coach: coach,
           onOpenMenu: onOpenMenu,
           onNewThread: onNewThread,
         ),
@@ -134,19 +147,24 @@ class _ChatArea extends StatelessWidget {
           child: thread == null
               ? _NoThread(onNewThread: onNewThread)
               : isFresh
-                  ? const _WelcomeState()
+                  ? _WelcomeState(coach: coach)
                   : ListView.builder(
                       controller: scrollController,
                       padding:
                           const EdgeInsets.symmetric(vertical: AppSpacing.md),
                       itemCount: thread!.messages.length,
                       itemBuilder: (context, i) =>
-                          MessageBubble(message: thread!.messages[i]),
+                          MessageBubble(message: thread!.messages[i], coach: coach),
                     ),
         ),
         // Starter prompts while the conversation is fresh.
         if (isFresh && !isResponding)
           SuggestionChips(
+            suggestions: [
+              for (var i = 0; i < coach.starters.length; i++)
+                Suggestion(emojis[i % emojis.length], coach.starters[i],
+                    requiresPhoto: i == coach.starters.length - 1),
+            ],
             canSendPhoto: canSendPhoto,
             onPhotoBlocked: onPhotoBlocked,
             onSelect: (text) => onSend(text: text),
@@ -169,12 +187,14 @@ class _TopBar extends StatelessWidget {
   const _TopBar({
     required this.title,
     required this.subtitle,
+    required this.coach,
     required this.onOpenMenu,
     required this.onNewThread,
   });
 
   final String title;
   final String subtitle;
+  final Coach coach;
   final VoidCallback? onOpenMenu;
   final VoidCallback onNewThread;
 
@@ -194,6 +214,21 @@ class _TopBar extends StatelessWidget {
                 icon: const Icon(Icons.menu),
                 onPressed: onOpenMenu,
               ),
+            Tooltip(
+              message: 'Switch coach',
+              child: InkWell(
+                key: const ValueKey('switch-coach'),
+                customBorder: const CircleBorder(),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const CoachPickerScreen()),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: CoachAvatar(coach: coach, radius: 18),
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -204,6 +239,8 @@ class _TopBar extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.titleMedium),
                   Text(subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall
                           ?.copyWith(color: AppColors.textMuted)),
                 ],
@@ -276,7 +313,8 @@ class _NoThread extends StatelessWidget {
 
 /// Centered welcome shown for a fresh conversation, above the starter chips.
 class _WelcomeState extends StatelessWidget {
-  const _WelcomeState();
+  const _WelcomeState({required this.coach});
+  final Coach coach;
 
   @override
   Widget build(BuildContext context) {
@@ -287,26 +325,17 @@ class _WelcomeState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: const BoxDecoration(
-                gradient: AppColors.romanticGradient,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.auto_awesome, color: Colors.white, size: 30),
-            ),
+            CoachAvatar(coach: coach, radius: 32),
             const SizedBox(height: AppSpacing.lg),
             Text(
-              'Hey gorgeous. What are we fixing today?',
+              coach.welcomeTitle,
               textAlign: TextAlign.center,
               style: theme.textTheme.headlineSmall
                   ?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'Ask about your bio, openers, mid-conversation panic, or anything '
-              'dating-related. Pick a starter below or just type.',
+              coach.welcomeBody,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyLarge
                   ?.copyWith(color: AppColors.textMuted),

@@ -7,8 +7,13 @@ class ChatThread {
     required this.title,
     required this.createdAt,
     required this.updatedAt,
+    this.coachId = 'emily',
     List<ChatMessage>? messages,
   }) : messages = messages ?? [];
+
+  /// The coach this conversation is with (see Coaches). Conversations saved
+  /// before coaches existed load as Emily, the original English voice.
+  final String coachId;
 
   final String id;
   String title;
@@ -31,6 +36,7 @@ class ChatThread {
     'title': title,
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
+    'coachId': coachId,
     'messages': messages.map((m) => m.toJson()).toList(),
   };
 
@@ -41,6 +47,7 @@ class ChatThread {
         DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime(2026),
     updatedAt:
         DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime(2026),
+    coachId: json['coachId'] as String? ?? 'emily',
     messages: (json['messages'] as List? ?? [])
         .map((m) => ChatMessage.fromJson(m as Map<String, dynamic>))
         .toList(),

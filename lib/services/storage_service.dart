@@ -22,6 +22,7 @@ class StorageService {
   static const _kIntroSeen = 'dw_intro_seen';
   static const _kAnalysisCache = 'dw_analysis_cache';
   static const _kBatchCache = 'dw_batch_cache';
+  static const _kCoach = 'dw_coach';
 
   /// Cap on cached photo analyses; oldest entries are evicted past this (LRU).
   static const _maxCacheEntries = 50;
@@ -52,6 +53,12 @@ class StorageService {
 
   bool get hasSeenIntro => _prefs.getBool(_kIntroSeen) ?? false;
   Future<void> setIntroSeen() => _prefs.setBool(_kIntroSeen, true);
+
+  // --- Coach --------------------------------------------------------------
+
+  /// The coach new conversations start with, or null before the user picks one.
+  String? loadCoachId() => _prefs.getString(_kCoach);
+  Future<void> saveCoachId(String id) => _prefs.setString(_kCoach, id);
 
   // --- User profile -------------------------------------------------------
 
