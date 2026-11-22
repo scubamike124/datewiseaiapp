@@ -1,0 +1,224 @@
+name: iOS build
+
+# Unsigned iOS release build on a macOS runner, to prove the app compiles for
+# iOS (no Mac needed locally). Uses the repository's free GitHub Actions
+# minutes; macOS minutes count 10x against that allowance, so this runs only
+# when iOS-relevant files change, or by hand. No secrets are used by the
+# default job, and nothing is signed, uploaded or submitted.
+#
+# The second job (signed-testflight) is a manual-only skeleton: it runs only
+# from "Run workflow" with signed_build ticked, and every step after the
+# secrets check is skipped unless all the signing secrets exist. See
+# docs/appstore/checklist.md ("GitHub secrets") for the exact secrets.
+on:
+  pull_request:
+    paths:
+      - 'ios/**'
+      - 'lib/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/ios-build.yml'
+  workflow_dispatch:
+    inputs:
+      run_tests:
+        description: 'Also run flutter test on macOS (tests already run on Linux in test.yml)'
+        type: boolean
+        default: false
+      signed_build:
+        description: 'Signed IPA build (needs the signing secrets; does nothing without them)'
+        type: boolean
+        default: false
+      upload_testflight:
+        description: 'After a signed build, upload the IPA to App Store Connect / TestFlight'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.47.9'
+
+jobs:
+  unsigned:
+    name: Unsigned release build (no codesign)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Toolchain
+        run: |
+          flutter --version
+          xcodebuild -version
+          sw_vers
+
+      - run: flutter pub get
+
+      - name: flutter test
+        if: github.event_name == 'workflow_dispatch' && inputs.run_tests
+        run: flutter test
+
+      - name: flutter build ios --release --no-codesign
+        run: flutter build ios --release --no-codesign
+
+      - name: Build settings summary
+        run: |
+          APP=build/ios/iphoneos/Runner.app
+          PB=/usr/libexec/PlistBuddy
+          {
+            echo "## iOS build summary"
+            echo ""
+            echo "| Setting | Value |"
+            echo "|--|--|"
+            echo "| Bundle id | $($PB -c 'Print :CFBundleIdentifier' $APP/Info.plist) |"
+            echo "| Display name | $($PB -c 'Print :CFBundleDisplayName' $APP/Info.plist) |"
+            echo "| Version | $($PB -c 'Print :CFBundleShortVersionString' $APP/Info.plist) |"
+            echo "| Build | $($PB -c 'Print :CFBundleVersion' $APP/Info.plist) |"
+            echo "| Minimum iOS | $($PB -c 'Print :MinimumOSVersion' $APP/Info.plist) |"
+            echo "| Localizations | $($PB -c 'Print :CFBundleLocalizations' $APP/Info.plist | tr -d '\n' | tr -s ' ') |"
+            echo "| ITSAppUsesNonExemptEncryption | $($PB -c 'Print :ITSAppUsesNonExemptEncryption' $APP/Info.plist) |"
+            echo "| PrivacyInfo.xcprivacy in bundle | $(test -f $APP/PrivacyInfo.xcprivacy && echo yes || echo NO) |"
+            echo "| es.lproj/InfoPlist.strings in bundle | $(test -f $APP/es.lproj/InfoPlist.strings && echo yes || echo NO) |"
+            echo "| App size | $(du -sh $APP | cut -f1) |"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$($PB -c 'Print :CFBundleIdentifier' $APP/Info.plist)" = "com.datewise.datewiseAi"
+          test -f $APP/PrivacyInfo.xcprivacy
+          test -f $APP/es.lproj/InfoPlist.strings
+          plutil -lint $APP/PrivacyInfo.xcprivacy
+
+      - name: Zip Runner.app
+        run: |
+          cd build/ios/iphoneos
+          ditto -c -k --sequesterRsrc --keepParent Runner.app "$GITHUB_WORKSPACE/Runner-app-unsigned.zip"
+          ls -lh "$GITHUB_WORKSPACE/Runner-app-unsigned.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: datewise-ios-Runner-app-unsigned
+          path: Runner-app-unsigned.zip
+          retention-days: 14
+          if-no-files-found: error
+
+  signed-testflight:
+    name: Signed IPA / TestFlight (manual, needs secrets)
+    if: github.event_name == 'workflow_dispatch' && inputs.signed_build
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      IOS_DIST_CERT_P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
+      IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+      IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+    steps:
+      - name: Check signing secrets
+        id: secrets
+        run: |
+          missing=""
+          for v in IOS_DIST_CERT_P12_BASE64 IOS_DIST_CERT_PASSWORD IOS_PROVISIONING_PROFILE_BASE64 APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8; do
+            if [ -z "${!v}" ]; then missing="$missing $v"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::notice::Signing secrets missing:$missing. Nothing was built or uploaded. See docs/appstore/checklist.md."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.ready == 'true'
+
+      - uses: subosito/flutter-action@v2
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install certificate and provisioning profile
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          echo "$IOS_DIST_CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/dist.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/dist.p12" -P "$IOS_DIST_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/dist.p12"
+
+          echo "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$RUNNER_TEMP/profile.mobileprovision"
+          security cms -D -i "$RUNNER_TEMP/profile.mobileprovision" > "$RUNNER_TEMP/profile.plist"
+          UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/profile.plist")
+          NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/profile.plist")
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$RUNNER_TEMP/profile.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/$UUID.mobileprovision"
+          mkdir -p "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+          cp "$RUNNER_TEMP/profile.mobileprovision" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/$UUID.mobileprovision"
+          echo "PROFILE_NAME=$NAME" >> "$GITHUB_ENV"
+
+      - name: Manual signing for the Runner target (CI checkout only, not committed)
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          # Only the Runner target's configurations end in exactly "datewiseAi;"
+          # (RunnerTests is ...datewiseAi.RunnerTests), so plugin targets keep
+          # their own signing settings.
+          sed -i '' "s/PRODUCT_BUNDLE_IDENTIFIER = com.datewise.datewiseAi;/PRODUCT_BUNDLE_IDENTIFIER = com.datewise.datewiseAi; CODE_SIGN_STYLE = Manual; DEVELOPMENT_TEAM = $APPLE_TEAM_ID; CODE_SIGN_IDENTITY = \"Apple Distribution\"; PROVISIONING_PROFILE_SPECIFIER = \"$PROFILE_NAME\";/" ios/Runner.xcodeproj/project.pbxproj
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict><key>com.datewise.datewiseAi</key><string>$PROFILE_NAME</string></dict>
+            <key>uploadSymbols</key><true/>
+          </dict>
+          </plist>
+          PLIST
+          sed -i '' 's/^          //' "$RUNNER_TEMP/ExportOptions.plist"
+          plutil -lint "$RUNNER_TEMP/ExportOptions.plist"
+
+      - name: flutter build ipa
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          flutter pub get
+          flutter build ipa --release --export-options-plist="$RUNNER_TEMP/ExportOptions.plist"
+          ls -lh build/ios/ipa
+
+      - uses: actions/upload-artifact@v4
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          name: datewise-ios-ipa-signed
+          path: build/ios/ipa/*.ipa
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Upload to App Store Connect (TestFlight)
+        if: steps.secrets.outputs.ready == 'true' && inputs.upload_testflight
+        run: |
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          printf '%s' "$ASC_KEY_P8" > "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          xcrun altool --upload-app --type ios --file build/ios/ipa/*.ipa \
+            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+
+      - name: Clean up keychain
+        if: always() && steps.secrets.outputs.ready == 'true'
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
