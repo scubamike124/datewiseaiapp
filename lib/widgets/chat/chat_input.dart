@@ -20,7 +20,11 @@ class ChatInput extends StatefulWidget {
     required this.analysisMode,
     required this.onAnalysisModeChanged,
     this.onPhotoBlocked,
+    this.hintText = 'Ask DateWise AI anything…',
   });
+
+  /// Placeholder in the message box (the active coach's, in their language).
+  final String hintText;
 
   final void Function({String text, List<String>? images}) onSend;
   final bool enabled;
@@ -146,8 +150,8 @@ class _ChatInputState extends State<ChatInput> {
                         maxLines: 5,
                         textInputAction: TextInputAction.send,
                         onSubmitted: (_) => _send(),
-                        decoration: const InputDecoration(
-                          hintText: 'Ask DateWise AI anything…',
+                        decoration: InputDecoration(
+                          hintText: widget.hintText,
                         ),
                       ),
                     ),

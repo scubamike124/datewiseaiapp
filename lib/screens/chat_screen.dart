@@ -170,6 +170,9 @@ class _ChatArea extends StatelessWidget {
             onSelect: (text) => onSend(text: text),
           ),
         ChatInput(
+          hintText: coach.language == CoachLanguage.es
+              ? 'Escríbele a ${coach.name}…'
+              : 'Message ${coach.name}…',
           enabled: !isResponding && thread != null,
           canSendPhoto: canSendPhoto,
           onPhotoBlocked: onPhotoBlocked,

@@ -72,6 +72,7 @@ void main() {
     expect(find.text('con Mateo · Español'), findsOneWidget);
     expect(find.text(Coaches.mateo.welcomeTitle), findsOneWidget);
     expect(find.text('Planea una primera cita'), findsOneWidget, reason: 'starters in Spanish');
+    expect(find.text('Escríbele a Mateo…'), findsOneWidget, reason: 'message box in Spanish');
 
     await tester.tap(find.text('Planea una primera cita'));
     await tester.pump();
@@ -87,6 +88,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('with Emily · English'), findsOneWidget);
     expect(find.text('Rewrite my dating bio'), findsOneWidget);
+    expect(find.text('Message Emily…'), findsOneWidget);
 
     await tester.tap(find.text('Rewrite my dating bio'));
     await tester.pump();
