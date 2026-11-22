@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../app_flags.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/common/premium.dart';
 import '../widgets/common/user_avatar.dart';
 import 'admin_users_screen.dart';
 import 'settings_screen.dart';
@@ -51,7 +52,7 @@ class _AccountScreenState extends State<AccountScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
-        backgroundColor: error ? Colors.red.shade700 : AppColors.primary,
+        backgroundColor: error ? const Color(0xFFB91C1C) : AppColors.raised,
       ),
     );
   }
@@ -134,9 +135,10 @@ class _AccountScreenState extends State<AccountScreen> {
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             tooltip: 'Settings',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
-            ),
+            onPressed:
+                () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                ),
           ),
         ],
       ),
@@ -149,31 +151,39 @@ class _AccountScreenState extends State<AccountScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Identity header
-                Row(
-                  children: [
-                    _EditableAvatar(
-                      avatarUrl: state.avatarUrl,
-                      label: state.userEmail,
-                      uploading: _uploadingAvatar,
-                      onTap: _uploadingAvatar ? null : _pickAndUploadAvatar,
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(state.displayName?.isNotEmpty == true
-                              ? state.displayName!
-                              : 'DateWise member',
-                              style: theme.textTheme.titleLarge),
-                          Text(state.userEmail ?? '',
-                              style: theme.textTheme.bodyMedium
-                                  ?.copyWith(color: AppColors.textMuted)),
-                        ],
+                GlassCard(
+                  glowColor: AppColors.primary,
+                  child: Row(
+                    children: [
+                      _EditableAvatar(
+                        avatarUrl: state.avatarUrl,
+                        label: state.userEmail,
+                        uploading: _uploadingAvatar,
+                        onTap: _uploadingAvatar ? null : _pickAndUploadAvatar,
                       ),
-                    ),
-                    if (state.isAdmin) _RoleChip(label: 'ADMIN'),
-                  ],
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              state.displayName?.isNotEmpty == true
+                                  ? state.displayName!
+                                  : 'DateWise member',
+                              style: theme.textTheme.titleLarge,
+                            ),
+                            Text(
+                              state.userEmail ?? '',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (state.isAdmin) _RoleChip(label: 'ADMIN'),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
 
@@ -183,23 +193,31 @@ class _AccountScreenState extends State<AccountScreen> {
                   _Card(
                     child: Row(
                       children: [
-                        Icon(Icons.workspace_premium_outlined,
-                            color: tierInfo.accentColor),
+                        Icon(
+                          Icons.workspace_premium_outlined,
+                          color: tierInfo.accentColor,
+                        ),
                         const SizedBox(width: AppSpacing.sm),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Current plan',
-                                  style: theme.textTheme.labelMedium
-                                      ?.copyWith(color: AppColors.textMuted)),
-                              Text(tierInfo.name,
-                                  style: theme.textTheme.titleMedium),
+                              Text(
+                                'Current plan',
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                              Text(
+                                tierInfo.name,
+                                style: theme.textTheme.titleMedium,
+                              ),
                             ],
                           ),
                         ),
                         TextButton(
-                          onPressed: widget.onChangePlan ??
+                          onPressed:
+                              widget.onChangePlan ??
                               () => Navigator.of(context).pop(),
                           child: const Text('Change'),
                         ),
@@ -226,11 +244,11 @@ class _AccountScreenState extends State<AccountScreen> {
                       const SizedBox(height: AppSpacing.sm),
                       Align(
                         alignment: Alignment.centerRight,
-                        child: ElevatedButton(
+                        child: GradientButton(
+                          dense: true,
+                          busy: _savingName,
                           onPressed: _savingName ? null : _saveName,
-                          child: _savingName
-                              ? const _Spinner()
-                              : const Text('Save name'),
+                          label: 'Save name',
                         ),
                       ),
                     ],
@@ -243,8 +261,10 @@ class _AccountScreenState extends State<AccountScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text('Change password',
-                          style: theme.textTheme.titleMedium),
+                      Text(
+                        'Change password',
+                        style: theme.textTheme.titleMedium,
+                      ),
                       const SizedBox(height: AppSpacing.sm),
                       TextField(
                         controller: _password,
@@ -257,11 +277,11 @@ class _AccountScreenState extends State<AccountScreen> {
                       const SizedBox(height: AppSpacing.sm),
                       Align(
                         alignment: Alignment.centerRight,
-                        child: ElevatedButton(
+                        child: GradientButton(
+                          dense: true,
+                          busy: _savingPassword,
                           onPressed: _savingPassword ? null : _savePassword,
-                          child: _savingPassword
-                              ? const _Spinner()
-                              : const Text('Update password'),
+                          label: 'Update password',
                         ),
                       ),
                     ],
@@ -274,16 +294,21 @@ class _AccountScreenState extends State<AccountScreen> {
                   _Card(
                     child: ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.admin_panel_settings_outlined,
-                          color: AppColors.primary),
+                      leading: const Icon(
+                        Icons.admin_panel_settings_outlined,
+                        color: AppColors.primarySoft,
+                      ),
                       title: const Text('Manage users'),
                       subtitle: const Text(
-                          'View all users, change plans, suspend access'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                            builder: (_) => const AdminUsersScreen()),
+                        'View all users, change plans, suspend access',
                       ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap:
+                          () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const AdminUsersScreen(),
+                            ),
+                          ),
                     ),
                   ),
                 const SizedBox(height: AppSpacing.lg),
@@ -342,7 +367,9 @@ class _EditableAvatar extends StatelessWidget {
                     height: 22,
                     width: 22,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2.4, color: Colors.white),
+                      strokeWidth: 2.4,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
@@ -352,12 +379,15 @@ class _EditableAvatar extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: AppColors.primary,
+                  gradient: AppColors.romanticGradient,
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
+                  border: Border.all(color: AppColors.surface, width: 2),
                 ),
-                child: const Icon(Icons.photo_camera_rounded,
-                    color: Colors.white, size: 14),
+                child: const Icon(
+                  Icons.photo_camera_rounded,
+                  color: Colors.white,
+                  size: 14,
+                ),
               ),
             ),
           ],
@@ -373,15 +403,7 @@ class _Card extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.cardBorder),
-      ),
-      child: child,
-    );
+    return GlassCard(radius: AppRadius.md, child: child);
   }
 }
 
@@ -394,24 +416,18 @@ class _RoleChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.12),
+        color: AppColors.primary.withValues(alpha: 0.16),
         borderRadius: BorderRadius.circular(AppRadius.pill),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.4)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.5)),
       ),
-      child: Text(label,
-          style: const TextStyle(
-              color: AppColors.primary,
-              fontWeight: FontWeight.w800,
-              fontSize: 11)),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppColors.primarySoft,
+          fontWeight: FontWeight.w800,
+          fontSize: 11,
+        ),
+      ),
     );
   }
-}
-
-class _Spinner extends StatelessWidget {
-  const _Spinner();
-  @override
-  Widget build(BuildContext context) => const SizedBox(
-      height: 18,
-      width: 18,
-      child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white));
 }

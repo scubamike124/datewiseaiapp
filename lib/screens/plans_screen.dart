@@ -45,7 +45,7 @@ class PlansScreen extends StatelessWidget {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          backgroundColor: Colors.red.shade700,
+          backgroundColor: const Color(0xFFB91C1C),
           content: const Text('Purchase could not be completed.'),
         ),
       );
@@ -57,7 +57,7 @@ class PlansScreen extends StatelessWidget {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: AppColors.primary,
+        backgroundColor: AppColors.raised,
         content: Text("You're on the ${TierInfo.of(tier).name} plan."),
       ),
     );

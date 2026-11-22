@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../app_flags.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/common/premium.dart';
 import 'account_screen.dart';
 import 'auth_screen.dart';
 import 'chat_screen.dart';
@@ -12,14 +13,15 @@ import 'settings_screen.dart';
 
 /// AppBar gear that opens [SettingsScreen]. Shared by the Account-tab states.
 List<Widget> _settingsActions(BuildContext context) => [
-      IconButton(
-        icon: const Icon(Icons.settings_outlined),
-        tooltip: 'Settings',
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const SettingsScreen()),
-        ),
-      ),
-    ];
+  IconButton(
+    icon: const Icon(Icons.settings_outlined),
+    tooltip: 'Settings',
+    onPressed:
+        () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
+  ),
+];
 
 /// Native mobile home: a bottom-tab shell (Coach / Plans / Account) that hosts
 /// the app's real screens. This replaces the marketing landing page as the
@@ -60,19 +62,18 @@ class _HomeShellState extends State<HomeShell> {
     final destinations = <NavigationDestination>[
       const NavigationDestination(
         icon: Icon(Icons.forum_outlined),
-        selectedIcon: Icon(Icons.forum, color: AppColors.primary),
+        selectedIcon: Icon(Icons.forum_rounded),
         label: 'Coach',
       ),
       if (showPlans)
         const NavigationDestination(
           icon: Icon(Icons.workspace_premium_outlined),
-          selectedIcon:
-              Icon(Icons.workspace_premium, color: AppColors.primary),
+          selectedIcon: Icon(Icons.workspace_premium),
           label: 'Plans',
         ),
       const NavigationDestination(
         icon: Icon(Icons.person_outline),
-        selectedIcon: Icon(Icons.person, color: AppColors.primary),
+        selectedIcon: Icon(Icons.person_rounded),
         label: 'Account',
       ),
     ];
@@ -86,13 +87,18 @@ class _HomeShellState extends State<HomeShell> {
       },
       child: Scaffold(
         body: IndexedStack(index: _index, children: tabs),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _index,
-          onDestinationSelected: _goToTab,
-          backgroundColor: Colors.white,
-          indicatorColor: AppColors.primary.withValues(alpha: 0.12),
-          surfaceTintColor: Colors.transparent,
-          destinations: destinations,
+        // Colours, indicator and labels come from the theme's
+        // NavigationBarTheme; a hairline separates it from the content.
+        bottomNavigationBar: DecoratedBox(
+          decoration: const BoxDecoration(
+            border: Border(top: BorderSide(color: AppColors.cardBorder)),
+          ),
+          child: NavigationBar(
+            selectedIndex: _index,
+            onDestinationSelected: _goToTab,
+            animationDuration: AppMotion.medium,
+            destinations: destinations,
+          ),
         ),
       ),
     );
@@ -130,10 +136,11 @@ class _SignInPrompt extends StatelessWidget {
   Future<void> _auth(BuildContext context, {required bool signUp}) async {
     await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => AuthScreen(
-          startInSignUp: signUp,
-          reason: 'Sign in to sync your plan and manage your account.',
-        ),
+        builder:
+            (_) => AuthScreen(
+              startInSignUp: signUp,
+              reason: 'Sign in to sync your plan and manage your account.',
+            ),
       ),
     );
   }
@@ -153,34 +160,27 @@ class _SignInPrompt extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: const BoxDecoration(
-                  gradient: AppColors.romanticGradient,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.person_outline,
-                    color: Colors.white, size: 34),
-              ),
+              const GradientIcon(icon: Icons.person_outline_rounded, size: 72),
               const SizedBox(height: AppSpacing.lg),
-              Text('Your DateWise account',
-                  style: theme.textTheme.titleLarge, textAlign: TextAlign.center),
+              Text(
+                'Your DateWise account',
+                style: theme.textTheme.titleLarge,
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: AppSpacing.xs),
               Text(
                 'Sign in to sync your plan across devices and manage your '
                 'profile.',
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: AppColors.textMuted),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: AppColors.textMuted,
+                ),
               ),
               const SizedBox(height: AppSpacing.lg),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => _auth(context, signUp: true),
-                  child: const Text('Create account'),
-                ),
+              GradientButton(
+                expand: true,
+                onPressed: () => _auth(context, signUp: true),
+                label: 'Create account',
               ),
               const SizedBox(height: AppSpacing.sm),
               SizedBox(
@@ -231,23 +231,24 @@ class _GuestAccount extends StatelessWidget {
           if (onChangePlan != null) ...[
             Container(
               padding: const EdgeInsets.all(AppSpacing.lg),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                border: Border.all(color: AppColors.cardBorder),
-              ),
+              decoration: glassDecoration(radius: AppRadius.md),
               child: Row(
                 children: [
-                  Icon(Icons.workspace_premium_outlined,
-                      color: tierInfo.accentColor),
+                  Icon(
+                    Icons.workspace_premium_outlined,
+                    color: tierInfo.accentColor,
+                  ),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Current plan',
-                            style: theme.textTheme.labelMedium
-                                ?.copyWith(color: AppColors.textMuted)),
+                        Text(
+                          'Current plan',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: AppColors.textMuted,
+                          ),
+                        ),
                         Text(tierInfo.name, style: theme.textTheme.titleMedium),
                       ],
                     ),
@@ -261,20 +262,49 @@ class _GuestAccount extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.md),
           ],
-          Row(
-            children: [
-              const Icon(Icons.lock_outline_rounded,
-                  size: 18, color: AppColors.primary),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Text(
-                  'Private by design — your chats and photos stay on this '
-                  'device.',
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(color: AppColors.textMuted),
+          GlassCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const GradientIcon(icon: Icons.lock_outline_rounded, size: 44),
+                const SizedBox(height: AppSpacing.md),
+                Text('Private by design', style: theme.textTheme.titleLarge),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Your chats and photos stay on this device. No account '
+                  'needed to use your coach.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          GlassCard(
+            padding: EdgeInsets.zero,
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.xs,
+              ),
+              leading: const Icon(Icons.settings_outlined),
+              title: const Text('Settings'),
+              subtitle: Text(
+                'Legal, support and app info',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: AppColors.textMuted,
                 ),
               ),
-            ],
+              trailing: const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.textMuted,
+              ),
+              onTap:
+                  () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                  ),
+            ),
           ),
         ],
       ),

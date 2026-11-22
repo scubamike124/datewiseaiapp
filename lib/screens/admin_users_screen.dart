@@ -33,19 +33,25 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 
   void _toast(String msg, {bool error = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: error ? Colors.red.shade700 : AppColors.primary,
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: error ? const Color(0xFFB91C1C) : AppColors.raised,
+      ),
+    );
   }
 
   Future<void> _setTierStatus(
-      AppUser u, SubscriptionTier tier, String status) async {
+    AppUser u,
+    SubscriptionTier tier,
+    String status,
+  ) async {
     try {
-      await context
-          .read<AppState>()
-          .auth
-          .adminSetTierStatus(userId: u.id, tier: tier, status: status);
+      await context.read<AppState>().auth.adminSetTierStatus(
+        userId: u.id,
+        tier: tier,
+        status: status,
+      );
       _toast('Updated ${u.email}.');
       _reload();
     } catch (_) {
@@ -55,10 +61,10 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 
   Future<void> _setSuspended(AppUser u, bool suspended) async {
     try {
-      await context
-          .read<AppState>()
-          .auth
-          .adminSetSuspended(userId: u.id, suspended: suspended);
+      await context.read<AppState>().auth.adminSetSuspended(
+        userId: u.id,
+        suspended: suspended,
+      );
       _toast(suspended ? 'Suspended ${u.email}.' : 'Re-enabled ${u.email}.');
       _reload();
     } catch (_) {
@@ -90,13 +96,14 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             return _ErrorState(onRetry: _reload, message: '${snap.error}');
           }
           final all = snap.data ?? [];
-          final filtered = _query.isEmpty
-              ? all
-              : all.where((u) {
-                  final q = _query.toLowerCase();
-                  return (u.email ?? '').toLowerCase().contains(q) ||
-                      (u.displayName ?? '').toLowerCase().contains(q);
-                }).toList();
+          final filtered =
+              _query.isEmpty
+                  ? all
+                  : all.where((u) {
+                    final q = _query.toLowerCase();
+                    return (u.email ?? '').toLowerCase().contains(q) ||
+                        (u.displayName ?? '').toLowerCase().contains(q);
+                  }).toList();
 
           return Center(
             child: ConstrainedBox(
@@ -120,11 +127,13 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                       child: Center(child: Text('No users found.')),
                     )
                   else
-                    ...filtered.map((u) => _UserCard(
-                          user: u,
-                          onTierStatus: (t, s) => _setTierStatus(u, t, s),
-                          onSuspend: (s) => _setSuspended(u, s),
-                        )),
+                    ...filtered.map(
+                      (u) => _UserCard(
+                        user: u,
+                        onTierStatus: (t, s) => _setTierStatus(u, t, s),
+                        onSuspend: (s) => _setSuspended(u, s),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -146,19 +155,25 @@ class _Stats extends StatelessWidget {
     final suspended = users.where((u) => u.suspended).length;
     return Row(
       children: [
-        _StatBox(label: 'Total users', value: '$total', icon: Icons.people_outline),
+        _StatBox(
+          label: 'Total users',
+          value: '$total',
+          icon: Icons.people_outline,
+        ),
         const SizedBox(width: AppSpacing.sm),
         _StatBox(
-            label: 'Paid',
-            value: '$paid',
-            icon: Icons.verified_outlined,
-            color: const Color(0xFF2A6F97)),
+          label: 'Paid',
+          value: '$paid',
+          icon: Icons.verified_outlined,
+          color: AppColors.primaryLight,
+        ),
         const SizedBox(width: AppSpacing.sm),
         _StatBox(
-            label: 'Suspended',
-            value: '$suspended',
-            icon: Icons.block,
-            color: Colors.red.shade700),
+          label: 'Suspended',
+          value: '$suspended',
+          icon: Icons.block,
+          color: AppColors.danger,
+        ),
       ],
     );
   }
@@ -179,12 +194,12 @@ class _StatBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final c = color ?? AppColors.primary;
+    final c = color ?? AppColors.primaryLight;
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(color: AppColors.cardBorder),
         ),
@@ -193,12 +208,18 @@ class _StatBox extends StatelessWidget {
           children: [
             Icon(icon, color: c, size: 20),
             const SizedBox(height: AppSpacing.xs),
-            Text(value,
-                style: theme.textTheme.headlineSmall
-                    ?.copyWith(fontWeight: FontWeight.w800)),
-            Text(label,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: AppColors.textMuted)),
+            Text(
+              value,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: AppColors.textMuted,
+              ),
+            ),
           ],
         ),
       ),
@@ -219,18 +240,27 @@ class _UserCard extends StatelessWidget {
   static const _statuses = ['pending_payment', 'active', 'canceled'];
 
   String _statusLabel(String s) => switch (s) {
-        'active' => 'Active (paid)',
-        'canceled' => 'Canceled',
-        _ => 'Pending payment',
-      };
+    'active' => 'Active (paid)',
+    'canceled' => 'Canceled',
+    _ => 'Pending payment',
+  };
 
   static const _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
 
-  String _fmtDate(DateTime d) =>
-      '${_months[d.month - 1]} ${d.day}, ${d.year}';
+  String _fmtDate(DateTime d) => '${_months[d.month - 1]} ${d.day}, ${d.year}';
 
   @override
   Widget build(BuildContext context) {
@@ -239,12 +269,13 @@ class _UserCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(
-          color: user.suspended
-              ? Colors.red.withValues(alpha: 0.4)
-              : AppColors.cardBorder,
+          color:
+              user.suspended
+                  ? AppColors.danger.withValues(alpha: 0.5)
+                  : AppColors.cardBorder,
         ),
       ),
       child: Column(
@@ -265,17 +296,25 @@ class _UserCard extends StatelessWidget {
                     Row(
                       children: [
                         Flexible(
-                          child: Text(user.email ?? '(no email)',
-                              style: theme.textTheme.titleSmall,
-                              overflow: TextOverflow.ellipsis),
+                          child: Text(
+                            user.email ?? '(no email)',
+                            style: theme.textTheme.titleSmall,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                         if (user.isAdmin) ...[
                           const SizedBox(width: 6),
-                          const _MiniBadge(text: 'ADMIN', color: AppColors.primary),
+                          const _MiniBadge(
+                            text: 'ADMIN',
+                            color: AppColors.primarySoft,
+                          ),
                         ],
                         if (user.suspended) ...[
                           const SizedBox(width: 6),
-                          _MiniBadge(text: 'SUSPENDED', color: Colors.red.shade700),
+                          const _MiniBadge(
+                            text: 'SUSPENDED',
+                            color: AppColors.danger,
+                          ),
                         ],
                       ],
                     ),
@@ -286,8 +325,9 @@ class _UserCard extends StatelessWidget {
                         if (user.joinedAt != null)
                           'Joined ${_fmtDate(user.joinedAt!)}',
                       ].join(' · '),
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: AppColors.textMuted),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: AppColors.textMuted,
+                      ),
                     ),
                   ],
                 ),
@@ -304,10 +344,15 @@ class _UserCard extends StatelessWidget {
               _LabeledDropdown<SubscriptionTier>(
                 label: 'Plan',
                 value: user.tier,
-                items: SubscriptionTier.values
-                    .map((t) => DropdownMenuItem(
-                        value: t, child: Text(TierInfo.of(t).name)))
-                    .toList(),
+                items:
+                    SubscriptionTier.values
+                        .map(
+                          (t) => DropdownMenuItem(
+                            value: t,
+                            child: Text(TierInfo.of(t).name),
+                          ),
+                        )
+                        .toList(),
                 onChanged: (t) {
                   if (t != null) onTierStatus(t, user.status);
                 },
@@ -315,13 +360,19 @@ class _UserCard extends StatelessWidget {
               // Status
               _LabeledDropdown<String>(
                 label: 'Status',
-                value: _statuses.contains(user.status)
-                    ? user.status
-                    : 'pending_payment',
-                items: _statuses
-                    .map((s) => DropdownMenuItem(
-                        value: s, child: Text(_statusLabel(s))))
-                    .toList(),
+                value:
+                    _statuses.contains(user.status)
+                        ? user.status
+                        : 'pending_payment',
+                items:
+                    _statuses
+                        .map(
+                          (s) => DropdownMenuItem(
+                            value: s,
+                            child: Text(_statusLabel(s)),
+                          ),
+                        )
+                        .toList(),
                 onChanged: (s) {
                   if (s != null) onTierStatus(user.tier, s);
                 },
@@ -331,10 +382,12 @@ class _UserCard extends StatelessWidget {
                 onPressed: () => onSuspend(!user.suspended),
                 style: OutlinedButton.styleFrom(
                   foregroundColor:
-                      user.suspended ? AppColors.primary : Colors.red.shade700,
+                      user.suspended ? AppColors.primarySoft : AppColors.danger,
                 ),
                 icon: Icon(
-                    user.suspended ? Icons.lock_open : Icons.block, size: 18),
+                  user.suspended ? Icons.lock_open : Icons.block,
+                  size: 18,
+                ),
                 label: Text(user.suspended ? 'Re-enable' : 'Suspend'),
               ),
             ],
@@ -368,9 +421,10 @@ class _LabeledDropdown<T> extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('$label: ',
-              style: const TextStyle(
-                  color: AppColors.textMuted, fontSize: 12)),
+          Text(
+            '$label: ',
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+          ),
           DropdownButton<T>(
             value: value,
             items: items,
@@ -398,9 +452,14 @@ class _MiniBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.pill),
         border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
-      child: Text(text,
-          style: TextStyle(
-              color: color, fontWeight: FontWeight.w800, fontSize: 10)),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w800,
+          fontSize: 10,
+        ),
+      ),
     );
   }
 }
@@ -418,10 +477,12 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, color: Colors.red, size: 40),
+            const Icon(Icons.error_outline, color: AppColors.danger, size: 40),
             const SizedBox(height: AppSpacing.md),
-            const Text("Couldn't load users.",
-                style: TextStyle(fontWeight: FontWeight.w700)),
+            const Text(
+              "Couldn't load users.",
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: AppSpacing.xs),
             Text(
               'Make sure the latest schema has been run in Supabase.',

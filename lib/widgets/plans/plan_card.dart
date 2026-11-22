@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/tier.dart';
 import '../../theme/app_theme.dart';
+import '../common/premium.dart';
 
 /// Compact subscription card for the native Plans screen. Shows the price and
 /// three key perks by default; tapping "See all features" expands the rest. The
@@ -34,11 +35,10 @@ class _PlanCardState extends State<PlanCard> {
     final perks = info.highlights;
     final shown = _expanded ? perks : perks.take(3).toList();
 
-    final borderColor = widget.selected
-        ? AppColors.primary
-        : popular
-            ? AppColors.primary
-            : AppColors.cardBorder;
+    final borderColor =
+        widget.selected || popular
+            ? AppColors.primaryLight.withValues(alpha: 0.7)
+            : AppColors.glassBorder;
 
     return Container(
       margin: const EdgeInsets.only(top: 10), // room for the ribbon
@@ -48,10 +48,11 @@ class _PlanCardState extends State<PlanCard> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: BoxDecoration(
-              color: popular ? AppColors.flameTint : Colors.white,
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-              border: Border.all(color: borderColor, width: popular ? 2 : 1),
+            decoration: glassDecoration(
+              radius: AppRadius.lg,
+              borderColor: borderColor,
+              borderWidth: popular ? 1.5 : 1,
+              glowColor: popular ? AppColors.primary : null,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -64,12 +65,18 @@ class _PlanCardState extends State<PlanCard> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(info.name,
-                              style: theme.textTheme.titleLarge
-                                  ?.copyWith(fontWeight: FontWeight.w800)),
-                          Text(info.tagline,
-                              style: theme.textTheme.bodySmall
-                                  ?.copyWith(color: AppColors.textMuted)),
+                          Text(
+                            info.name,
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          Text(
+                            info.tagline,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: AppColors.textMuted,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -77,12 +84,18 @@ class _PlanCardState extends State<PlanCard> {
                       crossAxisAlignment: CrossAxisAlignment.baseline,
                       textBaseline: TextBaseline.alphabetic,
                       children: [
-                        Text(info.priceLabel,
-                            style: theme.textTheme.headlineSmall
-                                ?.copyWith(fontWeight: FontWeight.w800)),
-                        Text(' /wk',
-                            style: theme.textTheme.bodySmall
-                                ?.copyWith(color: AppColors.textMuted)),
+                        Text(
+                          info.priceLabel,
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        Text(
+                          ' /wk',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: AppColors.textMuted,
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -100,9 +113,11 @@ class _PlanCardState extends State<PlanCard> {
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       alignment: Alignment.centerLeft,
                     ),
-                    child: Text(_expanded
-                        ? 'Show less'
-                        : 'See all ${perks.length} features'),
+                    child: Text(
+                      _expanded
+                          ? 'Show less'
+                          : 'See all ${perks.length} features',
+                    ),
                   ),
                 const SizedBox(height: AppSpacing.sm),
 
@@ -110,20 +125,21 @@ class _PlanCardState extends State<PlanCard> {
                 SizedBox(
                   width: double.infinity,
                   height: 48,
-                  child: widget.selected
-                      ? OutlinedButton(
-                          onPressed: null,
-                          child: const Text('Your current plan'),
-                        )
-                      : popular
-                          ? ElevatedButton(
-                              onPressed: widget.onSelect,
-                              child: Text('Choose ${info.name}'),
-                            )
+                  child:
+                      widget.selected
+                          ? OutlinedButton(
+                            onPressed: null,
+                            child: const Text('Your current plan'),
+                          )
+                          : popular
+                          ? GradientButton(
+                            onPressed: widget.onSelect,
+                            label: 'Choose ${info.name}',
+                          )
                           : OutlinedButton(
-                              onPressed: widget.onSelect,
-                              child: Text('Choose ${info.name}'),
-                            ),
+                            onPressed: widget.onSelect,
+                            child: Text('Choose ${info.name}'),
+                          ),
                 ),
               ],
             ),
@@ -135,8 +151,10 @@ class _PlanCardState extends State<PlanCard> {
               top: -10,
               left: AppSpacing.lg,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   gradient: AppColors.romanticGradient,
                   borderRadius: BorderRadius.circular(AppRadius.pill),
@@ -163,11 +181,17 @@ class _PlanCardState extends State<PlanCard> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.check_rounded, size: 18, color: AppColors.primary),
+          const Icon(
+            Icons.check_rounded,
+            size: 18,
+            color: AppColors.primaryLight,
+          ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: Text(text,
-                style: const TextStyle(fontSize: 13.5, height: 1.3)),
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 13.5, height: 1.3),
+            ),
           ),
         ],
       ),

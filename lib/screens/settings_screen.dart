@@ -11,6 +11,7 @@ import '../content/legal_text.dart';
 import '../services/purchase_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/common/premium.dart';
 import 'legal_screen.dart';
 
 /// App settings: subscription management, legal documents, support, app info,
@@ -47,14 +48,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
-        backgroundColor: error ? Colors.red.shade700 : AppColors.primary,
+        backgroundColor: error ? const Color(0xFFB91C1C) : AppColors.raised,
       ),
     );
   }
 
   Future<void> _open(String url) async {
-    final ok = await launchUrl(Uri.parse(url),
-        mode: LaunchMode.externalApplication);
+    final ok = await launchUrl(
+      Uri.parse(url),
+      mode: LaunchMode.externalApplication,
+    );
     if (!ok) _toast('Could not open the link.', error: true);
   }
 
@@ -65,15 +68,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
       query: 'subject=${Uri.encodeComponent('DateWise AI support')}',
     );
     if (!await launchUrl(uri)) {
-      _toast('No email app found. Write to ${AppLinks.supportEmail}.',
-          error: true);
+      _toast(
+        'No email app found. Write to ${AppLinks.supportEmail}.',
+        error: true,
+      );
     }
   }
 
   void _openLegal(String title, String content) {
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => LegalScreen(title: title, content: content),
-    ));
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => LegalScreen(title: title, content: content),
+      ),
+    );
   }
 
   Future<void> _restore() async {
@@ -85,24 +92,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final state = context.read<AppState>();
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete account?'),
-        content: const Text(
-          'This removes your data from this device and requests deletion of your '
-          'account records. This cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text('Delete account?'),
+            content: const Text(
+              'This removes your data from this device and requests deletion of your '
+              'account records. This cannot be undone.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+                child: const Text('Delete'),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red.shade700),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
     );
     if (confirmed != true) return;
     try {
@@ -111,8 +119,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       Navigator.of(context).pop(); // close settings
       _toast('Account deletion requested and local data cleared.');
     } catch (_) {
-      _toast('Could not complete deletion. Please contact support.',
-          error: true);
+      _toast(
+        'Could not complete deletion. Please contact support.',
+        error: true,
+      );
     }
   }
 
@@ -125,117 +135,145 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // listing exists for the current platform (so iOS never opens Google Play).
     final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
     final storeUrl = isIOS ? AppLinks.appStoreUrl : AppLinks.playStoreUrl;
-    final hasStoreListing = isIOS
-        ? AppLinks.iosAppStoreId.isNotEmpty
-        : AppLinks.androidPackage.isNotEmpty;
+    final hasStoreListing =
+        isIOS
+            ? AppLinks.iosAppStoreId.isNotEmpty
+            : AppLinks.androidPackage.isNotEmpty;
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Settings')),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-        children: [
-          // Billing actions are hidden during the free launch (no subscriptions
-          // exist). They return — and become store-aware — in the paid update.
-          if (!AppFlags.freeLaunch) ...[
-            _section('Subscription'),
-            _tile(
-              icon: Icons.workspace_premium_outlined,
-              title: 'Manage subscription',
-              subtitle: 'Change or cancel via Google Play',
-              onTap: () => _open(AppLinks.manageSubscriptionsUrl),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 640),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              AppSpacing.sm,
+              AppSpacing.md,
+              AppSpacing.sm,
             ),
-            _tile(
-              icon: Icons.restore_rounded,
-              title: 'Restore purchases',
-              onTap: _restore,
-            ),
-          ],
+            children: [
+              // Billing actions are hidden during the free launch (no subscriptions
+              // exist). They return — and become store-aware — in the paid update.
+              if (!AppFlags.freeLaunch) ...[
+                _section('Subscription'),
+                _group([
+                  _tile(
+                    icon: Icons.workspace_premium_outlined,
+                    title: 'Manage subscription',
+                    subtitle: 'Change or cancel via Google Play',
+                    onTap: () => _open(AppLinks.manageSubscriptionsUrl),
+                  ),
+                  _tile(
+                    icon: Icons.restore_rounded,
+                    title: 'Restore purchases',
+                    onTap: _restore,
+                  ),
+                ]),
+              ],
 
-          _section('Legal'),
-          _tile(
-            icon: Icons.privacy_tip_outlined,
-            title: 'Privacy Policy',
-            onTap: () => _openLegal('Privacy Policy', kPrivacyPolicy),
-          ),
-          _tile(
-            icon: Icons.description_outlined,
-            title: 'Terms of Service',
-            onTap: () => _openLegal('Terms of Service', kTermsOfService),
-          ),
-          _tile(
-            icon: Icons.gpp_maybe_outlined,
-            title: 'Disclaimer',
-            onTap: () => _openLegal('Disclaimer', kDisclaimer),
-          ),
+              _section('Legal'),
+              _group([
+                _tile(
+                  icon: Icons.privacy_tip_outlined,
+                  title: 'Privacy Policy',
+                  onTap: () => _openLegal('Privacy Policy', kPrivacyPolicy),
+                ),
+                _tile(
+                  icon: Icons.description_outlined,
+                  title: 'Terms of Service',
+                  onTap: () => _openLegal('Terms of Service', kTermsOfService),
+                ),
+                _tile(
+                  icon: Icons.gpp_maybe_outlined,
+                  title: 'Disclaimer',
+                  onTap: () => _openLegal('Disclaimer', kDisclaimer),
+                ),
+              ]),
 
-          _section('Support'),
-          _tile(
-            icon: Icons.mail_outline_rounded,
-            title: 'Contact support',
-            subtitle: AppLinks.supportEmail,
-            onTap: _emailSupport,
-          ),
-          if (hasStoreListing)
-            _tile(
-              icon: Icons.star_outline_rounded,
-              title: 'Rate the app',
-              onTap: () => _open(storeUrl),
-            ),
+              _section('Support'),
+              _group([
+                _tile(
+                  icon: Icons.mail_outline_rounded,
+                  title: 'Contact support',
+                  subtitle: AppLinks.supportEmail,
+                  onTap: _emailSupport,
+                ),
+                if (hasStoreListing)
+                  _tile(
+                    icon: Icons.star_outline_rounded,
+                    title: 'Rate the app',
+                    onTap: () => _open(storeUrl),
+                  ),
+              ]),
 
-          _section('About'),
-          _tile(
-            icon: Icons.info_outline_rounded,
-            title: 'App version',
-            trailing: Text(_version,
-                style: const TextStyle(color: AppColors.textMuted)),
-          ),
-          _tile(
-            icon: Icons.article_outlined,
-            title: 'Open-source licenses',
-            onTap: () => showLicensePage(
-              context: context,
-              applicationName: 'DateWise AI',
-              applicationVersion: _version,
-            ),
-          ),
+              _section('About'),
+              _group([
+                _tile(
+                  icon: Icons.info_outline_rounded,
+                  title: 'App version',
+                  trailing: Text(
+                    _version,
+                    style: const TextStyle(color: AppColors.textMuted),
+                  ),
+                ),
+                _tile(
+                  icon: Icons.article_outlined,
+                  title: 'Open-source licenses',
+                  onTap:
+                      () => showLicensePage(
+                        context: context,
+                        applicationName: 'DateWise AI',
+                        applicationVersion: _version,
+                      ),
+                ),
+              ]),
 
-          _section('Account'),
-          _tile(
-            icon: Icons.delete_outline_rounded,
-            title: 'Delete account',
-            danger: true,
-            onTap: _confirmDelete,
+              _section('Account'),
+              _group([
+                _tile(
+                  icon: Icons.delete_outline_rounded,
+                  title: 'Delete account',
+                  danger: true,
+                  onTap: _confirmDelete,
+                ),
+                if (signedIn)
+                  _tile(
+                    icon: Icons.logout_rounded,
+                    title: 'Log out',
+                    onTap: () async {
+                      final nav = Navigator.of(context);
+                      await context.read<AppState>().signOut();
+                      if (mounted) nav.pop();
+                    },
+                  ),
+              ]),
+              const SizedBox(height: AppSpacing.xl),
+            ],
           ),
-          if (signedIn)
-            _tile(
-              icon: Icons.logout_rounded,
-              title: 'Log out',
-              onTap: () async {
-                final nav = Navigator.of(context);
-                await context.read<AppState>().signOut();
-                if (mounted) nav.pop();
-              },
-            ),
-          const SizedBox(height: AppSpacing.xl),
-        ],
+        ),
       ),
     );
   }
 
   Widget _section(String label) => Padding(
-        padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xs),
-        child: Text(
-          label.toUpperCase(),
-          style: const TextStyle(
-            color: AppColors.textMuted,
-            fontWeight: FontWeight.w700,
-            fontSize: 12,
-            letterSpacing: 0.6,
-          ),
-        ),
-      );
+    padding: const EdgeInsets.fromLTRB(
+      AppSpacing.xs,
+      AppSpacing.lg,
+      AppSpacing.xs,
+      AppSpacing.sm,
+    ),
+    child: Text(
+      label.toUpperCase(),
+      style: const TextStyle(
+        color: AppColors.textMuted,
+        fontWeight: FontWeight.w700,
+        fontSize: 12,
+        letterSpacing: 1.2,
+      ),
+    ),
+  );
 
   Widget _tile({
     required IconData icon,
@@ -245,14 +283,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
     VoidCallback? onTap,
     bool danger = false,
   }) {
-    final color = danger ? Colors.red.shade700 : AppColors.text;
+    final color = danger ? AppColors.danger : AppColors.text;
     return ListTile(
-      leading: Icon(icon, color: danger ? Colors.red.shade700 : AppColors.primary),
-      title: Text(title, style: TextStyle(color: color)),
-      subtitle: subtitle == null ? null : Text(subtitle),
-      trailing: trailing ??
-          (onTap == null ? null : const Icon(Icons.chevron_right, size: 20)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      leading: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: (danger ? AppColors.danger : AppColors.primary).withValues(
+            alpha: 0.14,
+          ),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+        ),
+        child: Icon(
+          icon,
+          size: 20,
+          color: danger ? AppColors.danger : AppColors.primarySoft,
+        ),
+      ),
+      title: Text(
+        title,
+        style: TextStyle(color: color, fontWeight: FontWeight.w500),
+      ),
+      subtitle:
+          subtitle == null
+              ? null
+              : Text(
+                subtitle,
+                style: const TextStyle(color: AppColors.textMuted),
+              ),
+      trailing:
+          trailing ??
+          (onTap == null
+              ? null
+              : const Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: AppColors.textMuted,
+              )),
       onTap: onTap,
     );
   }
+
+  /// A rounded glass group of tiles separated by hairlines.
+  Widget _group(List<Widget> tiles) => GlassCard(
+    padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+    radius: AppRadius.md,
+    child: Column(
+      children: [
+        for (var i = 0; i < tiles.length; i++) ...[
+          if (i > 0)
+            const Divider(height: 1, indent: 68, color: AppColors.cardBorder),
+          tiles[i],
+        ],
+      ],
+    ),
+  );
 }

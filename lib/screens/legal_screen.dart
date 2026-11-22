@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import '../widgets/common/premium.dart';
 
 /// A clean, readable legal/document page. Renders lightweight markup:
 /// - lines starting with "# " become section headings
@@ -32,71 +33,79 @@ class LegalScreen extends StatelessWidget {
 
       // "Last updated: ..." intro line → muted chip-like sub-text.
       if (i == 0 && line.toLowerCase().startsWith('last updated')) {
-        widgets.add(Text(
-          line,
-          style: theme.textTheme.labelMedium?.copyWith(
-            color: AppColors.textMuted,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.2,
+        widgets.add(
+          Text(
+            line,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: AppColors.textMuted,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.2,
+            ),
           ),
-        ));
+        );
         widgets.add(const SizedBox(height: AppSpacing.md));
         continue;
       }
 
       // Section heading.
       if (line.startsWith('# ')) {
-        widgets.add(Padding(
-          padding: EdgeInsets.only(
-            top: firstHeadingSeen ? AppSpacing.lg : AppSpacing.sm,
-            bottom: AppSpacing.sm,
-          ),
-          child: Text(
-            line.substring(2),
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: AppColors.text,
-              height: 1.25,
+        widgets.add(
+          Padding(
+            padding: EdgeInsets.only(
+              top: firstHeadingSeen ? AppSpacing.lg : AppSpacing.sm,
+              bottom: AppSpacing.sm,
+            ),
+            child: Text(
+              line.substring(2),
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: AppColors.text,
+                height: 1.25,
+              ),
             ),
           ),
-        ));
+        );
         firstHeadingSeen = true;
         continue;
       }
 
       // Bullet point.
       if (line.startsWith('- ')) {
-        widgets.add(Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 7, right: 10, left: 2),
-                child: Container(
-                  width: 5,
-                  height: 5,
-                  decoration: const BoxDecoration(
-                    color: AppColors.primary,
-                    shape: BoxShape.circle,
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 7, right: 10, left: 2),
+                  child: Container(
+                    width: 5,
+                    height: 5,
+                    decoration: const BoxDecoration(
+                      color: AppColors.accent,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                 ),
-              ),
-              Expanded(child: _bulletText(theme, line.substring(2))),
-            ],
+                Expanded(child: _bulletText(theme, line.substring(2))),
+              ],
+            ),
           ),
-        ));
+        );
         continue;
       }
 
       // Regular paragraph.
-      widgets.add(Padding(
-        padding: const EdgeInsets.only(bottom: 4),
-        child: Text(
-          line,
-          style: theme.textTheme.bodyMedium?.copyWith(height: 1.55),
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Text(
+            line,
+            style: theme.textTheme.bodyMedium?.copyWith(height: 1.55),
+          ),
         ),
-      ));
+      );
     }
 
     return Scaffold(
@@ -108,11 +117,23 @@ class LegalScreen extends StatelessWidget {
             constraints: const BoxConstraints(maxWidth: 720),
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xxl),
+                AppSpacing.lg,
+                AppSpacing.lg,
+                AppSpacing.lg,
+                AppSpacing.xxl,
+              ),
               child: SelectionArea(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: widgets,
+                child: GlassCard(
+                  radius: AppRadius.lg,
+                  padding: EdgeInsets.all(
+                    MediaQuery.sizeOf(context).width < 400
+                        ? AppSpacing.md + 4
+                        : AppSpacing.xl,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: widgets,
+                  ),
                 ),
               ),
             ),
@@ -135,8 +156,9 @@ class LegalScreen extends StatelessWidget {
           style: base,
           children: [
             TextSpan(
-                text: label,
-                style: const TextStyle(fontWeight: FontWeight.w700)),
+              text: label,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
             TextSpan(text: rest),
           ],
         ),
