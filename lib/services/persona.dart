@@ -3,6 +3,12 @@ import '../models/coach.dart';
 import '../models/tier.dart';
 import '../models/user_profile.dart';
 
+/// The coach's own instructions (identity, style and language rule), as the
+/// redesign issues (#9, #13) expect on `coach.systemPrompt`.
+extension CoachSystemPrompt on Coach {
+  String get systemPrompt => CoachPersona.coachIdentity(this);
+}
+
 /// DateWise AI — the dating coach persona (PRD section 8).
 ///
 /// Centralises the system prompt and tier-specific capability framing so both

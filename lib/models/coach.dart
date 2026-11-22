@@ -13,6 +13,9 @@ enum CoachLanguage {
       CoachLanguage.values.firstWhere((l) => l.name == code, orElse: () => CoachLanguage.en);
 }
 
+/// A coach's presented gender (for voice, portrait and ring colour later).
+enum CoachGender { female, male }
+
 /// One of DateWise's four coaches. A coach is a voice and a focus, not a
 /// different product: every coach has the same capabilities (bios, openers,
 /// conversation help, date planning, the photo coach). What changes is who
@@ -23,6 +26,7 @@ class Coach {
     required this.id,
     required this.name,
     required this.language,
+    required this.gender,
     required this.tagline,
     required this.specialty,
     required this.styleRules,
@@ -37,6 +41,10 @@ class Coach {
   final String id;
   final String name;
   final CoachLanguage language;
+  final CoachGender gender;
+
+  /// The name shown to users (the redesign prototype issues #6-#10 call it this).
+  String get displayName => name;
 
   /// One line for the coach card, in the coach's own language.
   final String tagline;
@@ -72,6 +80,7 @@ class Coaches {
     id: 'emily',
     name: 'Emily',
     language: CoachLanguage.en,
+    gender: CoachGender.female,
     tagline: 'Warm, encouraging, and honest',
     specialty: 'Profiles, confidence and first impressions',
     styleRules: [
@@ -97,6 +106,7 @@ class Coaches {
     id: 'james',
     name: 'James',
     language: CoachLanguage.en,
+    gender: CoachGender.male,
     tagline: 'Direct, practical, no fluff',
     specialty: 'Openers, conversations and asking someone out',
     styleRules: [
@@ -122,6 +132,7 @@ class Coaches {
     id: 'isabella',
     name: 'Isabella',
     language: CoachLanguage.es,
+    gender: CoachGender.female,
     tagline: 'Cálida, empática y sincera',
     specialty: 'Relaciones, comunicación y confianza',
     styleRules: [
@@ -147,6 +158,7 @@ class Coaches {
     id: 'mateo',
     name: 'Mateo',
     language: CoachLanguage.es,
+    gender: CoachGender.male,
     tagline: 'Directo, divertido y práctico',
     specialty: 'Primeros mensajes, citas y seguridad',
     styleRules: [
@@ -180,3 +192,17 @@ class Coaches {
   static List<Coach> forLanguage(CoachLanguage language) =>
       all.where((c) => c.language == language).toList();
 }
+
+// Names the redesign issues (#6-#10, #13) use for the same data, so their
+// prototype code reuses this roster instead of defining a second one.
+const List<Coach> kCoaches = Coaches.all;
+
+/// The coach with [id], or null when there is none (unlike [Coaches.byId]).
+Coach? coachById(String id) {
+  for (final c in Coaches.all) {
+    if (c.id == id) return c;
+  }
+  return null;
+}
+
+List<Coach> coachesFor(CoachLanguage language) => Coaches.forLanguage(language);

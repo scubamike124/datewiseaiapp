@@ -213,4 +213,21 @@ void main() {
       expect(state.activeCoach, Coaches.isabella);
     });
   });
+
+  group('names the redesign issues use (#6-#10, #13)', () {
+    test('kCoaches, coachById, coachesFor, displayName, gender and systemPrompt', () {
+      expect(kCoaches, Coaches.all);
+      expect(coachById('isabella'), Coaches.isabella);
+      expect(coachById('nobody'), isNull);
+      expect(coachesFor(CoachLanguage.es), [Coaches.isabella, Coaches.mateo]);
+      expect(Coaches.all.map((c) => c.displayName), ['Emily', 'James', 'Isabella', 'Mateo']);
+      expect(Coaches.all.map((c) => c.gender),
+          [CoachGender.female, CoachGender.male, CoachGender.female, CoachGender.male]);
+      expect(Coaches.mateo.systemPrompt, startsWith('You are Mateo'));
+      expect(Coaches.mateo.systemPrompt, contains('Spanish'));
+      for (final c in Coaches.all) {
+        expect('${c.systemPrompt} ${c.tagline} ${c.greeting}', isNot(contains('Amber')), reason: c.id);
+      }
+    });
+  });
 }
