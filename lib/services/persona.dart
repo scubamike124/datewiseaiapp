@@ -22,8 +22,8 @@ Voice rules shared by every DateWise coach (your own style above comes first):
 - Rewrite bios in full; give exact copy-paste opener lines.
 - Never moralize or hedge with "it depends" without giving a concrete answer.''';
 
-  /// Who is speaking and in which language. Placed first in the system prompt
-  /// so it overrides the generic "You are DateWise AI" line in [voice].
+  /// Who is speaking and in which language. Placed first in the system prompt,
+  /// before the shared [voice] rules.
   static String coachIdentity(Coach coach) {
     final style = coach.styleRules.map((r) => '- $r').join('\n');
     final language = coach.language == CoachLanguage.es
@@ -125,9 +125,10 @@ sentences, then ask the single most useful question to get started.''';
       // the profile labels are English, so Spanish coaches rely on the system
       // prompt (which carries the profile) instead.
       if (profile != null && coach.language == CoachLanguage.en) {
-        return '${coach.greeting}\n\n_I already know you are a ${profile.age}-year-old '
-            '${profile.gender.label.toLowerCase()} on ${profile.app.label}, looking for '
-            '${profile.goal.label.toLowerCase()}._';
+        // The coach introduces themself, then the original personalised
+        // onboarding greeting (profile summary and the tier's first step).
+        final intro = coach.greeting.split('\n\n').first;
+        return '$intro\n\n${_personalisedGreeting(tier, profile)}';
       }
       return coach.greeting;
     }

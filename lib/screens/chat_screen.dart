@@ -75,7 +75,9 @@ class _ChatScreenState extends State<ChatScreen> {
           _handleSend(context, text: text, images: images),
       onPhotoBlocked: () => _showUpgradeSheet(context),
       onOpenMenu: isWide ? null : () => _scaffoldKey.currentState?.openDrawer(),
-      onNewThread: () => context.read<AppState>().createThread(),
+      // A new conversation continues with the coach on screen.
+      onNewThread: () =>
+          context.read<AppState>().createThread(coach: state.activeCoach),
     );
 
     // First visit: the user picks one of the four coaches before chatting.
@@ -147,7 +149,25 @@ class _ChatArea extends StatelessWidget {
           child: thread == null
               ? _NoThread(onNewThread: onNewThread)
               : isFresh
-                  ? _WelcomeState(coach: coach)
+                  ? _WelcomeState(
+                      coach: coach,
+                      // Starter prompts scroll with the welcome text, so a
+                      // small screen or large text never overflows.
+                      starters: isResponding
+                          ? null
+                          : SuggestionChips(
+                              suggestions: [
+                                for (var i = 0; i < coach.starters.length; i++)
+                                  Suggestion(
+                                      emojis[i % emojis.length], coach.starters[i],
+                                      requiresPhoto:
+                                          i == coach.starters.length - 1),
+                              ],
+                              canSendPhoto: canSendPhoto,
+                              onPhotoBlocked: onPhotoBlocked,
+                              onSelect: (text) => onSend(text: text),
+                            ),
+                    )
                   : ListView.builder(
                       controller: scrollController,
                       padding:
@@ -157,18 +177,6 @@ class _ChatArea extends StatelessWidget {
                           MessageBubble(message: thread!.messages[i], coach: coach),
                     ),
         ),
-        // Starter prompts while the conversation is fresh.
-        if (isFresh && !isResponding)
-          SuggestionChips(
-            suggestions: [
-              for (var i = 0; i < coach.starters.length; i++)
-                Suggestion(emojis[i % emojis.length], coach.starters[i],
-                    requiresPhoto: i == coach.starters.length - 1),
-            ],
-            canSendPhoto: canSendPhoto,
-            onPhotoBlocked: onPhotoBlocked,
-            onSelect: (text) => onSend(text: text),
-          ),
         ChatInput(
           hintText: coach.language == CoachLanguage.es
               ? 'Escríbele a ${coach.name}…'
@@ -284,7 +292,10 @@ class _NoThread extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Center(
-      child: Column(
+      // Scrolls on the smallest phones with large text instead of overflowing.
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
@@ -310,14 +321,16 @@ class _NoThread extends StatelessWidget {
           ),
         ],
       ),
+      ),
     );
   }
 }
 
 /// Centered welcome shown for a fresh conversation, above the starter chips.
 class _WelcomeState extends StatelessWidget {
-  const _WelcomeState({required this.coach});
+  const _WelcomeState({required this.coach, this.starters});
   final Coach coach;
+  final Widget? starters;
 
   @override
   Widget build(BuildContext context) {
@@ -343,6 +356,10 @@ class _WelcomeState extends StatelessWidget {
               style: theme.textTheme.bodyLarge
                   ?.copyWith(color: AppColors.textMuted),
             ),
+            if (starters != null) ...[
+              const SizedBox(height: AppSpacing.lg),
+              starters!,
+            ],
           ],
         ),
       ),

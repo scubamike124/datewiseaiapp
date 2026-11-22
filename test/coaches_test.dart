@@ -7,6 +7,7 @@ import 'package:datewise_ai/models/chat_message.dart';
 import 'package:datewise_ai/models/chat_thread.dart';
 import 'package:datewise_ai/models/coach.dart';
 import 'package:datewise_ai/models/tier.dart';
+import 'package:datewise_ai/models/user_profile.dart';
 import 'package:datewise_ai/services/backend_ai_service.dart';
 import 'package:datewise_ai/services/mock_ai_service.dart';
 import 'package:datewise_ai/services/persona.dart';
@@ -45,7 +46,8 @@ void main() {
     test('Spanish coaches speak Spanish on screen; English coaches English', () {
       for (final c in Coaches.forLanguage(CoachLanguage.es)) {
         expect(c.greeting, contains('Soy'), reason: c.id);
-        expect(c.tagline, isNot(contains(' and ')), reason: c.id);
+        expect(c.tagline, contains(' y '), reason: c.id);
+        expect(c.starters.join(' '), isNot(matches(RegExp(r'\b(the|my|your)\b'))), reason: c.id);
       }
       for (final c in Coaches.forLanguage(CoachLanguage.en)) {
         expect(c.greeting, contains("I'm"), reason: c.id);
@@ -102,11 +104,53 @@ void main() {
       expect(MockAIService.spanishReply('Quiero una cita', Coaches.mateo), contains('lugar público'));
     });
 
+    test('every Spanish starter gets its own intent (photos and stalled chats first)', () {
+      final expected = {
+        'Reescribe mi biografía': 'biografía',
+        'Mi pareja dejó de escribirme': 'mensaje ligero',
+        '¿Cómo hablo de lo que siento?': 'en qué punto estás',
+        'Revisa mis fotos de perfil': 'fotos',
+        'Dame un buen primer mensaje': 'primer mensaje',
+        'La conversación se enfrió, ¿qué le escribo?': 'mensaje ligero',
+        'Planea una primera cita': 'lugar público',
+      };
+      for (final c in Coaches.forLanguage(CoachLanguage.es)) {
+        for (final starter in c.starters) {
+          expect(expected.keys, contains(starter), reason: 'new starter needs an expectation: $starter');
+          expect(MockAIService.spanishReply(starter, c), contains(expected[starter]!), reason: starter);
+        }
+      }
+      expect(MockAIService.spanishReply('Revisa mis fotos de perfil', Coaches.mateo), isNot(contains('biografía')));
+    });
+
     test('streamReply follows the coach language', () async {
       final ai = MockAIService();
       final history = [ChatMessage(id: '1', role: MessageRole.user, text: 'Quiero una cita', createdAt: DateTime(2026))];
       final es = (await ai.streamReply(history: history, tier: SubscriptionTier.magnet, coach: Coaches.mateo).toList()).join();
       expect(es, contains('lugar público'));
+    });
+  });
+
+  group('greeting', () {
+    final profile = UserProfile(
+      gender: Gender.values.first,
+      age: 29,
+      interestedIn: InterestedIn.values.first,
+      goal: DatingGoal.values.first,
+      app: DatingApp.values.first,
+    );
+
+    test('an English coach introduces themself, then keeps the full personalised onboarding greeting', () {
+      final g = CoachPersona.greeting(SubscriptionTier.magnet, profile: profile, coach: Coaches.emily);
+      expect(g, startsWith("Hi, I'm **Emily**"));
+      expect(g, contains(profile.interestedIn.label.toLowerCase()), reason: 'interested-in is kept');
+      expect(g, contains('Photo'), reason: "the tier's first step (Magnet: photo coach) is kept");
+      expect(g, isNot(contains('_I already know')));
+    });
+
+    test('a Spanish coach greets in Spanish only', () {
+      final g = CoachPersona.greeting(SubscriptionTier.magnet, profile: profile, coach: Coaches.isabella);
+      expect(g, Coaches.isabella.greeting);
     });
   });
 
@@ -132,6 +176,29 @@ void main() {
       expect(reloaded.hasChosenCoach, isTrue);
       expect(reloaded.selectedCoach, Coaches.mateo);
       expect(reloaded.activeCoach, Coaches.mateo);
+    });
+
+    test('conversations with every coach get titled from the first message', () async {
+      SharedPreferences.setMockInitialValues({});
+      final state = AppState(storage: await StorageService.create(), ai: MockAIService());
+      await state.selectCoach('mateo');
+      expect(state.activeThread!.title, 'Nueva conversación');
+      await state.sendMessage(text: 'Planea una primera cita para el sábado por la tarde');
+      expect(state.activeThread!.title, 'Planea una primera cita para…');
+      await state.selectCoach('james');
+      expect(state.activeThread!.title, 'New conversation');
+      await state.sendMessage(text: 'Give me a strong opener');
+      expect(state.activeThread!.title, 'Give me a strong opener');
+    });
+
+    test('a new conversation can continue with the coach on screen', () async {
+      SharedPreferences.setMockInitialValues({});
+      final state = AppState(storage: await StorageService.create(), ai: MockAIService());
+      await state.selectCoach('mateo');
+      final t = await state.createThread(coach: Coaches.emily);
+      expect(t.coachId, 'emily');
+      expect(t.messages.single.text, contains('Emily'));
+      expect(state.selectedCoach, Coaches.mateo, reason: 'the saved choice is unchanged');
     });
 
     test('switching coach replaces an untouched greeting but never a real conversation', () async {

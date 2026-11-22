@@ -196,7 +196,7 @@ class AppState extends ChangeNotifier {
     final untouched = t != null && !t.messages.any((m) => m.isUser);
     if (startConversation && !(untouched && t.coachId == coach.id)) {
       if (untouched) _threads.remove(t);
-      await createThread(title: coach.language == CoachLanguage.es ? 'Conversación con ${coach.name}' : 'Chat with ${coach.name}');
+      await createThread(coach: coach);
     } else {
       notifyListeners();
     }
@@ -288,12 +288,15 @@ class AppState extends ChangeNotifier {
 
   // --- Thread CRUD --------------------------------------------------------
 
-  Future<ChatThread> createThread({String? title, bool greet = true}) async {
+  /// Starts a conversation with [coach] (default: the selected coach). Its
+  /// default title is replaced by the user's first words (see [_autoTitle]).
+  Future<ChatThread> createThread(
+      {String? title, bool greet = true, Coach? coach}) async {
     final now = _now();
-    final coach = selectedCoach;
+    coach ??= selectedCoach;
     final thread = ChatThread(
       id: _uuid.v4(),
-      title: title ?? (coach.language == CoachLanguage.es ? 'Nueva conversación' : 'New conversation'),
+      title: title ?? defaultThreadTitle(coach),
       createdAt: now,
       updatedAt: now,
       coachId: coach.id,
@@ -351,7 +354,7 @@ class AppState extends ChangeNotifier {
     final tier = _aiTier;
 
     var thread = activeThread;
-    thread ??= await createThread(title: 'New conversation', greet: false);
+    thread ??= await createThread(greet: false);
 
     final imgs = images ?? const <String>[];
     final now = _now();
@@ -407,7 +410,9 @@ class AppState extends ChangeNotifier {
       }
     } catch (_) {
       coachMsg.text = coachMsg.text.isEmpty
-          ? "Something interrupted me there — try sending that again?"
+          ? (_isSpanish(thread)
+              ? 'Algo me interrumpió. ¿Puedes enviarlo otra vez?'
+              : "Something interrupted me there — try sending that again?")
           : coachMsg.text;
     } finally {
       coachMsg.isStreaming = false;
@@ -451,10 +456,13 @@ class AppState extends ChangeNotifier {
             ChatMessage(
               id: _uuid.v4(),
               role: MessageRole.coach,
-              text:
-                  "You've hit this session's photo-analysis limit "
-                  '($kMaxPhotoAnalysesPerSession). Reopen the app to analyse more — '
-                  'or re-check a photo you already sent (that part is free).',
+              text: _isSpanish(thread)
+                  ? 'Llegaste al límite de análisis de fotos de esta sesión '
+                      '($kMaxPhotoAnalysesPerSession). Vuelve a abrir la app para analizar '
+                      'más, o revisa una foto que ya enviaste (eso es gratis).'
+                  : "You've hit this session's photo-analysis limit "
+                      '($kMaxPhotoAnalysesPerSession). Reopen the app to analyse more — '
+                      'or re-check a photo you already sent (that part is free).',
               createdAt: _now(),
             ),
           );
@@ -490,7 +498,9 @@ class AppState extends ChangeNotifier {
         ),
       );
     } catch (_) {
-      coachMsg.text = "I couldn't read that image — try a JPG or PNG under ~5MB?";
+      coachMsg.text = _isSpanish(thread)
+          ? 'No pude leer esa imagen. ¿Pruebas con un JPG o PNG de menos de 5 MB?'
+          : "I couldn't read that image — try a JPG or PNG under ~5MB?";
       coachMsg.isStreaming = false;
       coachMsg.isAnalyzing = false;
     } finally {
@@ -535,10 +545,13 @@ class AppState extends ChangeNotifier {
             ChatMessage(
               id: _uuid.v4(),
               role: MessageRole.coach,
-              text:
-                  "You've hit this session's photo-analysis limit "
-                  '($kMaxPhotoAnalysesPerSession). Reopen the app to analyse more — '
-                  'or re-check a set you already sent (that part is free).',
+              text: _isSpanish(thread)
+                  ? 'Llegaste al límite de análisis de fotos de esta sesión '
+                      '($kMaxPhotoAnalysesPerSession). Vuelve a abrir la app para analizar '
+                      'más, o revisa un grupo que ya enviaste (eso es gratis).'
+                  : "You've hit this session's photo-analysis limit "
+                      '($kMaxPhotoAnalysesPerSession). Reopen the app to analyse more — '
+                      'or re-check a set you already sent (that part is free).',
               createdAt: _now(),
             ),
           );
@@ -585,8 +598,21 @@ class AppState extends ChangeNotifier {
 
   // --- Helpers ------------------------------------------------------------
 
+  /// The title a new conversation with [coach] starts with.
+  static String defaultThreadTitle(Coach coach) =>
+      coach.language == CoachLanguage.es
+          ? 'Nueva conversación'
+          : 'New conversation';
+
+  static final Set<String> _defaultTitles = {
+    for (final c in Coaches.all) defaultThreadTitle(c),
+  };
+
+  bool _isSpanish(ChatThread thread) =>
+      Coaches.byId(thread.coachId).language == CoachLanguage.es;
+
   void _autoTitle(ChatThread thread) {
-    final isDefault = thread.title == 'New conversation';
+    final isDefault = _defaultTitles.contains(thread.title);
     final firstUser = thread.messages.firstWhere(
       (m) => m.isUser && m.text.trim().isNotEmpty,
       orElse: () => ChatMessage(

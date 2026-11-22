@@ -74,6 +74,7 @@ void main() {
     expect(find.text('Planea una primera cita'), findsOneWidget, reason: 'starters in Spanish');
     expect(find.text('Escríbele a Mateo…'), findsOneWidget, reason: 'message box in Spanish');
 
+    await tester.ensureVisible(find.text('Planea una primera cita'));
     await tester.tap(find.text('Planea una primera cita'));
     await tester.pump();
     await settleReply(tester, state);
@@ -90,6 +91,7 @@ void main() {
     expect(find.text('Rewrite my dating bio'), findsOneWidget);
     expect(find.text('Message Emily…'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('Rewrite my dating bio'));
     await tester.tap(find.text('Rewrite my dating bio'));
     await tester.pump();
     await settleReply(tester, state);
@@ -112,7 +114,7 @@ void main() {
   testWidgets('a returning user who already chose a coach goes straight to the chat', (tester) async {
     await pumpChat(tester, prefs: {'dw_coach': 'isabella'});
     expect(find.text('Choose your coach'), findsNothing);
-    expect(find.text('Isabella'), findsNothing);
+    expect(find.byType(TextField), findsOneWidget, reason: 'the chat composer is shown');
   });
 
   for (final entry in phones.entries) {
@@ -125,11 +127,28 @@ void main() {
       await tester.tap(find.text('Hablar con Isabella'));
       await tester.pumpAndSettle();
       expect(find.text('Reescribe mi biografía'), findsOneWidget);
-      await tester.tap(find.text('Mi pareja dejó de escribirme'));
+      await tester.ensureVisible(find.text('Mi pareja dejó de escribirme'));
+      await tester.ensureVisible(find.text('Mi pareja dejó de escribirme'));
+    await tester.tap(find.text('Mi pareja dejó de escribirme'));
       await tester.pump();
       await settleReply(tester, state);
       expect(state.activeThread!.messages.last.text, contains('mensaje ligero'));
       expect(tester.takeException(), isNull, reason: 'no layout overflow on ${entry.key}');
+    });
+  }
+
+  // Smallest supported phone with large accessibility text: the welcome,
+  // starters and composer must fit (they scroll) for every coach.
+  for (final coach in Coaches.all) {
+    testWidgets('fits 320x568 at text scale 1.3 with ${coach.name}', (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await pumpChat(tester, size: const Size(320, 568), prefs: {'dw_coach': coach.id});
+      final state = tester.element(find.byType(ChatScreen)).read<AppState>();
+      await state.selectCoach(coach.id);
+      await tester.pumpAndSettle();
+      expect(find.text(coach.welcomeTitle), findsOneWidget);
+      expect(tester.takeException(), isNull, reason: 'no overflow for ${coach.name}');
     });
   }
 }

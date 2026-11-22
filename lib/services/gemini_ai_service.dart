@@ -23,25 +23,29 @@ class GeminiAIService implements AIService {
 
   final String _apiKey;
   final String _modelName;
-  final String Function(SubscriptionTier) systemPromptBuilder;
+  final String Function(SubscriptionTier, {UserProfile? profile, Coach? coach})
+      systemPromptBuilder;
 
   @override
   String get providerLabel => 'Gemini ($_modelName)';
 
-  GenerativeModel _modelFor(SubscriptionTier tier) => GenerativeModel(
+  GenerativeModel _modelFor(SubscriptionTier tier,
+          {UserProfile? profile, Coach? coach}) =>
+      GenerativeModel(
         model: _modelName,
         apiKey: _apiKey,
-        systemInstruction: Content.system(systemPromptBuilder(tier)),
+        systemInstruction: Content.system(
+            systemPromptBuilder(tier, profile: profile, coach: coach)),
       );
 
   @override
   Stream<String> streamReply({
     required List<ChatMessage> history,
     required SubscriptionTier tier,
-    UserProfile? profile, // grounding comes from systemPromptBuilder + history
-    Coach? coach, // local-testing client: the system prompt is fixed at construction (Emily)
+    UserProfile? profile,
+    Coach? coach,
   }) async* {
-    final model = _modelFor(tier);
+    final model = _modelFor(tier, profile: profile, coach: coach);
     final contents = history
         .where((m) => m.text.trim().isNotEmpty || m.imageBase64 != null)
         .map(_toContent)
