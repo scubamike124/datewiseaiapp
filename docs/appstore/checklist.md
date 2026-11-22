@@ -94,9 +94,8 @@ service is used.
 
 ## 7. Build and upload (pick one)
 
-19. Raise `DW_IOS_BUILD_NUMBER` in `ios/Flutter/Version.xcconfig` for every new
-    upload (4, 5, 6 ...). Once `pubspec.yaml` says `version: 2.0.0+N`, the
-    override file can be deleted.
+19. Raise the build number in `pubspec.yaml` (`version: 2.0.0+N`, currently
+    `2.0.0+4`) for every new upload (4, 5, 6 ...).
 20. **On a Mac:** `flutter pub get && flutter build ipa --release`, then
     upload `build/ios/ipa/*.ipa` with Transporter or Xcode Organizer.
     **Or CI:** run the signed-testflight job (step 6).
