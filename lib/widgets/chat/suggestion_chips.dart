@@ -21,7 +21,11 @@ class SuggestionChips extends StatelessWidget {
     required this.canSendPhoto,
     required this.onPhotoBlocked,
     this.suggestions = _suggestions,
+    this.centered = false,
   });
+
+  /// Centres the chips (under the centred welcome text).
+  final bool centered;
 
   /// The prompts to show (the active coach's, in their language).
   final List<Suggestion> suggestions;
@@ -44,8 +48,9 @@ class SuggestionChips extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(
           AppSpacing.md, 0, AppSpacing.md, AppSpacing.sm),
       child: Align(
-        alignment: Alignment.centerLeft,
+        alignment: centered ? Alignment.center : Alignment.centerLeft,
         child: Wrap(
+          alignment: centered ? WrapAlignment.center : WrapAlignment.start,
           spacing: AppSpacing.sm,
           runSpacing: AppSpacing.sm,
           children: suggestions.map((s) {

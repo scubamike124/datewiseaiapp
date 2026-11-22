@@ -156,6 +156,7 @@ class _ChatArea extends StatelessWidget {
                       starters: isResponding
                           ? null
                           : SuggestionChips(
+                              centered: true,
                               suggestions: [
                                 for (var i = 0; i < coach.starters.length; i++)
                                   Suggestion(

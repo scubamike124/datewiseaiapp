@@ -128,8 +128,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Reescribe mi biografía'), findsOneWidget);
       await tester.ensureVisible(find.text('Mi pareja dejó de escribirme'));
-      await tester.ensureVisible(find.text('Mi pareja dejó de escribirme'));
-    await tester.tap(find.text('Mi pareja dejó de escribirme'));
+      await tester.tap(find.text('Mi pareja dejó de escribirme'));
       await tester.pump();
       await settleReply(tester, state);
       expect(state.activeThread!.messages.last.text, contains('mensaje ligero'));
