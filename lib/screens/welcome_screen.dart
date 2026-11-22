@@ -4,6 +4,7 @@ import '../models/coach.dart';
 import '../theme/app_theme.dart';
 import '../widgets/dw.dart';
 import 'onboarding_screen.dart';
+import '../l10n/l10n.dart';
 
 /// First screen: Ava's portrait, the promise, and "Get started". There is no
 /// sign-in: DateWise keeps your data on this device.
@@ -13,6 +14,7 @@ class WelcomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const coach = Coaches.ava;
+    final l = context.l10n;
     final size = MediaQuery.sizeOf(context);
     final top = MediaQuery.paddingOf(context).top;
     final bottom = MediaQuery.paddingOf(context).bottom;
@@ -31,7 +33,7 @@ class WelcomeScreen extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    CoachImage(coach: coach, semanticLabel: 'Ava, an AI dating coach, smiling'),
+                    CoachImage(coach: coach, semanticLabel: l.welcomePortrait),
                     const DecoratedBox(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
@@ -46,7 +48,7 @@ class WelcomeScreen extends StatelessWidget {
                     Positioned(
                       left: 20,
                       bottom: 6,
-                      child: GlassChip(label: '${coach.name} · AI coach · ${coach.language.label}'),
+                      child: GlassChip(label: l.chip(coach)),
                     ),
                   ],
                 ),
@@ -60,21 +62,18 @@ class WelcomeScreen extends StatelessWidget {
                       header: true,
                       child: Text.rich(
                         TextSpan(children: [
-                          const TextSpan(text: 'Meet your\nAI dating '),
-                          TextSpan(text: 'coach.', style: AppText.display.copyWith(fontStyle: FontStyle.italic, color: AppColors.gold)),
+                          TextSpan(text: l.welcomeTitleLead),
+                          TextSpan(text: l.welcomeTitleAccent, style: AppText.display.copyWith(fontStyle: FontStyle.italic, color: AppColors.gold)),
                         ]),
                         style: AppText.display,
                       ),
                     ),
                     const SizedBox(height: 14),
-                    const Text(
-                      'Honest help with your profile, your messages and your first date, from a coach who listens.',
-                      style: AppText.body,
-                    ),
+                    Text(l.welcomeBody, style: AppText.body),
                     const SizedBox(height: 20),
                     DwButton(
                       key: const ValueKey('get-started'),
-                      label: 'Get started',
+                      label: l.getStarted,
                       trailing: Icons.chevron_right_rounded,
                       expand: true,
                       onPressed: () => Navigator.of(context).push(
@@ -82,23 +81,23 @@ class WelcomeScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const IntrinsicHeight(
+                    IntrinsicHeight(
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Expanded(child: _Value(icon: Icons.chat_bubble_outline_rounded, label: 'Better conversations')),
-                          SizedBox(width: 8),
-                          Expanded(child: _Value(icon: Icons.person_outline_rounded, label: 'Profile help')),
-                          SizedBox(width: 8),
-                          Expanded(child: _Value(icon: Icons.calendar_today_outlined, label: 'First-date plans')),
+                          Expanded(child: _Value(icon: Icons.chat_bubble_outline_rounded, label: l.valueConversations)),
+                          const SizedBox(width: 8),
+                          Expanded(child: _Value(icon: Icons.person_outline_rounded, label: l.valueProfile)),
+                          const SizedBox(width: 8),
+                          Expanded(child: _Value(icon: Icons.calendar_today_outlined, label: l.valueDates)),
                         ],
                       ),
                     ),
                     const SizedBox(height: 18),
-                    const Text(
-                      'AI coaches · For adults 18+ · English · Español',
+                    Text(
+                      l.welcomeFootnote,
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 12, color: AppColors.faint),
+                      style: const TextStyle(fontSize: 12, color: AppColors.faint),
                     ),
                   ],
                 ),

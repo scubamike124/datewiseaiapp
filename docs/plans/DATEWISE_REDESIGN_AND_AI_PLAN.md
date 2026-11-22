@@ -33,7 +33,7 @@ Plan, in two reviewed steps:
 1. **New contract, old one still accepted** (draft #23). The app sends `{coachId, tier, profile?, messages}`. `profile` is the structured `UserProfile.toJson()`, never free text. The app keeps its own system message so that an older Worker still works.
    - The Worker builds the system prompt itself, with the same coaching rules as the app and drift-checked against `coach.dart` and `persona.dart`, and drops any client `system` message.
    - Only known profile values reach the prompt.
-   - Requests without `coachId` (App Store 1.0.2) keep today's behaviour. `?version` reports `chat-v7`.
+   - Requests without `coachId` (App Store 1.0.2) keep today's behavior. `?version` reports `chat-v7`.
    - This narrows abuse for coach requests but does not close it: user and assistant turns still reach the model.
 2. **Remove the old contract once adoption allows.** After an app release that sends `coachId` has reached most users, the Worker rejects requests without one. Add per-IP rate limiting. Cloudflare's Workers rate-limiting binding is one option; whether it is free on this account is **unverified**, so that is an owner decision.
 
@@ -46,12 +46,12 @@ Tests: extend `backend/worker.test.mjs` from #17 with a fake AI binding. Cover: 
 - **Cost:** free-tier Workers AI only. The neuron cost per run is **unverified** until it runs.
 - **Then:** pick the model by score, especially Spanish (`rightLanguage`) and `noInventedFacts`, where small models are weakest.
 
-### A4. Better coaching behaviour (after A3 has a baseline)
+### A4. Better coaching behavior (after A3 has a baseline)
 - #13 `coach_policy.dart`: mode-aware instructions and a profile interview that asks before it writes. It now builds on #21's `Coach` (`coach.systemPrompt` exists).
 - #14 consent memory: off by default, visible and deletable. Wire it into the prompt only after #13. Re-run A3 after each to show the change in score.
 
 ### A5. Voice, video, concierge (owner decisions, paid)
-Nothing is integrated. #16, which needs #15 merged, compares text, voice and avatar vendors on price, privacy, policy and Flutter integration. Any paid provider, real likeness or voice, camera or microphone use, or booking partner needs the owner's explicit approval. Until then the UI may show clearly labelled "coming soon" controls only, with camera and microphone off by default (as #9 specifies).
+Nothing is integrated. #16, which needs #15 merged, compares text, voice and avatar vendors on price, privacy, policy and Flutter integration. Any paid provider, real likeness or voice, camera or microphone use, or booking partner needs the owner's explicit approval. Until then the UI may show clearly labeled "coming soon" controls only, with camera and microphone off by default (as #9 specifies).
 
 ## 3. Redesign
 

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:datewise_ai/app.dart';
+import 'package:datewise_ai/l10n/l10n.dart';
 import 'package:datewise_ai/screens/shell.dart';
 import 'package:datewise_ai/services/mock_ai_service.dart';
 import 'package:datewise_ai/services/speech_service.dart';
@@ -24,12 +26,23 @@ const sizes = {
 
 const textScales = [1.0, 1.3];
 
-/// Prefs for a user who finished onboarding with Ava.
-Map<String, Object> onboardedPrefs({String coach = 'ava'}) => {
+/// Prefs for a user who finished onboarding with Ava (or [coach], in
+/// [language]: the UI language follows it).
+Map<String, Object> onboardedPrefs({String coach = 'ava', String language = 'en'}) => {
       'dw_onboarded': true,
       'dw_coach': coach,
-      'dw_profile': '{"goals":["profile","conversations","dates"],"language":"en"}',
+      'dw_profile': '{"goals":["profile","conversations","dates"],"language":"$language"}',
     };
+
+/// Same, in Spanish with Sofía.
+Map<String, Object> spanishPrefs() => onboardedPrefs(coach: 'sofia', language: 'es');
+
+const localizationsDelegates = [
+  AppLocalizations.delegate,
+  GlobalMaterialLocalizations.delegate,
+  GlobalWidgetsLocalizations.delegate,
+  GlobalCupertinoLocalizations.delegate,
+];
 
 class TestApp {
   TestApp(this.state, this.store, this.storage);
@@ -94,6 +107,7 @@ Future<TestApp> pumpScreen(
   Map<String, Object> prefs = const {},
   bool entitled = true,
   StoreService? store,
+  Locale locale = const Locale('en'),
 }) async {
   setSurface(tester, size, scale);
   final app = await makeState(prefs: prefs, entitled: entitled, store: store);
@@ -101,7 +115,13 @@ Future<TestApp> pumpScreen(
     app,
     ChangeNotifierProvider(
       create: (_) => ShellController(),
-      child: MaterialApp(theme: AppTheme.dark, home: screen),
+      child: MaterialApp(
+        theme: AppTheme.dark,
+        locale: locale,
+        supportedLocales: AppLocales.supported,
+        localizationsDelegates: localizationsDelegates,
+        home: screen,
+      ),
     ),
   ));
   await tester.pump();

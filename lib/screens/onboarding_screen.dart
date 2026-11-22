@@ -8,6 +8,7 @@ import '../theme/app_theme.dart';
 import '../widgets/coach_card.dart';
 import '../widgets/dw.dart';
 import 'coaches_screen.dart';
+import '../l10n/l10n.dart';
 
 /// Onboarding after the welcome screen: goals, language, 18+ confirmation,
 /// then choosing a coach. Finishing it hands over to the paywall (root).
@@ -23,14 +24,30 @@ class _OnboardingScreenState extends State<OnboardingScreen> with VoicePreview {
   static const _steps = 4;
   late int _step = widget.initialStep;
   final List<CoachingGoal> _goals = [];
-  CoachLanguage _language = CoachLanguage.en;
+  CoachLanguage? _language;
   bool _adult = false;
-  bool _underage = false;
+
+  /// The language step starts on the current UI language (the device
+  /// language, or an earlier choice).
+  CoachLanguage get _lang => _language ?? AppLocales.languageOf(Localizations.localeOf(context));
+
+  /// Choosing a language switches the app's UI language right away.
+  void _setLanguage(CoachLanguage l) {
+    setState(() => _language = l);
+    context.read<AppState>().setLanguage(l);
+  }
+
+  /// Under 18: recorded on the device; the app shows only the "adults only"
+  /// page from now on (see RootGate), with no way back into onboarding.
+  Future<void> _underage() async {
+    stopPreview();
+    final nav = Navigator.of(context);
+    await context.read<AppState>().markUnderage();
+    nav.popUntil((r) => r.isFirst);
+  }
 
   void _back() {
-    if (_underage) {
-      setState(() => _underage = false);
-    } else if (_step == 0) {
+    if (_step == 0) {
       Navigator.of(context).maybePop();
     } else {
       setState(() => _step--);
@@ -43,7 +60,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> with VoicePreview {
     stopPreview();
     final state = context.read<AppState>();
     final nav = Navigator.of(context);
-    await state.completeOnboarding(goals: List.of(_goals), language: _language, coachId: coach.id);
+    final ok = await state.completeOnboarding(
+      goals: List.of(_goals),
+      language: _lang,
+      coachId: coach.id,
+      adultConfirmed: _adult,
+    );
+    if (!ok) return;
     // The root now shows the paywall / app; close the onboarding route.
     nav.popUntil((r) => r.isFirst);
   }
@@ -52,7 +75,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> with VoicePreview {
   Widget build(BuildContext context) {
     final top = MediaQuery.paddingOf(context).top;
     final bottom = MediaQuery.paddingOf(context).bottom;
-    final (Widget body, Widget? action) = _underage ? (_underageBody(), null) : _stepBody();
+    final l = context.l10n;
+    final (Widget body, Widget? action) = _stepBody(l);
 
     return Scaffold(
       key: ValueKey('onboarding-$_step'),
@@ -67,7 +91,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with VoicePreview {
                 children: [
                   IconButton(
                     key: const ValueKey('onboarding-back'),
-                    tooltip: 'Back',
+                    tooltip: l.back,
                     constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
                     onPressed: _back,
                     icon: const Icon(Icons.chevron_left_rounded, size: 30, color: AppColors.text),
@@ -80,7 +104,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with VoicePreview {
                           if (i > 0) const SizedBox(width: 6),
                           Expanded(
                             child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 250),
+                              duration: motion(context, const Duration(milliseconds: 250)),
                               height: 4,
                               decoration: BoxDecoration(
                                 color: i <= _step ? AppColors.gold : AppColors.line2,
@@ -111,24 +135,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> with VoicePreview {
     );
   }
 
-  (Widget, Widget?) _stepBody() {
+  (Widget, Widget?) _stepBody(AppLocalizations l) {
     switch (_step) {
       case 0:
         return (
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const LargeTitle(
-                eyebrow: 'Step 1 of 4',
-                title: 'What would you like help with?',
-                subtitle: 'Pick up to three. They become your plan for the week.',
+              LargeTitle(
+                eyebrow: l.stepOf(1, _steps),
+                title: l.goalsTitle,
+                subtitle: l.goalsSubtitle,
               ),
               const SizedBox(height: 20),
               for (final g in CoachingGoal.values)
                 _OptionTile(
                   key: ValueKey('goal-${g.name}'),
                   icon: _goalIcon(g),
-                  title: g.label,
+                  title: l.goal(g),
                   selected: _goals.contains(g),
                   onTap: () => setState(() {
                     if (_goals.contains(g)) {
@@ -142,7 +166,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with VoicePreview {
           ),
           DwButton(
             key: const ValueKey('onboarding-continue'),
-            label: 'Continue',
+            label: l.continueAction,
             expand: true,
             onPressed: _goals.isEmpty ? null : _next,
           ),
@@ -152,47 +176,47 @@ class _OnboardingScreenState extends State<OnboardingScreen> with VoicePreview {
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const LargeTitle(
-                eyebrow: 'Step 2 of 4',
-                title: 'Which language should your coach speak?',
-                subtitle: 'You can change this any time in You.',
+              LargeTitle(
+                eyebrow: l.stepOf(2, _steps),
+                title: l.languageTitle,
+                subtitle: l.languageSubtitle,
               ),
               const SizedBox(height: 20),
               _OptionTile(
                 key: const ValueKey('lang-en'),
                 icon: Icons.translate_rounded,
                 title: 'English',
-                subtitle: 'Coaches: Ava and Ethan',
-                selected: _language == CoachLanguage.en,
-                onTap: () => setState(() => _language = CoachLanguage.en),
+                subtitle: l.coachesFor(CoachLanguage.en),
+                selected: _lang == CoachLanguage.en,
+                onTap: () => _setLanguage(CoachLanguage.en),
               ),
               _OptionTile(
                 key: const ValueKey('lang-es'),
                 icon: Icons.translate_rounded,
                 title: 'Español',
-                subtitle: 'Coaches: Sofía y Diego',
-                selected: _language == CoachLanguage.es,
-                onTap: () => setState(() => _language = CoachLanguage.es),
+                subtitle: l.coachesFor(CoachLanguage.es),
+                selected: _lang == CoachLanguage.es,
+                onTap: () => _setLanguage(CoachLanguage.es),
               ),
             ],
           ),
-          DwButton(key: const ValueKey('onboarding-continue'), label: 'Continue', expand: true, onPressed: _next),
+          DwButton(key: const ValueKey('onboarding-continue'), label: l.continueAction, expand: true, onPressed: _next),
         );
       case 2:
         return (
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const LargeTitle(
-                eyebrow: 'Step 3 of 4',
-                title: 'DateWise is for adults.',
-                subtitle: 'Please confirm your age to continue.',
+              LargeTitle(
+                eyebrow: l.stepOf(3, _steps),
+                title: l.ageTitle,
+                subtitle: l.ageSubtitle,
               ),
               const SizedBox(height: 20),
               _OptionTile(
                 key: const ValueKey('age-confirm'),
                 icon: Icons.verified_user_outlined,
-                title: 'I am 18 or older',
+                title: l.ageConfirm,
                 selected: _adult,
                 onTap: () => setState(() => _adult = !_adult),
               ),
@@ -202,15 +226,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> with VoicePreview {
                 child: TextButton(
                   key: const ValueKey('age-under'),
                   style: TextButton.styleFrom(minimumSize: const Size(44, 44), foregroundColor: AppColors.textMuted),
-                  onPressed: () => setState(() => _underage = true),
-                  child: const Text('I am under 18'),
+                  onPressed: _underage,
+                  child: Text(l.ageUnder),
                 ),
               ),
             ],
           ),
           DwButton(
             key: const ValueKey('onboarding-continue'),
-            label: 'Continue',
+            label: l.continueAction,
             expand: true,
             onPressed: _adult ? _next : null,
           ),
@@ -220,14 +244,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> with VoicePreview {
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const LargeTitle(
-                eyebrow: 'Step 4 of 4',
-                title: 'Choose your dating coach',
-                subtitle: 'All four are AI coaches. Pick a style; switch any time.',
+              LargeTitle(
+                eyebrow: l.stepOf(4, _steps),
+                title: l.chooseCoachTitle,
+                subtitle: l.chooseCoachSubtitle,
               ),
               const SizedBox(height: 16),
               CoachGrid(
-                preferred: _language,
+                preferred: _lang,
                 previewingId: previewingId,
                 onPreview: previewHandler(),
                 onChat: _choose,
@@ -238,17 +262,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> with VoicePreview {
         );
     }
   }
-
-  Widget _underageBody() => const Column(
-        key: ValueKey('underage'),
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          LargeTitle(
-            title: 'Sorry, DateWise is only for adults.',
-            subtitle: 'You need to be 18 or older to use DateWise AI.',
-          ),
-        ],
-      );
 
   static IconData _goalIcon(CoachingGoal g) => switch (g) {
         CoachingGoal.conversations => Icons.chat_bubble_outline_rounded,
@@ -320,6 +333,36 @@ class _OptionTile extends StatelessWidget {
                   ],
                 ),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shown, and kept, once the user says they are under 18: there is no way
+/// forward (no back button, no onboarding, no chat).
+class UnderageScreen extends StatelessWidget {
+  const UnderageScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    return Scaffold(
+      key: const ValueKey('underage'),
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 48, 24, 24),
+          child: ContentWidth(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Align(alignment: Alignment.centerLeft, child: BrandMark()),
+                const SizedBox(height: 32),
+                LargeTitle(title: l.underageTitle, subtitle: l.underageBody),
+              ],
             ),
           ),
         ),

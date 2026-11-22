@@ -85,7 +85,7 @@ class DeviceSpeechService implements SpeechService {
   Future<String> stop() async {
     if (_stt.isListening) {
       await _stt.stop();
-      // Give the recogniser a moment to deliver its final result.
+      // Give the recognizer a moment to deliver its final result.
       await Future<void>.delayed(const Duration(milliseconds: 350));
     }
     return _words.trim();

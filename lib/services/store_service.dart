@@ -26,7 +26,11 @@ class StoreConfig {
   static const String googleManageUrl = 'https://play.google.com/store/account/subscriptions';
 }
 
-enum PurchaseResult { purchased, pending, cancelled, failed, unavailable }
+enum PurchaseResult { purchased, pending, canceled, failed, unavailable }
+
+/// Why the store could not do something. The paywall shows a localized
+/// message for each.
+enum StoreError { storeUnavailable, storeUnreachable, productUnavailable, purchaseFailed, restoreFailed }
 
 /// Subscription state and actions. The UI only talks to this interface.
 abstract class StoreService extends ChangeNotifier {
@@ -36,14 +40,14 @@ abstract class StoreService extends ChangeNotifier {
   /// Whether the user currently has an active DateWise Premium subscription.
   bool get isEntitled;
 
-  /// Localised price from the store ("$9.99"), or null when not loaded.
+  /// Localized price from the App Store ("$9.99"), or null when not loaded.
   String? get storePrice;
 
-  /// "$9.99/month": the store price, or the fallback when the store has none.
-  String get priceLabel => '${storePrice ?? StoreConfig.fallbackPrice}/month';
+  /// The store price, or the $9.99 fallback when the store has none.
+  String get price => storePrice ?? StoreConfig.fallbackPrice;
 
   /// Last error to show on the paywall, if any.
-  String? get lastError;
+  StoreError? get lastError;
 
   bool get busy;
 
@@ -56,6 +60,10 @@ abstract class StoreService extends ChangeNotifier {
 
   /// Restores purchases; returns whether an active subscription was found.
   Future<bool> restore();
+
+  /// Re-reads the entitlement (called whenever the app comes back to the
+  /// foreground, so a subscription canceled or expired meanwhile locks chat).
+  Future<void> refresh();
 
   /// Where "Manage subscription" goes, or null when there is nowhere to go.
   String? get manageUrl;
@@ -70,7 +78,7 @@ class UnsupportedStoreService extends StoreService {
   @override
   String? get storePrice => null;
   @override
-  String? get lastError => null;
+  StoreError? get lastError => null;
   @override
   bool get busy => false;
   @override
@@ -80,28 +88,34 @@ class UnsupportedStoreService extends StoreService {
   @override
   Future<bool> restore() async => false;
   @override
+  Future<void> refresh() async {}
+  @override
   String? get manageUrl => null;
 }
 
 /// In-memory store for tests and for review builds (`DW_FAKE_STORE=true`).
 /// Nothing is charged; the paywall says so.
 class FakeStoreService extends StoreService {
-  FakeStoreService({bool entitled = false, this.price = r'$9.99'}) : _entitled = entitled;
+  FakeStoreService({bool entitled = false, String? price = r'$9.99', bool purchasedBefore = false})
+      : _entitled = entitled,
+        _everBought = purchasedBefore || entitled,
+        _price = price;
 
   bool _entitled;
   bool _everBought = false;
   bool _busy = false;
-  final String? price;
+  final String? _price;
   int buyCalls = 0;
+  int refreshCalls = 0;
 
   @override
   bool get canPurchase => true;
   @override
   bool get isEntitled => _entitled;
   @override
-  String? get storePrice => price;
+  String? get storePrice => _price;
   @override
-  String? get lastError => null;
+  StoreError? get lastError => null;
   @override
   bool get busy => _busy;
   @override
@@ -127,9 +141,17 @@ class FakeStoreService extends StoreService {
     return _entitled;
   }
 
-  /// Simulates the subscription ending (tests).
+  @override
+  Future<void> refresh() async {
+    refreshCalls++;
+    notifyListeners();
+  }
+
+  /// Simulates the subscription ending (canceled or expired in Apple's
+  /// settings): restoring no longer finds it.
   void expire() {
     _entitled = false;
+    _everBought = false;
     notifyListeners();
   }
 
@@ -139,7 +161,7 @@ class FakeStoreService extends StoreService {
 
 /// Real purchases through the official `in_app_purchase` plugin (StoreKit 2
 /// on iOS). The entitlement is read from StoreKit's current entitlements on
-/// launch, so a cancelled or expired subscription stops unlocking chat.
+/// launch, so a canceled or expired subscription stops unlocking chat.
 class AppStoreService extends StoreService {
   AppStoreService({InAppPurchase? iap}) : _iap = iap ?? InAppPurchase.instance;
 
@@ -150,7 +172,7 @@ class AppStoreService extends StoreService {
   bool _entitled = false;
   bool _busy = false;
   bool _ready = false;
-  String? _error;
+  StoreError? _error;
   Completer<PurchaseResult>? _pending;
 
   @override
@@ -165,7 +187,7 @@ class AppStoreService extends StoreService {
   @override
   String? get storePrice => _product?.price;
   @override
-  String? get lastError => _error;
+  StoreError? get lastError => _error;
   @override
   bool get busy => _busy;
   @override
@@ -176,7 +198,7 @@ class AppStoreService extends StoreService {
     try {
       await _init().timeout(const Duration(seconds: 10));
     } catch (_) {
-      _error ??= 'Could not reach the App Store.';
+      _error ??= StoreError.storeUnreachable;
     }
     _ready = true;
     notifyListeners();
@@ -186,23 +208,23 @@ class AppStoreService extends StoreService {
     try {
       _available = await _iap.isAvailable();
       if (!_available) {
-        _error = 'The App Store is not available right now.';
+        _error = StoreError.storeUnavailable;
         notifyListeners();
         return;
       }
       _sub = _iap.purchaseStream.listen(_onPurchases, onError: (Object e) {
-        _error = 'Purchase failed. Please try again.';
+        _error = StoreError.purchaseFailed;
         _finishPending(PurchaseResult.failed);
       });
       final res = await _iap.queryProductDetails({StoreConfig.productId});
       if (res.productDetails.isNotEmpty) {
         _product = res.productDetails.first;
       } else {
-        _error = 'DateWise Premium is not available in the store yet.';
+        _error = StoreError.productUnavailable;
       }
       await _refreshEntitlement();
     } catch (_) {
-      _error = 'Could not reach the App Store.';
+      _error = StoreError.storeUnreachable;
     }
     notifyListeners();
   }
@@ -229,9 +251,9 @@ class AppStoreService extends StoreService {
         case PurchaseStatus.pending:
           _finishPending(PurchaseResult.pending);
         case PurchaseStatus.canceled:
-          _finishPending(PurchaseResult.cancelled);
+          _finishPending(PurchaseResult.canceled);
         case PurchaseStatus.error:
-          _error = 'Purchase failed. Please try again.';
+          _error = StoreError.purchaseFailed;
           _finishPending(PurchaseResult.failed);
       }
       if (p.pendingCompletePurchase) {
@@ -260,7 +282,7 @@ class AppStoreService extends StoreService {
     try {
       await _iap.buyNonConsumable(purchaseParam: PurchaseParam(productDetails: product));
     } catch (_) {
-      _error = 'Purchase failed. Please try again.';
+      _error = StoreError.purchaseFailed;
       _finishPending(PurchaseResult.failed);
     }
     final result = await completer.future
@@ -279,11 +301,22 @@ class AppStoreService extends StoreService {
       await _iap.restorePurchases();
       await _refreshEntitlement();
     } catch (_) {
-      _error = 'Could not restore purchases.';
+      _error = StoreError.restoreFailed;
     }
     _busy = false;
     notifyListeners();
     return _entitled;
+  }
+
+  @override
+  Future<void> refresh() async {
+    if (!_available) return;
+    try {
+      await _refreshEntitlement().timeout(const Duration(seconds: 10));
+    } catch (_) {
+      // Keep the last known state when the App Store cannot be reached.
+    }
+    notifyListeners();
   }
 
   @override

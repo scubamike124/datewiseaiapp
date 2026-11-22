@@ -7,6 +7,7 @@ import 'coaches_screen.dart';
 import 'home_screen.dart';
 import 'progress_screen.dart';
 import 'settings_screen.dart';
+import '../l10n/l10n.dart';
 
 enum AppTab { home, coaches, chat, progress, you }
 
@@ -95,15 +96,24 @@ class DwTabBar extends StatelessWidget {
   final ValueChanged<AppTab> onSelect;
 
   static const _items = [
-    (AppTab.home, 'Home', Icons.home_outlined, Icons.home_rounded),
-    (AppTab.coaches, 'Coaches', Icons.people_outline_rounded, Icons.people_rounded),
-    (AppTab.chat, 'Chat', Icons.chat_bubble_outline_rounded, Icons.chat_bubble_rounded),
-    (AppTab.progress, 'Progress', Icons.bar_chart_rounded, Icons.bar_chart_rounded),
-    (AppTab.you, 'You', Icons.person_outline_rounded, Icons.person_rounded),
+    (AppTab.home, Icons.home_outlined, Icons.home_rounded),
+    (AppTab.coaches, Icons.people_outline_rounded, Icons.people_rounded),
+    (AppTab.chat, Icons.chat_bubble_outline_rounded, Icons.chat_bubble_rounded),
+    (AppTab.progress, Icons.bar_chart_rounded, Icons.bar_chart_rounded),
+    (AppTab.you, Icons.person_outline_rounded, Icons.person_rounded),
   ];
+
+  static String label(AppLocalizations l, AppTab tab) => switch (tab) {
+        AppTab.home => l.tabHome,
+        AppTab.coaches => l.tabCoaches,
+        AppTab.chat => l.tabChat,
+        AppTab.progress => l.tabProgress,
+        AppTab.you => l.tabYou,
+      };
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     final bottom = MediaQuery.paddingOf(context).bottom;
     // Tab labels stay legible but capped, as iOS does in tab bars.
     final scaler = MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.15);
@@ -122,11 +132,11 @@ class DwTabBar extends StatelessWidget {
         data: MediaQuery.of(context).copyWith(textScaler: scaler),
         child: Row(
           children: [
-            for (final (tab, label, icon, activeIcon) in _items)
+            for (final (tab, icon, activeIcon) in _items)
               Expanded(
                 child: _TabItem(
                   key: ValueKey('tab-${tab.name}'),
-                  label: label,
+                  label: label(l, tab),
                   icon: tab == current ? activeIcon : icon,
                   active: tab == current,
                   onTap: () => onSelect(tab),
@@ -152,7 +162,7 @@ class _TabItem extends StatelessWidget {
     return Semantics(
       selected: active,
       button: true,
-      label: '$label tab',
+      label: context.l10n.tabSemantics(label),
       excludeSemantics: true,
       child: InkResponse(
         onTap: onTap,

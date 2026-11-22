@@ -8,6 +8,7 @@ import '../theme/app_theme.dart';
 import '../widgets/coach_card.dart';
 import '../widgets/dw.dart';
 import 'shell.dart';
+import '../l10n/l10n.dart';
 
 /// Plays a coach's short spoken intro with on-device TTS. Shared by the
 /// Coaches tab and the onboarding coach step.
@@ -64,6 +65,7 @@ class _CoachesScreenState extends State<CoachesScreen> with VoicePreview {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    final l = context.l10n;
     final top = MediaQuery.paddingOf(context).top;
     return DecoratedBox(
       decoration: const BoxDecoration(
@@ -79,17 +81,17 @@ class _CoachesScreenState extends State<CoachesScreen> with VoicePreview {
         child: ContentWidth(
           child: Column(
             children: [
-              const LargeTitle(
-                eyebrow: 'AI dating coaches',
-                title: 'Choose your dating coach',
-                subtitle: 'All four are AI coaches. Pick a style; switch any time.',
+              LargeTitle(
+                eyebrow: l.coachesEyebrow,
+                title: l.chooseCoachTitle,
+                subtitle: l.chooseCoachSubtitle,
                 center: true,
               ),
               const SizedBox(height: 16),
               CoachGrid(
                 selectedId: state.selectedCoach.id,
                 previewingId: previewingId,
-                preferred: state.profile?.language,
+                preferred: state.chosenLanguage ?? AppLocales.languageOf(Localizations.localeOf(context)),
                 onPreview: previewHandler(),
                 onChat: (coach) async {
                   stopPreview();
@@ -98,8 +100,8 @@ class _CoachesScreenState extends State<CoachesScreen> with VoicePreview {
                 },
               ),
               const SizedBox(height: 14),
-              const Text(
-                'English coaches: Ava and Ethan · Coaches en español: Sofía y Diego',
+              Text(
+                l.coachesFootnote,
                 textAlign: TextAlign.center,
                 style: AppText.small,
               ),

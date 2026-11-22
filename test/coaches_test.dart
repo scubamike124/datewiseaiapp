@@ -41,7 +41,7 @@ void main() {
       }
     });
 
-    test('every coach is labelled as AI', () {
+    test('every coach is labeled as AI', () {
       for (final c in Coaches.all) {
         expect(c.aiLabel, anyOf(contains('AI'), contains('IA')));
         expect(c.greeting, anyOf(contains(' AI '), contains('con IA')));
@@ -105,8 +105,16 @@ void main() {
       expect(prompts, hasLength(4));
       expect(Coaches.ava.systemPrompt, contains('confidence coach: direct, supportive and focused on results'));
       expect(Coaches.ethan.systemPrompt, contains('strategy coach: practical, modern and laid-back'));
-      expect(Coaches.sofia.systemPrompt, contains('warm and motivating'));
-      expect(Coaches.diego.systemPrompt, contains('relationship coach: practical and honest'));
+      expect(Coaches.sofia.systemPrompt, contains('Eres una coach de confianza: cálida, cercana y motivadora.'));
+      expect(Coaches.diego.systemPrompt, contains('Eres un coach de relaciones: práctico, honesto y directo.'));
+      // Spanish coaches' style rules are written in Spanish, English ones in English.
+      for (final c in Coaches.forLanguage(CoachLanguage.es)) {
+        expect(c.styleRules.first, startsWith('Eres'));
+        expect(c.styleRules.join(' '), isNot(contains('You ')), reason: c.name);
+      }
+      for (final c in Coaches.forLanguage(CoachLanguage.en)) {
+        expect(c.styleRules.first, startsWith('You are a'));
+      }
       for (final c in Coaches.all) {
         expect(c.systemPrompt, contains('Never claim to be human'));
         expect(c.systemPrompt, contains('public place'));
@@ -122,7 +130,7 @@ void main() {
   });
 
   group('the request sent to the backend', () {
-    final svc = BackendAIService(endpoint: 'https://example.invalid', chatFallback: MockAIService());
+    final svc = BackendAIService(endpoint: 'https://example.invalid');
     final history = [ChatMessage(id: '1', role: MessageRole.user, text: 'Hola', createdAt: DateTime(2026))];
 
     test('carries the coach id, the structured profile and the system message', () {
@@ -137,9 +145,15 @@ void main() {
       expect(svc.buildPayload(history, SubscriptionTier.magnet, null)['coachId'], 'ava');
     });
 
-    test('the connection-failure notice is in the coach language', () {
-      expect(BackendAIService.unavailableMessage(Coaches.diego), startsWith('Ahora mismo'));
-      expect(BackendAIService.unavailableMessage(Coaches.ava), startsWith("I'm having trouble"));
+    test('failed, stopped and streaming replies are never sent back as history', () {
+      final h = [
+        ChatMessage(id: '1', role: MessageRole.user, text: 'Hi', createdAt: DateTime(2026)),
+        ChatMessage(id: '2', role: MessageRole.coach, text: 'half a rep', createdAt: DateTime(2026), status: MessageStatus.stopped),
+        ChatMessage(id: '3', role: MessageRole.coach, text: '', createdAt: DateTime(2026), status: MessageStatus.failed),
+        ChatMessage(id: '4', role: MessageRole.user, text: 'Again', createdAt: DateTime(2026)),
+      ];
+      final msgs = svc.buildMessages(h, SubscriptionTier.magnet, null, Coaches.ava);
+      expect(msgs.skip(1).map((m) => m['content']), ['Hi', 'Again']);
     });
   });
 
@@ -149,6 +163,17 @@ void main() {
       final history = [ChatMessage(id: '1', role: MessageRole.user, text: 'Quiero una cita', createdAt: DateTime(2026))];
       final es = (await ai.streamReply(history: history, tier: SubscriptionTier.magnet, coach: Coaches.diego).toList()).join();
       expect(es, contains('lugar público'));
+    });
+
+    test('every English starter gets an English answer, with nothing about photos or plans', () {
+      for (final c in Coaches.forLanguage(CoachLanguage.en)) {
+        for (final s in c.starters) {
+          final reply = MockAIService.englishReply(s, c);
+          expect(reply, isNotEmpty);
+          expect(reply.toLowerCase(), isNot(contains('photo icon')), reason: s);
+          expect(reply, isNot(contains('/wk')), reason: s);
+        }
+      }
     });
 
     test('every Spanish starter gets a Spanish answer', () {

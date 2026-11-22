@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.2+3
+version: 2.0.0+4
 
 environment:
   sdk: ^3.7.0
@@ -30,6 +30,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # English and Spanish app chrome (gen-l10n ARB files in lib/l10n).
+  flutter_localizations:
+    sdk: flutter
+  intl: any
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -40,9 +44,6 @@ dependencies:
 
   # Local persistence (uses localStorage on web)
   shared_preferences: ^2.3.2
-
-  # Real AI provider (Gemini) — optional, behind an API key in lib/services/ai_config.dart
-  google_generative_ai: ^0.4.6
 
   # Unique ids for threads/messages
   uuid: ^4.5.1
@@ -107,6 +108,9 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # Generates lib/l10n/app_localizations*.dart from the ARB files (l10n.yaml).
+  generate: true
+
   assets:
     # NOTE: kept in a folder named "images" (not "assets/images") on purpose.
     # Flutter web would otherwise output the doubled path build/web/assets/
@@ -116,7 +120,7 @@ flutter:
     # diego. Replace the files in place (same names) with the final portraits.
     - assets/coaches/
 
-  # Bundled OFL fonts (licences in assets/fonts/OFL-*.txt).
+  # Bundled OFL fonts (licenses in assets/fonts/OFL-*.txt).
   fonts:
     - family: Newsreader
       fonts:

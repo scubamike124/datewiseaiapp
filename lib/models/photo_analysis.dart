@@ -1,4 +1,4 @@
-/// How deeply to analyse a photo. [quick] is a fast, cheap pass (score +
+/// How deeply to analyze a photo. [quick] is a fast, cheap pass (score +
 /// headline + a single tip, no dimension breakdown); [deep] is the full
 /// dimension-by-dimension critique. The mode is sent to the backend, which
 /// trims its prompt and token budget accordingly, and is part of the result

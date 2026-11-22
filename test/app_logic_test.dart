@@ -1,9 +1,11 @@
 // Unit tests: subscription gating, Coach memory, delete-data wipe, the weekly
 // plan, the streak, reply options and voice selection.
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:datewise_ai/l10n/l10n.dart';
 import 'package:datewise_ai/models/chat_message.dart';
 import 'package:datewise_ai/models/coach.dart';
 import 'package:datewise_ai/models/reply_options.dart';
@@ -47,18 +49,28 @@ void main() {
       expect(await state.sendMessage('Again'), isFalse);
     });
 
-    test('restore brings back a previous purchase', () async {
+    test('restore brings back an active subscription (new install or device)', () async {
+      final store = FakeStoreService(purchasedBefore: true);
+      final (state, _) = await make(store: store);
+      expect(state.canChat, isFalse);
+      expect(await store.restore(), isTrue);
+      expect(store.isEntitled, isTrue);
+      expect(state.canChat, isTrue);
+    });
+
+    test('restore finds nothing once the subscription was canceled or expired', () async {
       final store = FakeStoreService();
       await store.buy();
       store.expire();
-      expect(await store.restore(), isTrue);
-      expect(store.isEntitled, isTrue);
+      expect(await store.restore(), isFalse);
+      expect(store.isEntitled, isFalse);
     });
 
     test('one product, \$9.99/month, price from the store with a fallback', () {
       expect(StoreConfig.productId, 'datewise_premium_monthly');
-      expect(FakeStoreService(price: '9,99 €').priceLabel, '9,99 €/month');
-      expect(FakeStoreService(price: null).priceLabel, r'$9.99/month');
+      expect(StoreConfig.fallbackPrice, r'$9.99');
+      expect(FakeStoreService(price: '9,99 €').price, '9,99 €', reason: 'the StoreKit price is shown as is');
+      expect(FakeStoreService(price: null).price, r'$9.99');
       expect(UnsupportedStoreService().canPurchase, isFalse);
     });
   });
@@ -72,13 +84,13 @@ void main() {
 
     test('is sent with the profile only while ON; can be edited and cleared', () async {
       final (state, storage) = await make();
-      await state.completeOnboarding(goals: const [CoachingGoal.dates], language: CoachLanguage.en, coachId: 'ethan');
+      await state.completeOnboarding(goals: const [CoachingGoal.dates], language: CoachLanguage.en, coachId: 'ethan', adultConfirmed: true);
       await state.saveMemory('Shy at first, on Hinge.');
       expect(state.profileForCoach!.memory, isNull);
 
       await state.setMemoryEnabled(true);
       expect(state.profileForCoach!.memory, 'Shy at first, on Hinge.');
-      final svc = BackendAIService(endpoint: 'https://example.invalid', chatFallback: MockAIService());
+      final svc = BackendAIService(endpoint: 'https://example.invalid');
       final history = [ChatMessage(id: '1', role: MessageRole.user, text: 'Hi', createdAt: DateTime(2026))];
       final on = svc.buildPayload(history, SubscriptionTier.magnet, state.profileForCoach, Coaches.ethan);
       expect((on['profile'] as Map)['memory'], 'Shy at first, on Hinge.');
@@ -100,8 +112,9 @@ void main() {
 
   group('delete data', () {
     test('Delete my data wipes everything and returns to onboarding', () async {
-      final (state, storage) = await make(store: FakeStoreService(entitled: true));
-      await state.completeOnboarding(goals: const [CoachingGoal.profile], language: CoachLanguage.es, coachId: 'sofia');
+      final store = FakeStoreService(entitled: true);
+      final (state, storage) = await make(store: store, prefs: {'dw_tier': 'magnet'});
+      await state.completeOnboarding(goals: const [CoachingGoal.profile], language: CoachLanguage.es, coachId: 'sofia', adultConfirmed: true);
       await state.saveMemory('note');
       await state.setMemoryEnabled(true);
       await state.togglePlanItem(0);
@@ -110,7 +123,8 @@ void main() {
 
       await state.deleteMyData();
       final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getKeys().where((k) => k.startsWith('dw_')), isEmpty);
+      expect(prefs.getKeys().where((k) => k.startsWith('dw_')), isEmpty,
+          reason: 'conversations, profile, plan, memory, stats and subscription flags are all gone');
       expect(state.onboarded, isFalse);
       expect(state.threads, isEmpty);
       expect(state.plan, isNull);
@@ -118,11 +132,12 @@ void main() {
       expect(state.memoryText, isEmpty);
       expect(state.daysUsed, 0);
       expect(storage.loadThreads(), isEmpty);
+      expect(store.isEntitled, isTrue, reason: 'the App Store subscription itself is not canceled');
     });
 
     test('Delete all conversations keeps settings', () async {
       final (state, storage) = await make(store: FakeStoreService(entitled: true));
-      await state.completeOnboarding(goals: const [CoachingGoal.profile], language: CoachLanguage.en, coachId: 'ava');
+      await state.completeOnboarding(goals: const [CoachingGoal.profile], language: CoachLanguage.en, coachId: 'ava', adultConfirmed: true);
       await state.sendMessage('Hi');
       await state.deleteAllConversations();
       expect(state.threads, isEmpty);
@@ -144,17 +159,20 @@ void main() {
       final now = DateTime(2026, 11, 25, 20);
       final (state, storage) = await make(now: now);
       await state.completeOnboarding(
-          goals: const [CoachingGoal.profile, CoachingGoal.dates], language: CoachLanguage.en, coachId: 'ava');
+          goals: const [CoachingGoal.profile, CoachingGoal.dates], language: CoachLanguage.en, coachId: 'ava', adultConfirmed: true);
       await state.togglePlanItem(1);
       final reloaded = AppState(storage: storage, ai: MockAIService(), clock: () => now);
       expect(reloaded.plan!.items.map((i) => i.done), [false, true, false]);
-      expect(reloaded.plan!.items[0].title(CoachLanguage.en, Coaches.ava), 'Rewrite your bio with Ava');
-      expect(reloaded.plan!.items[0].title(CoachLanguage.es, Coaches.sofia), 'Reescribe tu biografía con Sofía');
+      expect(reloaded.plan!.items[0].goal, CoachingGoal.profile);
+      expect(lookupAppLocalizations(const Locale('en')).planItemTitle(CoachingGoal.profile, Coaches.ava),
+          'Rewrite your bio with Ava');
+      expect(lookupAppLocalizations(const Locale('es')).planItemTitle(CoachingGoal.profile, Coaches.sofia),
+          'Reescribe tu biografía con Sofía');
     });
 
     test('ticks reset when a new week starts; items stay', () async {
       final (state, storage) = await make(now: DateTime(2026, 11, 25));
-      await state.completeOnboarding(goals: const [CoachingGoal.profile], language: CoachLanguage.en, coachId: 'ava');
+      await state.completeOnboarding(goals: const [CoachingGoal.profile], language: CoachLanguage.en, coachId: 'ava', adultConfirmed: true);
       await state.togglePlanItem(0);
       final nextWeek = AppState(storage: storage, ai: MockAIService(), clock: () => DateTime(2026, 12, 1));
       expect(nextWeek.plan!.doneCount, 0);
@@ -197,22 +215,7 @@ void main() {
     });
   });
 
-  group('voice selection', () {
-    test('prefers the coach locale, quality and gender', () {
-      final voices = [
-        {'name': 'Juan', 'locale': 'es-MX', 'quality': 'default', 'gender': 'male'},
-        {'name': 'Paulina', 'locale': 'es-MX', 'quality': 'enhanced', 'gender': 'female'},
-        {'name': 'Monica', 'locale': 'es-ES', 'quality': 'premium', 'gender': 'female'},
-        {'name': 'Samantha', 'locale': 'en-US', 'quality': 'default', 'gender': 'female'},
-        {'name': 'Evan', 'locale': 'en-US', 'quality': 'enhanced', 'gender': 'male'},
-      ];
-      expect(DeviceVoiceService.pickVoice(voices, Coaches.sofia)!['name'], 'Paulina');
-      expect(DeviceVoiceService.pickVoice(voices, Coaches.diego)!['name'], 'Paulina', reason: 'quality outranks gender');
-      expect(DeviceVoiceService.pickVoice(voices, Coaches.ethan)!['name'], 'Evan');
-      expect(DeviceVoiceService.pickVoice([voices[2]], Coaches.sofia)!['name'], 'Monica', reason: 'es-ES fallback');
-      expect(DeviceVoiceService.pickVoice(const [], Coaches.ava), isNull);
-    });
-
+  group('voice service', () {
     test('no TTS on web/tests: the voice service reports unavailable', () {
       expect(NoVoiceService().available, isFalse);
     });

@@ -29,15 +29,20 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('onboarding-continue')));
     await tester.pumpAndSettle();
 
-    // Language.
+    // Language: choosing Español switches the whole app to Spanish at once.
+    expect(find.text('Choose your language'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('lang-es')));
+    await tester.pumpAndSettle();
+    expect(find.text('Elige tu idioma'), findsOneWidget);
+    expect(find.text('Continuar'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('onboarding-continue')));
     await tester.pumpAndSettle();
 
     // 18+ must be confirmed.
     await tester.tap(find.byKey(const ValueKey('onboarding-continue')));
     await tester.pumpAndSettle();
-    expect(find.text('DateWise is for adults.'), findsOneWidget);
+    expect(find.text('DateWise es solo para adultos.'), findsOneWidget);
+    expect(find.text('Tengo 18 años o más'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('age-confirm')));
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('onboarding-continue')));
@@ -50,21 +55,23 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('chat-sofia')));
     await tester.pumpAndSettle();
 
-    // Paywall, before any chat.
+    // Paywall, before any chat, in Spanish with Apple's disclosures.
     expect(find.byKey(const ValueKey('paywall')), findsOneWidget);
     expect(app.state.selectedCoach, Coaches.sofia);
     expect(app.state.plan!.items.first.goal.name, 'confidence');
     final disclosure = tester.widget<Text>(find.byKey(const ValueKey('paywall-disclosure'))).data!;
-    expect(disclosure, contains(r'$9.99/month'));
-    expect(disclosure, contains('auto-renews monthly'));
-    expect(disclosure, contains('until canceled'));
-    expect(disclosure, contains('Settings › Apple ID › Subscriptions'));
+    expect(disclosure, contains(r'$9.99/mes'));
+    expect(disclosure, contains('se renueva automáticamente cada mes'));
+    expect(disclosure, contains('hasta que la canceles'));
+    expect(disclosure, contains('24 horas antes'));
+    expect(disclosure, contains('Configuración › Apple ID › Suscripciones'));
     expect(disclosure, contains('Apple ID'));
-    expect(find.text('Restore Purchases'), findsOneWidget);
-    expect(find.text('Terms of Use'), findsOneWidget);
-    expect(find.text('Privacy Policy'), findsOneWidget);
-    expect(find.textContaining('trial'), findsNothing);
-    expect(find.textContaining('free', findRichText: true), findsNothing);
+    expect(find.text('Restaurar compras'), findsOneWidget);
+    expect(find.text('Términos de uso'), findsOneWidget);
+    expect(find.text('Política de privacidad'), findsOneWidget);
+    expect(find.text(r'Suscribirme por $9.99/mes'), findsOneWidget);
+    expect(find.textContaining('prueba'), findsNothing);
+    expect(find.textContaining('gratis', findRichText: true), findsNothing);
 
     await tester.ensureVisible(find.byKey(const ValueKey('paywall-subscribe')));
     await tester.tap(find.byKey(const ValueKey('paywall-subscribe')));
@@ -73,10 +80,14 @@ void main() {
     expect(app.store.isEntitled, isTrue);
     expect(find.byKey(const ValueKey('tab-home')), findsOneWidget);
 
-    // Chat with Sofía, labelled as AI.
+    // Spanish tabs; chat with Sofía, labeled as AI.
+    expect(find.text('Inicio'), findsOneWidget);
+    expect(find.text('Progreso'), findsOneWidget);
+    expect(find.text('Tú'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('tab-chat')));
     await tester.pumpAndSettle();
     expect(find.text('Coach de citas con IA · Español'), findsOneWidget);
+    expect(find.text('Escríbele a Sofía…'), findsOneWidget);
     await tester.enterText(find.byKey(const ValueKey('composer')), 'Quiero una cita');
     await tester.tap(find.byKey(const ValueKey('send')));
     await tester.pump();
@@ -100,6 +111,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Sorry, DateWise is only for adults.'), findsOneWidget);
     expect(find.byKey(const ValueKey('onboarding-continue')), findsNothing);
+    expect(find.byKey(const ValueKey('onboarding-back')), findsNothing, reason: 'no way back into onboarding');
   });
 
   testWidgets('closing the paywall keeps chat locked; subscribing from chat unlocks it', (tester) async {
@@ -197,6 +209,6 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('chat-diego')));
     await tester.pumpAndSettle();
     expect(app.state.selectedCoach, Coaches.diego);
-    expect(find.text('Escríbele a Diego…'), findsOneWidget);
+    expect(find.text('Message Diego…'), findsOneWidget, reason: 'English UI');
   });
 }

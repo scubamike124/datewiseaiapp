@@ -1,8 +1,16 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
+import '../models/batch_photo_analysis.dart';
+import '../models/chat_message.dart';
 import '../models/coach.dart';
+import '../models/photo_analysis.dart';
+import '../models/tier.dart';
 import '../models/user_profile.dart';
+import '../screens/onboarding_screen.dart';
 import '../screens/shell.dart';
+import '../services/ai_service.dart';
+import '../services/backend_ai_service.dart';
 import '../services/store_service.dart';
 import '../state/app_state.dart';
 
@@ -10,36 +18,87 @@ import '../state/app_state.dart';
 /// `DW_MOCK_AI=true`): opens a given screen with sample local data so the
 /// design can be reviewed on the web. Never active in a release build
 /// without those flags.
+///
+/// `?screen=welcome|onboarding|paywall|home|coaches|chat|chat-error|progress|settings`
+/// `&step=1..4` (onboarding) `&lang=en|es` (UI language, and a Spanish coach).
 class ReviewMode {
   ReviewMode._();
 
   /// Use the offline demo coach instead of the live backend.
   static const bool mockAI = bool.fromEnvironment('DW_MOCK_AI');
 
-  /// `?screen=home|coaches|chat|progress|settings|paywall|welcome` on web.
-  static String? requestedScreen() {
-    if (!StoreConfig.useFakeStore || !kIsWeb) return null;
-    return Uri.base.queryParameters['screen'];
+  static bool get _active => StoreConfig.useFakeStore && kIsWeb;
+
+  static String? requestedScreen() => _active ? Uri.base.queryParameters['screen'] : null;
+
+  static CoachLanguage get language =>
+      Uri.base.queryParameters['lang'] == 'es' ? CoachLanguage.es : CoachLanguage.en;
+
+  /// A screen shown instead of the welcome screen (onboarding steps).
+  static Widget? home(String? screen) {
+    if (screen != 'onboarding') return null;
+    final step = int.tryParse(Uri.base.queryParameters['step'] ?? '') ?? 1;
+    return OnboardingScreen(initialStep: (step - 1).clamp(0, 3));
   }
+
+  /// The coach backend stand-in for `screen=chat-error` (always unreachable).
+  static AIService? aiFor(String? screen) => screen == 'chat-error' ? _UnreachableCoach() : null;
 
   /// Seeds the state for [screen] and returns the tab to open.
   static Future<AppTab> seed(String screen, AppState state, StoreService store) async {
-    if (screen == 'welcome') return AppTab.home;
+    final es = language == CoachLanguage.es;
+    if (screen == 'welcome' || screen == 'onboarding') {
+      if (es || Uri.base.queryParameters['lang'] == 'en') await state.setLanguage(language);
+      return AppTab.home;
+    }
     await state.completeOnboarding(
       goals: const [CoachingGoal.profile, CoachingGoal.conversations, CoachingGoal.dates],
-      language: CoachLanguage.en,
-      coachId: Coaches.ava.id,
+      language: language,
+      coachId: es ? Coaches.sofia.id : Coaches.ava.id,
+      adultConfirmed: true,
     );
     if (screen == 'paywall') return AppTab.home;
     await store.buy();
     await state.togglePlanItem(0);
-    await state.sendMessage('Give me a strong opener');
+    await state.sendMessage(es ? 'Dame un buen primer mensaje' : 'Give me a strong opener');
     return switch (screen) {
       'coaches' => AppTab.coaches,
-      'chat' => AppTab.chat,
+      'chat' || 'chat-error' => AppTab.chat,
       'progress' => AppTab.progress,
       'settings' || 'you' => AppTab.you,
       _ => AppTab.home,
     };
   }
+}
+
+class _UnreachableCoach implements AIService {
+  @override
+  String get providerLabel => 'review: unreachable coach';
+
+  @override
+  Stream<String> streamReply({
+    required List<ChatMessage> history,
+    required SubscriptionTier tier,
+    UserProfile? profile,
+    Coach? coach,
+  }) =>
+      Stream.error(const CoachUnavailableException('http', statusCode: 502));
+
+  @override
+  Future<PhotoAnalysis> analyzePhoto({
+    required String imageBase64,
+    required SubscriptionTier tier,
+    String? userNote,
+    AnalysisMode mode = AnalysisMode.deep,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<BatchPhotoAnalysis> analyzePhotos({
+    required List<String> imageBase64s,
+    required SubscriptionTier tier,
+    String? userNote,
+    AnalysisMode mode = AnalysisMode.deep,
+  }) =>
+      throw UnimplementedError();
 }

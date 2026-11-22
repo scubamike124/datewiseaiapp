@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../content/legal_text.dart';
 import '../services/store_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/dw.dart';
 import 'legal_screen.dart';
+import '../l10n/l10n.dart';
 
 /// Opens the paywall as a full-screen sheet; it closes itself after a
 /// successful purchase or restore.
@@ -28,24 +28,35 @@ class PaywallScreen extends StatefulWidget {
   State<PaywallScreen> createState() => _PaywallScreenState();
 }
 
+/// The paywall's localized message for a store error.
+String storeErrorText(AppLocalizations l, StoreError e) => switch (e) {
+      StoreError.storeUnavailable => l.storeUnavailable,
+      StoreError.storeUnreachable => l.storeUnreachable,
+      StoreError.productUnavailable => l.productUnavailable,
+      StoreError.purchaseFailed => l.purchaseFailed,
+      StoreError.restoreFailed => l.restoreFailed,
+    };
+
 class _PaywallScreenState extends State<PaywallScreen> {
-  String? _message;
+  /// A message for the last action, built in the current language.
+  String Function(AppLocalizations l)? _message;
 
   Future<void> _buy(StoreService store) async {
     setState(() => _message = null);
     final result = await store.buy();
     if (!mounted) return;
+    final error = store.lastError;
     switch (result) {
       case PurchaseResult.purchased:
         widget.onClose();
       case PurchaseResult.pending:
-        setState(() => _message = 'Your purchase is pending approval. Chat unlocks as soon as it is approved.');
-      case PurchaseResult.cancelled:
+        setState(() => _message = (l) => l.purchasePending);
+      case PurchaseResult.canceled:
         break;
       case PurchaseResult.failed:
-        setState(() => _message = store.lastError ?? 'Purchase failed. Please try again.');
+        setState(() => _message = (l) => error == null ? l.purchaseFailed : storeErrorText(l, error));
       case PurchaseResult.unavailable:
-        setState(() => _message = store.lastError ?? 'Purchases are not available right now.');
+        setState(() => _message = (l) => error == null ? l.purchasesUnavailable : storeErrorText(l, error));
     }
   }
 
@@ -53,23 +64,27 @@ class _PaywallScreenState extends State<PaywallScreen> {
     setState(() => _message = null);
     final ok = await store.restore();
     if (!mounted) return;
+    final error = store.lastError;
     if (ok) {
       widget.onClose();
     } else {
-      setState(() => _message = store.lastError ?? 'No active DateWise Premium subscription was found for this Apple ID.');
+      setState(() => _message = (l) => error == StoreError.restoreFailed || error == StoreError.storeUnreachable || error == StoreError.storeUnavailable
+          ? storeErrorText(l, error!)
+          : l.noSubscriptionForAppleId);
     }
   }
 
-  void _openLegal(String title, String content) {
-    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => LegalScreen(title: title, content: content)));
+  void _openLegal(LegalDoc doc) {
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => LegalScreen.doc(doc)));
   }
 
   @override
   Widget build(BuildContext context) {
     final store = context.watch<StoreService>();
     final coach = context.watch<AppState>().selectedCoach;
-    final price = store.storePrice ?? StoreConfig.fallbackPrice;
-    final perMonth = store.priceLabel;
+    final l = context.l10n;
+    final price = store.price;
+    final perMonth = l.pricePerMonth(price);
     final unsupported = store is UnsupportedStoreService;
     final top = MediaQuery.paddingOf(context).top;
 
@@ -86,7 +101,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    CoachImage(coach: coach, semanticLabel: '${coach.name}, AI coach portrait'),
+                    CoachImage(coach: coach, semanticLabel: l.coachPortrait(coach.name)),
                     const FadeToBackground(stops: [0.4, 1]),
                     const Positioned(
                       left: 0,
@@ -114,7 +129,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                           CircleIconButton(
                             key: const ValueKey('paywall-close'),
                             icon: Icons.close_rounded,
-                            tooltip: 'Close',
+                            tooltip: l.close,
                             filled: true,
                             onPressed: widget.onClose,
                           ),
@@ -129,16 +144,16 @@ class _PaywallScreenState extends State<PaywallScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text('DATEWISE PREMIUM', style: AppText.eyebrow),
+                    Text(l.premiumEyebrow.toUpperCase(), style: AppText.eyebrow),
                     const SizedBox(height: 8),
                     Semantics(
                       header: true,
-                      child: Text('Unlimited coaching with ${coach.name} and the team.', style: AppText.title),
+                      child: Text(l.paywallHeadline(coach.name), style: AppText.title),
                     ),
                     const SizedBox(height: 16),
-                    const _Benefit('Chat with all four AI coaches, in English and Spanish'),
-                    const _Benefit('Voice practice: speak and hear replies on your iPhone'),
-                    const _Benefit('Your weekly plan and progress, kept on your device'),
+                    _Benefit(l.benefitCoaches),
+                    _Benefit(l.benefitVoice),
+                    _Benefit(l.benefitPlan),
                     const SizedBox(height: 18),
                     DwCard(
                       gradient: const LinearGradient(
@@ -148,13 +163,13 @@ class _PaywallScreenState extends State<PaywallScreen> {
                       ),
                       child: Row(
                         children: [
-                          const Expanded(
+                          Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(StoreConfig.productTitle, style: AppText.label),
-                                SizedBox(height: 2),
-                                Text('Monthly · auto-renews', style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                                const Text(StoreConfig.productTitle, style: AppText.label),
+                                const SizedBox(height: 2),
+                                Text(l.monthlyAutoRenews, style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
                               ],
                             ),
                           ),
@@ -167,7 +182,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                                 key: const ValueKey('paywall-price'),
                                 style: const TextStyle(fontFamily: AppFonts.serif, fontSize: 26, color: AppColors.gold, height: 1.1),
                               ),
-                              const Text('per month', style: TextStyle(fontSize: 12.5, color: AppColors.textMuted)),
+                              Text(l.perMonth, style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted)),
                             ],
                           ),
                         ],
@@ -175,36 +190,34 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     ),
                     const SizedBox(height: 16),
                     if (unsupported)
-                      const DwCard(
-                        key: ValueKey('paywall-web'),
+                      DwCard(
+                        key: const ValueKey('paywall-web'),
                         child: Text(
-                          'Subscribe in the iPhone app. Purchases are not available on the web.',
-                          style: TextStyle(fontSize: 15, height: 1.4, color: AppColors.text),
+                          l.paywallWebOnly,
+                          style: const TextStyle(fontSize: 15, height: 1.4, color: AppColors.text),
                         ),
                       )
                     else
                       DwButton(
                         key: const ValueKey('paywall-subscribe'),
-                        label: 'Subscribe for $perMonth',
+                        label: l.subscribeFor(price),
                         expand: true,
                         busy: store.busy,
                         onPressed: store.canPurchase ? () => _buy(store) : null,
                       ),
                     if (_message != null || (!unsupported && !store.canPurchase && store.lastError != null)) ...[
                       const SizedBox(height: 10),
-                      Text(_message ?? store.lastError!,
+                      Text(_message?.call(l) ?? storeErrorText(l, store.lastError!),
+                          key: const ValueKey('paywall-message'),
                           textAlign: TextAlign.center, style: const TextStyle(fontSize: 13.5, color: AppColors.rose)),
                     ],
                     if (store is FakeStoreService) ...[
                       const SizedBox(height: 10),
-                      const Text('Review build: purchases are simulated and nothing is charged.',
-                          textAlign: TextAlign.center, style: AppText.small),
+                      Text(l.reviewBuildNote, textAlign: TextAlign.center, style: AppText.small),
                     ],
                     const SizedBox(height: 16),
                     Text(
-                      '$perMonth. Payment is charged to your Apple ID account at confirmation of purchase. '
-                      'The subscription auto-renews monthly at $price until canceled, unless canceled at least '
-                      '24 hours before the end of the current period. Cancel any time in Settings › Apple ID › Subscriptions.',
+                      l.paywallDisclosure(perMonth, price),
                       key: const ValueKey('paywall-disclosure'),
                       textAlign: TextAlign.center,
                       style: AppText.small.copyWith(height: 1.45),
@@ -214,9 +227,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
                       alignment: WrapAlignment.center,
                       children: [
                         if (!unsupported)
-                          _LinkButton(key: const ValueKey('paywall-restore'), label: 'Restore Purchases', onTap: () => _restore(store)),
-                        _LinkButton(label: 'Terms of Use', onTap: () => _openLegal('Terms of Use', kTermsOfService)),
-                        _LinkButton(label: 'Privacy Policy', onTap: () => _openLegal('Privacy Policy', kPrivacyPolicy)),
+                          _LinkButton(key: const ValueKey('paywall-restore'), label: l.restorePurchases, onTap: () => _restore(store)),
+                        _LinkButton(key: const ValueKey('paywall-terms'), label: l.termsOfUse, onTap: () => _openLegal(LegalDoc.terms)),
+                        _LinkButton(key: const ValueKey('paywall-privacy'), label: l.privacyPolicy, onTap: () => _openLegal(LegalDoc.privacy)),
                       ],
                     ),
                   ],

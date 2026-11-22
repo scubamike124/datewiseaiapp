@@ -30,9 +30,60 @@ class NoVoiceService implements VoiceService {
   Future<void> stop() async {}
 }
 
-/// On-device TTS for iOS and Android. Picks the best installed system voice
-/// for the coach's locale (en-US; es-MX, then es-ES/es-US), preferring
-/// premium/enhanced quality and the coach's gender.
+/// How a coach sounds: the system-voice locales to try in order, the voice
+/// names known to fit the coach (iOS ships these; Android voices are matched
+/// by locale and gender), and a pitch/rate that keeps the four coaches
+/// distinguishable even when a device has a single voice per language.
+@immutable
+class CoachVoiceProfile {
+  const CoachVoiceProfile({
+    required this.locales,
+    required this.preferredNames,
+    required this.otherGenderNames,
+    required this.pitch,
+    required this.rate,
+  });
+
+  final List<String> locales;
+  final List<String> preferredNames;
+
+  /// Names of known voices of the other gender, avoided when the voice
+  /// metadata has no gender.
+  final List<String> otherGenderNames;
+  final double pitch;
+  final double rate;
+
+  static const _enFemale = ['Ava', 'Samantha', 'Allison', 'Susan', 'Zoe', 'Nicky', 'Joelle', 'Noelle'];
+  static const _enMale = ['Evan', 'Nathan', 'Alex', 'Tom', 'Aaron', 'Daniel', 'Fred', 'Reed'];
+  static const _esFemale = ['Paulina', 'Mónica', 'Monica', 'Marisol', 'Angélica', 'Angelica', 'Isabela', 'Soledad'];
+  static const _esMale = ['Juan', 'Jorge', 'Diego', 'Carlos', 'Eddy', 'Reed'];
+
+  static const _enLocales = ['en-US', 'en-GB', 'en-AU', 'en'];
+  static const _esLocales = ['es-MX', 'es-US', 'es-ES', 'es'];
+
+  static const ava = CoachVoiceProfile(
+      locales: _enLocales, preferredNames: _enFemale, otherGenderNames: _enMale, pitch: 1.05, rate: 0.5);
+  static const ethan = CoachVoiceProfile(
+      locales: _enLocales, preferredNames: _enMale, otherGenderNames: _enFemale, pitch: 0.92, rate: 0.47);
+  static const sofia = CoachVoiceProfile(
+      locales: _esLocales, preferredNames: _esFemale, otherGenderNames: _esMale, pitch: 1.08, rate: 0.49);
+  static const diego = CoachVoiceProfile(
+      locales: _esLocales, preferredNames: _esMale, otherGenderNames: _esFemale, pitch: 0.9, rate: 0.46);
+
+  static CoachVoiceProfile of(Coach coach) => switch (coach.id) {
+        'ethan' => ethan,
+        'sofia' => sofia,
+        'diego' => diego,
+        'ava' => ava,
+        _ => coach.language == CoachLanguage.es
+            ? (coach.gender == CoachGender.female ? sofia : diego)
+            : (coach.gender == CoachGender.female ? ava : ethan),
+      };
+}
+
+/// On-device TTS for iOS and Android. Picks, per coach, the installed system
+/// voice that fits their language and gender (see [pickVoice]) and speaks
+/// with the coach's own pitch and rate.
 class DeviceVoiceService implements VoiceService {
   DeviceVoiceService._(this._tts, this._voices);
 
@@ -84,37 +135,72 @@ class DeviceVoiceService implements VoiceService {
   @override
   ValueListenable<bool> get speaking => _speaking;
 
-  static const _locales = {
-    CoachLanguage.en: ['en-US', 'en-GB', 'en-AU', 'en'],
-    CoachLanguage.es: ['es-MX', 'es-ES', 'es-US', 'es'],
-  };
-
   Map<String, String>? _voiceFor(Coach coach) =>
       _chosen.putIfAbsent(coach.id, () => pickVoice(_voices, coach));
 
-  /// Best voice for [coach] among [voices] (maps with name, locale, quality,
-  /// gender). Visible for tests.
+  /// The best installed voice for [coach] among [voices] (flutter_tts
+  /// `getVoices` maps: name, locale, and on iOS also quality, gender and
+  /// identifier). Order of preference:
+  ///  1. a voice of the coach's gender (from the metadata, or else a known
+  ///     voice name), trying the coach's locales in order (en-US; es-MX,
+  ///     es-US, es-ES); within a locale, known names first, then quality;
+  ///  2. any voice in those locales not known to be the other gender;
+  ///  3. any voice in those locales (pitch then keeps the coaches apart).
+  /// Null when no voice matches the language (the default voice is used).
   @visibleForTesting
   static Map<String, String>? pickVoice(List<Map<String, String>> voices, Coach coach) {
-    int qualityScore(String? q) => switch (q) {
+    final profile = CoachVoiceProfile.of(coach);
+    final want = coach.gender == CoachGender.female ? 'female' : 'male';
+
+    String norm(String? s) => (s ?? '').replaceAll('_', '-').toLowerCase();
+    bool inLocale(Map<String, String> v, String loc) {
+      final l = norm(v['locale']);
+      return loc.length == 2 ? l == loc || l.startsWith('$loc-') : l == loc.toLowerCase();
+    }
+
+    String baseName(Map<String, String> v) => (v['name'] ?? '').split(RegExp(r'[ (]')).first.toLowerCase();
+    int nameRank(Map<String, String> v, List<String> names) {
+      final n = baseName(v);
+      for (var i = 0; i < names.length; i++) {
+        if (names[i].toLowerCase() == n) return i;
+      }
+      return -1;
+    }
+
+    // true = coach's gender, false = other gender, null = unknown.
+    bool? genderMatch(Map<String, String> v) {
+      final g = norm(v['gender']);
+      if (g.contains('female')) return want == 'female';
+      if (g.contains('male')) return want == 'male';
+      if (nameRank(v, profile.preferredNames) >= 0) return true;
+      if (nameRank(v, profile.otherGenderNames) >= 0) return false;
+      return null;
+    }
+
+    int quality(Map<String, String> v) => switch (norm(v['quality'])) {
           'premium' => 3,
           'enhanced' => 2,
           _ => 1,
         };
-    final wantGender = coach.gender == CoachGender.female ? 'female' : 'male';
-    final prefs = _locales[coach.language]!;
-    for (final loc in prefs) {
-      final matches = voices.where((v) {
-        final l = (v['locale'] ?? '').replaceAll('_', '-').toLowerCase();
-        return loc.length == 2 ? l.startsWith(loc) : l == loc.toLowerCase();
-      }).toList();
-      if (matches.isEmpty) continue;
-      int score(Map<String, String> v) =>
-          qualityScore(v['quality']) * 10 + ((v['gender'] ?? '') == wantGender ? 5 : 0);
-      matches.sort((a, b) => score(b).compareTo(score(a)));
-      return matches.first;
+
+    int score(Map<String, String> v) {
+      final rank = nameRank(v, profile.preferredNames);
+      return (rank >= 0 ? 100 - rank : 0) * 10 + quality(v);
     }
-    return null;
+
+    Map<String, String>? best(bool Function(Map<String, String>) accept) {
+      for (final loc in profile.locales) {
+        final matches = voices.where((v) => inLocale(v, loc) && accept(v)).toList();
+        if (matches.isEmpty) continue;
+        matches.sort((a, b) => score(b).compareTo(score(a)));
+        return matches.first;
+      }
+      return null;
+    }
+
+    return best((v) => genderMatch(v) == true) ??
+        best((v) => genderMatch(v) == null) ??
+        best((_) => true);
   }
 
   @override
@@ -135,7 +221,9 @@ class DeviceVoiceService implements VoiceService {
     } else {
       await _tts.setLanguage(coach.language.locale);
     }
-    await _tts.setSpeechRate(0.5);
+    final profile = CoachVoiceProfile.of(coach);
+    await _tts.setPitch(profile.pitch);
+    await _tts.setSpeechRate(profile.rate);
     await _tts.speak(clean);
   }
 

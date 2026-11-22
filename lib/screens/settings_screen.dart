@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../app_links.dart';
-import '../content/legal_text.dart';
 import '../models/coach.dart';
 import '../services/store_service.dart';
 import '../state/app_state.dart';
@@ -13,6 +12,7 @@ import '../widgets/dw.dart';
 import 'legal_screen.dart';
 import 'paywall_screen.dart';
 import 'shell.dart';
+import '../l10n/l10n.dart';
 
 /// The "You" tab: language, coach, Coach memory, subscription, data, legal.
 class SettingsScreen extends StatelessWidget {
@@ -25,7 +25,9 @@ class SettingsScreen extends StatelessWidget {
         title: Text(title),
         content: Text(body),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel', style: TextStyle(color: AppColors.text))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(ctx.l10n.cancel, style: const TextStyle(color: AppColors.text))),
           TextButton(
             key: const ValueKey('confirm-action'),
             onPressed: () => Navigator.pop(ctx, true),
@@ -38,23 +40,23 @@ class SettingsScreen extends StatelessWidget {
   }
 
   void _pickLanguage(BuildContext context, AppState state) {
+    final l = context.l10n;
     showModalBottomSheet<void>(
       context: context,
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            for (final l in CoachLanguage.values)
+            for (final lang in CoachLanguage.values)
               ListTile(
+                key: ValueKey('language-${lang.name}'),
                 minTileHeight: 52,
-                title: Text(l.label, style: AppText.label),
-                subtitle: Text(
-                  l == CoachLanguage.en ? 'Coaches: Ava and Ethan' : 'Coaches: Sofía y Diego',
-                  style: AppText.small,
-                ),
-                trailing: state.language == l ? const Icon(Icons.check_rounded, color: AppColors.gold) : null,
+                title: Text(lang.label, style: AppText.label),
+                subtitle: Text(l.coachesFor(lang), style: AppText.small),
+                trailing: state.language == lang ? const Icon(Icons.check_rounded, color: AppColors.gold) : null,
+                selected: state.language == lang,
                 onTap: () {
-                  state.setLanguage(l);
+                  state.setLanguage(lang);
                   Navigator.pop(ctx);
                 },
               ),
@@ -67,6 +69,7 @@ class SettingsScreen extends StatelessWidget {
 
   void _editMemory(BuildContext context, AppState state) {
     final controller = TextEditingController(text: state.memoryText);
+    final l = context.l10n;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -77,12 +80,11 @@ class SettingsScreen extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Coach memory', style: AppText.name.copyWith(fontSize: 24)),
+              Text(l.memoryTitle, style: AppText.name.copyWith(fontSize: 24)),
               const SizedBox(height: 6),
-              const Text(
-                'A short note your coaches see with each message while Coach memory is on. '
-                'Write only what you are happy to share.',
-                style: TextStyle(fontSize: 14, height: 1.4, color: AppColors.textMuted),
+              Text(
+                l.memorySheetBody,
+                style: const TextStyle(fontSize: 14, height: 1.4, color: AppColors.textMuted),
               ),
               const SizedBox(height: 12),
               Container(
@@ -99,16 +101,16 @@ class SettingsScreen extends StatelessWidget {
                   maxLines: 6,
                   maxLength: AppState.memoryMaxLength,
                   style: const TextStyle(color: AppColors.text, fontSize: 15, height: 1.4),
-                  decoration: const InputDecoration(
-                    hintText: 'e.g. I am 31, shy at first, on Hinge, looking for something serious.',
-                    contentPadding: EdgeInsets.symmetric(vertical: 12),
+                  decoration: InputDecoration(
+                    hintText: l.memoryHint,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),
               ),
               const SizedBox(height: 12),
               DwButton(
                 key: const ValueKey('memory-save'),
-                label: 'Save',
+                label: l.save,
                 expand: true,
                 onPressed: () {
                   state.saveMemory(controller.text);
@@ -125,7 +127,7 @@ class SettingsScreen extends StatelessWidget {
   Future<void> _open(BuildContext context, String url) async {
     final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication).catchError((_) => false);
     if (!ok && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not open $url')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.couldNotOpen(url))));
     }
   }
 
@@ -135,6 +137,7 @@ class SettingsScreen extends StatelessWidget {
     final store = context.watch<StoreService>();
     final top = MediaQuery.paddingOf(context).top;
     final memory = state.memoryText;
+    final l = context.l10n;
 
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(16, top + 16, 16, 28),
@@ -142,40 +145,38 @@ class SettingsScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: LargeTitle(title: 'You')),
-            const _SectionLabel('Coaching'),
+            Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: LargeTitle(title: l.youTitle)),
+            _SectionLabel(l.sectionCoaching),
             _Group(children: [
               _Row(
                 key: const ValueKey('row-language'),
                 icon: Icons.translate_rounded,
-                title: 'Coaching language',
+                title: l.languageRow,
                 value: state.language.label,
                 onTap: () => _pickLanguage(context, state),
               ),
               _Row(
                 key: const ValueKey('row-coach'),
                 icon: Icons.people_outline_rounded,
-                title: 'Your coach',
+                title: l.yourCoachRow,
                 value: state.selectedCoach.name,
                 onTap: () => context.read<ShellController>().go(AppTab.coaches),
               ),
             ]),
-            const _SectionLabel('Coach memory'),
+            _SectionLabel(l.sectionMemory),
             _Group(children: [
               _SwitchRow(
                 key: const ValueKey('row-memory'),
                 icon: Icons.psychology_alt_outlined,
-                title: 'Coach memory',
-                subtitle: state.memoryEnabled
-                    ? 'On: your note below is sent with each message.'
-                    : 'Off: coaches only see the current conversation.',
+                title: l.memoryTitle,
+                subtitle: state.memoryEnabled ? l.memoryOn : l.memoryOff,
                 value: state.memoryEnabled,
                 onChanged: state.setMemoryEnabled,
               ),
               _Row(
                 key: const ValueKey('row-memory-edit'),
                 icon: Icons.edit_note_rounded,
-                title: memory.isEmpty ? 'Write your note' : 'Your note',
+                title: memory.isEmpty ? l.writeNote : l.yourNote,
                 subtitle: memory.isEmpty ? null : memory,
                 onTap: () => _editMemory(context, state),
               ),
@@ -183,56 +184,55 @@ class SettingsScreen extends StatelessWidget {
                 _Row(
                   key: const ValueKey('row-memory-clear'),
                   icon: Icons.backspace_outlined,
-                  title: 'Clear memory',
+                  title: l.clearMemory,
                   destructive: true,
                   onTap: () async {
-                    if (await _confirm(context, 'Clear Coach memory?', 'Your note will be deleted from this device.', 'Clear')) {
+                    if (await _confirm(context, l.clearMemoryTitle, l.clearMemoryBody, l.clear)) {
                       state.clearMemory();
                     }
                   },
                 ),
             ]),
-            const _SectionLabel('Subscription'),
+            _SectionLabel(l.sectionSubscription),
             _Group(children: [
               _Row(
                 key: const ValueKey('row-sub-status'),
                 icon: Icons.workspace_premium_outlined,
                 title: StoreConfig.productTitle,
-                value: store.isEntitled ? 'Active' : 'Not subscribed',
+                value: store.isEntitled ? l.subActive : l.subNone,
                 onTap: store.isEntitled ? null : () => showPaywall(context),
               ),
               if (store.manageUrl != null)
                 _Row(
                   key: const ValueKey('row-manage'),
                   icon: Icons.open_in_new_rounded,
-                  title: 'Manage subscription',
+                  title: l.manageSubscription,
                   onTap: () => _open(context, store.manageUrl!),
                 ),
               if (store.canPurchase || store is AppStoreService)
                 _Row(
                   key: const ValueKey('row-restore'),
                   icon: Icons.restore_rounded,
-                  title: 'Restore purchases',
+                  title: l.restorePurchasesRow,
                   onTap: () async {
                     final ok = await store.restore();
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text(ok ? 'DateWise Premium is active.' : 'No active subscription found.'),
+                        content: Text(ok ? l.restoreOk : l.restoreNone),
                       ));
                     }
                   },
                 ),
             ]),
-            const _SectionLabel('Your data'),
+            _SectionLabel(l.sectionData),
             _Group(children: [
               _Row(
                 key: const ValueKey('row-delete-conversations'),
                 icon: Icons.delete_sweep_outlined,
-                title: 'Delete all conversations',
+                title: l.deleteAllConversations,
                 destructive: true,
                 onTap: () async {
-                  if (await _confirm(context, 'Delete all conversations?',
-                      'Every conversation with every coach will be deleted from this device.', 'Delete')) {
+                  if (await _confirm(context, l.deleteAllConversationsTitle, l.deleteAllConversationsBody, l.delete)) {
                     state.deleteAllConversations();
                   }
                 },
@@ -240,39 +240,37 @@ class SettingsScreen extends StatelessWidget {
               _Row(
                 key: const ValueKey('row-delete-data'),
                 icon: Icons.delete_forever_outlined,
-                title: 'Delete my data',
+                title: l.deleteMyData,
+                subtitle: l.deleteMyDataNote,
                 destructive: true,
                 onTap: () async {
-                  if (await _confirm(
-                      context,
-                      'Delete all your data?',
-                      'Conversations, plan, progress, Coach memory and settings will be erased from this device, '
-                          'and the app will start again. Your Apple subscription is not affected.',
-                      'Delete everything')) {
+                  if (await _confirm(context, l.deleteMyDataTitle, l.deleteMyDataBody, l.deleteEverything)) {
                     state.deleteMyData();
                   }
                 },
               ),
             ]),
-            const _SectionLabel('About'),
+            _SectionLabel(l.sectionAbout),
             _Group(children: [
               _Row(
                 icon: Icons.privacy_tip_outlined,
-                title: 'Privacy Policy',
+                key: const ValueKey('row-privacy'),
+                title: l.privacyPolicy,
                 onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
-                  builder: (_) => const LegalScreen(title: 'Privacy Policy', content: kPrivacyPolicy),
+                  builder: (_) => const LegalScreen.doc(LegalDoc.privacy),
                 )),
               ),
               _Row(
                 icon: Icons.description_outlined,
-                title: 'Terms of Use',
+                key: const ValueKey('row-terms'),
+                title: l.termsOfUse,
                 onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
-                  builder: (_) => const LegalScreen(title: 'Terms of Use', content: kTermsOfService),
+                  builder: (_) => const LegalScreen.doc(LegalDoc.terms),
                 )),
               ),
               _Row(
                 icon: Icons.mail_outline_rounded,
-                title: 'Support',
+                title: l.support,
                 value: AppLinks.supportEmail,
                 onTap: () => _open(context, 'mailto:${AppLinks.supportEmail}'),
               ),
@@ -283,7 +281,7 @@ class SettingsScreen extends StatelessWidget {
               builder: (_, snap) {
                 final v = snap.data?.version ?? '';
                 return Text(
-                  'Your coaches are AI. Conversations are stored on this device.${v.isEmpty ? '' : '\nDateWise AI $v'}',
+                  '${l.settingsFootnote}${v.isEmpty ? '' : '\n${l.appVersion(v)}'}',
                   textAlign: TextAlign.center,
                   style: AppText.small,
                 );

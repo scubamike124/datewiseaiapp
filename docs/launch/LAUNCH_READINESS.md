@@ -48,7 +48,7 @@ To run after deployment:
 2. Each coach, Emily, James, Isabella and Mateo, answers two real questions. Isabella and Mateo must answer in Spanish even when the user writes in English, and Emily and James must answer in English.
 3. A photo analysis (single photo, and a batch of 2–4).
 4. Onboarding to first reply on iPhone SE and Pro Max sizes, on web.
-5. The error path: Worker down → a friendly, localised message.
+5. The error path: Worker down → a friendly, localized message.
 6. Abuse checks: a request without `coachId` gets a 426 once the switch is on; a burst of requests gets a 429 once the limiter is on.
 
 ## 7. Customer support and error handling

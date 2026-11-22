@@ -53,7 +53,7 @@ final Map<String, Pump> screens = {
   },
   'coaches': (t, size, scale) async {
     await pumpApp(t, size: size, scale: scale, prefs: onboardedPrefs(), tab: AppTab.coaches);
-    expect(find.text('Chatear con Sofía →'), findsOneWidget);
+    expect(find.text('Chat with Sofía →'), findsOneWidget);
   },
   'chat with a conversation': (t, size, scale) async {
     final app = await pumpApp(t, size: size, scale: scale, prefs: onboardedPrefs(), tab: AppTab.chat);

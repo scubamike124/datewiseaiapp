@@ -3,6 +3,15 @@ import 'package:flutter/material.dart';
 import '../models/coach.dart';
 import '../theme/app_theme.dart';
 
+/// Whether the user asked for less motion (iOS Reduce Motion, Android
+/// "remove animations"). Animated glows and transitions then jump instead.
+bool reduceMotion(BuildContext context) =>
+    MediaQuery.maybeDisableAnimationsOf(context) == true ||
+    WidgetsBinding.instance.platformDispatcher.accessibilityFeatures.reduceMotion;
+
+/// [d], or zero when [reduceMotion] is on.
+Duration motion(BuildContext context, Duration d) => reduceMotion(context) ? Duration.zero : d;
+
 /// Max content width, so phone layouts stay readable on iPad / desktop.
 const double kContentMaxWidth = 560;
 
@@ -191,10 +200,13 @@ class BrandMark extends StatelessWidget {
           SizedBox(width: size * 1.36, height: size * 1.27, child: CustomPaint(painter: _HeartPainter())),
           SizedBox(width: size * 0.45),
           Text('DateWise',
+              // The wordmark is a logo: it keeps its size at any text size.
+              textScaler: TextScaler.noScaling,
               style: TextStyle(fontFamily: AppFonts.serif, fontSize: size, fontWeight: FontWeight.w500, color: AppColors.text, height: 1)),
           Padding(
             padding: EdgeInsets.only(left: size * 0.27, bottom: size * 0.3),
             child: Text('AI',
+                textScaler: TextScaler.noScaling,
                 style: TextStyle(
                     fontFamily: AppFonts.sans, fontSize: size * 0.62, fontWeight: FontWeight.w600, letterSpacing: size * 0.1, color: AppColors.gold)),
           ),
@@ -260,16 +272,19 @@ class CoachImage extends StatelessWidget {
 }
 
 /// Round coach avatar with an optional soft "speaking" glow (TTS playing).
+/// [semanticLabel] is the portrait's alt text; leave it null only where the
+/// avatar sits next to text that already names the coach.
 class CoachAvatar extends StatelessWidget {
-  const CoachAvatar({super.key, required this.coach, this.size = 30, this.speaking = false});
+  const CoachAvatar({super.key, required this.coach, this.size = 30, this.speaking = false, this.semanticLabel});
   final Coach coach;
   final double size;
   final bool speaking;
+  final String? semanticLabel;
 
   @override
   Widget build(BuildContext context) {
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
+      duration: motion(context, const Duration(milliseconds: 300)),
       width: size,
       height: size,
       decoration: BoxDecoration(
@@ -277,7 +292,7 @@ class CoachAvatar extends StatelessWidget {
         border: Border.all(color: speaking ? AppColors.gold : AppColors.line2, width: speaking ? 1.5 : 1),
         boxShadow: speaking ? const [BoxShadow(color: Color(0x66DDB67F), blurRadius: 14, spreadRadius: 1)] : const [],
       ),
-      child: ClipOval(child: CoachImage(coach: coach, avatar: true)),
+      child: ClipOval(child: CoachImage(coach: coach, avatar: true, semanticLabel: semanticLabel)),
     );
   }
 }

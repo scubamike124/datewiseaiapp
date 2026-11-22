@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/dw.dart';
+import '../l10n/l10n.dart';
 
 /// Honest, local progress: plan items done, conversations, days-used streak.
 /// Counts only; no scores or invented percentages.
@@ -17,6 +18,7 @@ class ProgressScreen extends StatelessWidget {
     final plan = state.plan;
     final top = MediaQuery.paddingOf(context).top;
     final streak = state.streakDays;
+    final l = context.l10n;
 
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(16, top + 16, 16, 28),
@@ -24,12 +26,9 @@ class ProgressScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 4),
-              child: LargeTitle(
-                title: 'Progress',
-                subtitle: 'Counted on this device from what you actually did.',
-              ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: LargeTitle(title: l.progressTitle, subtitle: l.progressSubtitle),
             ),
             const SizedBox(height: 18),
             IntrinsicHeight(
@@ -40,7 +39,7 @@ class ProgressScreen extends StatelessWidget {
                     child: _Stat(
                       key: const ValueKey('stat-conversations'),
                       value: '${state.conversationCount}',
-                      label: state.conversationCount == 1 ? 'conversation' : 'conversations',
+                      label: l.statConversations(state.conversationCount),
                       icon: Icons.chat_bubble_outline_rounded,
                     ),
                   ),
@@ -49,7 +48,7 @@ class ProgressScreen extends StatelessWidget {
                     child: _Stat(
                       key: const ValueKey('stat-streak'),
                       value: '$streak',
-                      label: streak == 1 ? 'day in a row' : 'days in a row',
+                      label: l.statStreak(streak),
                       icon: Icons.local_fire_department_outlined,
                     ),
                   ),
@@ -64,9 +63,7 @@ class ProgressScreen extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      state.daysUsed == 0
-                          ? 'No coaching days yet. Send ${coach.name} a message to start your streak.'
-                          : 'You have talked with a coach on ${state.daysUsed} ${state.daysUsed == 1 ? 'day' : 'days'} in total.',
+                      state.daysUsed == 0 ? l.noDaysYet(coach.name) : l.daysTotal(state.daysUsed),
                       style: const TextStyle(fontSize: 14.5, height: 1.4, color: AppColors.text),
                     ),
                   ),
@@ -80,10 +77,15 @@ class ProgressScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
+                    // Wraps onto two lines at large text sizes.
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 12,
+                      runSpacing: 4,
                       children: [
-                        Expanded(child: Text('THIS WEEK’S PLAN', style: AppText.eyebrow.copyWith(fontSize: 13))),
-                        Text('${plan.doneCount} of ${plan.items.length} done',
+                        Text(l.weekPlanTitle.toUpperCase(), style: AppText.eyebrow.copyWith(fontSize: 13)),
+                        Text(l.planCount(plan.doneCount, plan.items.length),
                             key: const ValueKey('plan-count'), style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
                       ],
                     ),
@@ -101,11 +103,11 @@ class ProgressScreen extends StatelessWidget {
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: Text(plan.items[i].title(coach.language, coach),
+                              child: Text(l.planItemTitle(plan.items[i].goal, coach),
                                   style: TextStyle(fontSize: 15, height: 1.3, color: plan.items[i].done ? AppColors.textMuted : AppColors.text)),
                             ),
                             const SizedBox(width: 8),
-                            Text(plan.items[i].done ? 'Done' : 'Not yet', style: const TextStyle(fontSize: 13, color: AppColors.faint)),
+                            Text(plan.items[i].done ? l.planDone : l.planNotYet, style: const TextStyle(fontSize: 13, color: AppColors.faint)),
                           ],
                         ),
                       ),
@@ -114,8 +116,8 @@ class ProgressScreen extends StatelessWidget {
                 ),
               ),
             const SizedBox(height: 14),
-            const Text(
-              'Tick plan items on Home. The plan resets its ticks every Monday.',
+            Text(
+              l.progressFootnote,
               textAlign: TextAlign.center,
               style: AppText.small,
             ),

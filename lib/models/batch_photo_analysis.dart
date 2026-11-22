@@ -42,7 +42,7 @@ class RankedPhoto {
       );
 }
 
-/// Result of analysing 2-4 photos together: each photo scored, the set ranked
+/// Result of analyzing 2-4 photos together: each photo scored, the set ranked
 /// best→worst, plus an overall recommendation on which to lead with / drop.
 class BatchPhotoAnalysis {
   const BatchPhotoAnalysis({

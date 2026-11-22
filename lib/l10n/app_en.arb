@@ -1,0 +1,476 @@
+{
+  "@@locale": "en",
+  "appTitle": "DateWise AI",
+  "back": "Back",
+  "continueAction": "Continue",
+  "cancel": "Cancel",
+  "close": "Close",
+  "save": "Save",
+  "delete": "Delete",
+  "clear": "Clear",
+  "retry": "Try again",
+  "languageNameEn": "English",
+  "languageNameEs": "Spanish",
+  "coachesForEn": "Coaches: Ava and Ethan",
+  "coachesForEs": "Coaches: Sofía and Diego",
+  "coachChip": "{name} · AI coach · {language}",
+  "@coachChip": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "coachAiLabel": "AI dating coach · {language}",
+  "@coachAiLabel": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "coachPortrait": "Portrait of {name}, AI coach",
+  "@coachPortrait": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "coachPortraitStill": "{name}, AI coach (still portrait)",
+  "@coachPortraitStill": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "coachDescAva": "Confidence coach. Direct, supportive, focused on results.",
+  "coachDescEthan": "Strategy coach. Practical, modern, laid-back.",
+  "coachDescSofia": "Confidence coach. Warm and motivating.",
+  "coachDescDiego": "Relationship coach. Practical and honest.",
+  "chatWith": "Chat with {name}",
+  "@chatWith": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "yourCoachBadge": "Your coach",
+  "stopPreview": "Stop preview",
+  "hearCoach": "Hear {name}",
+  "@hearCoach": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "tabHome": "Home",
+  "tabCoaches": "Coaches",
+  "tabChat": "Chat",
+  "tabProgress": "Progress",
+  "tabYou": "You",
+  "tabSemantics": "{label} tab",
+  "@tabSemantics": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "welcomePortrait": "Ava, an AI dating coach, smiling",
+  "welcomeTitleLead": "Meet your\nAI dating ",
+  "welcomeTitleAccent": "coach.",
+  "welcomeBody": "Honest help with your profile, your messages and your first date, from a coach who listens.",
+  "getStarted": "Get started",
+  "valueConversations": "Better conversations",
+  "valueProfile": "Profile help",
+  "valueDates": "First-date plans",
+  "welcomeFootnote": "AI coaches · For adults 18+ · English · Español",
+  "stepOf": "Step {step} of {total}",
+  "@stepOf": {
+    "placeholders": {
+      "step": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "goalsTitle": "What would you like help with?",
+  "goalsSubtitle": "Pick up to three. They become your plan for the week.",
+  "goalConversations": "Better conversations",
+  "goalProfile": "A stronger profile",
+  "goalDates": "Great first dates",
+  "goalConfidence": "More confidence",
+  "goalRelationship": "A healthier relationship",
+  "languageTitle": "Choose your language",
+  "languageSubtitle": "The app and your coaches will use it. You can change it any time in You.",
+  "ageTitle": "DateWise is for adults.",
+  "ageSubtitle": "Please confirm your age to continue.",
+  "ageConfirm": "I am 18 or older",
+  "ageUnder": "I am under 18",
+  "underageTitle": "Sorry, DateWise is only for adults.",
+  "underageBody": "You need to be 18 or older to use DateWise AI.",
+  "chooseCoachTitle": "Choose your dating coach",
+  "chooseCoachSubtitle": "All four are AI coaches. Pick a style; switch any time.",
+  "coachesEyebrow": "AI dating coaches",
+  "coachesFootnote": "English coaches: Ava and Ethan · Spanish coaches: Sofía and Diego",
+  "greetingMorning": "Good morning.",
+  "greetingAfternoon": "Good afternoon.",
+  "greetingEvening": "Good evening.",
+  "homeReady": "{name} is ready when you are. Your AI coach, any time.",
+  "@homeReady": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "gender": {
+        "type": "String"
+      }
+    }
+  },
+  "homeResume": "{name} is ready when you are. Pick up where you left off: “{title}”",
+  "@homeResume": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "gender": {
+        "type": "String"
+      },
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "talkTo": "Talk to {name}",
+  "@talkTo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceChatWith": "Voice chat with {name}",
+  "@voiceChatWith": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "planThisWeek": "Your plan this week",
+  "planDone": "Done",
+  "planNext": "Next",
+  "planNotYet": "Not yet",
+  "planItemConversations": "Practice an opener with {name}",
+  "@planItemConversations": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "planItemProfile": "Rewrite your bio with {name}",
+  "@planItemProfile": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "planItemDates": "Plan a first date idea",
+  "planItemConfidence": "Talk through what makes you nervous",
+  "planItemRelationship": "Practice saying how you feel",
+  "planPromptConversations": "Help me practice an opener for someone I matched with.",
+  "planPromptProfile": "Rewrite my dating bio.",
+  "planPromptDates": "Help me plan a great first date.",
+  "planPromptConfidence": "I get nervous before dates. Can you help?",
+  "planPromptRelationship": "Help me tell my partner how I feel.",
+  "quickPractice": "Practice a conversation",
+  "quickPracticePrompt": "Let's practice a conversation. You play my match and I'll reply.",
+  "quickProfile": "Improve my profile",
+  "quickProfilePrompt": "Help me improve my dating profile.",
+  "quickDate": "Prepare for a date",
+  "quickDatePrompt": "Help me prepare for a date.",
+  "quickReply": "Help me reply",
+  "quickReplyPrompt": "Help me reply to a message.",
+  "voicePermissionNeeded": "Voice needs microphone and speech recognition access. You can allow it in Settings.",
+  "voiceUnavailableNote": "Voice isn't available on this device. You can type to {name}.",
+  "@voiceUnavailableNote": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "newConversation": "New conversation",
+  "pastConversationsWith": "Past conversations with {name}",
+  "@pastConversationsWith": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "switchCoach": "Switch coach",
+  "noSavedConversations": "No saved conversations yet.",
+  "conversationsWith": "Conversations with {name}",
+  "@conversationsWith": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "deleteConversation": "Delete conversation",
+  "conversationOptions": "Conversation options",
+  "voiceSession": "Voice session · {elapsed}",
+  "@voiceSession": {
+    "placeholders": {
+      "elapsed": {
+        "type": "String"
+      }
+    }
+  },
+  "hideCaptions": "Hide captions",
+  "showCaptions": "Show captions",
+  "coachTyping": "{name} is typing",
+  "@coachTyping": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "coachSays": "{name}: {text}",
+  "@coachSays": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "youSaid": "You: {text}",
+  "@youSaid": {
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "copyReply": "Copy {label} reply: {text}",
+  "@copyReply": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "copiedReply": "Copied. Paste it into your dating app.",
+  "messageHint": "Message {name}…",
+  "@messageHint": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceMode": "Voice mode",
+  "send": "Send",
+  "stopReply": "Stop reply",
+  "listening": "Listening…",
+  "typeInstead": "Type instead",
+  "holdToTalk": "Hold to talk",
+  "stopReadingAloud": "Stop reading replies aloud",
+  "readAloud": "Read replies aloud",
+  "holdToTalkFooter": "Hold to talk · {name} is an AI coach",
+  "@holdToTalkFooter": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "gender": {
+        "type": "String"
+      }
+    }
+  },
+  "premiumEyebrow": "DateWise Premium",
+  "lockedTitle": "Chat with {name} is part of DateWise Premium.",
+  "@lockedTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "lockedBody": "Subscribe to talk with all four AI coaches. Your conversations stay on this device.",
+  "seePremium": "See DateWise Premium",
+  "chatErrorUnavailable": "I couldn't reach your coach. Check your connection and try again. Your message is saved.",
+  "chatErrorStopped": "The reply was stopped. Your message is saved.",
+  "paywallHeadline": "Unlimited coaching with {name} and the team.",
+  "@paywallHeadline": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "benefitCoaches": "Chat with all four AI coaches, in English and Spanish",
+  "benefitVoice": "Voice practice: speak and hear replies on your iPhone",
+  "benefitPlan": "Your weekly plan and progress, kept on your device",
+  "monthlyAutoRenews": "Monthly · auto-renews",
+  "perMonth": "per month",
+  "pricePerMonth": "{price}/month",
+  "@pricePerMonth": {
+    "placeholders": {
+      "price": {
+        "type": "String"
+      }
+    }
+  },
+  "subscribeFor": "Subscribe for {price}/month",
+  "@subscribeFor": {
+    "placeholders": {
+      "price": {
+        "type": "String"
+      }
+    }
+  },
+  "paywallWebOnly": "Subscribe in the iPhone app. Purchases are not available on the web.",
+  "purchasePending": "Your purchase is pending approval. Chat unlocks as soon as it is approved.",
+  "purchaseFailed": "Purchase failed. Please try again.",
+  "purchasesUnavailable": "Purchases are not available right now.",
+  "storeUnavailable": "The App Store is not available right now.",
+  "storeUnreachable": "Could not reach the App Store.",
+  "productUnavailable": "DateWise Premium is not available in the store yet.",
+  "restoreFailed": "Could not restore purchases.",
+  "noSubscriptionForAppleId": "No active DateWise Premium subscription was found for this Apple ID.",
+  "reviewBuildNote": "Review build: purchases are simulated and nothing is charged.",
+  "paywallDisclosure": "{perMonth}. Payment is charged to your Apple ID account at confirmation of purchase. The subscription auto-renews monthly at {price} until canceled, unless canceled at least 24 hours before the end of the current period. Cancel any time in Settings › Apple ID › Subscriptions.",
+  "@paywallDisclosure": {
+    "placeholders": {
+      "perMonth": {
+        "type": "String"
+      },
+      "price": {
+        "type": "String"
+      }
+    }
+  },
+  "restorePurchases": "Restore Purchases",
+  "termsOfUse": "Terms of Use",
+  "privacyPolicy": "Privacy Policy",
+  "progressTitle": "Progress",
+  "progressSubtitle": "Counted on this device from what you actually did.",
+  "statConversations": "{count, plural, =1{conversation} other{conversations}}",
+  "@statConversations": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "statStreak": "{count, plural, =1{day in a row} other{days in a row}}",
+  "@statStreak": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "noDaysYet": "No coaching days yet. Send {name} a message to start your streak.",
+  "@noDaysYet": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "daysTotal": "You have talked with a coach on {count, plural, =1{1 day} other{{count} days}} in total.",
+  "@daysTotal": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "weekPlanTitle": "This week’s plan",
+  "planCount": "{done} of {total} done",
+  "@planCount": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "progressFootnote": "Check off plan items on Home. Checkmarks reset every Monday.",
+  "youTitle": "You",
+  "sectionCoaching": "Coaching",
+  "languageRow": "Language",
+  "yourCoachRow": "Your coach",
+  "sectionMemory": "Coach memory",
+  "memoryTitle": "Coach memory",
+  "memoryOn": "On: your note below is sent with each message.",
+  "memoryOff": "Off: coaches only see the current conversation.",
+  "writeNote": "Write your note",
+  "yourNote": "Your note",
+  "clearMemory": "Clear memory",
+  "clearMemoryTitle": "Clear Coach memory?",
+  "clearMemoryBody": "Your note will be deleted from this device.",
+  "memorySheetBody": "A short note your coaches see with each message while Coach memory is on. Write only what you are happy to share.",
+  "memoryHint": "e.g. I am 31, shy at first, on Hinge, looking for something serious.",
+  "sectionSubscription": "Subscription",
+  "subActive": "Active",
+  "subNone": "Not subscribed",
+  "manageSubscription": "Manage subscription",
+  "restorePurchasesRow": "Restore purchases",
+  "restoreOk": "DateWise Premium is active.",
+  "restoreNone": "No active subscription found.",
+  "sectionData": "Your data",
+  "deleteAllConversations": "Delete all conversations",
+  "deleteAllConversationsTitle": "Delete all conversations?",
+  "deleteAllConversationsBody": "Every conversation with every coach will be deleted from this device.",
+  "deleteMyData": "Delete my data",
+  "deleteMyDataNote": "Does not cancel your subscription. Cancel it in Apple settings.",
+  "deleteMyDataTitle": "Delete all your data?",
+  "deleteMyDataBody": "Conversations, plan, progress, Coach memory, settings and the saved subscription status will be erased from this device, and the app will start again.\n\nThis does not cancel your App Store subscription. To cancel it, go to Settings › Apple ID › Subscriptions.",
+  "deleteEverything": "Delete everything",
+  "sectionAbout": "About",
+  "support": "Support",
+  "couldNotOpen": "Could not open {url}",
+  "@couldNotOpen": {
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsFootnote": "Your coaches are AI. Conversations are stored on this device.",
+  "appVersion": "DateWise AI {version}",
+  "@appVersion": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "legalTranslationNote": "",
+  "lastUpdated": "Last updated: November 22, 2026"
+}

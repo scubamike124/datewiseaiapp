@@ -12,7 +12,7 @@ This session's network policy blocked many vendor websites (Tavus marketing site
 
 | Tag | Meaning |
 |---|---|
-| **[F]** | I fetched the primary source page (vendor docs, pricing page, licence file or legal page) and read the figure myself. |
+| **[F]** | I fetched the primary source page (vendor docs, pricing page, license file or legal page) and read the figure myself. |
 | **[S]** | Seen only in a web-search result that quotes or summarises the vendor's own page. I could not open the page. **Treat as UNVERIFIED.** |
 | **[T]** | Third-party source only (blog, aggregator, tracker). **UNVERIFIED.** |
 | **[A]** | My own assessment or arithmetic. It is not a vendor claim. |
@@ -60,12 +60,12 @@ Source IDs such as `[C1]` point to the source list in section 7. Every item tagg
 | **Synthesia Interactive** | Not found | Avatar-only $0.10/min; full stack $0.20/min ("coming soon") [S, SY1] | Not stated | LiveKit plugin `livekit-plugins-synthesia` [F, L1] | Stock avatars and personal avatars (consent process not verified) | Paid | Not checked |
 | **Akool Streaming Avatar** | About 5-min free streaming session [T] | 1-1.2 credits per 10 s, i.e. 6-7.2 credits/min; $ per credit not published [S, AK1]. API from about Pro Max ($41-59/mo) [T] | Not stated | Web SDK (not verified) | Stock and custom | Not confirmed | Not checked |
 | **LiveKit-based stack** (transport plus agent framework; bring your own avatar, STT, LLM, TTS) | Build plan free: 1,000 agent-session min/mo, 5 concurrent, hard cap [S, LK1] | Ship/Scale: $0.01 per extra agent minute [S, LK1] | Transport only (WebRTC) | **Best Flutter fit:** `livekit_client` 2.14.0 (2026-11-19) and `livekit_components` [F, P1]. Avatar plugins for Tavus, LiveAvatar, D-ID, Simli, Anam, Synthesia, bitHuman, Beyond Presence and others [F, L1] | Depends on the avatar vendor | `livekit/agents` is Apache-2.0 [F, L1] | Self-host option (open source) |
-| **NVIDIA ACE / Audio2Face-3D** | SDK is open source | Self-host GPU cost only; NIM container under NVIDIA licence | Real-time on GPU | Drives **3D rigged characters** (Unreal, Maya), **not photoreal video**. No Flutter path without a game-engine renderer [A] | Your own 3D characters; no likeness issues if fictional | SDK: MIT. Training framework: Apache. Models: NVIDIA Open Model License. NIM: NVIDIA SLA [F, N1]. An older NIM listing said "non-commercial" [S] | Self-hosted |
+| **NVIDIA ACE / Audio2Face-3D** | SDK is open source | Self-host GPU cost only; NIM container under NVIDIA license | Real-time on GPU | Drives **3D rigged characters** (Unreal, Maya), **not photoreal video**. No Flutter path without a game-engine renderer [A] | Your own 3D characters; no likeness issues if fictional | SDK: MIT. Training framework: Apache. Models: NVIDIA Open Model License. NIM: NVIDIA SLA [F, N1]. An older NIM listing said "non-commercial" [S] | Self-hosted |
 | **bitHuman** | Not checked | Not checked | Renders locally on CPU from a `.imx` model, "no GPU required", or in the cloud [F, L1] | LiveKit plugin [F, L1] | Not checked | Not checked | Local render keeps video on your servers [A] |
 
 ### 2.2 Open-source avatar routes (self-hosted; all need a GPU server for real-time, so none is truly $0 in production)
 
-| Project | Code licence (from the repo LICENSE) | Commercial-use catches | Real-time? | Last commit |
+| Project | Code license (from the repo LICENSE) | Commercial-use catches | Real-time? | Last commit |
 |---|---|---|---|---|
 | **MuseTalk** (Tencent Music) | MIT [F, OS1] | Depends on the SD-VAE, Whisper and other weights it downloads (not re-checked) | **Yes:** "30fps+ on an NVIDIA Tesla V100" [F, OS1] | 2026-11-19 |
 | **LivePortrait** (Kuaishou) | MIT [F, OS2] | **InsightFace detection models are "for non-commercial research purposes only"**; you must swap them for commercial use [F, OS2] | Near real-time on GPU (not measured) | 2026-06-02 |
@@ -84,14 +84,14 @@ Price per minute assumes about 900 characters per minute of speech (150 words/mi
 |---|---|---|---|---|---|---|---|---|---|
 | **ElevenLabs TTS** | Free: 10k credits/mo [F, E2] | Flash/Turbo and v4 Turbo $0.04/1k chars; v4/v3/Multilingual v2 $0.08/1k chars [F, E1] | $0.036 (Flash) to $0.072 | Flash ~75 ms; v4 Turbo ~100 ms; v3 Conversational ~280 ms [F, E1] | 32 languages (Flash) to 90+ (v4) [F, E1] | REST/WebSocket. The Flutter package is a stale 2023 community wrapper [F, P1], so call from the Worker or LiveKit | Instant clone from Starter, Professional clone from Creator [F, E2]. Cloning a living person needs "explicit and informed consent"; no voices of anyone under 18 [F, E3] | **Free users: non-commercial only** [F, E4]. Commercial from Starter ($6/mo) [F, E2] | Content may be used for training unless you opt out in "Data use" settings [F, E4]. **Apps directed at under-18s prohibited unless approved in writing** [F, E3] |
 | **ElevenLabs Agents** (STT+TTS+turn-taking; LLM billed at cost) | 15 call-min/mo, 4 concurrent [F, E5] | $0.08/min plus LLM; burst $0.16/min [F, E5] | $0.08 + LLM | Not stated | Multilingual | Web widget, WebRTC/WS SDKs; LiveAvatar connector [F, H3] | As above | Starter+ [F, E5] | Configurable retention, can be set to 0 days; audio saving can be disabled [F, E6] |
-| **Cartesia Sonic 3/3.5** | 20k credits/mo [S, CA1] | About 1 credit per char; Pro $5/mo = 100k credits [S, CA1] | Not computable without a $/credit figure | Sub-90 ms TTFA for Sonic 3.5 (vendor); 128-166 ms median in a Vapi benchmark [S/T, CA2] | 42 languages incl. Spanish [S] | WebSocket; LiveKit plugin [F, L1] | Instant cloning on Pro. Cloning without permission is prohibited [S, CA2] | **Free tier: no commercial licence** [S] | Not checked |
+| **Cartesia Sonic 3/3.5** | 20k credits/mo [S, CA1] | About 1 credit per char; Pro $5/mo = 100k credits [S, CA1] | Not computable without a $/credit figure | Sub-90 ms TTFA for Sonic 3.5 (vendor); 128-166 ms median in a Vapi benchmark [S/T, CA2] | 42 languages incl. Spanish [S] | WebSocket; LiveKit plugin [F, L1] | Instant cloning on Pro. Cloning without permission is prohibited [S, CA2] | **Free tier: no commercial license** [S] | Not checked |
 | **OpenAI TTS** (`gpt-4o-mini-tts`, `tts-1`) | No free tier | gpt-4o-mini-tts: $0.60/1M text-in, $12/1M audio-out tokens. tts-1: $15/1M chars; tts-1-hd: $30/1M chars [F, O1] | tts-1 ≈ $0.0135 | tts-1 "lower latency" [F, O3] | 13 voices "optimized for English"; follows Whisper language support [F, O3] | REST | **Must disclose that the voice is AI-generated** [F, O3]. Recording-based custom voices: eligible customers only, with a consent recording. Prompt-to-voice needs no consent recording but works only with GPT-Live [F, O5] | Yes | API data not used for training by default. Abuse logs kept up to 30 days [F, O4] |
 | **OpenAI GPT-Live / Realtime** (speech-to-speech) | No | GPT-Live $0.05/min active, $0.02/min standby [F, O1]. gpt-realtime-2.1-mini audio $10 in / $20 out per 1M tokens [F, O1] | $0.05 (GPT-Live) | Full-duplex: "can listen and speak at the same time" [F, O6] | GPT-Live extra voices list EN/PT/DE/FR/HI/JA/KO; **no Spanish-specific voice listed** [F, O6] | WebRTC and WebSocket [F, O6]. LiveAvatar connector [F, H3] | Prompt-to-voice (no consent needed) [F, O5] | Yes | As OpenAI API |
 | **Azure Speech neural** (en-US, es-MX, es-ES) | F0: 0.5M neural chars/mo [S, AZ1] | Price not captured (search showed "$-"). Commonly about $15-16/1M chars [T] | About $0.014 [T] | Not checked | Strong es-MX/es-ES/en-US catalogue (not re-verified) | REST, WebSocket, Speech SDK | **Custom Neural Voice is Limited Access** (application required) [S, AZ1]. Talent consent statement required (not re-verified) | Yes (paid) | Not checked |
 | **Google Cloud TTS** | Chirp 3 HD: 1M chars/mo free; Neural2: 1M free; WaveNet/Standard: 4M free [F, G3] | Chirp 3 HD $30/1M; Neural2 $16/1M; WaveNet/Standard $4/1M; Instant custom voice $60/1M; Gemini 3.8 Flash TTS (preview) $0.50 in / $9 audio-out per 1M tokens until 2026-12-31 [F, G3] | Chirp 3 HD $0.027; Neural2 $0.014; WaveNet $0.0036 | Not checked | en-US, es-US, es-ES voices exist (not re-verified this session) | REST/gRPC streaming | Instant custom voice priced; consent process not checked | Yes; **billing must be enabled even for the free tier** [F, G3] | Cloud terms |
 | **Deepgram Aura-2** | Signup credit not confirmed | Direct: $0.030/1k chars (volume $0.027) [S, DG1]. **Via Workers AI: `@cf/deepgram/aura-2-en` and `aura-2-es` at $0.030/1k chars, counted against the free 10k neurons/day** [F, C1] | $0.027 | Not checked | aura-2-es has 10 Spanish speakers (e.g. sirio, nestor, carina, celeste, alvaro, diana, aquila, selena, estrella, javier) [F, C4] | **Already inside your Worker:** no new vendor account, Cloudflare data terms (no training, zero retention) [F, C5] | Stock voices only on Workers AI | Deepgram terms apply [F, C4] | Workers AI: no training, no retention for standard inference [F, C5] |
-| **Piper** | Free, self-host | $0 plus CPU | Fast on CPU | Many EN/ES voices; each voice has its own licence | ONNX, runs anywhere | Voice licences vary per voice | **Current repo (`OHF-Voice/piper1-gpl`) is GPL-3.0** [F, OS6]. The old `rhasspy/piper` was MIT [F, OS6] | GPL affects only distribution of a modified engine. Running it server-side is fine, but get legal sign-off [A] | Self-hosted |
-| **Coqui XTTS-v2** | Free | $0 plus GPU | <200 ms streaming (README) [F, OS7] | 17 languages incl. ES [F, OS7] | Python | Voice cloning from short samples | **Code MPL-2.0 [F, OS7], but the XTTS-v2 weights are under the Coqui Public Model License: non-commercial only. Coqui shut down, so there is no commercial licence route** [T, OS8] | **Not usable commercially** | Self-hosted |
+| **Piper** | Free, self-host | $0 plus CPU | Fast on CPU | Many EN/ES voices; each voice has its own license | ONNX, runs anywhere | Voice licenses vary per voice | **Current repo (`OHF-Voice/piper1-gpl`) is GPL-3.0** [F, OS6]. The old `rhasspy/piper` was MIT [F, OS6] | GPL affects only distribution of a modified engine. Running it server-side is fine, but get legal sign-off [A] | Self-hosted |
+| **Coqui XTTS-v2** | Free | $0 plus GPU | <200 ms streaming (README) [F, OS7] | 17 languages incl. ES [F, OS7] | Python | Voice cloning from short samples | **Code MPL-2.0 [F, OS7], but the XTTS-v2 weights are under the Coqui Public Model License: non-commercial only. Coqui shut down, so there is no commercial license route** [T, OS8] | **Not usable commercially** | Self-hosted |
 | **MeloTTS on Workers AI** | Was free in neurons | - | - | - | - | - | - | - | **Deprecated 2026-11-20**; Cloudflare's replacement is aura-2-en [F, C3] |
 
 ### 2.4 Cost per 10-minute session and per 1,000 sessions a month
@@ -145,7 +145,7 @@ Price per minute assumes about 900 characters per minute of speech (150 words/mi
 
 | Option | How | Legal position | Fit |
 |---|---|---|---|
-| **Stock avatars** (vendor library) | Pick 2 female and 2 male stock faces with matching stock or designed voices | Vendor has the model releases; you get a licence to use them on that platform [A]. **Not exclusive:** other apps may use the same face | **MVP / beta**. Fastest, zero likeness risk |
+| **Stock avatars** (vendor library) | Pick 2 female and 2 male stock faces with matching stock or designed voices | Vendor has the model releases; you get a license to use them on that platform [A]. **Not exclusive:** other apps may use the same face | **MVP / beta**. Fastest, zero likeness risk |
 | **AI-generated faces** (synthetic person, then image-to-face) | Generate a non-existent adult face, train via Tavus image-to-face [F, V6] or another vendor | No real person's consent needed, **but** you must check that the face does not resemble a real or famous person (Tavus auto-rejects celebrities and minors [F, V2]). Check each vendor's AUP for synthetic-face training (not verified). Copyright in purely AI-generated images may be weak, so brand protection is limited [A] | Unique and cheap, but legal novelty and "uncanny" risk |
 | **Licensed actors (recommended for launch)** | Hire 4 adult native speakers (EN-US female/male, ES female/male; pick es-MX or es-ES deliberately). Shoot each vendor's training footage plus the **vendor consent recording** (HeyGen/LiveAvatar requires one [S, H4]; Tavus requires rights to likeness, voice and footage [F, V2]) | **Written talent release:** AI likeness and voice synthesis, named platforms, dating-coaching context, territories, term, exclusivity, compensation, approval rights, revocation and takedown, morality clause (no sexual or explicit use) [A]. Voice clones need "explicit and informed consent" (ElevenLabs [F, E3]; OpenAI consent recording [F, O5]). Biometric-privacy notices apply (HeyGen [S, H4]; BIPA-type laws) | **Production.** Exclusive, consistent, defensible |
 | **Designed voices** (pair with any face option) | ElevenLabs Voice Design or OpenAI prompt-to-voice (no consent recording needed [F, O5]) | No real-person rights involved; disclosure still required | Good when the face is stock or synthetic |
@@ -173,7 +173,7 @@ Price per minute assumes about 900 characters per minute of speech (150 words/mi
 
 | Workers AI model (active) | $/M in | $/M out | Context | Neurons per message (1,500 in + 300 out) [A] | Free msgs/day [A] | Notes |
 |---|---|---|---|---|---|---|
-| `@cf/meta/llama-3.3-70b-instruct-fp8-fast` (current) | 0.293 | 2.253 | **24,000** | 101.4 | ~98 | Llama 3.3 licence and AUP [F, C4] |
+| `@cf/meta/llama-3.3-70b-instruct-fp8-fast` (current) | 0.293 | 2.253 | **24,000** | 101.4 | ~98 | Llama 3.3 license and AUP [F, C4] |
 | `@cf/google/gemma-4-26b-a4b-it` | 0.100 | 0.300 | 256,000 | 21.8 | ~458 | Cloudflare-recommended "smaller model" replacement [F, C3] |
 | `@cf/openai/gpt-oss-120b` | 0.350 | 0.750 | 128,000 | 68.2 | ~146 | Reasoning model (hidden reasoning tokens add output cost [A]) |
 | `@cf/openai/gpt-oss-20b` | 0.200 | 0.300 | 128,000 | - | - | |
@@ -187,7 +187,7 @@ Price per minute assumes about 900 characters per minute of speech (150 words/mi
 
 | Provider / model | $/M in | $/M out | Free tier | Trains on API data? Retention | Usage-policy points for dating coaching | Spanish [A unless noted] | Streaming |
 |---|---|---|---|---|---|---|---|
-| **Workers AI** (above) | 0.06-0.45 | 0.30-3.20 | 10k neurons/day [F, C1] | **No training; zero retention** [F, C5] | Each model's own licence and AUP applies [F, C5] (Llama, Gemma, Apache) | Good for Llama 3.3 / Gemma 4 / Mistral Small, needs eval | Yes (in use) |
+| **Workers AI** (above) | 0.06-0.45 | 0.30-3.20 | 10k neurons/day [F, C1] | **No training; zero retention** [F, C5] | Each model's own license and AUP applies [F, C5] (Llama, Gemma, Apache) | Good for Llama 3.3 / Gemma 4 / Mistral Small, needs eval | Yes (in use) |
 | **Groq** `openai/gpt-oss-120b` | 0.15 [T] | 0.60 [T] | Free: 30 RPM, 1K RPD, 8K TPM, 200K TPD for gpt-oss-120b [S, GQ1] (≈ 110 messages/day at 1,800 tokens) | ZDR self-serve in Data Controls [S, GQ2]. Default logs up to 30 days [T]. No-training commitment reported but not confirmed [T] | Groq AUP not checked | gpt-oss multilingual, mid quality [A] | Yes |
 | **Groq** `qwen3-32b` | 0.29 [T] | 0.59 [T] | Free limits per model [S] | as above | | Good | Yes |
 | **Groq** `llama-3.3-70b-versatile` | 0.59 [T] | 0.79 [T] | - | as above | | Good | Yes. **May now be Enterprise/contact-sales** [T] |
@@ -315,15 +315,15 @@ Session tokens are minted by the Worker; no vendor API key ships in the app.
 8. **LiveKit Cloud:** Build plan (1,000 free agent minutes, 5 concurrent), and the $0.01/min overage on Ship and Scale.
 9. **NVIDIA:** commercial-use status of the Audio2Face-3D NIM container, and any ACE pricing.
 
-**Open-source licences**
+**Open-source licenses**
 
-10. **Wav2Lip:** commercial-use status (the repo has no licence file).
+10. **Wav2Lip:** commercial-use status (the repo has no license file).
 11. **XTTS-v2:** the weights are under the CPML and non-commercial. Hugging Face was not reachable.
-12. **MuseTalk:** licences of the dependent weights.
+12. **MuseTalk:** licenses of the dependent weights.
 
 **Voice providers**
 
-13. **Cartesia:** free credits, Pro price, $ per credit, latency and the licence terms.
+13. **Cartesia:** free credits, Pro price, $ per credit, latency and the license terms.
 14. **Azure Speech:**
     - The neural price per 1M characters (shown as $15-16 by third parties).
     - Free-tier conflict: 0.5M neural characters versus 5M standard.
@@ -391,11 +391,11 @@ Session tokens are minted by the Worker; no vendor API key ships in the app.
 | L1 | livekit/agents repo (Apache-2.0; plugin list and READMEs) | https://github.com/livekit/agents | F |
 | L2 | pipecat-ai/pipecat repo (BSD-2; services incl. heygen, simli, tavus, piper, xtts) | https://github.com/pipecat-ai/pipecat | F |
 | P1 | pub.dev package API: daily_flutter, livekit_client, livekit_components, flutter_webrtc, simli_client, elevenlabs_flutter | https://pub.dev/api/packages/daily_flutter (etc.) | F |
-| N1 | NVIDIA Audio2Face-3D repo README (licence table) | https://github.com/NVIDIA/Audio2Face-3D | F |
+| N1 | NVIDIA Audio2Face-3D repo README (license table) | https://github.com/NVIDIA/Audio2Face-3D | F |
 | OS1 | MuseTalk LICENSE and README | https://github.com/TMElyralab/MuseTalk | F |
 | OS2 | LivePortrait LICENSE (InsightFace note) | https://github.com/KwaiVGI/LivePortrait | F |
 | OS3 | SadTalker LICENSE and README | https://github.com/OpenTalker/SadTalker | F |
-| OS4 | Wav2Lip README (no licence file) | https://github.com/Rudrabha/Wav2Lip | F |
+| OS4 | Wav2Lip README (no license file) | https://github.com/Rudrabha/Wav2Lip | F |
 | OS5 | Hallo / Hallo2 LICENSE and README (CodeFormer S-Lab) | https://github.com/fudan-generative-vision/hallo2 | F |
 | OS6 | Piper: OHF-Voice/piper1-gpl (GPL-3.0) and rhasspy/piper (MIT) | https://github.com/OHF-Voice/piper1-gpl ; https://github.com/rhasspy/piper | F |
 | OS7 | Coqui TTS (MPL-2.0), idiap fork README | https://github.com/coqui-ai/TTS ; https://github.com/idiap/coqui-ai-TTS | F |
@@ -407,7 +407,7 @@ Session tokens are minted by the Worker; no vendor API key ships in the app.
 | E5 | ElevenLabs Agents pricing | https://elevenlabs.io/pricing/agents | F |
 | E6 | ElevenLabs Agents privacy and retention | https://elevenlabs.io/docs/eleven-agents/customization/privacy.md | F |
 | CA1 | Cartesia pricing | https://cartesia.ai/pricing ; https://www.cloudtalk.io/blog/cartesia-pricing/ | S/T |
-| CA2 | Cartesia latency and licence | https://cartesia.ai/sonic ; https://humannessindex.vapi.ai/models/cartesia-sonic-3-5 ; https://cartesia.ai/legal/acceptable-use | S/T |
+| CA2 | Cartesia latency and license | https://cartesia.ai/sonic ; https://humannessindex.vapi.ai/models/cartesia-sonic-3-5 ; https://cartesia.ai/legal/acceptable-use | S/T |
 | AZ1 | Azure Speech pricing | https://azure.microsoft.com/en-us/pricing/details/speech/ | S |
 | DG1 | Deepgram pricing | https://www.deepgram.com/pricing | S |
 | G1 | Vertex AI generative AI pricing (Gemini) | https://cloud.google.com/vertex-ai/generative-ai/pricing | F |

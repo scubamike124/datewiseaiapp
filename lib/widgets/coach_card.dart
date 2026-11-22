@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/coach.dart';
 import '../theme/app_theme.dart';
 import 'dw.dart';
+import '../l10n/l10n.dart';
 
 /// Portrait card for one coach (Coaches tab and onboarding), per the mockup:
 /// photo, text-only language pill, serif name, approved description, and a
@@ -26,6 +27,7 @@ class CoachCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     return Container(
       key: ValueKey('coach-card-${coach.id}'),
       decoration: BoxDecoration(
@@ -38,11 +40,13 @@ class CoachCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(
-            height: 150,
+            // The photo shrinks a little at large text sizes so the name,
+            // description and button keep their room.
+            height: MediaQuery.textScalerOf(context).scale(1) > 1.5 ? 120 : 150,
             child: Stack(
               fit: StackFit.expand,
               children: [
-                CoachImage(coach: coach, semanticLabel: '${coach.name}, AI coach portrait'),
+                CoachImage(coach: coach, semanticLabel: l.coachPortrait(coach.name)),
                 const FadeToBackground(stops: [0.5, 1], color: AppColors.cardDeep),
                 Positioned(
                   top: 10,
@@ -54,16 +58,16 @@ class CoachCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
-                      coach.language.label,
+                      l.languageName(coach.language),
                       style: const TextStyle(fontFamily: AppFonts.sans, fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF2A1A1F)),
                     ),
                   ),
                 ),
                 if (selected)
-                  const Positioned(
+                  Positioned(
                     top: 10,
                     right: 10,
-                    child: Icon(Icons.check_circle_rounded, color: AppColors.gold, size: 22, semanticLabel: 'Your coach'),
+                    child: Icon(Icons.check_circle_rounded, color: AppColors.gold, size: 22, semanticLabel: l.yourCoachBadge),
                   )
                 else if (onPreview != null)
                   Positioned(
@@ -72,7 +76,7 @@ class CoachCard extends StatelessWidget {
                     child: CircleIconButton(
                       key: ValueKey('preview-${coach.id}'),
                       icon: previewing ? Icons.stop_rounded : Icons.volume_up_rounded,
-                      tooltip: previewing ? 'Stop preview' : 'Hear ${coach.name}',
+                      tooltip: previewing ? l.stopPreview : l.hearCoach(coach.name),
                       onPressed: onPreview,
                       filled: true,
                       size: 44,
@@ -92,7 +96,7 @@ class CoachCard extends StatelessWidget {
                   const SizedBox(height: 6),
                   Expanded(
                     child: Text(
-                      coach.description,
+                      l.coachDescription(coach),
                       key: ValueKey('desc-${coach.id}'),
                       style: const TextStyle(fontFamily: AppFonts.sans, fontSize: 12, height: 1.35, color: AppColors.textMuted),
                     ),
@@ -100,7 +104,7 @@ class CoachCard extends StatelessWidget {
                   const SizedBox(height: 10),
                   DwButton(
                     key: ValueKey('chat-${coach.id}'),
-                    label: '${coach.chatLabel} →',
+                    label: '${l.chatWith(coach.name)} →',
                     onPressed: onChat,
                     style: DwButtonStyle.rose,
                     expand: true,

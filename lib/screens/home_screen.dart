@@ -1,45 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/coach.dart';
 import '../services/speech_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/dw.dart';
 import 'shell.dart';
+import '../l10n/l10n.dart';
 
-/// A quick action on Home: opens the chat with a starter prompt.
+/// A quick action on Home: opens the chat with a starter prompt (both in the
+/// UI language; the coach answers in its own language unless the user writes
+/// in another).
 class QuickAction {
-  const QuickAction(this.id, this.icon, this.label, this.prompt, this.labelEs, this.promptEs);
+  const QuickAction(this.id, this.icon);
   final String id;
   final IconData icon;
-  final String label;
-  final String prompt;
-  final String labelEs;
-  final String promptEs;
 
-  String labelFor(CoachLanguage l) => l == CoachLanguage.es ? labelEs : label;
-  String promptFor(CoachLanguage l) => l == CoachLanguage.es ? promptEs : prompt;
+  String label(AppLocalizations l) => switch (id) {
+        'practice' => l.quickPractice,
+        'profile' => l.quickProfile,
+        'date' => l.quickDate,
+        _ => l.quickReply,
+      };
+
+  String prompt(AppLocalizations l) => switch (id) {
+        'practice' => l.quickPracticePrompt,
+        'profile' => l.quickProfilePrompt,
+        'date' => l.quickDatePrompt,
+        _ => l.quickReplyPrompt,
+      };
 
   static const all = [
-    QuickAction('practice', Icons.mic_none_rounded, 'Practice a conversation',
-        "Let's practise a conversation. You play my match and I'll reply.",
-        'Practicar una conversación', 'Practiquemos una conversación. Tú haces de mi match y yo respondo.'),
-    QuickAction('profile', Icons.account_box_outlined, 'Improve my profile', 'Help me improve my dating profile.',
-        'Mejorar mi perfil', 'Ayúdame a mejorar mi perfil de citas.'),
-    QuickAction('date', Icons.calendar_today_outlined, 'Prepare for a date', 'Help me prepare for a date.',
-        'Preparar una cita', 'Ayúdame a prepararme para una cita.'),
-    QuickAction('reply', Icons.chat_bubble_outline_rounded, 'Help me reply', 'Help me reply to a message.',
-        'Ayúdame a responder', 'Ayúdame a responder un mensaje.'),
+    QuickAction('practice', Icons.mic_none_rounded),
+    QuickAction('profile', Icons.account_box_outlined),
+    QuickAction('date', Icons.calendar_today_outlined),
+    QuickAction('reply', Icons.chat_bubble_outline_rounded),
   ];
-}
-
-String greetingFor(DateTime now) {
-  final h = now.hour;
-  if (h < 5) return 'Good evening.';
-  if (h < 12) return 'Good morning.';
-  if (h < 18) return 'Good afternoon.';
-  return 'Good evening.';
 }
 
 class HomeScreen extends StatelessWidget {
@@ -54,6 +50,7 @@ class HomeScreen extends StatelessWidget {
     final last = state.latestThreadFor(coach);
     final resume = last != null && last.messages.any((m) => m.isUser) ? last.title : null;
     final top = MediaQuery.paddingOf(context).top;
+    final l = context.l10n;
 
     return SingleChildScrollView(
       key: const PageStorageKey('home-scroll'),
@@ -84,7 +81,7 @@ class HomeScreen extends StatelessWidget {
                         colors: [Color(0xFF000000), Color(0x00000000)],
                         stops: [0.55, 0.92],
                       ).createShader(rect),
-                      child: CoachImage(coach: coach),
+                      child: CoachImage(coach: coach, semanticLabel: l.coachPortrait(coach.name)),
                     ),
                   ),
                 ),
@@ -124,14 +121,14 @@ class HomeScreen extends StatelessWidget {
                           children: [
                             Semantics(
                               header: true,
-                              child: Text(greetingFor(DateTime.now()),
+                              child: Text(l.greetingFor(DateTime.now()),
                                   style: AppText.display.copyWith(fontSize: 34, height: 1.05)),
                             ),
                             const SizedBox(height: 10),
                             Text(
                               resume == null
-                                  ? '${coach.name} is ready when you are. Your AI coach, any time.'
-                                  : '${coach.name} is ready when you are. Pick up where you left off: “$resume”',
+                                  ? l.homeReady(coach.name, l.gender(coach))
+                                  : l.homeResume(coach.name, l.gender(coach), resume),
                               style: AppText.body.copyWith(fontSize: 15, height: 1.45),
                             ),
                           ],
@@ -143,7 +140,7 @@ class HomeScreen extends StatelessWidget {
                           Flexible(
                             child: DwButton(
                               key: const ValueKey('home-talk'),
-                              label: 'Talk to ${coach.name}',
+                              label: l.talkTo(coach.name),
                               onPressed: () => shell.openChat(),
                               height: 50,
                               fontSize: 15,
@@ -155,7 +152,7 @@ class HomeScreen extends StatelessWidget {
                             CircleIconButton(
                               key: const ValueKey('home-voice'),
                               icon: Icons.mic_none_rounded,
-                              tooltip: 'Voice chat with ${coach.name}',
+                              tooltip: l.voiceChatWith(coach.name),
                               size: 50,
                               onPressed: () => shell.openChat(voice: true),
                             ),
@@ -174,7 +171,7 @@ class HomeScreen extends StatelessWidget {
                 children: [
                   const _PlanCard(),
                   const SizedBox(height: 14),
-                  _QuickTiles(language: coach.language),
+                  const _QuickTiles(),
                 ],
               ),
             ),
@@ -193,6 +190,7 @@ class _PlanCard extends StatelessWidget {
     final state = context.watch<AppState>();
     final plan = state.plan;
     final coach = state.selectedCoach;
+    final l = context.l10n;
     if (plan == null) return const SizedBox.shrink();
     final nextIndex = plan.items.indexWhere((i) => !i.done);
     return DwCard(
@@ -200,13 +198,13 @@ class _PlanCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('YOUR PLAN THIS WEEK', style: AppText.eyebrow.copyWith(fontSize: 13, letterSpacing: 1.6)),
+          Text(l.planThisWeek.toUpperCase(), style: AppText.eyebrow.copyWith(fontSize: 13, letterSpacing: 1.6)),
           const SizedBox(height: 6),
           for (var i = 0; i < plan.items.length; i++) ...[
             if (i > 0) const Divider(),
             _PlanRow(
               key: ValueKey('plan-$i'),
-              title: plan.items[i].title(coach.language, coach),
+              title: l.planItemTitle(plan.items[i].goal, coach),
               done: plan.items[i].done,
               isNext: i == nextIndex,
               onToggle: () => state.togglePlanItem(i),
@@ -240,7 +238,7 @@ class _PlanRow extends StatelessWidget {
             child: Row(
               children: [
                 AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
+                  duration: motion(context, const Duration(milliseconds: 200)),
                   width: 24,
                   height: 24,
                   decoration: BoxDecoration(
@@ -256,7 +254,7 @@ class _PlanRow extends StatelessWidget {
                       style: TextStyle(fontFamily: AppFonts.sans, fontSize: 15, height: 1.3, color: done ? AppColors.textMuted : AppColors.text)),
                 ),
                 const SizedBox(width: 8),
-                Text(done ? 'Done' : (isNext ? 'Next' : ''), style: const TextStyle(fontSize: 13, color: AppColors.faint)),
+                Text(done ? context.l10n.planDone : (isNext ? context.l10n.planNext : ''), style: const TextStyle(fontSize: 13, color: AppColors.faint)),
               ],
             ),
           ),
@@ -267,8 +265,7 @@ class _PlanRow extends StatelessWidget {
 }
 
 class _QuickTiles extends StatelessWidget {
-  const _QuickTiles({required this.language});
-  final CoachLanguage language;
+  const _QuickTiles();
 
   static const _backgrounds = [
     RadialGradient(center: Alignment.topLeft, radius: 1.2, colors: [Color(0x33DDB67F), Color(0x001E1518)]),
@@ -280,14 +277,15 @@ class _QuickTiles extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final shell = context.read<ShellController>();
+    final l = context.l10n;
     Widget tile(int i) {
       final a = QuickAction.all[i];
       return _Tile(
         key: ValueKey('tile-${a.id}'),
         icon: a.icon,
-        label: a.labelFor(language),
+        label: a.label(l),
         glow: _backgrounds[i],
-        onTap: () => shell.openChat(prompt: a.promptFor(language)),
+        onTap: () => shell.openChat(prompt: a.prompt(l)),
       );
     }
 

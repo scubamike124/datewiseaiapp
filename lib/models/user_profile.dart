@@ -6,17 +6,17 @@ import 'coach.dart';
 /// What the user wants help with (onboarding "goals" step). Each goal also
 /// seeds one item of "Your plan this week".
 enum CoachingGoal {
-  conversations('Better conversations', 'Mejores conversaciones'),
-  profile('A stronger profile', 'Un perfil más atractivo'),
-  dates('Great first dates', 'Primeras citas geniales'),
-  confidence('More confidence', 'Más confianza'),
-  relationship('A healthier relationship', 'Una relación más sana');
+  conversations('Better conversations'),
+  profile('A stronger profile'),
+  dates('Great first dates'),
+  confidence('More confidence'),
+  relationship('A healthier relationship');
 
-  const CoachingGoal(this.label, this.labelEs);
+  const CoachingGoal(this.label);
+
+  /// English name, used in the profile summary sent to the coach model (the
+  /// UI shows the localized name, see `AppLocalizations.goal`).
   final String label;
-  final String labelEs;
-
-  String labelFor(CoachLanguage lang) => lang == CoachLanguage.es ? labelEs : label;
 }
 
 // Legacy fields from the first onboarding (kept so older saves still load and
@@ -115,7 +115,7 @@ class UserProfile {
         city: city,
       );
 
-  /// A one-line summary the coach uses to personalise its advice.
+  /// A one-line summary the coach uses to personalize its advice.
   String get summary {
     final parts = <String>[];
     if (age != null && age! > 0) parts.add('$age years old');

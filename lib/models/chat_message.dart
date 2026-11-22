@@ -3,6 +3,11 @@ import 'photo_analysis.dart';
 
 enum MessageRole { user, coach }
 
+/// How a coach reply ended. A reply that [failed] (the coach could not be
+/// reached) or was [stopped] (the user left the chat mid-reply) is shown with
+/// a "Try again" button and is never sent back to the model as history.
+enum MessageStatus { ok, failed, stopped }
+
 /// A single message within a coaching thread.
 ///
 /// A message may carry one or more attached photos (base64, for the Magnet
@@ -20,6 +25,7 @@ class ChatMessage {
     this.batchAnalysis,
     this.isStreaming = false,
     this.isAnalyzing = false,
+    this.status = MessageStatus.ok,
   });
 
   final String id;
@@ -48,7 +54,14 @@ class ChatMessage {
   /// "analyzing" skeleton card instead of text. Transient (never persisted).
   bool isAnalyzing;
 
+  /// See [MessageStatus]. Persisted, so a failed reply can be retried after a
+  /// restart.
+  MessageStatus status;
+
   bool get isUser => role == MessageRole.user;
+
+  /// A complete coach reply or a user message (what the model may see).
+  bool get isComplete => !isStreaming && status == MessageStatus.ok;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -59,6 +72,7 @@ class ChatMessage {
     'imageBase64s': imageBase64s,
     'analysis': analysis?.toJson(),
     'batchAnalysis': batchAnalysis?.toJson(),
+    if (status != MessageStatus.ok) 'status': status.name,
   };
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
@@ -81,5 +95,9 @@ class ChatMessage {
         ? null
         : BatchPhotoAnalysis.fromJson(
             json['batchAnalysis'] as Map<String, dynamic>),
+    status: MessageStatus.values.firstWhere(
+      (s) => s.name == json['status'],
+      orElse: () => MessageStatus.ok,
+    ),
   );
 }

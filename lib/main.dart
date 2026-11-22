@@ -29,7 +29,8 @@ Future<void> main() async {
   }
 
   final storage = await StorageService.create();
-  final ai = ReviewMode.mockAI ? MockAIService() : AIServiceFactory.create();
+  final review = ReviewMode.requestedScreen();
+  final ai = ReviewMode.aiFor(review) ?? (ReviewMode.mockAI ? MockAIService() : AIServiceFactory.create());
   final store = createStoreService();
   final voice = await DeviceVoiceService.create();
   final speech = DeviceSpeechService.create();
@@ -37,7 +38,6 @@ Future<void> main() async {
   store.init();
 
   var initialTab = AppTab.home;
-  final review = ReviewMode.requestedScreen();
   if (review != null) {
     await storage.clearAll();
     await state.deleteMyData();
@@ -52,7 +52,7 @@ Future<void> main() async {
         Provider<VoiceService>.value(value: voice),
         Provider<SpeechService>.value(value: speech),
       ],
-      child: DateWiseApp(initialTab: initialTab),
+      child: DateWiseApp(initialTab: initialTab, reviewHome: ReviewMode.home(review)),
     ),
   );
 }

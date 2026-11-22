@@ -16,6 +16,7 @@ import '../widgets/coach_text.dart';
 import '../widgets/dw.dart';
 import 'paywall_screen.dart';
 import 'shell.dart';
+import '../l10n/l10n.dart';
 
 /// Chat with the selected coach: real AI replies streamed from the backend,
 /// saved on the device per coach. Voice mode (hold to talk, replies read
@@ -63,11 +64,17 @@ class _ChatScreenState extends State<ChatScreen> {
     if (widget.active && !old.active) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _consumePending());
     }
-    if (!widget.active && old.active && _voiceMode) _exitVoice();
+    if (!widget.active && old.active) {
+      if (_voiceMode) _exitVoice();
+      // Leaving the chat stops a reply that is still streaming (the HTTP
+      // stream is closed); the message is kept and can be retried.
+      _state.cancelReply();
+    }
   }
 
   @override
   void dispose() {
+    _state.cancelReply();
     _state.removeListener(_onState);
     _ticker?.cancel();
     if (_voiceMode) _voice.stop();
@@ -118,8 +125,8 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!await _speech.ensureReady()) {
       if (mounted) {
         setState(() {});
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Voice needs microphone and speech recognition access. You can allow it in Settings.'),
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(context.l10n.voicePermissionNeeded),
         ));
       }
       return;
@@ -189,38 +196,58 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _openMenu() {
     final coach = _state.selectedCoach;
+    final l = context.l10n;
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       builder: (ctx) => SafeArea(
-        child: Column(
+        child: SingleChildScrollView(
+         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             _SheetTile(
+              key: const ValueKey('menu-new'),
               icon: Icons.add_comment_outlined,
-              label: 'New conversation',
+              label: l.newConversation,
               onTap: () {
                 Navigator.pop(ctx);
                 _state.createThread();
               },
             ),
             _SheetTile(
+              key: const ValueKey('menu-history'),
               icon: Icons.history_rounded,
-              label: 'Past conversations with ${coach.name}',
+              label: l.pastConversationsWith(coach.name),
               onTap: () {
                 Navigator.pop(ctx);
                 _openHistory();
               },
             ),
             _SheetTile(
+              key: const ValueKey('menu-switch'),
               icon: Icons.swap_horiz_rounded,
-              label: 'Switch coach',
+              label: l.switchCoach,
               onTap: () {
                 Navigator.pop(ctx);
                 context.read<ShellController>().go(AppTab.coaches);
               },
             ),
+            if (!_speech.available)
+              Padding(
+                key: const ValueKey('voice-unavailable'),
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.mic_off_outlined, size: 20, color: AppColors.faint),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text(l.voiceUnavailableNote(coach.name), style: AppText.small)),
+                  ],
+                ),
+              ),
             const SizedBox(height: 8),
           ],
+         ),
         ),
       ),
     );
@@ -228,6 +255,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _openHistory() {
     final coach = _state.selectedCoach;
+    final l = context.l10n;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -237,25 +265,25 @@ class _ChatScreenState extends State<ChatScreen> {
           child: ConstrainedBox(
             constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(ctx).height * 0.7),
             child: threads.isEmpty
-                ? const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text('No saved conversations yet.', style: AppText.body),
+                ? Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(l.noSavedConversations, style: AppText.body),
                   )
                 : ListView(
                     shrinkWrap: true,
                     children: [
                       Padding(
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                        child: Text('Conversations with ${coach.name}', style: AppText.name.copyWith(fontSize: 22)),
+                        child: Text(l.conversationsWith(coach.name), style: AppText.name.copyWith(fontSize: 22)),
                       ),
                       for (final t in threads)
                         ListTile(
                           minTileHeight: 56,
-                          title: Text(t.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppText.label),
+                          title: Text(AppState.isDefaultTitle(t.title) ? l.newConversation : t.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppText.label),
                           subtitle: Text(parseReply(t.preview).body,
                               maxLines: 1, overflow: TextOverflow.ellipsis, style: AppText.small),
                           trailing: IconButton(
-                            tooltip: 'Delete conversation',
+                            tooltip: l.deleteConversation,
                             icon: const Icon(Icons.delete_outline_rounded, color: AppColors.faint),
                             onPressed: () {
                               _state.deleteThread(t.id);
@@ -339,9 +367,10 @@ class _ChatScreenState extends State<ChatScreen> {
                     : _Composer(
                         controller: _input,
                         focus: _focus,
-                        hint: coach.composerHint,
+                        hint: context.l10n.messageHint(coach.name),
                         busy: state.isResponding,
                         onSend: () => _send(_input.text),
+                        onStop: _state.cancelReply,
                         onVoice: _speech.available ? _enterVoice : null,
                       ),
               ),
@@ -364,7 +393,7 @@ class _ChatScreenState extends State<ChatScreen> {
 }
 
 class _SheetTile extends StatelessWidget {
-  const _SheetTile({required this.icon, required this.label, required this.onTap});
+  const _SheetTile({super.key, required this.icon, required this.label, required this.onTap});
   final IconData icon;
   final String label;
   final VoidCallback onTap;
@@ -386,11 +415,12 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 6),
       child: Row(
         children: [
-          CoachAvatar(coach: coach, size: 40, speaking: speaking),
+          CoachAvatar(coach: coach, size: 40, speaking: speaking, semanticLabel: l.coachPortrait(coach.name)),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -401,7 +431,7 @@ class _Header extends StatelessWidget {
                   child: Text(coach.name,
                       style: const TextStyle(fontFamily: AppFonts.serif, fontSize: 21, fontWeight: FontWeight.w500, color: AppColors.text, height: 1.15)),
                 ),
-                Text(coach.aiLabel, key: const ValueKey('ai-label'), style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                Text(l.aiLabel(coach), key: const ValueKey('ai-label'), style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
               ],
             ),
           ),
@@ -409,7 +439,7 @@ class _Header extends StatelessWidget {
             CircleIconButton(
               key: const ValueKey('chat-menu'),
               icon: Icons.more_horiz_rounded,
-              tooltip: 'Conversation options',
+              tooltip: l.conversationOptions,
               onPressed: onMenu,
             ),
         ],
@@ -439,8 +469,10 @@ class _Stage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 400),
+      // The speaking glow fades in, unless Reduce Motion is on.
+      duration: motion(context, const Duration(milliseconds: 400)),
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -457,15 +489,15 @@ class _Stage extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                CoachImage(coach: coach, semanticLabel: '${coach.name}, AI coach (still portrait)'),
+                CoachImage(coach: coach, semanticLabel: l.coachPortraitStill(coach.name)),
                 const FadeToBackground(stops: [0.6, 1], color: AppColors.surface),
-                Positioned(top: 12, left: 12, child: GlassChip(key: const ValueKey('voice-timer'), label: 'Voice session · $elapsed')),
+                Positioned(top: 12, left: 12, child: GlassChip(key: const ValueKey('voice-timer'), label: l.voiceSession(elapsed))),
                 Positioned(
                   top: 6,
                   right: 6,
                   child: CircleIconButton(
                     icon: captions ? Icons.closed_caption_rounded : Icons.closed_caption_off_outlined,
-                    tooltip: captions ? 'Hide captions' : 'Show captions',
+                    tooltip: captions ? l.hideCaptions : l.showCaptions,
                     onPressed: onToggleCaptions,
                     filled: true,
                   ),
@@ -523,6 +555,7 @@ class _MessageList extends StatelessWidget {
           message: messages[i],
           coach: coach,
           showOptions: i == messages.length - 1,
+          onRetry: i == messages.length - 1 && state.canRetry ? state.retryLastReply : null,
         ),
       if (!hasUser) _Starters(coach: coach, onTap: onStarter),
     ];
@@ -545,29 +578,29 @@ class _IntroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
+    final large = MediaQuery.textScalerOf(context).scale(1) > 1.5;
     return Container(
       margin: const EdgeInsets.only(bottom: 16, top: 4),
-      height: 190,
+      constraints: BoxConstraints(minHeight: large ? 240 : 190),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: AppColors.line),
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
-        fit: StackFit.expand,
         children: [
-          CoachImage(coach: coach, semanticLabel: '${coach.name}, AI coach portrait'),
-          const FadeToBackground(stops: [0.35, 1], color: Color(0xF2150C10)),
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: 14,
+          Positioned.fill(child: CoachImage(coach: coach, semanticLabel: l.coachPortrait(coach.name))),
+          const Positioned.fill(child: FadeToBackground(stops: [0.35, 1], color: Color(0xF2150C10))),
+          Padding(
+            padding: EdgeInsets.fromLTRB(16, large ? 90 : 110, 16, 14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                GlassChip(label: '${coach.name} · AI coach · ${coach.language.label}'),
+                GlassChip(label: l.chip(coach)),
                 const SizedBox(height: 8),
-                Text(coach.description, maxLines: 2, overflow: TextOverflow.ellipsis,
+                Text(l.coachDescription(coach),
                     style: const TextStyle(fontSize: 14, height: 1.35, color: AppColors.text)),
               ],
             ),
@@ -579,10 +612,11 @@ class _IntroCard extends StatelessWidget {
 }
 
 class _Bubble extends StatelessWidget {
-  const _Bubble({super.key, required this.message, required this.coach, required this.showOptions});
+  const _Bubble({super.key, required this.message, required this.coach, required this.showOptions, this.onRetry});
   final ChatMessage message;
   final Coach coach;
   final bool showOptions;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -608,8 +642,10 @@ class _Bubble extends StatelessWidget {
         ),
       );
     }
+    final l = context.l10n;
     final parsed = parseReply(message.text);
     final waiting = message.isStreaming && parsed.body.isEmpty;
+    final failed = message.status != MessageStatus.ok;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Column(
@@ -636,15 +672,21 @@ class _Bubble extends StatelessWidget {
                   ),
                   child: waiting
                       ? Semantics(
-                          label: '${coach.name} is typing',
+                          label: l.coachTyping(coach.name),
                           child: const Text('•••', style: TextStyle(color: AppColors.faint, letterSpacing: 2)),
                         )
-                      : CoachText(parsed.body),
+                      : failed
+                          ? _FailedReply(
+                              partial: parsed.body,
+                              stopped: message.status == MessageStatus.stopped,
+                              onRetry: onRetry,
+                            )
+                          : CoachText(parsed.body),
                 ),
               ),
             ],
           ),
-          if (showOptions && !message.isStreaming && parsed.options.isNotEmpty)
+          if (showOptions && !message.isStreaming && !failed && parsed.options.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(left: 38, top: 8),
               child: _ReplyOptions(options: parsed.options),
@@ -670,14 +712,14 @@ class _ReplyOptions extends StatelessWidget {
         for (final o in options)
           Semantics(
             button: true,
-            label: 'Copy ${o.label} reply: ${o.text}',
+            label: context.l10n.copyReply(o.label, o.text),
             excludeSemantics: true,
             child: InkWell(
               key: ValueKey('option-${o.label}'),
               borderRadius: BorderRadius.circular(14),
               onTap: () {
                 Clipboard.setData(ClipboardData(text: o.text));
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied. Paste it into your dating app.')));
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.copiedReply)));
               },
               child: Container(
                 constraints: const BoxConstraints(minHeight: 44, maxWidth: 240),
@@ -741,6 +783,7 @@ class _Composer extends StatelessWidget {
     required this.hint,
     required this.busy,
     required this.onSend,
+    required this.onStop,
     required this.onVoice,
   });
 
@@ -749,10 +792,12 @@ class _Composer extends StatelessWidget {
   final String hint;
   final bool busy;
   final VoidCallback onSend;
+  final VoidCallback onStop;
   final VoidCallback? onVoice;
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
       child: Row(
@@ -790,7 +835,7 @@ class _Composer extends StatelessWidget {
             CircleIconButton(
               key: const ValueKey('voice-mode'),
               icon: Icons.mic_none_rounded,
-              tooltip: 'Voice mode',
+              tooltip: l.voiceMode,
               size: 48,
               onPressed: onVoice,
             ),
@@ -798,22 +843,30 @@ class _Composer extends StatelessWidget {
           const SizedBox(width: 8),
           Semantics(
             button: true,
-            label: 'Send',
+            label: busy ? l.stopReply : l.send,
+            excludeSemantics: true,
             child: Material(
               shape: const CircleBorder(),
               clipBehavior: Clip.antiAlias,
               child: Ink(
                 decoration: const BoxDecoration(gradient: AppColors.goldGradient, shape: BoxShape.circle),
                 child: InkWell(
-                  key: const ValueKey('send'),
-                  onTap: busy ? null : onSend,
+                  key: ValueKey(busy ? 'stop' : 'send'),
+                  onTap: busy ? onStop : onSend,
                   child: SizedBox(
                     width: 48,
                     height: 48,
                     child: busy
-                        ? const Padding(
-                            padding: EdgeInsets.all(14),
-                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.goldInk),
+                        ? const Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.goldInk),
+                              ),
+                              Icon(Icons.stop_rounded, size: 14, color: AppColors.goldInk),
+                            ],
                           )
                         : const Icon(Icons.arrow_upward_rounded, color: AppColors.goldInk),
                   ),
@@ -852,6 +905,7 @@ class _VoiceDock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
       child: Column(
@@ -860,25 +914,25 @@ class _VoiceDock extends StatelessWidget {
           if (listening)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: Text(partial.isEmpty ? 'Listening…' : partial,
+              child: Text(partial.isEmpty ? l.listening : partial,
                   textAlign: TextAlign.center, maxLines: 3, overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 14, color: Color(0xFFF6E6D2))),
             ),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircleIconButton(icon: Icons.keyboard_alt_outlined, tooltip: 'Type instead', onPressed: onKeyboard),
+              CircleIconButton(icon: Icons.keyboard_alt_outlined, tooltip: l.typeInstead, onPressed: onKeyboard),
               const SizedBox(width: 28),
               Semantics(
                 button: true,
-                label: 'Hold to talk',
+                label: l.holdToTalk,
                 child: Listener(
                   onPointerDown: busy ? null : (_) => onHoldStart(),
                   onPointerUp: (_) => onHoldEnd(),
                   onPointerCancel: (_) => onHoldEnd(),
                   child: AnimatedContainer(
                     key: const ValueKey('hold-to-talk'),
-                    duration: const Duration(milliseconds: 200),
+                    duration: motion(context, const Duration(milliseconds: 200)),
                     width: 76,
                     height: 76,
                     decoration: BoxDecoration(
@@ -901,13 +955,13 @@ class _VoiceDock extends StatelessWidget {
               const SizedBox(width: 28),
               CircleIconButton(
                 icon: readAloud ? Icons.volume_up_rounded : Icons.volume_off_rounded,
-                tooltip: readAloud ? 'Stop reading replies aloud' : 'Read replies aloud',
+                tooltip: readAloud ? l.stopReadingAloud : l.readAloud,
                 onPressed: onToggleReadAloud,
               ),
             ],
           ),
           const SizedBox(height: 12),
-          Text('Hold to talk · ${coach.name} is an AI coach', textAlign: TextAlign.center, style: AppText.small),
+          Text(l.holdToTalkFooter(coach.name, l.gender(coach)), textAlign: TextAlign.center, style: AppText.small),
         ],
       ),
     );
@@ -920,6 +974,7 @@ class _Locked extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       child: ContentWidth(
@@ -932,15 +987,15 @@ class _Locked extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('DATEWISE PREMIUM', style: AppText.eyebrow),
+                  Text(l.premiumEyebrow.toUpperCase(), style: AppText.eyebrow),
                   const SizedBox(height: 8),
-                  Text('Chat with ${coach.name} is part of DateWise Premium.', style: AppText.name.copyWith(fontSize: 24)),
+                  Text(l.lockedTitle(coach.name), style: AppText.name.copyWith(fontSize: 24)),
                   const SizedBox(height: 8),
-                  const Text('Subscribe to talk with all four AI coaches. Your conversations stay on this device.', style: AppText.body),
+                  Text(l.lockedBody, style: AppText.body),
                   const SizedBox(height: 16),
                   DwButton(
                     key: const ValueKey('locked-subscribe'),
-                    label: 'See DateWise Premium',
+                    label: l.seePremium,
                     expand: true,
                     onPressed: () => showPaywall(context),
                   ),
@@ -950,6 +1005,60 @@ class _Locked extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// A reply that could not be delivered: the friendly notice (localized), any
+/// text that arrived before the failure, and "Try again".
+class _FailedReply extends StatelessWidget {
+  const _FailedReply({required this.partial, required this.stopped, required this.onRetry});
+  final String partial;
+  final bool stopped;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    return Column(
+      key: const ValueKey('reply-failed'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (partial.trim().isNotEmpty) ...[
+          CoachText(partial),
+          const SizedBox(height: 8),
+        ],
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(top: 2),
+              child: Icon(Icons.error_outline_rounded, size: 18, color: AppColors.rose),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                stopped ? l.chatErrorStopped : l.chatErrorUnavailable,
+                style: const TextStyle(fontSize: 14, height: 1.4, color: AppColors.text),
+              ),
+            ),
+          ],
+        ),
+        if (onRetry != null) ...[
+          const SizedBox(height: 8),
+          DwButton(
+            key: const ValueKey('retry'),
+            label: l.retry,
+            leading: Icons.refresh_rounded,
+            onPressed: onRetry,
+            style: DwButtonStyle.ghost,
+            height: 44,
+            fontSize: 14,
+            padding: 16,
+          ),
+        ],
+      ],
     );
   }
 }

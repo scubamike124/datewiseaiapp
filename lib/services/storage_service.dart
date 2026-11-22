@@ -10,7 +10,7 @@ import '../models/coach.dart';
 import '../models/user_profile.dart';
 import '../models/weekly_plan.dart';
 
-/// Browser-localStorage-style persistence (PRD: all data stays on the device,
+/// On-device persistence (PRD: all data stays on the device,
 /// no cloud). On web, [SharedPreferences] is backed by window.localStorage.
 class StorageService {
   StorageService(this._prefs);
@@ -29,6 +29,7 @@ class StorageService {
   static const _kMemoryOn = 'dw_memory_on';
   static const _kMemoryText = 'dw_memory_text';
   static const _kActiveDays = 'dw_active_days';
+  static const _kUnderage = 'dw_underage';
 
   /// Cap on cached photo analyses; oldest entries are evicted past this (LRU).
   static const _maxCacheEntries = 50;
@@ -54,6 +55,10 @@ class StorageService {
 
   bool get hasOnboarded => _prefs.getBool(_kOnboarded) ?? false;
   Future<void> setOnboarded() => _prefs.setBool(_kOnboarded, true);
+
+  /// Set when the user said they are under 18 (the app then stays closed).
+  bool get underage => _prefs.getBool(_kUnderage) ?? false;
+  Future<void> setUnderage() => _prefs.setBool(_kUnderage, true);
 
   // --- Intro slider (first-launch walkthrough) ----------------------------
 
@@ -242,10 +247,15 @@ class StorageService {
     await _prefs.remove(_kBatchCache);
   }
 
-  /// "Delete my data": removes everything DateWise stored on this device.
+  /// "Delete my data": removes everything DateWise stored on this device
+  /// (every `dw_` key: conversations, profile, plan, memory, stats and the
+  /// legacy subscription-tier flag). The 18+ block survives, so "Delete my
+  /// data" cannot be used to get around it.
   Future<void> clearAll() async {
+    final blocked = underage;
     for (final key in _prefs.getKeys().toList()) {
       if (key.startsWith('dw_')) await _prefs.remove(key);
     }
+    if (blocked) await setUnderage();
   }
 }

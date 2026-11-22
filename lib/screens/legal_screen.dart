@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../content/legal_text.dart';
+import '../l10n/l10n.dart';
 import '../theme/app_theme.dart';
+
+/// The in-app legal documents.
+enum LegalDoc { privacy, terms }
 
 /// A clean, readable legal/document page. Renders lightweight markup:
 /// - lines starting with "# " become section headings
@@ -8,15 +13,33 @@ import '../theme/app_theme.dart';
 ///   when the item starts with a short "Label:" prefix)
 /// - the first "Last updated" line is shown as muted sub-text
 /// - blank lines separate paragraphs
+///
+/// [LegalScreen.doc] shows a document in the UI language: in Spanish, the
+/// Spanish translation with a note that the English version governs.
 class LegalScreen extends StatelessWidget {
-  const LegalScreen({super.key, required this.title, required this.content});
+  const LegalScreen({super.key, required String this.title, required String this.content}) : doc = null;
+  const LegalScreen.doc(LegalDoc this.doc, {super.key})
+      : title = null,
+        content = null;
 
-  final String title;
-  final String content;
+  final String? title;
+  final String? content;
+  final LegalDoc? doc;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l = context.l10n;
+    final es = Localizations.localeOf(context).languageCode == 'es';
+    final title = this.title ?? (doc == LegalDoc.terms ? l.termsOfUse : l.privacyPolicy);
+    final content = this.content ??
+        switch ((doc!, es)) {
+          (LegalDoc.privacy, false) => kPrivacyPolicy,
+          (LegalDoc.terms, false) => kTermsOfService,
+          (LegalDoc.privacy, true) => kPrivacyPolicyEs,
+          (LegalDoc.terms, true) => kTermsOfServiceEs,
+        };
+    final note = doc != null && es ? l.legalTranslationNote : '';
     final lines = content.trim().split('\n');
 
     final widgets = <Widget>[];
@@ -31,7 +54,7 @@ class LegalScreen extends StatelessWidget {
       }
 
       // "Last updated: ..." intro line → muted chip-like sub-text.
-      if (i == 0 && line.toLowerCase().startsWith('last updated')) {
+      if (i == 0 && (line.toLowerCase().startsWith('last updated') || line.startsWith('Última actualización'))) {
         widgets.add(Text(
           line,
           style: theme.textTheme.labelMedium?.copyWith(
@@ -40,6 +63,12 @@ class LegalScreen extends StatelessWidget {
             letterSpacing: 0.2,
           ),
         ));
+        if (note.isNotEmpty) {
+          widgets.add(Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.sm),
+            child: Text(note, key: const ValueKey('legal-translation-note'), style: AppText.small.copyWith(color: AppColors.textMuted)),
+          ));
+        }
         widgets.add(const SizedBox(height: AppSpacing.md));
         continue;
       }

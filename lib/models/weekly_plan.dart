@@ -1,4 +1,3 @@
-import 'coach.dart';
 import 'user_profile.dart';
 
 /// One item of "Your plan this week", seeded from an onboarding goal.
@@ -8,39 +7,8 @@ class PlanItem {
   final CoachingGoal goal;
   bool done;
 
-  /// The task, in [lang], mentioning [coach] where it reads naturally.
-  String title(CoachLanguage lang, Coach coach) {
-    final es = lang == CoachLanguage.es;
-    switch (goal) {
-      case CoachingGoal.conversations:
-        return es ? 'Practica un primer mensaje con ${coach.name}' : 'Practise an opener with ${coach.name}';
-      case CoachingGoal.profile:
-        return es ? 'Reescribe tu biografía con ${coach.name}' : 'Rewrite your bio with ${coach.name}';
-      case CoachingGoal.dates:
-        return es ? 'Planea una primera cita' : 'Plan a first date idea';
-      case CoachingGoal.confidence:
-        return es ? 'Habla de lo que te pone nervioso' : 'Talk through what makes you nervous';
-      case CoachingGoal.relationship:
-        return es ? 'Practica decir lo que sientes' : 'Practise saying how you feel';
-    }
-  }
-
-  /// The message that starts a chat about this item.
-  String prompt(CoachLanguage lang) {
-    final es = lang == CoachLanguage.es;
-    switch (goal) {
-      case CoachingGoal.conversations:
-        return es ? 'Ayúdame a practicar un primer mensaje para alguien con quien hice match.' : 'Help me practise an opener for someone I matched with.';
-      case CoachingGoal.profile:
-        return es ? 'Reescribe mi biografía de citas.' : 'Rewrite my dating bio.';
-      case CoachingGoal.dates:
-        return es ? 'Ayúdame a planear una buena primera cita.' : 'Help me plan a great first date.';
-      case CoachingGoal.confidence:
-        return es ? 'Me pongo nervioso antes de una cita. ¿Me ayudas?' : 'I get nervous before dates. Can you help?';
-      case CoachingGoal.relationship:
-        return es ? 'Ayúdame a decirle a mi pareja cómo me siento.' : 'Help me tell my partner how I feel.';
-    }
-  }
+  // The task's wording (and the chat prompt it starts) is localized in the
+  // UI: see `AppLocalizations.planItemTitle` / `planItemPrompt`.
 
   Map<String, dynamic> toJson() => {'goal': goal.name, 'done': done};
 

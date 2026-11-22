@@ -66,12 +66,34 @@ class AppState extends ChangeNotifier {
   UserProfile? get profile => _profile;
   CoachLanguage get language => _profile?.language ?? selectedCoach.language;
 
+  /// The language the user chose (onboarding or You › Language), or null
+  /// before they choose; the app then follows the device language.
+  CoachLanguage? get chosenLanguage => _profile?.language;
+
+  // --- 18+ gate -----------------------------------------------------------
+
+  bool _underage = false;
+
+  /// True once the user said they are under 18. Persisted: the app stays on
+  /// the "only for adults" screen, across restarts, with no way forward.
+  bool get underageBlocked => _underage;
+
+  Future<void> markUnderage() async {
+    _underage = true;
+    await _storage.setUnderage();
+    notifyListeners();
+  }
+
   /// Finishes onboarding: goals, language, 18+ confirmed, coach chosen.
-  Future<void> completeOnboarding({
+  /// Refused (returns false, nothing saved) unless [adultConfirmed] is true
+  /// and the user has not said they are under 18.
+  Future<bool> completeOnboarding({
     required List<CoachingGoal> goals,
     required CoachLanguage language,
     required String coachId,
+    required bool adultConfirmed,
   }) async {
+    if (!adultConfirmed || _underage) return false;
     _profile = (_profile ?? const UserProfile()).copyWith(goals: goals, language: language);
     await _storage.saveProfile(_profile!);
     _plan = WeeklyPlan.fromGoals(goals, _clock());
@@ -80,6 +102,7 @@ class AppState extends ChangeNotifier {
     _onboarded = true;
     await _storage.setOnboarded();
     notifyListeners();
+    return true;
   }
 
   Future<void> setLanguage(CoachLanguage lang) async {
@@ -193,7 +216,8 @@ class AppState extends ChangeNotifier {
   bool get isResponding => _isResponding;
 
   void _load() {
-    _onboarded = _storage.hasOnboarded;
+    _underage = _storage.underage;
+    _onboarded = _storage.hasOnboarded && !_underage;
     _profile = _storage.loadProfile();
     _coachId = _storage.loadCoachId();
     _memoryEnabled = _storage.memoryEnabled;
@@ -252,6 +276,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> deleteThread(String id) async {
+    if (_isResponding && _activeThreadId == id) await cancelReply();
     _threads.removeWhere((t) => t.id == id);
     if (_activeThreadId == id) _activeThreadId = latestThreadFor(selectedCoach)?.id;
     await _persist();
@@ -284,7 +309,18 @@ class AppState extends ChangeNotifier {
     return true;
   }
 
-  Future<void> _streamCoachReply(ChatThread thread) async {
+  StreamSubscription<String>? _replySub;
+  Completer<void>? _replyDone;
+  ChatMessage? _replyMsg;
+  Future<void>? _replyTask;
+
+  Future<void> _streamCoachReply(ChatThread thread) {
+    final task = _runReply(thread);
+    _replyTask = task;
+    return task;
+  }
+
+  Future<void> _runReply(ChatThread thread) async {
     _isResponding = true;
     final coachMsg = ChatMessage(
       id: _uuid.v4(),
@@ -294,46 +330,106 @@ class AppState extends ChangeNotifier {
       isStreaming: true,
     );
     thread.messages.add(coachMsg);
+    _replyMsg = coachMsg;
     notifyListeners();
 
-    try {
-      await for (final chunk in _ai.streamReply(
-        history: List.of(thread.messages.where((m) => !m.isStreaming)),
-        tier: aiTier,
-        profile: profileForCoach,
-        coach: Coaches.byId(thread.coachId),
-      )) {
-        coachMsg.text += chunk;
-        notifyListeners();
-      }
-    } catch (_) {
-      if (coachMsg.text.isEmpty) {
-        coachMsg.text = _isSpanish(thread)
-            ? 'Algo me interrumpió. ¿Puedes enviarlo otra vez?'
-            : 'Something interrupted me there. Try sending that again?';
-      }
-    } finally {
-      coachMsg.isStreaming = false;
-      _isResponding = false;
-      thread.updatedAt = _clock();
-      await _persist();
-      notifyListeners();
+    final done = Completer<void>();
+    _replyDone = done;
+    void finish() {
+      if (!done.isCompleted) done.complete();
     }
+
+    try {
+      _replySub = _ai
+          .streamReply(
+            history: [for (final m in thread.messages) if (m.isComplete) m],
+            tier: aiTier,
+            profile: profileForCoach,
+            coach: Coaches.byId(thread.coachId),
+          )
+          .listen(
+            (chunk) {
+              coachMsg.text += chunk;
+              notifyListeners();
+            },
+            onError: (Object _) {
+              coachMsg.status = MessageStatus.failed;
+              finish();
+            },
+            onDone: finish,
+            cancelOnError: true,
+          );
+    } catch (_) {
+      coachMsg.status = MessageStatus.failed;
+      finish();
+    }
+    await done.future;
+
+    _replySub = null;
+    _replyDone = null;
+    _replyMsg = null;
+    _replyTask = null;
+    coachMsg.isStreaming = false;
+    if (coachMsg.status == MessageStatus.ok && coachMsg.text.trim().isEmpty) {
+      coachMsg.status = MessageStatus.failed;
+    }
+    _isResponding = false;
+    thread.updatedAt = _clock();
+    await _persist();
+    notifyListeners();
+  }
+
+  /// Stops the reply that is streaming (the user left the chat). The HTTP
+  /// stream is canceled; the user's message is kept and the reply can be
+  /// retried.
+  Future<void> cancelReply() async {
+    final sub = _replySub;
+    final msg = _replyMsg;
+    if (sub == null || msg == null) return;
+    _replySub = null;
+    msg.status = MessageStatus.stopped;
+    final canceling = sub.cancel(); // closes the HTTP stream
+    final done = _replyDone;
+    if (done != null && !done.isCompleted) done.complete();
+    final task = _replyTask;
+    await canceling;
+    await task; // saved and settled before anything else changes
+  }
+
+  /// Whether the open conversation ends with a failed or stopped reply.
+  bool get canRetry {
+    final last = activeThread?.messages.lastOrNull;
+    return !_isResponding && last != null && !last.isUser && last.status != MessageStatus.ok;
+  }
+
+  /// Asks the coach again for the last message after a failed or stopped
+  /// reply. The failed reply is replaced.
+  Future<bool> retryLastReply() async {
+    final thread = activeThread;
+    if (thread == null || !canRetry || !canChat) return false;
+    thread.messages.removeLast();
+    await _recordActiveDay();
+    await _streamCoachReply(thread);
+    return true;
   }
 
   // --- Deleting -----------------------------------------------------------
 
   Future<void> deleteAllConversations() async {
+    await cancelReply();
     _threads.clear();
     _activeThreadId = null;
     await _storage.clearConversations();
     notifyListeners();
   }
 
-  /// "Delete my data": wipes everything on this device and returns the app to
-  /// the welcome screen. (Subscriptions are managed by Apple and are not
-  /// affected; Restore Purchases brings an active one back.)
+  /// "Delete my data": wipes everything DateWise stored on this device
+  /// (conversations, plan, progress, Coach memory, settings and any saved
+  /// subscription flags) and returns the app to the welcome screen. The App
+  /// Store subscription itself is managed by Apple and is not canceled;
+  /// Restore Purchases brings an active one back.
   Future<void> deleteMyData() async {
+    await cancelReply();
     await _storage.clearAll();
     _threads.clear();
     _activeThreadId = null;
@@ -357,8 +453,9 @@ class AppState extends ChangeNotifier {
     for (final c in Coaches.all) defaultThreadTitle(c),
   };
 
-  bool _isSpanish(ChatThread thread) =>
-      Coaches.byId(thread.coachId).language == CoachLanguage.es;
+  /// Whether [title] is an untouched "New conversation" title (shown in the
+  /// UI language).
+  static bool isDefaultTitle(String title) => _defaultTitles.contains(title);
 
   void _autoTitle(ChatThread thread) {
     if (!_defaultTitles.contains(thread.title)) return;
