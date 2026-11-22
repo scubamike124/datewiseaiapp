@@ -10,6 +10,7 @@ import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common/brand_mark.dart';
 import '../widgets/common/effects.dart';
+import '../widgets/common/premium.dart';
 import '../widgets/common/user_avatar.dart';
 import '../widgets/landing/pricing_card.dart';
 import 'account_screen.dart';
@@ -24,10 +25,8 @@ class Breakpoints {
   static const double mobile = 600;
   static const double tablet = 900;
 
-  static bool isMobile(BuildContext c) =>
-      MediaQuery.sizeOf(c).width < mobile;
-  static bool isDesktop(BuildContext c) =>
-      MediaQuery.sizeOf(c).width >= tablet;
+  static bool isMobile(BuildContext c) => MediaQuery.sizeOf(c).width < mobile;
+  static bool isDesktop(BuildContext c) => MediaQuery.sizeOf(c).width >= tablet;
 }
 
 /// Landing page & conversion funnel (PRD section 5.1): hero, feature
@@ -57,14 +56,14 @@ class _LandingScreenState extends State<LandingScreen> {
   void _enterApp() {
     final state = context.read<AppState>();
     if (!state.hasProfile) {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const OnboardingScreen()));
     } else {
       state.ensureStarterThread();
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const ChatScreen()),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const ChatScreen()));
     }
   }
 
@@ -97,9 +96,9 @@ class _LandingScreenState extends State<LandingScreen> {
   Future<bool> _requireAuth({String? reason}) async {
     final state = context.read<AppState>();
     if (!state.authEnabled || state.isSignedIn) return true;
-    final result = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => AuthScreen(reason: reason)),
-    );
+    final result = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => AuthScreen(reason: reason)));
     return result == true;
   }
 
@@ -126,21 +125,23 @@ class _LandingScreenState extends State<LandingScreen> {
   }
 
   Future<void> _logIn() async {
-    final ok = await _requireAuth(reason: 'Log in to your DateWise AI account.');
+    final ok = await _requireAuth(
+      reason: 'Log in to your DateWise AI account.',
+    );
     if (!ok || !mounted) return;
     setState(() {}); // refresh the header to show the account menu
   }
 
   void _openAccount() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const AccountScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const AccountScreen()));
   }
 
   void _openManageUsers() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const AdminUsersScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const AdminUsersScreen()));
   }
 
   @override
@@ -183,22 +184,36 @@ class _LandingScreenState extends State<LandingScreen> {
           slivers: [
             SliverAppBar(
               pinned: true,
-              backgroundColor: AppColors.background.withValues(alpha: 0.92),
+              backgroundColor: AppColors.background.withValues(alpha: 0.88),
               elevation: 0,
-              scrolledUnderElevation: 0.5,
+              scrolledUnderElevation: 0,
+              shape: const Border(
+                bottom: BorderSide(color: AppColors.cardBorder),
+              ),
               automaticallyImplyLeading: false,
               titleSpacing: 0,
               toolbarHeight: 66,
               title: Padding(
                 padding: EdgeInsets.symmetric(
-                  horizontal: Breakpoints.isMobile(context)
-                      ? AppSpacing.md
-                      : AppSpacing.lg,
+                  horizontal:
+                      Breakpoints.isMobile(context)
+                          ? AppSpacing.md
+                          : AppSpacing.lg,
                 ),
                 child: Row(
                   children: [
-                    const BrandMark(),
-                    // Centered nav links on desktop; a flexible gap otherwise.
+                    // On narrow screens the wordmark takes the free space
+                    // (and scales down with large text) so the actions fit.
+                    if (Breakpoints.isDesktop(context))
+                      const BrandMark()
+                    else
+                      const Expanded(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: BrandMark(),
+                        ),
+                      ),
+                    // Centered nav links on desktop.
                     if (Breakpoints.isDesktop(context))
                       Expanded(
                         child: Center(
@@ -212,7 +227,9 @@ class _LandingScreenState extends State<LandingScreen> {
                               ),
                               if (showPricing)
                                 _NavLink(
-                                    label: 'Pricing', onTap: _scrollToPricing),
+                                  label: 'Pricing',
+                                  onTap: _scrollToPricing,
+                                ),
                               _NavLink(
                                 label: 'Stories',
                                 onTap: () => _scrollTo(_storiesKey),
@@ -220,62 +237,59 @@ class _LandingScreenState extends State<LandingScreen> {
                             ],
                           ),
                         ),
-                      )
-                    else
-                      const Spacer(),
+                      ),
                     if (!Breakpoints.isDesktop(context))
                       PopupMenuButton<VoidCallback>(
-                        icon: const Icon(Icons.menu, color: AppColors.text),
+                        icon: const Icon(
+                          Icons.menu_rounded,
+                          color: AppColors.text,
+                        ),
                         tooltip: 'Menu',
                         onSelected: (cb) => cb(),
-                        itemBuilder: (context) => [
-                          PopupMenuItem(
-                            value: _scrollToTop,
-                            child: const Text('Home'),
-                          ),
-                          PopupMenuItem(
-                            value: () => _scrollTo(_howKey),
-                            child: const Text('How it works'),
-                          ),
-                          if (showPricing)
-                            PopupMenuItem(
-                              value: _scrollToPricing,
-                              child: const Text('Pricing'),
-                            ),
-                          PopupMenuItem(
-                            value: () => _scrollTo(_storiesKey),
-                            child: const Text('Stories'),
-                          ),
-                        ],
+                        itemBuilder:
+                            (context) => [
+                              PopupMenuItem(
+                                value: _scrollToTop,
+                                child: const Text('Home'),
+                              ),
+                              PopupMenuItem(
+                                value: () => _scrollTo(_howKey),
+                                child: const Text('How it works'),
+                              ),
+                              if (showPricing)
+                                PopupMenuItem(
+                                  value: _scrollToPricing,
+                                  child: const Text('Pricing'),
+                                ),
+                              PopupMenuItem(
+                                value: () => _scrollTo(_storiesKey),
+                                child: const Text('Stories'),
+                              ),
+                            ],
                       ),
                     const SizedBox(width: AppSpacing.sm),
                     hasTier
-                        ? HoverScale(
-                            child: FilledButton(
-                              onPressed: _enterApp,
-                              style: FilledButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                              ),
-                              child: const Text('Continue'),
-                            ),
-                          )
-                        : HoverScale(
-                            child: OutlinedButton(
-                              onPressed: _startCoaching,
-                              child: const Text('Start'),
-                            ),
-                          ),
+                        ? GradientButton(
+                          dense: true,
+                          onPressed: _enterApp,
+                          label: 'Continue',
+                        )
+                        : GradientButton(
+                          dense: true,
+                          onPressed: _startCoaching,
+                          label: 'Start',
+                        ),
                     if (state.authEnabled) ...[
                       const SizedBox(width: AppSpacing.sm),
                       state.isSignedIn
                           ? _AccountMenu(
-                              email: state.userEmail,
-                              avatarUrl: state.avatarUrl,
-                              isAdmin: state.isAdmin,
-                              onAccount: _openAccount,
-                              onManageUsers: _openManageUsers,
-                              onSignOut: () => context.read<AppState>().signOut(),
-                            )
+                            email: state.userEmail,
+                            avatarUrl: state.avatarUrl,
+                            isAdmin: state.isAdmin,
+                            onAccount: _openAccount,
+                            onManageUsers: _openManageUsers,
+                            onSignOut: () => context.read<AppState>().signOut(),
+                          )
                           : _NavLink(label: 'Log in', onTap: _logIn),
                     ],
                   ],
@@ -310,25 +324,31 @@ class _SmoothScrollBehavior extends MaterialScrollBehavior {
 
   @override
   Set<PointerDeviceKind> get dragDevices => {
-        PointerDeviceKind.touch,
-        PointerDeviceKind.mouse,
-        PointerDeviceKind.trackpad,
-        PointerDeviceKind.stylus,
-      };
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.trackpad,
+    PointerDeviceKind.stylus,
+  };
 }
 
 /// A centred, max-width content section with responsive padding.
 class _Section extends StatelessWidget {
-  const _Section({required this.child, this.background});
+  const _Section({required this.child, this.background, this.gradient});
   final Widget child;
   final Color? background;
+
+  /// A full-bleed band behind the section (overrides [background]).
+  final Gradient? gradient;
 
   @override
   Widget build(BuildContext context) {
     final isMobile = Breakpoints.isMobile(context);
     return Container(
       width: double.infinity,
-      color: background,
+      decoration: BoxDecoration(
+        color: gradient == null ? background : null,
+        gradient: gradient,
+      ),
       padding: EdgeInsets.symmetric(
         vertical: isMobile ? AppSpacing.xl : AppSpacing.xxl,
         horizontal: isMobile ? AppSpacing.md : AppSpacing.lg,
@@ -369,27 +389,37 @@ class _Hero extends StatelessWidget {
 
     // Two-column (text + image) on desktop; stacked & centered below.
     final isRow = isWide;
-    final cross =
-        isRow ? CrossAxisAlignment.start : CrossAxisAlignment.center;
+    final cross = isRow ? CrossAxisAlignment.start : CrossAxisAlignment.center;
     final textAlign = isRow ? TextAlign.left : TextAlign.center;
 
     final titleStyle = (isWide
             ? theme.textTheme.displayMedium
             : isMobile
-                ? theme.textTheme.headlineMedium
-                : theme.textTheme.displaySmall)
+            ? theme.textTheme.headlineMedium
+            : theme.textTheme.displaySmall)
         ?.copyWith(fontWeight: FontWeight.w800, height: 1.05);
 
     final textColumn = Column(
       crossAxisAlignment: cross,
       mainAxisSize: MainAxisSize.min,
       children: [
-        _Pill(icon: Icons.auto_awesome, label: 'Your AI dating coach'),
+        const Eyebrow('Your AI dating coach', icon: Icons.auto_awesome),
         const SizedBox(height: AppSpacing.lg),
-        Text(
-          isRow
-              ? 'Become the\nmost matched\nversion of you.'
-              : 'Become the most\nmatched version\nof you.',
+        Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text:
+                    isRow
+                        ? 'Become the\nmost matched\n'
+                        : 'Become the most\nmatched ',
+              ),
+              TextSpan(
+                text: isRow ? 'version of you.' : 'version\nof you.',
+                style: const TextStyle(color: AppColors.accent),
+              ),
+            ],
+          ),
           textAlign: textAlign,
           style: titleStyle,
         ),
@@ -403,9 +433,9 @@ class _Hero extends StatelessWidget {
                   ? theme.textTheme.bodyLarge
                   : theme.textTheme.titleMedium)
               ?.copyWith(
-            color: AppColors.textMuted,
-            fontWeight: FontWeight.w400,
-          ),
+                color: AppColors.textMuted,
+                fontWeight: FontWeight.w400,
+              ),
         ),
         const SizedBox(height: AppSpacing.xl),
         Wrap(
@@ -413,21 +443,10 @@ class _Hero extends StatelessWidget {
           runSpacing: AppSpacing.md,
           alignment: isRow ? WrapAlignment.start : WrapAlignment.center,
           children: [
-            HoverScale(
-              child: ElevatedButton(
-                onPressed: onStartCoaching,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(hasTier ? 'Continue' : 'Start coaching free'),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.arrow_forward_rounded, size: 18),
-                    ],
-                  ),
-                ),
-              ),
+            GradientButton(
+              onPressed: onStartCoaching,
+              label: hasTier ? 'Continue' : 'Start coaching free',
+              trailingIcon: Icons.arrow_forward_rounded,
             ),
             if (onSeePlans != null)
               HoverScale(
@@ -443,34 +462,48 @@ class _Hero extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.lg),
         // Privacy reassurance — we collect no personal data.
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment:
-              isRow ? MainAxisAlignment.start : MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.lock_outline_rounded,
-                size: 16, color: AppColors.primary),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                'No sign-up. We never collect your personal data — everything '
-                'stays private on your device.',
-                textAlign: textAlign,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: AppColors.textMuted),
+        Text.rich(
+          TextSpan(
+            children: [
+              const WidgetSpan(
+                alignment: PlaceholderAlignment.middle,
+                child: Padding(
+                  padding: EdgeInsets.only(right: 6),
+                  child: Icon(
+                    Icons.lock_outline_rounded,
+                    size: 16,
+                    color: AppColors.accent,
+                  ),
+                ),
               ),
-            ),
-          ],
+              const TextSpan(
+                text:
+                    'No sign-up. We never collect your personal data — '
+                    'everything stays private on your device.',
+              ),
+            ],
+          ),
+          textAlign: textAlign,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: AppColors.textMuted,
+          ),
         ),
       ],
     );
 
     return Container(
-      decoration: const BoxDecoration(gradient: AppColors.heroGradient),
+      decoration: const BoxDecoration(
+        gradient: RadialGradient(
+          center: Alignment(-0.7, -0.9),
+          radius: 1.3,
+          colors: [Color(0xFF2E1650), AppColors.background],
+        ),
+      ),
       padding: EdgeInsets.symmetric(
-        vertical: isWide
-            ? 88
-            : isMobile
+        vertical:
+            isWide
+                ? 88
+                : isMobile
                 ? 40
                 : 64,
         horizontal: isMobile ? AppSpacing.md : AppSpacing.lg,
@@ -478,22 +511,23 @@ class _Hero extends StatelessWidget {
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1120),
-          child: isRow
-              ? Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(flex: 5, child: textColumn),
-                    const SizedBox(width: AppSpacing.xl),
-                    const Expanded(flex: 6, child: _HeroImage()),
-                  ],
-                )
-              : Column(
-                  children: [
-                    textColumn,
-                    const SizedBox(height: AppSpacing.xl),
-                    const _HeroImage(),
-                  ],
-                ),
+          child:
+              isRow
+                  ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(flex: 5, child: textColumn),
+                      const SizedBox(width: AppSpacing.xl),
+                      const Expanded(flex: 6, child: _HeroImage()),
+                    ],
+                  )
+                  : Column(
+                    children: [
+                      textColumn,
+                      const SizedBox(height: AppSpacing.xl),
+                      const _HeroImage(),
+                    ],
+                  ),
         ),
       ),
     );
@@ -509,6 +543,7 @@ class _HeroImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isPhone = Breakpoints.isMobile(context);
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 620),
@@ -521,33 +556,51 @@ class _HeroImage extends StatelessWidget {
                 child: Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(AppRadius.lg),
+                    border: Border.all(color: AppColors.glassBorder),
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.22),
-                        blurRadius: 50,
+                        color: AppColors.primary.withValues(alpha: 0.35),
+                        blurRadius: 70,
                         offset: const Offset(0, 24),
                       ),
                     ],
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(AppRadius.lg),
-                    child: Image.asset(
-                      _imageAsset,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const _HeroImageFallback(),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.asset(
+                          _imageAsset,
+                          fit: BoxFit.cover,
+                          errorBuilder:
+                              (_, __, ___) => const _HeroImageFallback(),
+                        ),
+                        // A violet dusk wash ties the photo into the theme.
+                        const DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [Color(0x1A7C3AED), Color(0x9912081F)],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
+              // Inset on phones so the floats never leave the screen.
               Positioned(
-                left: -16,
-                bottom: 28,
+                left: isPhone ? 8 : -16,
+                bottom: isPhone ? 12 : 28,
                 child: _FloatingBadge(),
               ),
-              const Positioned(
-                right: -12,
+              Positioned(
+                right: isPhone ? 8 : -12,
                 top: 24,
-                child: _FloatingChip(label: '+34% matches'),
+                child: const _FloatingChip(label: '+34% matches'),
               ),
             ],
           ),
@@ -577,13 +630,16 @@ class _FloatingBadge extends StatelessWidget {
     final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface.withValues(alpha: 0.96),
         borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.glassBorder),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
+            color: Colors.black.withValues(alpha: 0.4),
             blurRadius: 24,
             offset: const Offset(0, 10),
           ),
@@ -592,25 +648,19 @@ class _FloatingBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: const BoxDecoration(
-              gradient: AppColors.romanticGradient,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.auto_awesome, color: Colors.white, size: 18),
-          ),
+          const GradientIcon(icon: Icons.auto_awesome, size: 38, glow: false),
           const SizedBox(width: AppSpacing.sm),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('DateWise AI says',
-                  style: theme.textTheme.labelSmall
-                      ?.copyWith(color: AppColors.textMuted)),
-              Text('“This one’s a KEEP ✨”',
-                  style: theme.textTheme.labelLarge),
+              Text(
+                'DateWise AI says',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: AppColors.textMuted,
+                ),
+              ),
+              Text('“This one’s a KEEP ✨”', style: theme.textTheme.labelLarge),
             ],
           ),
         ],
@@ -627,7 +677,9 @@ class _FloatingChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
       decoration: BoxDecoration(
         gradient: AppColors.romanticGradient,
         borderRadius: BorderRadius.circular(AppRadius.pill),
@@ -658,39 +710,6 @@ class _FloatingChip extends StatelessWidget {
   }
 }
 
-class _Pill extends StatelessWidget {
-  const _Pill({required this.icon, required this.label});
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.sm,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-        border: Border.all(color: AppColors.cardBorder),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: AppColors.primary),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: theme.textTheme.labelLarge?.copyWith(color: AppColors.primary),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _SectionHeading extends StatelessWidget {
   const _SectionHeading({
     required this.eyebrow,
@@ -706,32 +725,19 @@ class _SectionHeading extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final titleColor = onDark ? Colors.white : AppColors.text;
-    final subColor =
-        onDark ? Colors.white.withValues(alpha: 0.75) : AppColors.textMuted;
+    // Every section sits on the dark canvas now; [onDark] is kept for callers.
+    const titleColor = AppColors.text;
+    const subColor = AppColors.textMuted;
     return Column(
       children: [
-        // Gold eyebrow label for an editorial, professional feel.
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-          decoration: BoxDecoration(
-            color: AppColors.accent.withValues(alpha: onDark ? 0.22 : 0.16),
-            borderRadius: BorderRadius.circular(AppRadius.pill),
-          ),
-          child: Text(
-            eyebrow.toUpperCase(),
-            style: TextStyle(
-              color: onDark ? const Color(0xFFEDC373) : const Color(0xFFB07E20),
-              fontWeight: FontWeight.w800,
-              fontSize: 12,
-              letterSpacing: 1.2,
-            ),
-          ),
-        ),
+        // Rose-gold eyebrow label for an editorial, professional feel.
+        Eyebrow(eyebrow),
         const SizedBox(height: AppSpacing.md),
-        Text(title,
-            style: theme.textTheme.headlineMedium?.copyWith(color: titleColor),
-            textAlign: TextAlign.center),
+        Text(
+          title,
+          style: theme.textTheme.headlineMedium?.copyWith(color: titleColor),
+          textAlign: TextAlign.center,
+        ),
         if (subtitle != null) ...[
           const SizedBox(height: AppSpacing.sm),
           Text(
@@ -752,22 +758,22 @@ class _FeatureStrip extends StatelessWidget {
     (
       Icons.edit_note_rounded,
       'Profile audits & bio rewrites',
-      'Full rewrites and a brutally honest audit that stops the scroll.'
+      'Full rewrites and a brutally honest audit that stops the scroll.',
     ),
     (
       Icons.chat_bubble_outline_rounded,
       'Conversation coaching',
-      'Openers, scripts, ghosting recovery — exact words to copy and paste.'
+      'Openers, scripts, ghosting recovery — exact words to copy and paste.',
     ),
     (
       Icons.camera_alt_outlined,
       'AI photo coach',
-      'Score every photo 1-10 with KEEP / RESHOOT / DELETE verdicts.'
+      'Score every photo 1-10 with KEEP / RESHOOT / DELETE verdicts.',
     ),
     (
       Icons.insights_rounded,
       'Match-rate predictions',
-      'See the predicted lift before you ever change a thing.'
+      'See the predicted lift before you ever change a thing.',
     ),
   ];
 
@@ -776,7 +782,7 @@ class _FeatureStrip extends StatelessWidget {
     final theme = Theme.of(context);
     final isMobile = Breakpoints.isMobile(context);
     return _Section(
-      background: Colors.white,
+      background: AppColors.background,
       child: Column(
         children: [
           const _SectionHeading(
@@ -788,43 +794,37 @@ class _FeatureStrip extends StatelessWidget {
             spacing: AppSpacing.md,
             runSpacing: AppSpacing.md,
             alignment: WrapAlignment.center,
-            children: _features.map((f) {
-              return SizedBox(
-                width: isMobile ? double.infinity : 250,
-                child: HoverScale(
-                  scale: 1.02,
-                  child: Container(
-                    padding: const EdgeInsets.all(AppSpacing.lg),
-                    decoration: BoxDecoration(
-                      color: AppColors.background,
-                      borderRadius: BorderRadius.circular(AppRadius.md),
-                      border: Border.all(color: AppColors.cardBorder),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(11),
-                          decoration: BoxDecoration(
-                            gradient: AppColors.romanticGradient,
-                            borderRadius: BorderRadius.circular(AppRadius.sm),
-                          ),
-                          child: Icon(f.$1, color: Colors.white),
+            children:
+                _features.map((f) {
+                  return SizedBox(
+                    width: isMobile ? double.infinity : 250,
+                    child: HoverScale(
+                      scale: 1.02,
+                      child: Container(
+                        constraints: BoxConstraints(
+                          minHeight: isMobile ? 0 : 220,
                         ),
-                          const SizedBox(height: AppSpacing.md),
-                          Text(f.$2, style: theme.textTheme.titleMedium),
-                          const SizedBox(height: AppSpacing.xs),
-                          Text(
-                            f.$3,
-                            style: theme.textTheme.bodyMedium
-                                ?.copyWith(color: AppColors.textMuted),
-                          ),
-                        ],
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        decoration: glassDecoration(radius: AppRadius.lg),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            GradientIcon(icon: f.$1, size: 46, circle: false),
+                            const SizedBox(height: AppSpacing.md),
+                            Text(f.$2, style: theme.textTheme.titleMedium),
+                            const SizedBox(height: AppSpacing.xs),
+                            Text(
+                              f.$3,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-              );
-            }).toList(),
+                  );
+                }).toList(),
           ),
         ],
       ),
@@ -836,8 +836,16 @@ class _HowItWorks extends StatelessWidget {
   const _HowItWorks();
 
   static const _steps = [
-    ('1', 'Pick your plan', 'Spark, Flame, or Magnet — each unlocks deeper coaching.'),
-    ('2', 'Chat with DateWise AI', 'Threaded conversations for profile, dates, and photos.'),
+    (
+      '1',
+      'Pick your plan',
+      'Spark, Flame, or Magnet — each unlocks deeper coaching.',
+    ),
+    (
+      '2',
+      'Chat with DateWise AI',
+      'Threaded conversations for profile, dates, and photos.',
+    ),
     ('3', 'Apply & match', 'Copy-paste fixes and watch your reply rate climb.'),
   ];
 
@@ -845,9 +853,13 @@ class _HowItWorks extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isMobile = Breakpoints.isMobile(context);
-    // A bold navy band — adds a strong block of color and breaks up the page.
+    // A deep plum band — a strong block of colour that breaks up the page.
     return _Section(
-      background: AppColors.primary,
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [AppColors.plum, Color(0xFF241046), AppColors.surface],
+      ),
       child: Column(
         children: [
           const _SectionHeading(
@@ -860,46 +872,55 @@ class _HowItWorks extends StatelessWidget {
             spacing: AppSpacing.xl,
             runSpacing: AppSpacing.lg,
             alignment: WrapAlignment.center,
-            children: _steps.map((s) {
-              return SizedBox(
-                width: isMobile ? double.infinity : 260,
-                child: Column(
-                  children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        gradient: AppColors.accentGradient,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.accent.withValues(alpha: 0.4),
-                            blurRadius: 18,
-                            offset: const Offset(0, 8),
+            children:
+                _steps.map((s) {
+                  return SizedBox(
+                    width: isMobile ? double.infinity : 260,
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            gradient: AppColors.accentGradient,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.accent.withValues(alpha: 0.3),
+                                blurRadius: 18,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(s.$1,
-                            style: const TextStyle(
-                                color: AppColors.primaryDark,
+                          child: Center(
+                            child: Text(
+                              s.$1,
+                              style: const TextStyle(
+                                color: AppColors.onAccent,
                                 fontWeight: FontWeight.w800,
-                                fontSize: 22)),
-                      ),
+                                fontSize: 22,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        Text(
+                          s.$2,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(
+                          s.$3,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: AppSpacing.md),
-                    Text(s.$2,
-                        style: theme.textTheme.titleMedium
-                            ?.copyWith(color: Colors.white)),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(s.$3,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                            color: Colors.white.withValues(alpha: 0.72))),
-                  ],
-                ),
-              );
-            }).toList(),
+                  );
+                }).toList(),
           ),
         ],
       ),
@@ -926,10 +947,15 @@ class _Pricing extends StatelessWidget {
             spacing: AppSpacing.lg,
             runSpacing: AppSpacing.lg,
             alignment: WrapAlignment.center,
-            children: TierInfo.all
-                .map((info) =>
-                    PricingCard(info: info, onSelect: () => onSelect(info.tier)))
-                .toList(),
+            children:
+                TierInfo.all
+                    .map(
+                      (info) => PricingCard(
+                        info: info,
+                        onSelect: () => onSelect(info.tier),
+                      ),
+                    )
+                    .toList(),
           ),
         ],
       ),
@@ -996,7 +1022,7 @@ class _Stories extends StatelessWidget {
   Widget build(BuildContext context) {
     final isMobile = Breakpoints.isMobile(context);
     return _Section(
-      background: AppColors.surface,
+      background: AppColors.background,
       child: Column(
         children: [
           const _SectionHeading(
@@ -1011,12 +1037,15 @@ class _Stories extends StatelessWidget {
             spacing: AppSpacing.md,
             runSpacing: AppSpacing.md,
             alignment: WrapAlignment.center,
-            children: _stories
-                .map((s) => SizedBox(
-                      width: isMobile ? double.infinity : 340,
-                      child: _StoryCard(story: s),
-                    ))
-                .toList(),
+            children:
+                _stories
+                    .map(
+                      (s) => SizedBox(
+                        width: isMobile ? double.infinity : 340,
+                        child: _StoryCard(story: s),
+                      ),
+                    )
+                    .toList(),
           ),
         ],
       ),
@@ -1041,30 +1070,34 @@ class _StatsBand extends StatelessWidget {
       spacing: AppSpacing.xxl,
       runSpacing: AppSpacing.lg,
       alignment: WrapAlignment.center,
-      children: _stats.map((s) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ShaderMask(
-              shaderCallback: (bounds) =>
-                  AppColors.romanticGradient.createShader(bounds),
-              child: Text(
-                s.$1,
-                style: theme.textTheme.displaySmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
+      children:
+          _stats.map((s) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ShaderMask(
+                  shaderCallback:
+                      (bounds) => const LinearGradient(
+                        colors: [AppColors.primarySoft, AppColors.accent],
+                      ).createShader(bounds),
+                  child: Text(
+                    s.$1,
+                    style: theme.textTheme.displaySmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              s.$2,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: AppColors.textMuted),
-            ),
-          ],
-        );
-      }).toList(),
+                const SizedBox(height: 2),
+                Text(
+                  s.$2,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.textMuted,
+                  ),
+                ),
+              ],
+            );
+          }).toList(),
     );
   }
 }
@@ -1082,11 +1115,7 @@ class _StoryCard extends StatelessWidget {
       child: Container(
         height: 248,
         padding: const EdgeInsets.all(AppSpacing.lg),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(color: AppColors.cardBorder),
-        ),
+        decoration: glassDecoration(radius: AppRadius.lg),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1095,13 +1124,19 @@ class _StoryCard extends StatelessWidget {
                 Row(
                   children: List.generate(
                     5,
-                    (_) => const Icon(Icons.star_rounded,
-                        color: AppColors.accent, size: 18),
+                    (_) => const Icon(
+                      Icons.star_rounded,
+                      color: AppColors.accent,
+                      size: 18,
+                    ),
                   ),
                 ),
                 const Spacer(),
-                Icon(Icons.format_quote_rounded,
-                    color: AppColors.accent.withValues(alpha: 0.5), size: 28),
+                Icon(
+                  Icons.format_quote_rounded,
+                  color: AppColors.accent.withValues(alpha: 0.5),
+                  size: 28,
+                ),
               ],
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -1121,11 +1156,11 @@ class _StoryCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 18,
-                  backgroundColor: tierInfo.accentColor.withValues(alpha: 0.18),
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.2),
                   child: Text(
                     story.name.substring(0, 1),
-                    style: TextStyle(
-                      color: tierInfo.accentColor,
+                    style: const TextStyle(
+                      color: AppColors.primarySoft,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -1154,18 +1189,19 @@ class _TierBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The tier colour lifted for legibility on the dark card.
+    final color = Color.lerp(tierInfo.accentColor, Colors.white, 0.35)!;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: tierInfo.accentColor.withValues(alpha: 0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(AppRadius.pill),
-        border: Border.all(
-            color: tierInfo.accentColor.withValues(alpha: 0.4), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
       ),
       child: Text(
         tierInfo.name,
         style: TextStyle(
-          color: tierInfo.accentColor,
+          color: color,
           fontWeight: FontWeight.w700,
           fontSize: 12,
         ),
@@ -1200,7 +1236,7 @@ class _NavLinkState extends State<_NavLink> {
           child: AnimatedDefaultTextStyle(
             duration: const Duration(milliseconds: 150),
             style: TextStyle(
-              color: _hover ? AppColors.primary : AppColors.text,
+              color: _hover ? AppColors.accent : AppColors.text,
               fontWeight: FontWeight.w600,
               fontSize: 14,
             ),
@@ -1245,50 +1281,56 @@ class _AccountMenu extends StatelessWidget {
             onSignOut();
         }
       },
-      itemBuilder: (context) => [
-        if (email != null)
-          PopupMenuItem<String>(
-            enabled: false,
-            child: Text(
-              email!,
-              style: const TextStyle(
-                  color: AppColors.textMuted, fontSize: 13),
+      itemBuilder:
+          (context) => [
+            if (email != null)
+              PopupMenuItem<String>(
+                enabled: false,
+                child: Text(
+                  email!,
+                  style: const TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            const PopupMenuItem<String>(
+              value: 'account',
+              child: Row(
+                children: [
+                  Icon(Icons.person_outline, size: 18, color: AppColors.text),
+                  SizedBox(width: AppSpacing.sm),
+                  Text('Account'),
+                ],
+              ),
             ),
-          ),
-        const PopupMenuItem<String>(
-          value: 'account',
-          child: Row(
-            children: [
-              Icon(Icons.person_outline, size: 18, color: AppColors.text),
-              SizedBox(width: AppSpacing.sm),
-              Text('Account'),
-            ],
-          ),
-        ),
-        if (isAdmin)
-          const PopupMenuItem<String>(
-            value: 'users',
-            child: Row(
-              children: [
-                Icon(Icons.admin_panel_settings_outlined,
-                    size: 18, color: AppColors.primary),
-                SizedBox(width: AppSpacing.sm),
-                Text('Manage users'),
-              ],
+            if (isAdmin)
+              const PopupMenuItem<String>(
+                value: 'users',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.admin_panel_settings_outlined,
+                      size: 18,
+                      color: AppColors.primarySoft,
+                    ),
+                    SizedBox(width: AppSpacing.sm),
+                    Text('Manage users'),
+                  ],
+                ),
+              ),
+            const PopupMenuDivider(),
+            const PopupMenuItem<String>(
+              value: 'signout',
+              child: Row(
+                children: [
+                  Icon(Icons.logout, size: 18, color: AppColors.text),
+                  SizedBox(width: AppSpacing.sm),
+                  Text('Log out'),
+                ],
+              ),
             ),
-          ),
-        const PopupMenuDivider(),
-        const PopupMenuItem<String>(
-          value: 'signout',
-          child: Row(
-            children: [
-              Icon(Icons.logout, size: 18, color: AppColors.text),
-              SizedBox(width: AppSpacing.sm),
-              Text('Log out'),
-            ],
-          ),
-        ),
-      ],
+          ],
       child: HoverScale(
         child: UserAvatar(avatarUrl: avatarUrl, label: email, radius: 18),
       ),
@@ -1304,38 +1346,35 @@ class _DownloadApp extends StatelessWidget {
   void _showComingSoon(BuildContext context, String platform) {
     showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-        ),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                gradient: AppColors.romanticGradient,
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-              ),
-              child: const Icon(Icons.rocket_launch_rounded,
-                  color: Colors.white, size: 20),
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.lg),
             ),
-            const SizedBox(width: AppSpacing.sm),
-            const Expanded(child: Text('Coming soon!')),
-          ],
-        ),
-        content: Text(
-          'Our $platform app is under active development and will release '
-          'soon. 🚧\n\nIn the meantime, DateWise AI works beautifully right '
-          'here in your browser — no download needed.',
-          style: Theme.of(context).textTheme.bodyLarge,
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Got it'),
+            title: Row(
+              children: [
+                const GradientIcon(
+                  icon: Icons.rocket_launch_rounded,
+                  size: 36,
+                  circle: false,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                const Expanded(child: Text('Coming soon!')),
+              ],
+            ),
+            content: Text(
+              'Our $platform app is under active development and will release '
+              'soon. 🚧\n\nIn the meantime, DateWise AI works beautifully right '
+              'here in your browser — no download needed.',
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Got it'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -1343,13 +1382,18 @@ class _DownloadApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return _Section(
-      background: Colors.white,
+      gradient: const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [AppColors.background, AppColors.surface],
+      ),
       child: Column(
         children: [
           const _SectionHeading(
             eyebrow: 'Mobile apps',
             title: 'Take DateWise AI everywhere',
-            subtitle: 'Native Android & iOS apps are on the way. '
+            subtitle:
+                'Native Android & iOS apps are on the way. '
                 'Be the first to coach on the go.',
           ),
           const SizedBox(height: AppSpacing.xl),
@@ -1375,8 +1419,9 @@ class _DownloadApp extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           Text(
             'Available on the web right now — apps launching soon.',
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: AppColors.textMuted),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppColors.textMuted,
+            ),
             textAlign: TextAlign.center,
           ),
         ],
@@ -1401,15 +1446,20 @@ class _StoreButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return HoverScale(
       child: Material(
-        color: AppColors.text,
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        color: AppColors.raised,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          side: const BorderSide(color: AppColors.glassBorder),
+        ),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(AppRadius.md),
           child: Container(
             width: 200,
             padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md, vertical: 12),
+              horizontal: AppSpacing.md,
+              vertical: 12,
+            ),
             child: Row(
               children: [
                 Icon(icon, color: Colors.white, size: 30),
@@ -1421,7 +1471,9 @@ class _StoreButton extends StatelessWidget {
                     Text(
                       topLine,
                       style: const TextStyle(
-                          color: Colors.white70, fontSize: 11),
+                        color: AppColors.textMuted,
+                        fontSize: 11,
+                      ),
                     ),
                     Text(
                       bottomLine,
@@ -1451,16 +1503,18 @@ class _FinalCta extends StatelessWidget {
     final theme = Theme.of(context);
     final isMobile = Breakpoints.isMobile(context);
     return _Section(
+      background: AppColors.surface,
       child: Container(
-        padding: EdgeInsets.all(isMobile ? AppSpacing.xl : AppSpacing.xxl),
+        padding: EdgeInsets.all(isMobile ? AppSpacing.lg + 4 : AppSpacing.xxl),
         decoration: BoxDecoration(
           gradient: AppColors.romanticGradient,
           borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
           boxShadow: [
             BoxShadow(
-              color: AppColors.primary.withValues(alpha: 0.25),
-              blurRadius: 40,
-              offset: const Offset(0, 18),
+              color: AppColors.primary.withValues(alpha: 0.4),
+              blurRadius: 60,
+              offset: const Offset(0, 20),
             ),
           ],
         ),
@@ -1477,8 +1531,9 @@ class _FinalCta extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             Text(
               'Start coaching with DateWise AI in under a minute.',
-              style: theme.textTheme.titleMedium
-                  ?.copyWith(color: Colors.white.withValues(alpha: 0.9)),
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: Colors.white.withValues(alpha: 0.9),
+              ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: AppSpacing.lg),
@@ -1487,11 +1542,13 @@ class _FinalCta extends StatelessWidget {
                 onPressed: onStart,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
-                  foregroundColor: AppColors.primary,
+                  foregroundColor: AppColors.primaryDeep,
                 ),
                 child: const Padding(
                   padding: EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md, vertical: 4),
+                    horizontal: AppSpacing.md,
+                    vertical: 4,
+                  ),
                   child: Text('Get started'),
                 ),
               ),
@@ -1539,8 +1596,9 @@ class _Footer extends StatelessWidget {
           Text(
             'Your AI dating coach — brutal honesty, real strategy, and the warmth '
             'of a best friend. Present your most magnetic self.',
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(color: Colors.white.withValues(alpha: 0.7)),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: AppColors.textMuted,
+            ),
           ),
           const SizedBox(height: AppSpacing.md),
           Row(
@@ -1567,11 +1625,7 @@ class _Footer extends StatelessWidget {
       ),
       _FooterColumn(
         title: 'Company',
-        links: [
-          ('About', null),
-          ('Careers', null),
-          ('Press', null),
-        ],
+        links: [('About', null), ('Careers', null), ('Press', null)],
       ),
       _FooterColumn(
         title: 'Legal',
@@ -1584,7 +1638,10 @@ class _Footer extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      color: AppColors.text,
+      decoration: const BoxDecoration(
+        color: Color(0xFF0C0615),
+        border: Border(top: BorderSide(color: AppColors.cardBorder)),
+      ),
       padding: EdgeInsets.symmetric(
         vertical: AppSpacing.xxl,
         horizontal: isMobile ? AppSpacing.md : AppSpacing.lg,
@@ -1598,10 +1655,7 @@ class _Footer extends StatelessWidget {
                 spacing: AppSpacing.xxl,
                 runSpacing: AppSpacing.xl,
                 alignment: WrapAlignment.spaceBetween,
-                children: [
-                  brand,
-                  ...columns,
-                ],
+                children: [brand, ...columns],
               ),
               const SizedBox(height: AppSpacing.xl),
               Divider(color: Colors.white.withValues(alpha: 0.12)),
@@ -1609,20 +1663,23 @@ class _Footer extends StatelessWidget {
               Flex(
                 direction: isMobile ? Axis.vertical : Axis.horizontal,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: isMobile
-                    ? CrossAxisAlignment.center
-                    : CrossAxisAlignment.center,
+                crossAxisAlignment:
+                    isMobile
+                        ? CrossAxisAlignment.center
+                        : CrossAxisAlignment.center,
                 children: [
                   Text(
                     '© 2026 DateWise AI. All rights reserved.',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: Colors.white.withValues(alpha: 0.6)),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.textMuted,
+                    ),
                   ),
                   if (isMobile) const SizedBox(height: AppSpacing.sm),
                   Text(
                     'Private by design · Your data stays on your device',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: Colors.white.withValues(alpha: 0.6)),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.textMuted,
+                    ),
                   ),
                 ],
               ),
@@ -1682,9 +1739,7 @@ class _FooterLinkState extends State<_FooterLink> {
           child: AnimatedDefaultTextStyle(
             duration: const Duration(milliseconds: 150),
             style: TextStyle(
-              color: _hover
-                  ? AppColors.accent
-                  : Colors.white.withValues(alpha: 0.7),
+              color: _hover ? AppColors.accent : AppColors.textMuted,
               fontSize: 14,
             ),
             child: Text(widget.label),
@@ -1721,9 +1776,10 @@ class _SocialIconState extends State<_SocialIcon> {
             duration: const Duration(milliseconds: 160),
             padding: const EdgeInsets.all(9),
             decoration: BoxDecoration(
-              color: _hover
-                  ? AppColors.primary
-                  : Colors.white.withValues(alpha: 0.08),
+              color:
+                  _hover
+                      ? AppColors.primaryDeep
+                      : Colors.white.withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
             child: Icon(widget.icon, size: 18, color: Colors.white),

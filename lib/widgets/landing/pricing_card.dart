@@ -5,7 +5,7 @@ import '../../theme/app_theme.dart';
 
 /// A single tier card in the pricing section. Emits [onSelect] when the user
 /// chooses this plan. Background, text, and accents adapt per tier — Spark on
-/// white, Flame on a soft blush, Magnet on a deep plum — matching the design.
+/// the surface, Flame on the raised violet, Magnet on deep plum.
 class PricingCard extends StatefulWidget {
   const PricingCard({
     super.key,
@@ -33,20 +33,22 @@ class _PricingCardState extends State<PricingCard> {
     final emphasised = info.highlight;
 
     // Adaptive palette per card surface.
-    final bg = dark
-        ? AppColors.magnetDark
-        : emphasised
+    final bg =
+        dark
+            ? AppColors.magnetDark
+            : emphasised
             ? AppColors.flameTint
-            : Colors.white;
+            : AppColors.surface;
     final textColor = dark ? Colors.white : AppColors.text;
     final mutedColor =
         dark ? Colors.white.withValues(alpha: 0.65) : AppColors.textMuted;
-    final checkColor = dark ? AppColors.accent : AppColors.primary;
-    final borderColor = dark
-        ? AppColors.magnetDarkBorder
-        : (emphasised || _hover)
-            ? AppColors.primary
-            : AppColors.cardBorder;
+    final checkColor = dark ? AppColors.accent : AppColors.primaryLight;
+    final borderColor =
+        dark
+            ? AppColors.magnetDarkBorder
+            : (emphasised || _hover)
+            ? AppColors.primaryLight
+            : AppColors.glassBorder;
 
     final card = AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -58,16 +60,17 @@ class _PricingCardState extends State<PricingCard> {
         color: bg,
         borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: borderColor, width: emphasised ? 2 : 1),
-        boxShadow: (emphasised || _hover || dark)
-            ? [
-                BoxShadow(
-                  color: (dark ? AppColors.magnetDark : AppColors.primary)
-                      .withValues(alpha: _hover ? 0.30 : 0.18),
-                  blurRadius: _hover ? 44 : 30,
-                  offset: const Offset(0, 16),
-                ),
-              ]
-            : null,
+        boxShadow:
+            (emphasised || _hover || dark)
+                ? [
+                  BoxShadow(
+                    color: (dark ? AppColors.magnetDark : AppColors.primary)
+                        .withValues(alpha: _hover ? 0.30 : 0.18),
+                    blurRadius: _hover ? 44 : 30,
+                    offset: const Offset(0, 16),
+                  ),
+                ]
+                : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -75,12 +78,16 @@ class _PricingCardState extends State<PricingCard> {
         children: [
           Text(
             info.name,
-            style: theme.textTheme.headlineSmall
-                ?.copyWith(color: textColor, fontWeight: FontWeight.w700),
+            style: theme.textTheme.headlineSmall?.copyWith(
+              color: textColor,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: AppSpacing.xs),
-          Text(info.tagline,
-              style: theme.textTheme.bodyLarge?.copyWith(color: mutedColor)),
+          Text(
+            info.tagline,
+            style: theme.textTheme.bodyLarge?.copyWith(color: mutedColor),
+          ),
           const SizedBox(height: AppSpacing.lg),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -93,17 +100,19 @@ class _PricingCardState extends State<PricingCard> {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              Text(' / week',
-                  style: theme.textTheme.bodyLarge?.copyWith(color: mutedColor)),
+              Text(
+                ' / week',
+                style: theme.textTheme.bodyLarge?.copyWith(color: mutedColor),
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
-          Text(info.description,
-              style: theme.textTheme.bodyMedium?.copyWith(color: mutedColor)),
-          const SizedBox(height: AppSpacing.lg),
-          ...info.highlights.map(
-            (h) => _featureRow(h, checkColor, textColor),
+          Text(
+            info.description,
+            style: theme.textTheme.bodyMedium?.copyWith(color: mutedColor),
           ),
+          const SizedBox(height: AppSpacing.lg),
+          ...info.highlights.map((h) => _featureRow(h, checkColor, textColor)),
           const SizedBox(height: AppSpacing.xl),
           SizedBox(
             width: double.infinity,
@@ -189,7 +198,11 @@ class _PricingCardState extends State<PricingCard> {
   }
 
   Widget _buildButton(
-      ThemeData theme, TierInfo info, bool dark, bool emphasised) {
+    ThemeData theme,
+    TierInfo info,
+    bool dark,
+    bool emphasised,
+  ) {
     final label = widget.selected ? 'Continue' : 'Choose ${info.name}';
 
     if (emphasised) {
@@ -229,9 +242,6 @@ class _PricingCardState extends State<PricingCard> {
       );
     }
 
-    return OutlinedButton(
-      onPressed: widget.onSelect,
-      child: Text(label),
-    );
+    return OutlinedButton(onPressed: widget.onSelect, child: Text(label));
   }
 }
