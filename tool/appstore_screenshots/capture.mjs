@@ -39,8 +39,10 @@ const SCALE = 3;
 
 // --- App interactions ------------------------------------------------------
 
+let currentLocale = 'en';
 async function open(page, screen) {
-  await page.goto(`${baseUrl}/?screen=${screen}`);
+  // Review mode (lib/dev/review_mode.dart) sets the app language from ?lang=.
+  await page.goto(`${baseUrl}/?screen=${screen}&lang=${currentLocale}`);
   await page.waitForSelector('flt-glass-pane, flutter-view', { state: 'attached', timeout: 30000 });
   await page.waitForTimeout(3500);
   // Turn on Flutter's semantics tree so widgets can be found by label.
@@ -75,15 +77,13 @@ const SHOTS = {
   ],
   es: [
     { name: '01-coaches', headline: 'Elige tu coach de citas con IA', sub: 'Cuatro coaches, en inglés y en español', run: (p) => open(p, 'coaches') },
-    { name: '02-home', headline: 'Un plan sencillo para tu semana', sub: 'Perfil, conversaciones y primeras citas', run: async (p) => { await sofiaChat(p); await tap(p, /Home tab/); } },
+    { name: '02-home', headline: 'Un plan sencillo para tu semana', sub: 'Perfil, conversaciones y primeras citas', run: async (p) => { await sofiaChat(p); await tap(p, /Pestaña Inicio/); } },
     { name: '03-chat', headline: 'Sabrás qué escribir', sub: 'Primeros mensajes y respuestas a tu medida', run: sofiaChat },
     { name: '04-coach', headline: 'Coaches en español', sub: 'Sofía y Diego te ayudan en tu idioma', run: async (p) => { await open(p, 'coaches'); await tap(p, /Chatear con Diego/); } },
     { name: '05-privacy', headline: 'Tus datos, tu control', sub: 'La memoria del coach está apagada salvo que la actives', run: async (p) => {
+      // The UI is already in Spanish (?lang=es), so the You tab is shown directly.
       await sofiaChat(p);
-      await tap(p, /You tab/);
-      await tap(p, /Coaching language/);
-      await p.getByText(/Español/).last().click(); // language sheet
-      await p.waitForTimeout(1200);
+      await tap(p, /Pestaña Tú/);
     } },
   ],
 };
@@ -129,6 +129,7 @@ try {
     for (const locale of locales) {
       const dir = path.join(outDir, locale, sizeId);
       fs.mkdirSync(dir, { recursive: true });
+      currentLocale = locale;
       for (const shot of SHOTS[locale]) {
         const ctx = await browser.newContext({ viewport: { width: size.w, height: size.h }, deviceScaleFactor: scale, locale: locale === 'es' ? 'es-MX' : 'en-US' });
         const page = await ctx.newPage();
