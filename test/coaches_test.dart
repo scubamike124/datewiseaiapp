@@ -90,6 +90,17 @@ void main() {
       expect(msgs.last, {'role': 'user', 'content': 'Hola'});
     });
 
+    test('the request names the coach and keeps the system message for older Workers', () {
+      final svc = BackendAIService(endpoint: 'https://example.invalid', chatFallback: MockAIService());
+      final history = [ChatMessage(id: '1', role: MessageRole.user, text: 'Hola', createdAt: DateTime(2026))];
+      final body = svc.buildPayload(history, SubscriptionTier.magnet, null, Coaches.isabella);
+      expect(body['coachId'], 'isabella');
+      expect(body.containsKey('context'), isFalse, reason: 'no profile, no context');
+      final msgs = body['messages'] as List<Map<String, String>>;
+      expect(msgs.first['role'], 'system');
+      expect(svc.buildPayload(history, SubscriptionTier.magnet, null)['coachId'], 'emily');
+    });
+
     test('the connection-failure notice is in the coach language', () {
       expect(BackendAIService.unavailableMessage(Coaches.mateo), startsWith('Ahora mismo'));
       expect(BackendAIService.unavailableMessage(Coaches.emily), startsWith("I'm having trouble"));
