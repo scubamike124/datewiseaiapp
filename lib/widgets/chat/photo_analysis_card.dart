@@ -20,9 +20,9 @@ class PhotoAnalysisCard extends StatelessWidget {
       margin: const EdgeInsets.only(top: AppSpacing.sm),
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: AppColors.raised.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.cardBorder),
+        border: Border.all(color: AppColors.glassBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -37,7 +37,9 @@ class PhotoAnalysisCard extends StatelessWidget {
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: verdictColor.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(AppRadius.pill),
@@ -53,9 +55,12 @@ class PhotoAnalysisCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    Text(analysis.headline,
-                        style: theme.textTheme.bodyMedium
-                            ?.copyWith(fontWeight: FontWeight.w600)),
+                    Text(
+                      analysis.headline,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -72,14 +77,18 @@ class PhotoAnalysisCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(Icons.trending_up_rounded,
-                    color: Colors.white, size: 18),
+                const Icon(
+                  Icons.trending_up_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
                     'Predicted match-rate lift if you apply these fixes',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: Colors.white),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.white,
+                    ),
                   ),
                 ),
                 Text(
@@ -102,12 +111,18 @@ class PhotoAnalysisCard extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.check_circle_rounded,
-                      size: 16, color: AppColors.primary),
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    size: 16,
+                    color: AppColors.primaryLight,
+                  ),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
-                      child: Text(t.replaceAll('**', ''),
-                          style: theme.textTheme.bodyMedium)),
+                    child: Text(
+                      t.replaceAll('**', ''),
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -120,11 +135,11 @@ class PhotoAnalysisCard extends StatelessWidget {
   Color _verdictColor(PhotoVerdict verdict) {
     switch (verdict) {
       case PhotoVerdict.keep:
-        return const Color(0xFF2E9E5B);
+        return AppColors.success;
       case PhotoVerdict.reshoot:
-        return const Color(0xFFE8902B);
+        return AppColors.warning;
       case PhotoVerdict.delete:
-        return const Color(0xFFD64545);
+        return AppColors.danger;
     }
   }
 }
@@ -181,12 +196,14 @@ class _DimensionBar extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text(dimension.name,
-                    style: theme.textTheme.labelLarge),
+                child: Text(dimension.name, style: theme.textTheme.labelLarge),
               ),
-              Text('${dimension.score}/10',
-                  style: theme.textTheme.labelMedium
-                      ?.copyWith(color: AppColors.textMuted)),
+              Text(
+                '${dimension.score}/10',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: AppColors.textMuted,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 4),
@@ -195,15 +212,19 @@ class _DimensionBar extends StatelessWidget {
             child: LinearProgressIndicator(
               value: dimension.score / 10,
               minHeight: 6,
-              backgroundColor: AppColors.surface,
-              valueColor:
-                  const AlwaysStoppedAnimation<Color>(AppColors.primary),
+              backgroundColor: AppColors.background,
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                AppColors.primaryLight,
+              ),
             ),
           ),
           const SizedBox(height: 3),
-          Text(dimension.note,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: AppColors.textMuted)),
+          Text(
+            dimension.note,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppColors.textMuted,
+            ),
+          ),
         ],
       ),
     );

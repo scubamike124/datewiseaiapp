@@ -5,14 +5,16 @@ import 'package:flutter/material.dart';
 import '../../models/chat_message.dart';
 import '../../models/coach.dart';
 import '../coach/coach_avatar.dart';
+import '../common/premium.dart';
 import '../../theme/app_theme.dart';
 import 'analyzing_card.dart';
 import 'batch_photo_analysis_card.dart';
 import 'coach_text.dart';
 import 'photo_analysis_card.dart';
 
-/// One chat row: user messages right-aligned in a rose bubble, coach messages
-/// left-aligned with the coach avatar and rich (markdown/photo-card) content.
+/// One chat row: user messages right-aligned in a violet gradient bubble,
+/// coach messages left-aligned in a glass bubble with the coach avatar and rich
+/// (markdown/photo-card) content.
 class MessageBubble extends StatelessWidget {
   const MessageBubble({super.key, required this.message, this.coach});
 
@@ -30,7 +32,10 @@ class MessageBubble extends StatelessWidget {
   Widget _buildUser(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: AppSpacing.md),
+      padding: const EdgeInsets.symmetric(
+        vertical: 6,
+        horizontal: AppSpacing.md,
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -38,15 +43,25 @@ class MessageBubble extends StatelessWidget {
           Flexible(
             child: Container(
               constraints: const BoxConstraints(maxWidth: 560),
-              padding: const EdgeInsets.all(AppSpacing.md),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: 12,
+              ),
               decoration: BoxDecoration(
                 gradient: AppColors.romanticGradient,
                 borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(AppRadius.md),
-                  topRight: Radius.circular(AppRadius.md),
-                  bottomLeft: Radius.circular(AppRadius.md),
-                  bottomRight: Radius.circular(4),
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
+                  bottomLeft: Radius.circular(20),
+                  bottomRight: Radius.circular(6),
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.28),
+                    blurRadius: 18,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
@@ -54,13 +69,15 @@ class MessageBubble extends StatelessWidget {
                   if (message.imageBase64s != null)
                     Padding(
                       padding: EdgeInsets.only(
-                          bottom: message.text.isEmpty ? 0 : AppSpacing.sm),
+                        bottom: message.text.isEmpty ? 0 : AppSpacing.sm,
+                      ),
                       child: _imageGrid(message.imageBase64s!),
                     )
                   else if (message.imageBase64 != null)
                     Padding(
                       padding: EdgeInsets.only(
-                          bottom: message.text.isEmpty ? 0 : AppSpacing.sm),
+                        bottom: message.text.isEmpty ? 0 : AppSpacing.sm,
+                      ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(AppRadius.sm),
                         child: Image.memory(
@@ -68,19 +85,24 @@ class MessageBubble extends StatelessWidget {
                           width: 200,
                           height: 200,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const SizedBox(
-                            width: 200,
-                            height: 120,
-                            child: Icon(Icons.broken_image, color: Colors.white),
-                          ),
+                          errorBuilder:
+                              (_, __, ___) => const SizedBox(
+                                width: 200,
+                                height: 120,
+                                child: Icon(
+                                  Icons.broken_image,
+                                  color: Colors.white,
+                                ),
+                              ),
                         ),
                       ),
                     ),
                   if (message.text.isNotEmpty)
                     Text(
                       message.text,
-                      style: theme.textTheme.bodyLarge
-                          ?.copyWith(color: Colors.white),
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: Colors.white,
+                      ),
                     ),
                 ],
               ),
@@ -107,11 +129,12 @@ class MessageBubble extends StatelessWidget {
                 width: 100,
                 height: 100,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const SizedBox(
-                  width: 100,
-                  height: 100,
-                  child: Icon(Icons.broken_image, color: Colors.white),
-                ),
+                errorBuilder:
+                    (_, __, ___) => const SizedBox(
+                      width: 100,
+                      height: 100,
+                      child: Icon(Icons.broken_image, color: Colors.white),
+                    ),
               ),
             ),
         ],
@@ -121,36 +144,34 @@ class MessageBubble extends StatelessWidget {
 
   Widget _buildCoach(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: AppSpacing.md),
+      padding: const EdgeInsets.symmetric(
+        vertical: 6,
+        horizontal: AppSpacing.md,
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (coach != null)
-            CoachAvatar(coach: coach!, radius: 16)
+            CoachAvatar(coach: coach!, radius: 16, glowing: message.isStreaming)
           else
-            Container(
-              width: 32,
-              height: 32,
-              decoration: const BoxDecoration(
-                gradient: AppColors.romanticGradient,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.auto_awesome, color: Colors.white, size: 16),
-            ),
+            const GradientIcon(icon: Icons.auto_awesome, size: 32, glow: false),
           const SizedBox(width: AppSpacing.sm),
           Flexible(
             child: Container(
               constraints: const BoxConstraints(maxWidth: 620),
-              padding: const EdgeInsets.all(AppSpacing.md),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: 12,
+              ),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.surface.withValues(alpha: 0.94),
                 borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(4),
-                  topRight: Radius.circular(AppRadius.md),
-                  bottomLeft: Radius.circular(AppRadius.md),
-                  bottomRight: Radius.circular(AppRadius.md),
+                  topLeft: Radius.circular(6),
+                  topRight: Radius.circular(20),
+                  bottomLeft: Radius.circular(20),
+                  bottomRight: Radius.circular(20),
                 ),
-                border: Border.all(color: AppColors.cardBorder),
+                border: Border.all(color: AppColors.glassBorder),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -211,13 +232,18 @@ class _TypingDotsState extends State<_TypingDots>
             mainAxisSize: MainAxisSize.min,
             children: List.generate(3, (i) {
               final t = (_controller.value + i * 0.2) % 1.0;
-              final opacity = (0.3 + 0.7 * (1 - (t - 0.5).abs() * 2)).clamp(0.3, 1.0);
+              final opacity = (0.3 + 0.7 * (1 - (t - 0.5).abs() * 2)).clamp(
+                0.3,
+                1.0,
+              );
               return Padding(
                 padding: const EdgeInsets.only(right: 4),
                 child: Opacity(
                   opacity: opacity,
                   child: const CircleAvatar(
-                      radius: 3, backgroundColor: AppColors.primary),
+                    radius: 3,
+                    backgroundColor: AppColors.primaryLight,
+                  ),
                 ),
               );
             }),

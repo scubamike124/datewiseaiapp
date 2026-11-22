@@ -23,9 +23,9 @@ class BatchPhotoAnalysisCard extends StatelessWidget {
       margin: const EdgeInsets.only(top: AppSpacing.sm),
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: AppColors.raised.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.cardBorder),
+        border: Border.all(color: AppColors.glassBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -39,8 +39,11 @@ class BatchPhotoAnalysisCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(Icons.emoji_events_rounded,
-                    color: Colors.white, size: 20),
+                const Icon(
+                  Icons.emoji_events_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
@@ -87,26 +90,25 @@ class _RankedRow extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(AppRadius.sm),
-              child: hasThumb
-                  ? Image.memory(
-                      base64Decode(thumbnails[photo.imageIndex]),
-                      width: 64,
-                      height: 64,
-                      fit: BoxFit.cover,
-                    )
-                  : Container(
-                      width: 64,
-                      height: 64,
-                      color: AppColors.surface,
-                      child: const Icon(Icons.image_outlined,
-                          color: AppColors.textMuted),
-                    ),
+              child:
+                  hasThumb
+                      ? Image.memory(
+                        base64Decode(thumbnails[photo.imageIndex]),
+                        width: 64,
+                        height: 64,
+                        fit: BoxFit.cover,
+                      )
+                      : Container(
+                        width: 64,
+                        height: 64,
+                        color: AppColors.background,
+                        child: const Icon(
+                          Icons.image_outlined,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
             ),
-            Positioned(
-              top: -6,
-              left: -6,
-              child: _RankBadge(rank: photo.rank),
-            ),
+            Positioned(top: -6, left: -6, child: _RankBadge(rank: photo.rank)),
           ],
         ),
         const SizedBox(width: AppSpacing.md),
@@ -117,16 +119,23 @@ class _RankedRow extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Text('Photo ${photo.imageIndex + 1}',
-                      style: theme.textTheme.labelLarge),
+                  Text(
+                    'Photo ${photo.imageIndex + 1}',
+                    style: theme.textTheme.labelLarge,
+                  ),
                   const SizedBox(width: AppSpacing.sm),
-                  Text('${photo.overallScore}/10',
-                      style: theme.textTheme.labelMedium
-                          ?.copyWith(color: AppColors.textMuted)),
+                  Text(
+                    '${photo.overallScore}/10',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: AppColors.textMuted,
+                    ),
+                  ),
                   const Spacer(),
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: verdictColor.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(AppRadius.pill),
@@ -144,14 +153,20 @@ class _RankedRow extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 4),
-              Text(photo.headline,
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(fontWeight: FontWeight.w600)),
+              Text(
+                photo.headline,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               if (photo.why.isNotEmpty) ...[
                 const SizedBox(height: 2),
-                Text(photo.why,
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: AppColors.textMuted)),
+                Text(
+                  photo.why,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.textMuted,
+                  ),
+                ),
               ],
             ],
           ),
@@ -163,11 +178,11 @@ class _RankedRow extends StatelessWidget {
   Color _verdictColor(PhotoVerdict verdict) {
     switch (verdict) {
       case PhotoVerdict.keep:
-        return const Color(0xFF2E9E5B);
+        return AppColors.success;
       case PhotoVerdict.reshoot:
-        return const Color(0xFFE8902B);
+        return AppColors.warning;
       case PhotoVerdict.delete:
-        return const Color(0xFFD64545);
+        return AppColors.danger;
     }
   }
 }
@@ -179,21 +194,26 @@ class _RankBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const medals = {1: Color(0xFFE7B416), 2: Color(0xFF9AA3AD), 3: Color(0xFFB97A3A)};
-    final color = medals[rank] ?? AppColors.text;
+    const medals = {
+      1: Color(0xFFE7B416),
+      2: Color(0xFF9AA3AD),
+      3: Color(0xFFB97A3A),
+    };
+    final color = medals[rank] ?? AppColors.raised;
     return Container(
       width: 22,
       height: 22,
       decoration: BoxDecoration(
         color: color,
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 1.5),
+        border: Border.all(color: AppColors.surface, width: 1.5),
       ),
       alignment: Alignment.center,
       child: Text(
         '$rank',
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          // Dark ink on the light medal colours; light on the plain badge.
+          color: medals.containsKey(rank) ? AppColors.onAccent : AppColors.text,
           fontWeight: FontWeight.w800,
           fontSize: 11,
         ),

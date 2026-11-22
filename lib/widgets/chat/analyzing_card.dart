@@ -48,9 +48,9 @@ class _AnalyzingCardState extends State<AnalyzingCard>
       margin: const EdgeInsets.only(top: AppSpacing.sm),
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: AppColors.raised.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.cardBorder),
+        border: Border.all(color: AppColors.glassBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -67,7 +67,10 @@ class _AnalyzingCardState extends State<AnalyzingCard>
                     _shimmerBox(width: 84, height: 18, radius: AppRadius.pill),
                     const SizedBox(height: 10),
                     _shimmerBox(
-                        width: double.infinity, height: 12, radius: AppRadius.pill),
+                      width: double.infinity,
+                      height: 12,
+                      radius: AppRadius.pill,
+                    ),
                   ],
                 ),
               ),
@@ -79,16 +82,20 @@ class _AnalyzingCardState extends State<AnalyzingCard>
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 5),
               child: _shimmerBox(
-                  width: double.infinity, height: 8, radius: AppRadius.pill),
+                width: double.infinity,
+                height: 8,
+                radius: AppRadius.pill,
+              ),
             ),
           const SizedBox(height: AppSpacing.md),
           // Rotating status step.
           AnimatedBuilder(
             animation: _stepper,
             builder: (context, _) {
-              final idx = (_stepper.value * _steps.length)
-                  .floor()
-                  .clamp(0, _steps.length - 1);
+              final idx = (_stepper.value * _steps.length).floor().clamp(
+                0,
+                _steps.length - 1,
+              );
               final (label, icon) = _steps[idx];
               return Row(
                 children: [
@@ -140,9 +147,9 @@ class _AnalyzingCardState extends State<AnalyzingCard>
             borderRadius: BorderRadius.circular(radius),
             gradient: LinearGradient(
               colors: const [
-                Color(0xFFE8E1D2),
-                Color(0xFFF7F2E8),
-                Color(0xFFE8E1D2),
+                Color(0xFF2E1D48),
+                Color(0xFF4A3470),
+                Color(0xFF2E1D48),
               ],
               stops: const [0.35, 0.5, 0.65],
               transform: _SlideGradient(_shimmer.value),

@@ -15,9 +15,9 @@ class CoachText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final base = Theme.of(context).textTheme.bodyLarge!.copyWith(
-          color: color ?? AppColors.text,
-          height: 1.5,
-        );
+      color: color ?? AppColors.text,
+      height: 1.5,
+    );
     final lines = text.split('\n');
     final blocks = <Widget>[];
 
@@ -33,7 +33,13 @@ class CoachText extends StatelessWidget {
         blocks.add(_bullet(trimmed.substring(2), base));
       } else if (RegExp(r'^\d+\.\s').hasMatch(trimmed)) {
         final idx = trimmed.indexOf('. ');
-        blocks.add(_numbered(trimmed.substring(0, idx), trimmed.substring(idx + 2), base));
+        blocks.add(
+          _numbered(
+            trimmed.substring(0, idx),
+            trimmed.substring(idx + 2),
+            base,
+          ),
+        );
       } else {
         blocks.add(
           Padding(
@@ -56,7 +62,7 @@ class CoachText extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 4),
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: AppColors.accent.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppRadius.sm),
         border: const Border(
           left: BorderSide(color: AppColors.accent, width: 3),
@@ -76,7 +82,7 @@ class CoachText extends StatelessWidget {
         children: [
           const Padding(
             padding: EdgeInsets.only(top: 6, right: 8),
-            child: Icon(Icons.circle, size: 6, color: AppColors.primary),
+            child: Icon(Icons.circle, size: 6, color: AppColors.primaryLight),
           ),
           Expanded(child: RichText(text: _inline(content, base))),
         ],
@@ -92,9 +98,13 @@ class CoachText extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(right: 8),
-            child: Text('$number.',
-                style: base.copyWith(
-                    fontWeight: FontWeight.w700, color: AppColors.primary)),
+            child: Text(
+              '$number.',
+              style: base.copyWith(
+                fontWeight: FontWeight.w700,
+                color: AppColors.primarySoft,
+              ),
+            ),
           ),
           Expanded(child: RichText(text: _inline(content, base))),
         ],
@@ -111,10 +121,12 @@ class CoachText extends StatelessWidget {
       if (match.start > last) {
         spans.add(TextSpan(text: content.substring(last, match.start)));
       }
-      spans.add(TextSpan(
-        text: match.group(1),
-        style: const TextStyle(fontWeight: FontWeight.w700),
-      ));
+      spans.add(
+        TextSpan(
+          text: match.group(1),
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      );
       last = match.end;
     }
     if (last < content.length) {

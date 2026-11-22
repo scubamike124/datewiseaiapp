@@ -12,6 +12,8 @@ import '../widgets/chat/message_bubble.dart';
 import '../widgets/chat/suggestion_chips.dart';
 import '../widgets/chat/thread_sidebar.dart';
 import '../widgets/coach/coach_avatar.dart';
+import '../widgets/common/effects.dart';
+import '../widgets/common/premium.dart';
 import 'coach_picker_screen.dart';
 import 'landing_screen.dart';
 
@@ -45,7 +47,11 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  void _handleSend(BuildContext context, {String text = '', List<String>? images}) {
+  void _handleSend(
+    BuildContext context, {
+    String text = '',
+    List<String>? images,
+  }) {
     context.read<AppState>().sendMessage(text: text, images: images);
     _scrollToBottom();
   }
@@ -71,13 +77,14 @@ class _ChatScreenState extends State<ChatScreen> {
       scrollController: _scrollController,
       isResponding: state.isResponding,
       canSendPhoto: state.photoCoachUnlocked,
-      onSend: ({String text = '', List<String>? images}) =>
-          _handleSend(context, text: text, images: images),
+      onSend:
+          ({String text = '', List<String>? images}) =>
+              _handleSend(context, text: text, images: images),
       onPhotoBlocked: () => _showUpgradeSheet(context),
       onOpenMenu: isWide ? null : () => _scaffoldKey.currentState?.openDrawer(),
       // A new conversation continues with the coach on screen.
-      onNewThread: () =>
-          context.read<AppState>().createThread(coach: state.activeCoach),
+      onNewThread:
+          () => context.read<AppState>().createThread(coach: state.activeCoach),
     );
 
     // First visit: the user picks one of the four coaches before chatting.
@@ -92,9 +99,9 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           if (isWide) ...[
             const ThreadSidebar(),
-            const VerticalDivider(width: 1),
+            const VerticalDivider(width: 1, color: AppColors.cardBorder),
           ],
-          Expanded(child: chatArea),
+          Expanded(child: AmbientBackground(intensity: 0.55, child: chatArea)),
         ],
       ),
     );
@@ -128,8 +135,7 @@ class _ChatArea extends StatelessWidget {
     final state = context.watch<AppState>();
     // A conversation the user hasn't replied to yet shows the welcome state
     // and starter prompts (mirrors the PRD's coaching entry points).
-    final isFresh =
-        thread != null && !thread!.messages.any((m) => m.isUser);
+    final isFresh = thread != null && !thread!.messages.any((m) => m.isUser);
     final coach = state.activeCoach;
     const emojis = ['✍️', '🔥', '💬', '📸'];
 
@@ -137,58 +143,81 @@ class _ChatArea extends StatelessWidget {
       children: [
         _TopBar(
           title: thread?.title ?? 'DateWise AI',
-          subtitle: coach.language == CoachLanguage.es
-              ? 'con ${coach.name} · ${coach.language.label}'
-              : 'with ${coach.name} · ${coach.language.label}',
+          subtitle:
+              coach.language == CoachLanguage.es
+                  ? 'con ${coach.name} · ${coach.language.label}'
+                  : 'with ${coach.name} · ${coach.language.label}',
           coach: coach,
+          replying: isResponding,
           onOpenMenu: onOpenMenu,
           onNewThread: onNewThread,
         ),
-        const Divider(height: 1),
         Expanded(
-          child: thread == null
-              ? _NoThread(onNewThread: onNewThread)
-              : isFresh
+          child:
+              thread == null
+                  ? _NoThread(onNewThread: onNewThread)
+                  : isFresh
                   ? _WelcomeState(
-                      coach: coach,
-                      // Starter prompts scroll with the welcome text, so a
-                      // small screen or large text never overflows.
-                      starters: isResponding
-                          ? null
-                          : SuggestionChips(
+                    coach: coach,
+                    // Starter prompts scroll with the welcome text, so a
+                    // small screen or large text never overflows.
+                    starters:
+                        isResponding
+                            ? null
+                            : SuggestionChips(
                               centered: true,
                               suggestions: [
                                 for (var i = 0; i < coach.starters.length; i++)
                                   Suggestion(
-                                      emojis[i % emojis.length], coach.starters[i],
-                                      requiresPhoto:
-                                          i == coach.starters.length - 1),
+                                    emojis[i % emojis.length],
+                                    coach.starters[i],
+                                    requiresPhoto:
+                                        i == coach.starters.length - 1,
+                                  ),
                               ],
                               canSendPhoto: canSendPhoto,
                               onPhotoBlocked: onPhotoBlocked,
                               onSelect: (text) => onSend(text: text),
                             ),
-                    )
+                  )
                   : ListView.builder(
-                      controller: scrollController,
-                      padding:
-                          const EdgeInsets.symmetric(vertical: AppSpacing.md),
-                      itemCount: thread!.messages.length,
-                      itemBuilder: (context, i) =>
-                          MessageBubble(message: thread!.messages[i], coach: coach),
+                    controller: scrollController,
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.md,
                     ),
+                    itemCount: thread!.messages.length,
+                    itemBuilder: (context, i) {
+                      final message = thread!.messages[i];
+                      final bubble = Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 860),
+                          child: MessageBubble(message: message, coach: coach),
+                        ),
+                      );
+                      // The newest message eases in; older ones stay still
+                      // as they scroll back into view.
+                      return i == thread!.messages.length - 1
+                          ? FadeSlideIn(
+                            key: ValueKey('in-${message.id}'),
+                            offset: const Offset(0, 0.12),
+                            child: bubble,
+                          )
+                          : bubble;
+                    },
+                  ),
         ),
         ChatInput(
-          hintText: coach.language == CoachLanguage.es
-              ? 'Escríbele a ${coach.name}…'
-              : 'Message ${coach.name}…',
+          hintText:
+              coach.language == CoachLanguage.es
+                  ? 'Escríbele a ${coach.name}…'
+                  : 'Message ${coach.name}…',
           enabled: !isResponding && thread != null,
           canSendPhoto: canSendPhoto,
           onPhotoBlocked: onPhotoBlocked,
           onSend: onSend,
           analysisMode: state.analysisMode,
-          onAnalysisModeChanged: (m) =>
-              context.read<AppState>().setAnalysisMode(m),
+          onAnalysisModeChanged:
+              (m) => context.read<AppState>().setAnalysisMode(m),
         ),
       ],
     );
@@ -200,6 +229,7 @@ class _TopBar extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.coach,
+    required this.replying,
     required this.onOpenMenu,
     required this.onNewThread,
   });
@@ -207,6 +237,9 @@ class _TopBar extends StatelessWidget {
   final String title;
   final String subtitle;
   final Coach coach;
+
+  /// The coach is writing a reply: the avatar glows.
+  final bool replying;
   final VoidCallback? onOpenMenu;
   final VoidCallback onNewThread;
 
@@ -214,29 +247,64 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      color: AppColors.background,
+      decoration: BoxDecoration(
+        color: AppColors.surface.withValues(alpha: 0.92),
+        border: const Border(bottom: BorderSide(color: AppColors.cardBorder)),
+      ),
       padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.sm,
+      ),
       child: SafeArea(
         bottom: false,
         child: Row(
           children: [
             if (onOpenMenu != null)
               IconButton(
-                icon: const Icon(Icons.menu),
+                icon: const Icon(Icons.menu_rounded),
+                tooltip: 'Conversations',
                 onPressed: onOpenMenu,
-              ),
+              )
+            else
+              const SizedBox(width: AppSpacing.sm),
             Tooltip(
               message: 'Switch coach',
               child: InkWell(
                 key: const ValueKey('switch-coach'),
                 customBorder: const CircleBorder(),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const CoachPickerScreen()),
-                ),
+                onTap:
+                    () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const CoachPickerScreen(),
+                      ),
+                    ),
                 child: Padding(
                   padding: const EdgeInsets.all(4),
-                  child: CoachAvatar(coach: coach, radius: 18),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      CoachAvatar(coach: coach, radius: 19, glowing: replying),
+                      // Presence dot: rose gold while replying, green at rest.
+                      Positioned(
+                        right: -1,
+                        bottom: -1,
+                        child: AnimatedContainer(
+                          duration: AppMotion.medium,
+                          width: 11,
+                          height: 11,
+                          decoration: BoxDecoration(
+                            color:
+                                replying ? AppColors.accent : AppColors.success,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppColors.surface,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -246,15 +314,20 @@ class _TopBar extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium),
-                  Text(subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: AppColors.textMuted)),
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.textMuted,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -264,20 +337,19 @@ class _TopBar extends StatelessWidget {
             // "New conversation" action instead.
             kIsWeb
                 ? IconButton(
-                    tooltip: 'Back to home',
-                    icon: const Icon(Icons.home_outlined),
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                            builder: (_) => const LandingScreen()),
-                      );
-                    },
-                  )
+                  tooltip: 'Back to home',
+                  icon: const Icon(Icons.home_outlined),
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const LandingScreen()),
+                    );
+                  },
+                )
                 : IconButton(
-                    tooltip: 'New conversation',
-                    icon: const Icon(Icons.edit_square),
-                    onPressed: onNewThread,
-                  ),
+                  tooltip: 'New conversation',
+                  icon: const Icon(Icons.edit_square),
+                  onPressed: onNewThread,
+                ),
           ],
         ),
       ),
@@ -297,31 +369,26 @@ class _NoThread extends StatelessWidget {
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: const BoxDecoration(
-              gradient: AppColors.romanticGradient,
-              shape: BoxShape.circle,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const GradientIcon(icon: Icons.auto_awesome, size: 64),
+            const SizedBox(height: AppSpacing.md),
+            Text('Start a conversation', style: theme.textTheme.titleLarge),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Your coach is ready when you are.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: AppColors.textMuted,
+              ),
             ),
-            child: const Icon(Icons.auto_awesome, color: Colors.white),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text('Start a conversation', style: theme.textTheme.titleLarge),
-          const SizedBox(height: AppSpacing.xs),
-          Text('Your coach is ready when you are.',
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: AppColors.textMuted)),
-          const SizedBox(height: AppSpacing.lg),
-          ElevatedButton.icon(
-            onPressed: onNewThread,
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('New conversation'),
-          ),
-        ],
-      ),
+            const SizedBox(height: AppSpacing.lg),
+            GradientButton(
+              onPressed: onNewThread,
+              icon: Icons.add_rounded,
+              label: 'New conversation',
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -339,29 +406,48 @@ class _WelcomeState extends StatelessWidget {
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CoachAvatar(coach: coach, radius: 32),
-            const SizedBox(height: AppSpacing.lg),
-            Text(
-              coach.welcomeTitle,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.w700),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 640),
+          child: FadeSlideIn(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: coach.color.withValues(alpha: 0.35),
+                        blurRadius: 40,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: CoachAvatar(coach: coach, radius: 36, selected: true),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                Text(
+                  coach.welcomeTitle,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  coach.welcomeBody,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: AppColors.textMuted,
+                  ),
+                ),
+                if (starters != null) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  starters!,
+                ],
+              ],
             ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              coach.welcomeBody,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyLarge
-                  ?.copyWith(color: AppColors.textMuted),
-            ),
-            if (starters != null) ...[
-              const SizedBox(height: AppSpacing.lg),
-              starters!,
-            ],
-          ],
+          ),
         ),
       ),
     );
@@ -377,25 +463,35 @@ class _UpgradeSheet extends StatelessWidget {
     final theme = Theme.of(context);
     final magnet = TierInfo.magnet;
     return Padding(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        0,
+        AppSpacing.lg,
+        AppSpacing.lg,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.bolt_rounded, color: AppColors.primary),
+              const GradientIcon(icon: Icons.bolt_rounded, size: 36),
               const SizedBox(width: AppSpacing.sm),
-              Text('Unlock the AI Photo Coach',
-                  style: theme.textTheme.titleLarge),
+              Flexible(
+                child: Text(
+                  'Unlock the AI Photo Coach',
+                  style: theme.textTheme.titleLarge,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
             'Photo scoring, KEEP / RESHOOT / DELETE verdicts, and match-rate '
             'predictions are part of the Magnet plan (${magnet.priceLabel}/wk).',
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(color: AppColors.textMuted),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: AppColors.textMuted,
+            ),
           ),
           const SizedBox(height: AppSpacing.lg),
           Row(
@@ -408,12 +504,12 @@ class _UpgradeSheet extends StatelessWidget {
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
-                child: ElevatedButton(
+                child: GradientButton(
                   onPressed: () async {
                     await state.selectTier(SubscriptionTier.magnet);
                     if (context.mounted) Navigator.pop(context);
                   },
-                  child: const Text('Upgrade to Magnet'),
+                  label: 'Upgrade to Magnet',
                 ),
               ),
             ],

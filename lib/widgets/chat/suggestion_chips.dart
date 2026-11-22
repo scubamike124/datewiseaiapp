@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
+import '../common/effects.dart';
 
 /// A starter prompt suggestion.
 class Suggestion {
@@ -46,27 +47,32 @@ class SuggestionChips extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.md, 0, AppSpacing.md, AppSpacing.sm),
+        AppSpacing.md,
+        0,
+        AppSpacing.md,
+        AppSpacing.sm,
+      ),
       child: Align(
         alignment: centered ? Alignment.center : Alignment.centerLeft,
         child: Wrap(
           alignment: centered ? WrapAlignment.center : WrapAlignment.start,
           spacing: AppSpacing.sm,
           runSpacing: AppSpacing.sm,
-          children: suggestions.map((s) {
-            final locked = s.requiresPhoto && !canSendPhoto;
-            return _Chip(
-              suggestion: s,
-              locked: locked,
-              onTap: () {
-                if (locked) {
-                  onPhotoBlocked();
-                } else {
-                  onSelect(s.label);
-                }
-              },
-            );
-          }).toList(),
+          children:
+              suggestions.map((s) {
+                final locked = s.requiresPhoto && !canSendPhoto;
+                return _Chip(
+                  suggestion: s,
+                  locked: locked,
+                  onTap: () {
+                    if (locked) {
+                      onPhotoBlocked();
+                    } else {
+                      onSelect(s.label);
+                    }
+                  },
+                );
+              }).toList(),
         ),
       ),
     );
@@ -94,40 +100,71 @@ class _ChipState extends State<_Chip> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md, vertical: 10),
-          decoration: BoxDecoration(
-            color: _hover ? AppColors.surface : Colors.white,
-            borderRadius: BorderRadius.circular(AppRadius.pill),
-            border: Border.all(
-              color: _hover ? AppColors.primary : AppColors.cardBorder,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(widget.suggestion.emoji, style: const TextStyle(fontSize: 15)),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  widget.suggestion.label,
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(fontWeight: FontWeight.w500),
-                ),
+    // One button for assistive tech, named by the prompt (not the emoji).
+    return Semantics(
+      button: true,
+      label: widget.suggestion.label,
+      excludeSemantics: true,
+      onTap: widget.onTap,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: PressScale(
+            child: AnimatedContainer(
+              duration: AppMotion.fast,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: 11,
               ),
-              if (widget.locked) ...[
-                const SizedBox(width: 6),
-                const Icon(Icons.lock_outline, size: 14, color: AppColors.textMuted),
-              ],
-            ],
+              decoration: BoxDecoration(
+                color: _hover ? AppColors.raised : AppColors.surface,
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+                border: Border.all(
+                  color:
+                      _hover
+                          ? AppColors.primaryLight.withValues(alpha: 0.7)
+                          : AppColors.glassBorder,
+                ),
+                boxShadow:
+                    _hover
+                        ? [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.25),
+                            blurRadius: 16,
+                          ),
+                        ]
+                        : null,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.suggestion.emoji,
+                    style: const TextStyle(fontSize: 15),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      widget.suggestion.label,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  if (widget.locked) ...[
+                    const SizedBox(width: 6),
+                    const Icon(
+                      Icons.lock_outline,
+                      size: 14,
+                      color: AppColors.textMuted,
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
         ),
       ),
