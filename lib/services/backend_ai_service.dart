@@ -100,11 +100,9 @@ class BackendAIService implements AIService {
     return null;
   }
 
-  /// Builds the OpenAI-style message list for the worker: a system prompt
-  /// (DateWise persona + the user's profile) followed by the conversation.
-  /// The chat request body. `coachId` and `context` let a chat-v7 Worker build
-  /// the coach's system prompt itself (it then ignores ours); the system
-  /// message stays so an older Worker keeps working.
+  /// The chat request body. `coachId` and the structured `profile` let a
+  /// chat-v7 Worker build the coach's system prompt itself (it then ignores
+  /// ours); the system message stays so an older Worker keeps working.
   @visibleForTesting
   Map<String, Object> buildPayload(
     List<ChatMessage> history,
@@ -115,10 +113,12 @@ class BackendAIService implements AIService {
       {
         'tier': tier.name,
         'coachId': (coach ?? Coaches.fallback).id,
-        if (profile != null) 'context': profile.summary,
+        if (profile != null) 'profile': profile.toJson(),
         'messages': buildMessages(history, tier, profile, coach),
       };
 
+  /// Builds the OpenAI-style message list for the worker: a system prompt
+  /// (DateWise persona + the user's profile) followed by the conversation.
   @visibleForTesting
   List<Map<String, String>> buildMessages(
     List<ChatMessage> history,

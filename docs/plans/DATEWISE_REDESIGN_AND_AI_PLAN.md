@@ -30,7 +30,11 @@ Until this is done, the App Store app's coach most likely shows "I'm having trou
 The Worker forwards whatever `messages` a caller sends, including its own `system` message, to Workers AI on the owner's account (`handleChat` → `sanitizeMessages`). CORS only restricts browsers, so anyone can use it as a free general-purpose LLM and use up the free daily allowance.
 
 Plan, in two reviewed steps:
-1. **New contract, old one still accepted.** The app sends `{coachId, tier, profile?, messages: [user/assistant turns only]}`. The Worker builds the system prompt itself from a copy of the coach identities and safety rules, and drops any client `system` message. While App Store 1.0.2 clients exist, requests without `coachId` keep today's behaviour. `?version` reports `chat-v7`.
+1. **New contract, old one still accepted** (draft #23). The app sends `{coachId, tier, profile?, messages}`. `profile` is the structured `UserProfile.toJson()`, never free text. The app keeps its own system message so that an older Worker still works.
+   - The Worker builds the system prompt itself, with the same coaching rules as the app and drift-checked against `coach.dart` and `persona.dart`, and drops any client `system` message.
+   - Only known profile values reach the prompt.
+   - Requests without `coachId` (App Store 1.0.2) keep today's behaviour. `?version` reports `chat-v7`.
+   - This narrows abuse for coach requests but does not close it: user and assistant turns still reach the model.
 2. **Remove the old contract once adoption allows.** After an app release that sends `coachId` has reached most users, the Worker rejects requests without one. Add per-IP rate limiting. Cloudflare's Workers rate-limiting binding is one option; whether it is free on this account is **unverified**, so that is an owner decision.
 
 Tests: extend `backend/worker.test.mjs` from #17 with a fake AI binding. Cover: a client system message is ignored when `coachId` is present; an unknown `coachId` gets 400; legacy requests are unchanged.

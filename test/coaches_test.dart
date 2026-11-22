@@ -95,10 +95,17 @@ void main() {
       final history = [ChatMessage(id: '1', role: MessageRole.user, text: 'Hola', createdAt: DateTime(2026))];
       final body = svc.buildPayload(history, SubscriptionTier.magnet, null, Coaches.isabella);
       expect(body['coachId'], 'isabella');
-      expect(body.containsKey('context'), isFalse, reason: 'no profile, no context');
+      expect(body.containsKey('profile'), isFalse, reason: 'no profile sent when there is none');
       final msgs = body['messages'] as List<Map<String, String>>;
       expect(msgs.first['role'], 'system');
       expect(svc.buildPayload(history, SubscriptionTier.magnet, null)['coachId'], 'emily');
+      const profile = UserProfile(
+          gender: Gender.female, age: 31, interestedIn: InterestedIn.men, goal: DatingGoal.serious, app: DatingApp.hinge, city: 'Lima');
+      final withProfile = svc.buildPayload(history, SubscriptionTier.magnet, profile, Coaches.isabella);
+      expect(withProfile['profile'],
+          {'gender': 'female', 'age': 31, 'interestedIn': 'men', 'goal': 'serious', 'app': 'hinge', 'city': 'Lima'},
+          reason: 'structured fields only: the Worker builds the summary from known values');
+      expect(withProfile.containsKey('context'), isFalse);
     });
 
     test('the connection-failure notice is in the coach language', () {
