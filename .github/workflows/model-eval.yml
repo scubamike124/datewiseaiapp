@@ -1,0 +1,37 @@
+name: Chat model comparison
+
+# Real Workers AI replies from each candidate chat model, with the Worker's own
+# coach prompts (backend/eval/model-eval.mjs). Deploys nothing. Uses the same two
+# repository secrets as "Deploy coach backend"; without them it is skipped.
+# Each run makes about 12 short requests per model (free allocation or a few cents).
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'backend/**'
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Compare models (real API)
+        env:
+          # Prefer a Workers-AI-only token (CLOUDFLARE_AI_TOKEN) when set; the deploy token otherwise.
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_AI_TOKEN || secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -o pipefail
+          node backend/eval/model-eval.mjs | tee model-eval.md
+          cat model-eval.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: model-eval
+          path: model-eval.md

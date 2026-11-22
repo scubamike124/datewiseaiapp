@@ -1,6 +1,9 @@
 name = "datewise-photo-coach"
 main = "worker.js"
 compatibility_date = "2024-11-01"
+# Keep variables set in the dashboard (CHAT_MODELS rollback, REQUIRE_COACH_ID)
+# when this file is deployed; without this, wrangler deploy would reset them.
+keep_vars = true
 
 [ai]
 binding = "AI"
@@ -20,3 +23,14 @@ binding = "AI"
 # Reject requests without coachId (old app versions) once the new app is out:
 # [vars]
 # REQUIRE_COACH_ID = "1"
+
+# Chat models, in order (primary first, then fallbacks). Set as a Worker
+# variable in the dashboard to change or roll back instantly without a deploy.
+# Unknown ids are ignored; the code default is Llama 3.3 70B then Gemma 4 26B.
+# [vars]
+# CHAT_MODELS = "@cf/meta/llama-3.3-70b-instruct-fp8-fast,@cf/google/gemma-4-26b-a4b-it"
+
+# Keep Worker logs (model_error / model_fallback / chat_unavailable events) in
+# the dashboard. Check the plan's Workers Logs allowance before enabling.
+# [observability]
+# enabled = true
