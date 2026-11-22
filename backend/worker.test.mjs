@@ -248,3 +248,55 @@ test('the server coach lines match the app (lib/models/coach.dart, persona.dart 
     assert.ok(dart.includes(rule), `app: ${rule}`);
   }
 });
+
+// --- plan A2 step 2: request limit and legacy switch -------------------------
+
+const limiter = (success, calls = []) => ({
+  async limit(arg) {
+    calls.push(arg);
+    if (success instanceof Error) throw success;
+    return { success };
+  },
+});
+
+test('the request limit refuses with 429 before any model call, keyed by client IP', async () => {
+  const f = fakeEnv(() => sseOk());
+  const calls = [];
+  f.env.RATE_LIMITER = limiter(false, calls);
+  const req = new Request('https://example.workers.dev/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '203.0.113.7' },
+    body: JSON.stringify({ coachId: 'emily', messages: [{ role: 'user', content: 'hi' }] }),
+  });
+  const res = await worker.fetch(req, f.env);
+  assert.equal(res.status, 429);
+  assert.equal(f.calls.length, 0);
+  assert.deepEqual(calls, [{ key: '203.0.113.7' }]);
+});
+
+test('under the limit, or with no limiter, or a failing limiter, chat works', async () => {
+  for (const rl of [limiter(true), undefined, limiter(new Error('limiter down'))]) {
+    const f = fakeEnv(() => sseOk());
+    if (rl) f.env.RATE_LIMITER = rl;
+    const res = await worker.fetch(post({ coachId: 'james', messages: [{ role: 'user', content: 'hi' }] }), f.env);
+    assert.equal(res.status, 200);
+    assert.equal(f.calls.length, 1);
+  }
+});
+
+test('REQUIRE_COACH_ID=1 refuses legacy requests with an update notice; coach requests still work', async () => {
+  const f = fakeEnv(() => sseOk());
+  f.env.REQUIRE_COACH_ID = '1';
+  const legacy = await worker.fetch(post({ tier: 'magnet', messages: [{ role: 'system', content: 'x' }, { role: 'user', content: 'hi' }] }), f.env);
+  assert.equal(legacy.status, 426);
+  assert.match((await legacy.json()).error, /update DateWise/);
+  assert.equal(f.calls.length, 0);
+  const coach = await worker.fetch(post({ coachId: 'isabella', messages: [{ role: 'user', content: 'hola' }] }), f.env);
+  assert.equal(coach.status, 200);
+});
+
+test('without REQUIRE_COACH_ID, legacy requests are unchanged', async () => {
+  const f = fakeEnv(() => sseOk());
+  const res = await worker.fetch(post({ tier: 'magnet', messages: [{ role: 'user', content: 'hi' }] }), f.env);
+  assert.equal(res.status, 200);
+});

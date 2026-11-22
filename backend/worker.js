@@ -730,6 +730,24 @@ export default {
     if (request.method !== 'POST') {
       return json({ error: 'Method not allowed' }, 405);
     }
+
+    // Per-client request limit (plan A2 step 2), on every AI path. It uses a
+    // Workers Rate Limiting binding named RATE_LIMITER when one is configured
+    // (see wrangler.toml); without the binding nothing is limited, as before.
+    // A limiter error lets the request through: coaching stays available.
+    if (env.RATE_LIMITER && typeof env.RATE_LIMITER.limit === 'function') {
+      let allowed = true;
+      try {
+        const key = request.headers.get('CF-Connecting-IP') || 'unknown';
+        allowed = (await env.RATE_LIMITER.limit({ key })).success !== false;
+      } catch {
+        allowed = true;
+      }
+      if (!allowed) {
+        return json({ error: 'Too many requests. Please wait a minute and try again.' }, 429);
+      }
+    }
+
     if (!env.AI) {
       return json(
         { error: 'Workers AI binding "AI" is not configured on this Worker.' },
@@ -756,7 +774,14 @@ export default {
         if (!built) return json({ error: 'Provide at least one user message.' }, 400);
         return await handleChat(env, built);
       }
-      return await handleChat(env, messages); // legacy clients (App Store 1.0.2)
+      // Legacy clients (App Store 1.0.2) send their own system prompt. Set the
+      // Worker variable REQUIRE_COACH_ID=1 once an app release that sends
+      // coachId is widely installed: older apps then get a clear update notice
+      // instead of an open model (plan A2 step 2).
+      if (env.REQUIRE_COACH_ID === '1') {
+        return json({ error: 'Please update DateWise to the latest version to keep chatting with your coach.' }, 426);
+      }
+      return await handleChat(env, messages);
     }
 
     // Soft tier gate (client-sent; for real paywalls verify a session/payment).
