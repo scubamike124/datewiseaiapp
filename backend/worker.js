@@ -811,7 +811,7 @@ async function handleChat(env, messages) {
   } catch (e) {
     logModelEvent('chat_unavailable', { errors: (e.modelErrors || []).length });
     // Full errors stay in the log; the client only gets the error codes.
-    const codes = [...new Set((String(e).match(/\b\d{4}\b/g) || []))].join(', ');
+    const codes = [...new Set([...String(e).matchAll(/AiError:\s*(\d{4})/g)].map((m) => m[1]))].join(', ');
     return json({ error: 'Workers AI error', detail: codes ? `codes: ${codes}` : 'all chat models failed' }, 502);
   }
   // The reply streams as Server-Sent Events in the app's format

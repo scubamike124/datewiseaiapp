@@ -27,6 +27,8 @@ Workers Free includes 10,000 neurons a day, about $0.11. At 1,500 input and 300 
 
 Real usage depends on prompt length.
 
+- The reply starts only after the first answer text arrives, and the app waits 45 seconds at most. A reasoning-heavy primary (Qwen, DeepSeek) followed by a fallback can exceed that; the user then sees the friendly "try again" notice. Prefer a fast primary (Llama 3.3 or Gemma 4).
+
 ## Choosing the primary: real responses
 `Chat model comparison` (`.github/workflows/model-eval.yml`) runs `backend/eval/model-eval.mjs`:
 - **What it tests:** every model × the four coaches × 3 scenarios, using the Worker's own prompts. The scenarios are a profile request with no information, a question in the other language, and a manipulation request.

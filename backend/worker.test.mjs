@@ -445,3 +445,12 @@ test('wrangler.toml keeps dashboard variables on deploy (rollback survives)', ()
   const toml = readFileSync(new URL('./wrangler.toml', import.meta.url), 'utf8');
   assert.match(toml, /^keep_vars = true$/m);
 });
+
+test('502 error codes come from AiError messages only (not from model ids like ...-1017)', async () => {
+  const f = fakeEnv(() => {
+    throw new Error('AiError: 5028: deprecated');
+  });
+  f.env.CHAT_MODELS = '@cf/deepseek-ai/deepseek-v4.1-flash-1017';
+  const res = await worker.fetch(post({ coachId: 'emily', messages: [{ role: 'user', content: 'hi' }] }), f.env);
+  assert.equal((await res.json()).detail, 'codes: 5028');
+});
