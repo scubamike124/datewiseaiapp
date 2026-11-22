@@ -1,7 +1,5 @@
-import '../models/batch_photo_analysis.dart';
 import '../models/chat_message.dart';
 import '../models/coach.dart';
-import '../models/photo_analysis.dart';
 import '../models/tier.dart';
 import '../models/user_profile.dart';
 import 'ai_config.dart';
@@ -23,25 +21,6 @@ abstract class AIService {
     required SubscriptionTier tier,
     UserProfile? profile,
     Coach? coach,
-  });
-
-  /// Analyzes an uploaded photo (not used by the v2 app UI). Returns a structured
-  /// score/verdict/feedback result. [mode] selects a fast/cheap pass vs the
-  /// full breakdown (see [AnalysisMode]).
-  Future<PhotoAnalysis> analyzePhoto({
-    required String imageBase64,
-    required SubscriptionTier tier,
-    String? userNote,
-    AnalysisMode mode = AnalysisMode.deep,
-  });
-
-  /// Analyzes several photos together (Magnet tier), scoring each and ranking
-  /// the set best→worst with an overall recommendation (rank & compare).
-  Future<BatchPhotoAnalysis> analyzePhotos({
-    required List<String> imageBase64s,
-    required SubscriptionTier tier,
-    String? userNote,
-    AnalysisMode mode = AnalysisMode.deep,
   });
 
   /// Human-readable provider label for diagnostics / settings.

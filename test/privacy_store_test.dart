@@ -133,7 +133,6 @@ void main() {
   group('subscription', () {
     test('only datewise_premium_monthly; no free, annual or lifetime option anywhere', () {
       expect(StoreConfig.productId, 'datewise_premium_monthly');
-      expect(StoreConfig.fallbackPrice, r'$9.99');
       final code = Directory('lib')
           .listSync(recursive: true)
           .whereType<File>()

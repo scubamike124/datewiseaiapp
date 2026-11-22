@@ -216,6 +216,9 @@ class AppState extends ChangeNotifier {
   bool get isResponding => _isResponding;
 
   void _load() {
+    // v1 upgraders: drop the v1 profile fields and route through the v2
+    // onboarding once (see StorageService.migrateFromV1).
+    _storage.migrateFromV1();
     _underage = _storage.underage;
     _onboarded = _storage.hasOnboarded && !_underage;
     _profile = _storage.loadProfile();
@@ -289,7 +292,11 @@ class AppState extends ChangeNotifier {
   /// Returns false (and sends nothing) without an active subscription.
   Future<bool> sendMessage(String text) async {
     final trimmed = text.trim();
-    if (_isResponding || trimmed.isEmpty) return false;
+    if (trimmed.isEmpty) return false;
+    // A reply that is being stopped finishes stopping first.
+    final stopping = _stopping;
+    if (stopping != null) await stopping;
+    if (_isResponding) return false;
     if (!canChat) return false;
 
     final thread = activeThread ?? await createThread();
@@ -303,8 +310,12 @@ class AppState extends ChangeNotifier {
     thread.updatedAt = now;
     _autoTitle(thread);
     _bumpToTop(thread);
-    await _recordActiveDay();
+    // Saved before the reply starts, so the user's message survives the app
+    // closing mid-reply.
+    _isResponding = true;
     notifyListeners();
+    await _persist();
+    await _recordActiveDay();
     await _streamCoachReply(thread);
     return true;
   }
@@ -313,6 +324,7 @@ class AppState extends ChangeNotifier {
   Completer<void>? _replyDone;
   ChatMessage? _replyMsg;
   Future<void>? _replyTask;
+  Future<void>? _stopping;
 
   Future<void> _streamCoachReply(ChatThread thread) {
     final task = _runReply(thread);
@@ -379,21 +391,25 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Stops the reply that is streaming (the user left the chat). The HTTP
-  /// stream is canceled; the user's message is kept and the reply can be
-  /// retried.
-  Future<void> cancelReply() async {
+  /// Stops the reply that is streaming (Stop, or the user left the chat).
+  /// The request is aborted at once (the HTTP client is closed; nothing
+  /// waits for the network); the user's message is kept and the reply can
+  /// be retried. Completes when the stopped reply is saved and the app is
+  /// ready for the next message.
+  Future<void> cancelReply() {
     final sub = _replySub;
     final msg = _replyMsg;
-    if (sub == null || msg == null) return;
+    if (sub == null || msg == null) return _stopping ?? Future<void>.value();
     _replySub = null;
     msg.status = MessageStatus.stopped;
-    final canceling = sub.cancel(); // closes the HTTP stream
+    // Not awaited: the backend aborts synchronously, and a misbehaving
+    // stream must never hold up Stop or a delete.
+    unawaited(sub.cancel().catchError((Object _) {}));
     final done = _replyDone;
     if (done != null && !done.isCompleted) done.complete();
-    final task = _replyTask;
-    await canceling;
-    await task; // saved and settled before anything else changes
+    final task = _replyTask ?? Future<void>.value();
+    final stopping = _stopping = task.whenComplete(() => _stopping = null);
+    return stopping;
   }
 
   /// Whether the open conversation ends with a failed or stopped reply.
@@ -405,6 +421,8 @@ class AppState extends ChangeNotifier {
   /// Asks the coach again for the last message after a failed or stopped
   /// reply. The failed reply is replaced.
   Future<bool> retryLastReply() async {
+    final stopping = _stopping;
+    if (stopping != null) await stopping;
     final thread = activeThread;
     if (thread == null || !canRetry || !canChat) return false;
     thread.messages.removeLast();

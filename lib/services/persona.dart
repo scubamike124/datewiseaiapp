@@ -8,7 +8,7 @@ extension CoachSystemPrompt on Coach {
 }
 
 /// The DateWise coach personas. Centralises the system prompt so the backend,
-/// the Gemini client and the offline mock all speak in the same voice.
+/// client (its system message) and the offline mock all speak in the same voice.
 class CoachPersona {
   CoachPersona._();
 

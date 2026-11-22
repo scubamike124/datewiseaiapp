@@ -28,7 +28,7 @@ class ChatThread {
   String get preview {
     final last = lastMessage;
     if (last == null) return 'New conversation';
-    if (last.imageBase64 != null && last.text.isEmpty) return 'Photo';
+    if (last.isPhotoOnly) return 'Photo';
     final text = last.text.replaceAll('\n', ' ').trim();
     return text.isEmpty ? 'New conversation' : text;
   }

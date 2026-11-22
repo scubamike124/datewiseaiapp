@@ -529,6 +529,31 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String get priceFromAppStore => 'Precio indicado por el App Store';
+
+  @override
+  String get subscribe => 'Suscribirme';
+
+  @override
+  String get paywallDisclosureNoPrice =>
+      'Suscripción mensual al precio indicado por el App Store. El pago se carga a tu cuenta de Apple ID al confirmar la compra. La suscripción se renueva automáticamente cada mes a ese precio hasta que la canceles, a menos que la canceles al menos 24 horas antes de que termine el período actual. Cancela cuando quieras en Configuración › Apple ID › Suscripciones.';
+
+  @override
+  String get tapToSend => 'Detener y enviar';
+
+  @override
+  String get tapToTalkHint =>
+      'Toca dos veces para empezar a hablar y otra vez para enviar';
+
+  @override
+  String get voiceLanguageUnsupported =>
+      'La voz no está disponible para este idioma en este dispositivo. Puedes escribir tu mensaje.';
+
+  @override
+  String get photoNoLongerAvailable =>
+      'Foto de una versión anterior (ya no disponible)';
+
+  @override
   String get restorePurchases => 'Restaurar compras';
 
   @override

@@ -512,6 +512,31 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get priceFromAppStore => 'Price shown by the App Store';
+
+  @override
+  String get subscribe => 'Subscribe';
+
+  @override
+  String get paywallDisclosureNoPrice =>
+      'Monthly subscription at the price shown by the App Store. Payment is charged to your Apple ID account at confirmation of purchase. The subscription auto-renews monthly at that price until canceled, unless canceled at least 24 hours before the end of the current period. Cancel any time in Settings › Apple ID › Subscriptions.';
+
+  @override
+  String get tapToSend => 'Stop and send';
+
+  @override
+  String get tapToTalkHint =>
+      'Double-tap to start talking, then double-tap again to send';
+
+  @override
+  String get voiceLanguageUnsupported =>
+      'Voice isn\'t available for this language on this device. You can type your message instead.';
+
+  @override
+  String get photoNoLongerAvailable =>
+      'Photo from an earlier version (no longer available)';
+
+  @override
   String get restorePurchases => 'Restore Purchases';
 
   @override

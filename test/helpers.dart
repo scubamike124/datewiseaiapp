@@ -71,12 +71,12 @@ Future<TestApp> makeState({
   return TestApp(state, s, storage);
 }
 
-Widget wrap(TestApp app, Widget child) => MultiProvider(
+Widget wrap(TestApp app, Widget child, {SpeechService? speech, VoiceService? voice}) => MultiProvider(
       providers: [
         ChangeNotifierProvider<StoreService>.value(value: app.store),
         ChangeNotifierProvider<AppState>.value(value: app.state),
-        Provider<VoiceService>.value(value: NoVoiceService()),
-        Provider<SpeechService>.value(value: NoSpeechService()),
+        Provider<VoiceService>.value(value: voice ?? NoVoiceService()),
+        Provider<SpeechService>.value(value: speech ?? NoSpeechService()),
       ],
       child: child,
     );
@@ -90,10 +90,12 @@ Future<TestApp> pumpApp(
   bool entitled = true,
   StoreService? store,
   AppTab tab = AppTab.home,
+  SpeechService? speech,
+  VoiceService? voice,
 }) async {
   setSurface(tester, size, scale);
   final app = await makeState(prefs: prefs, entitled: entitled, store: store);
-  await tester.pumpWidget(wrap(app, DateWiseApp(initialTab: tab)));
+  await tester.pumpWidget(wrap(app, DateWiseApp(initialTab: tab), speech: speech, voice: voice));
   await tester.pump();
   return app;
 }

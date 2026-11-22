@@ -13,10 +13,8 @@ import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:datewise_ai/app.dart';
-import 'package:datewise_ai/models/batch_photo_analysis.dart';
 import 'package:datewise_ai/models/chat_message.dart';
 import 'package:datewise_ai/models/coach.dart';
-import 'package:datewise_ai/models/photo_analysis.dart';
 import 'package:datewise_ai/models/tier.dart';
 import 'package:datewise_ai/models/user_profile.dart';
 import 'package:datewise_ai/screens/shell.dart';
@@ -77,12 +75,6 @@ class ScriptedAI implements AIService {
 
   @override
   String get providerLabel => 'scripted';
-  @override
-  Future<PhotoAnalysis> analyzePhoto({required String imageBase64, required SubscriptionTier tier, String? userNote, AnalysisMode mode = AnalysisMode.deep}) =>
-      throw UnimplementedError();
-  @override
-  Future<BatchPhotoAnalysis> analyzePhotos({required List<String> imageBase64s, required SubscriptionTier tier, String? userNote, AnalysisMode mode = AnalysisMode.deep}) =>
-      throw UnimplementedError();
 }
 
 Future<(AppState, StorageService)> make(AIService ai, {Map<String, Object> prefs = const {}}) async {

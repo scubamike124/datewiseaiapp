@@ -44,7 +44,18 @@ class _ChatScreenState extends State<ChatScreen> {
   Timer? _ticker;
   bool _wasResponding = false;
 
+  /// True between pointer-down and pointer-up on the talk button, so a
+  /// release that arrives while recognition is still starting stops it.
+  bool _holding = false;
+
+  /// True while recognition is starting (its result not back yet).
+  bool _starting = false;
+
+  /// Bumped on every start/stop so a late start result is ignored.
+  int _listenGen = 0;
+
   late final AppState _state;
+  late final AppLifecycleListener _lifecycle;
   late final VoiceService _voice;
   late final SpeechService _speech;
 
@@ -55,6 +66,12 @@ class _ChatScreenState extends State<ChatScreen> {
     _voice = context.read<VoiceService>();
     _speech = context.read<SpeechService>();
     _state.addListener(_onState);
+    // Back from Settings after denying the microphone: check again, so the
+    // voice button returns once access is allowed.
+    _lifecycle = AppLifecycleListener(onResume: () async {
+      await _speech.recheckPermission();
+      if (mounted) setState(() {});
+    });
     if (widget.active) WidgetsBinding.instance.addPostFrameCallback((_) => _consumePending());
   }
 
@@ -76,8 +93,11 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     _state.cancelReply();
     _state.removeListener(_onState);
+    _lifecycle.dispose();
     _ticker?.cancel();
-    if (_voiceMode) _voice.stop();
+    _listenGen++;
+    _voice.stop();
+    _speech.cancel();
     _input.dispose();
     _focus.dispose();
     super.dispose();
@@ -88,7 +108,8 @@ class _ChatScreenState extends State<ChatScreen> {
     final responding = _state.isResponding;
     if (_wasResponding && !responding && _voiceMode && _readAloud) {
       final last = _state.activeThread?.messages.lastOrNull;
-      if (last != null && !last.isUser) {
+      // Only a complete reply is read aloud, never a failed or stopped one.
+      if (last != null && !last.isUser && last.status == MessageStatus.ok && last.text.trim().isNotEmpty) {
         _voice.speak(parseReply(last.text).body, _state.selectedCoach);
       }
     }
@@ -146,7 +167,9 @@ class _ChatScreenState extends State<ChatScreen> {
     _ticker?.cancel();
     _ticker = null;
     _voice.stop();
-    if (_listening) _speech.stop();
+    _listenGen++;
+    _holding = false;
+    if (_listening) _speech.cancel();
     setState(() {
       _voiceMode = false;
       _voiceStarted = null;
@@ -155,31 +178,88 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  /// Pointer down on the talk button (or a tap in accessibility mode). The
+  /// listening state is set before anything is awaited, so a quick release
+  /// is never lost: if the finger lifts while recognition is starting, it
+  /// stops as soon as the start completes.
   Future<void> _startListening() async {
     if (_listening || _state.isResponding) return;
-    await _voice.stop();
-    HapticFeedback.lightImpact();
+    final gen = ++_listenGen;
+    _holding = true;
     setState(() {
       _listening = true;
       _partial = '';
     });
-    await _speech.start(
+    HapticFeedback.lightImpact();
+    await _voice.stop();
+    if (!mounted || gen != _listenGen) return;
+    _starting = true;
+    final result = await _speech.start(
       localeId: _state.selectedCoach.language.locale,
       onWords: (w) {
-        if (mounted) setState(() => _partial = w);
+        if (mounted && gen == _listenGen) setState(() => _partial = w);
+      },
+      onUnsupported: () {
+        if (mounted && gen == _listenGen) _listenFailed(SpeechStart.unsupported);
       },
     );
+    _starting = false;
+    if (!mounted || gen != _listenGen) {
+      // The session ended (or the screen closed) while starting.
+      if (result == SpeechStart.started) await _speech.cancel();
+      return;
+    }
+    if (result != SpeechStart.started) {
+      _listenFailed(result);
+      return;
+    }
+    if (!_holding) await _finishListening(gen);
   }
 
-  Future<void> _stopListening() async {
-    if (!_listening) return;
-    final words = await _speech.stop();
-    if (!mounted) return;
+  void _listenFailed(SpeechStart why) {
+    _listenGen++;
+    _holding = false;
+    _speech.cancel();
     setState(() {
       _listening = false;
       _partial = '';
     });
+    final l = context.l10n;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(why == SpeechStart.denied ? l.voicePermissionNeeded : l.voiceLanguageUnsupported),
+    ));
+  }
+
+  /// Pointer up / cancel on the talk button.
+  Future<void> _stopListening() async {
+    if (!_holding) return;
+    _holding = false;
+    // Still starting: _startListening stops as soon as the start completes.
+    if (!_starting) await _finishListening(_listenGen);
+  }
+
+  /// Accessibility (VoiceOver / TalkBack double-tap, or a switch): the talk
+  /// button toggles instead of needing a hold.
+  Future<void> _toggleListening() async {
+    if (_listening) {
+      _holding = false;
+      if (!_starting) await _finishListening(_listenGen);
+    } else {
+      // Keeps listening (_holding stays true) until the next tap.
+      await _startListening();
+    }
+  }
+
+  Future<void> _finishListening(int gen) async {
+    if (!_listening || gen != _listenGen) return;
+    _listenGen++;
+    final words = await _speech.stop();
+    if (!mounted) return;
     final text = words.isNotEmpty ? words : _partial;
+    setState(() {
+      _listening = false;
+      _partial = '';
+    });
     if (text.trim().isNotEmpty) await _send(text);
   }
 
@@ -358,6 +438,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         readAloud: _readAloud,
                         onHoldStart: _startListening,
                         onHoldEnd: _stopListening,
+                        onToggle: _toggleListening,
                         onKeyboard: _exitVoice,
                         onToggleReadAloud: () {
                           setState(() => _readAloud = !_readAloud);
@@ -638,7 +719,11 @@ class _Bubble extends StatelessWidget {
               bottomRight: Radius.circular(6),
             ),
           ),
-          child: Text(message.text, style: const TextStyle(fontSize: 15, height: 1.45, color: Color(0xFFF6E6D2))),
+          child: message.isPhotoOnly
+              ? Text(context.l10n.photoNoLongerAvailable,
+                  key: const ValueKey('photo-placeholder'),
+                  style: const TextStyle(fontSize: 14, height: 1.45, fontStyle: FontStyle.italic, color: Color(0xCCF6E6D2)))
+              : Text(message.text, style: const TextStyle(fontSize: 15, height: 1.45, color: Color(0xFFF6E6D2))),
         ),
       );
     }
@@ -681,7 +766,11 @@ class _Bubble extends StatelessWidget {
                               stopped: message.status == MessageStatus.stopped,
                               onRetry: onRetry,
                             )
-                          : CoachText(parsed.body),
+                          : message.isPhotoOnly
+                              ? Text(l.photoNoLongerAvailable,
+                                  key: const ValueKey('photo-placeholder'),
+                                  style: const TextStyle(fontSize: 14, height: 1.45, fontStyle: FontStyle.italic, color: AppColors.textMuted))
+                              : CoachText(parsed.body),
                 ),
               ),
             ],
@@ -889,6 +978,7 @@ class _VoiceDock extends StatelessWidget {
     required this.readAloud,
     required this.onHoldStart,
     required this.onHoldEnd,
+    required this.onToggle,
     required this.onKeyboard,
     required this.onToggleReadAloud,
   });
@@ -900,12 +990,16 @@ class _VoiceDock extends StatelessWidget {
   final bool readAloud;
   final VoidCallback onHoldStart;
   final VoidCallback onHoldEnd;
+  final VoidCallback onToggle;
   final VoidCallback onKeyboard;
   final VoidCallback onToggleReadAloud;
 
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
+    // With VoiceOver/TalkBack on, a hold is impractical: tap to start, tap
+    // again to send.
+    final toggleMode = MediaQuery.accessibleNavigationOf(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
       child: Column(
@@ -925,11 +1019,17 @@ class _VoiceDock extends StatelessWidget {
               const SizedBox(width: 28),
               Semantics(
                 button: true,
-                label: l.holdToTalk,
-                child: Listener(
-                  onPointerDown: busy ? null : (_) => onHoldStart(),
-                  onPointerUp: (_) => onHoldEnd(),
-                  onPointerCancel: (_) => onHoldEnd(),
+                label: listening ? l.tapToSend : l.holdToTalk,
+                hint: listening ? null : l.tapToTalkHint,
+                enabled: !busy,
+                onTap: busy && !listening ? null : onToggle,
+                excludeSemantics: true,
+                child: GestureDetector(
+                  onTap: toggleMode && !(busy && !listening) ? onToggle : null,
+                  child: Listener(
+                  onPointerDown: busy || toggleMode ? null : (_) => onHoldStart(),
+                  onPointerUp: toggleMode ? null : (_) => onHoldEnd(),
+                  onPointerCancel: toggleMode ? null : (_) => onHoldEnd(),
                   child: AnimatedContainer(
                     key: const ValueKey('hold-to-talk'),
                     duration: motion(context, const Duration(milliseconds: 200)),
@@ -949,6 +1049,7 @@ class _VoiceDock extends StatelessWidget {
                     ),
                     child: Icon(listening ? Icons.graphic_eq_rounded : Icons.mic_rounded, size: 30,
                         color: busy ? AppColors.goldInk.withValues(alpha: 0.4) : AppColors.goldInk),
+                  ),
                   ),
                 ),
               ),

@@ -1,6 +1,8 @@
 /// In-app legal copy for DateWise AI's Privacy Policy and Terms of Use, in
-/// English (the governing text) and a Spanish translation. Kept in sync with the hosted pages (web/privacy.html,
-/// web/terms.html) so the in-app text matches datewiseai.com.
+/// English (the governing text) and a Spanish translation. The hosted pages
+/// (web/privacy.html, web/terms.html, web/privacy-es.html, web/terms-es.html)
+/// are generated from this file by `dart run tool/legal_pages.dart`, so the
+/// website matches the app (test/legal_pages_test.dart checks it).
 ///
 /// Format: lines beginning with "# " render as section headings; everything
 /// else is body text (see LegalScreen).

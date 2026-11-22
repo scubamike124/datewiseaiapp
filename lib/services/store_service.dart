@@ -14,9 +14,6 @@ class StoreConfig {
 
   static const String productTitle = 'DateWise Premium';
 
-  /// Shown only when the price cannot be read from the App Store.
-  static const String fallbackPrice = r'$9.99';
-
   /// `--dart-define=DW_FAKE_STORE=true` swaps in [FakeStoreService] so the
   /// paid flow can be reviewed on web or in a debug build without StoreKit.
   static const bool useFakeStore = bool.fromEnvironment('DW_FAKE_STORE');
@@ -41,10 +38,9 @@ abstract class StoreService extends ChangeNotifier {
   bool get isEntitled;
 
   /// Localized price from the App Store ("$9.99"), or null when not loaded.
+  /// No price is ever hard-coded: without it the paywall says "price shown
+  /// by the App Store" and Subscribe stays disabled.
   String? get storePrice;
-
-  /// The store price, or the $9.99 fallback when the store has none.
-  String get price => storePrice ?? StoreConfig.fallbackPrice;
 
   /// Last error to show on the paywall, if any.
   StoreError? get lastError;
@@ -216,17 +212,34 @@ class AppStoreService extends StoreService {
         _error = StoreError.purchaseFailed;
         _finishPending(PurchaseResult.failed);
       });
-      final res = await _iap.queryProductDetails({StoreConfig.productId});
-      if (res.productDetails.isNotEmpty) {
-        _product = res.productDetails.first;
-      } else {
-        _error = StoreError.productUnavailable;
+      await _loadProduct();
+      // The entitlement is read even when the product could not be loaded:
+      // a subscriber keeps chat although the price is unavailable.
+      try {
+        await _refreshEntitlement();
+      } catch (_) {
+        _error ??= StoreError.storeUnreachable;
       }
-      await _refreshEntitlement();
     } catch (_) {
       _error = StoreError.storeUnreachable;
     }
     notifyListeners();
+  }
+
+  /// Loads the subscription product (price, title). Failure leaves
+  /// [canPurchase] false and is retried by [refresh].
+  Future<void> _loadProduct() async {
+    try {
+      final res = await _iap.queryProductDetails({StoreConfig.productId});
+      if (res.productDetails.isNotEmpty) {
+        _product = res.productDetails.first;
+        if (_error == StoreError.productUnavailable || _error == StoreError.storeUnreachable) _error = null;
+      } else {
+        _error = StoreError.productUnavailable;
+      }
+    } catch (_) {
+      _error = StoreError.productUnavailable;
+    }
   }
 
   Future<void> _refreshEntitlement() async {
@@ -310,7 +323,26 @@ class AppStoreService extends StoreService {
 
   @override
   Future<void> refresh() async {
-    if (!_available) return;
+    if (!_available) {
+      // The store may have been unreachable at launch: try again.
+      if (!_ready) return;
+      try {
+        _available = await _iap.isAvailable().timeout(const Duration(seconds: 10));
+      } catch (_) {
+        return;
+      }
+      if (!_available) return;
+      _error = null;
+      _sub ??= _iap.purchaseStream.listen(_onPurchases, onError: (Object e) {
+        _error = StoreError.purchaseFailed;
+        _finishPending(PurchaseResult.failed);
+      });
+    }
+    if (_product == null) {
+      try {
+        await _loadProduct().timeout(const Duration(seconds: 10));
+      } catch (_) {}
+    }
     try {
       await _refreshEntitlement().timeout(const Duration(seconds: 10));
     } catch (_) {

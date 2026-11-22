@@ -2,9 +2,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../models/batch_photo_analysis.dart';
 import '../models/chat_thread.dart';
-import '../models/photo_analysis.dart';
 import '../models/tier.dart';
 import '../models/coach.dart';
 import '../models/user_profile.dart';
@@ -22,20 +20,16 @@ class StorageService {
   static const _kOnboarded = 'dw_onboarded';
   static const _kProfile = 'dw_profile';
   static const _kIntroSeen = 'dw_intro_seen';
-  static const _kAnalysisCache = 'dw_analysis_cache';
-  static const _kBatchCache = 'dw_batch_cache';
+  // v1 photo-analysis caches (photos and results). v2 has no photo
+  // features; these are only ever removed.
+  static const _kLegacyAnalysisCache = 'dw_analysis_cache';
+  static const _kLegacyBatchCache = 'dw_batch_cache';
   static const _kCoach = 'dw_coach';
   static const _kPlan = 'dw_plan';
   static const _kMemoryOn = 'dw_memory_on';
   static const _kMemoryText = 'dw_memory_text';
   static const _kActiveDays = 'dw_active_days';
   static const _kUnderage = 'dw_underage';
-
-  /// Cap on cached photo analyses; oldest entries are evicted past this (LRU).
-  static const _maxCacheEntries = 50;
-
-  /// Batch results carry thumbnails so they're heavier — keep fewer.
-  static const _maxBatchCacheEntries = 20;
 
   static Future<StorageService> create() async {
     final prefs = await SharedPreferences.getInstance();
@@ -116,6 +110,44 @@ class StorageService {
     return _prefs.setStringList(_kActiveDays, kept);
   }
 
+  // --- Upgrade from v1 (1.0.x) ------------------------------------------
+
+  /// Run once per launch before anything is read. Makes the stored data
+  /// match what v2 discloses:
+  ///  * the v1 profile fields (age, gender, city, interested in, dating goal,
+  ///    dating app) are deleted from `dw_profile`; a profile with nothing
+  ///    else left is removed, so the app follows the device language;
+  ///  * v1 photo caches are deleted;
+  ///  * a v1 user (onboarded, but without the v2 goals/language profile)
+  ///    goes through the v2 onboarding once (18+ confirmation, goals,
+  ///    language, coach). Conversations are kept.
+  void migrateFromV1() {
+    _prefs.remove(_kLegacyAnalysisCache);
+    _prefs.remove(_kLegacyBatchCache);
+    final raw = _prefs.getString(_kProfile);
+    Map<String, dynamic>? json;
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        json = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+      } catch (_) {
+        json = null;
+      }
+      if (json == null) {
+        _prefs.remove(_kProfile);
+      } else if (json.keys.any(legacyProfileKeys.contains)) {
+        json.removeWhere((k, _) => legacyProfileKeys.contains(k));
+        if (json.isEmpty) {
+          _prefs.remove(_kProfile);
+          json = null;
+        } else {
+          _prefs.setString(_kProfile, jsonEncode(json));
+        }
+      }
+    }
+    final isV2 = json != null && json.containsKey('goals') && json.containsKey('language');
+    if (hasOnboarded && !isV2) _prefs.setBool(_kOnboarded, false);
+  }
+
   // --- User profile -------------------------------------------------------
 
   UserProfile? loadProfile() {
@@ -138,9 +170,15 @@ class StorageService {
     if (raw == null || raw.isEmpty) return [];
     try {
       final list = jsonDecode(raw) as List;
-      return list
+      final threads = list
           .map((e) => ChatThread.fromJson(e as Map<String, dynamic>))
           .toList();
+      // v1 kept photos (and photo critiques) inside messages: re-save without
+      // them so no image data stays on the device.
+      if (raw.contains('"imageBase64') || raw.contains('"analysis"') || raw.contains('"batchAnalysis"')) {
+        saveThreads(threads);
+      }
+      return threads;
     } catch (_) {
       return [];
     }
@@ -151,100 +189,11 @@ class StorageService {
     return _prefs.setString(_kThreads, raw);
   }
 
-  // --- Photo-analysis cache ----------------------------------------------
-  //
-  // Keyed by "<mode>_<sha256(image bytes)>" so re-uploading the same photo
-  // (in the same mode) returns instantly without another API call. Stored as a
-  // JSON list, ordered oldest→newest, so we can evict the oldest past the cap.
-
-  /// All cached analyses as a `{ cacheKey -> PhotoAnalysis }` map for lookup.
-  Map<String, PhotoAnalysis> loadAnalysisCache() {
-    final raw = _prefs.getString(_kAnalysisCache);
-    if (raw == null || raw.isEmpty) return {};
-    try {
-      final list = jsonDecode(raw) as List;
-      final map = <String, PhotoAnalysis>{};
-      for (final e in list) {
-        final m = e as Map<String, dynamic>;
-        map[m['key'] as String] =
-            PhotoAnalysis.fromJson(m['analysis'] as Map<String, dynamic>);
-      }
-      return map;
-    } catch (_) {
-      return {};
-    }
-  }
-
-  /// Upserts one analysis, moving it to newest and evicting the oldest past
-  /// [_maxCacheEntries].
-  Future<void> saveAnalysisCacheEntry(String key, PhotoAnalysis analysis) async {
-    final raw = _prefs.getString(_kAnalysisCache);
-    final list = <Map<String, dynamic>>[];
-    if (raw != null && raw.isNotEmpty) {
-      try {
-        for (final e in jsonDecode(raw) as List) {
-          final m = e as Map<String, dynamic>;
-          if (m['key'] != key) list.add(m); // drop any prior copy of this key
-        }
-      } catch (_) {
-        // Corrupt cache → start fresh.
-      }
-    }
-    list.add({'key': key, 'analysis': analysis.toJson()});
-    final trimmed = list.length > _maxCacheEntries
-        ? list.sublist(list.length - _maxCacheEntries)
-        : list;
-    await _prefs.setString(_kAnalysisCache, jsonEncode(trimmed));
-  }
-
-  // --- Batch (rank & compare) cache --------------------------------------
-  //
-  // Keyed by "<mode>_batch_<combined hash>". Same list-with-LRU shape as the
-  // single-photo cache, but a smaller cap because entries carry thumbnails.
-
-  Map<String, BatchPhotoAnalysis> loadBatchCache() {
-    final raw = _prefs.getString(_kBatchCache);
-    if (raw == null || raw.isEmpty) return {};
-    try {
-      final list = jsonDecode(raw) as List;
-      final map = <String, BatchPhotoAnalysis>{};
-      for (final e in list) {
-        final m = e as Map<String, dynamic>;
-        map[m['key'] as String] =
-            BatchPhotoAnalysis.fromJson(m['analysis'] as Map<String, dynamic>);
-      }
-      return map;
-    } catch (_) {
-      return {};
-    }
-  }
-
-  Future<void> saveBatchCacheEntry(
-      String key, BatchPhotoAnalysis analysis) async {
-    final raw = _prefs.getString(_kBatchCache);
-    final list = <Map<String, dynamic>>[];
-    if (raw != null && raw.isNotEmpty) {
-      try {
-        for (final e in jsonDecode(raw) as List) {
-          final m = e as Map<String, dynamic>;
-          if (m['key'] != key) list.add(m);
-        }
-      } catch (_) {
-        // Corrupt cache → start fresh.
-      }
-    }
-    list.add({'key': key, 'analysis': analysis.toJson()});
-    final trimmed = list.length > _maxBatchCacheEntries
-        ? list.sublist(list.length - _maxBatchCacheEntries)
-        : list;
-    await _prefs.setString(_kBatchCache, jsonEncode(trimmed));
-  }
-
-  /// Deletes every conversation (and cached photo results), keeping settings.
+  /// Deletes every conversation (and any v1 photo cache), keeping settings.
   Future<void> clearConversations() async {
     await _prefs.remove(_kThreads);
-    await _prefs.remove(_kAnalysisCache);
-    await _prefs.remove(_kBatchCache);
+    await _prefs.remove(_kLegacyAnalysisCache);
+    await _prefs.remove(_kLegacyBatchCache);
   }
 
   /// "Delete my data": removes everything DateWise stored on this device

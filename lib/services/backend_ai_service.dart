@@ -4,10 +4,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
 
-import '../models/batch_photo_analysis.dart';
 import '../models/chat_message.dart';
 import '../models/coach.dart';
-import '../models/photo_analysis.dart';
 import '../models/tier.dart';
 import '../models/user_profile.dart';
 import 'ai_service.dart';
@@ -63,53 +61,76 @@ class BackendAIService implements AIService {
 
   /// Streams the coach's reply token by token. Errors surface as
   /// [CoachUnavailableException] (never as fake coaching text). Canceling
-  /// the subscription closes the HTTP connection.
+  /// the subscription closes the HTTP client at once, which aborts the
+  /// request wherever it is (connecting, waiting for headers or streaming),
+  /// so `cancel()` never waits for a timeout.
   @override
   Stream<String> streamReply({
     required List<ChatMessage> history,
     required SubscriptionTier tier,
     UserProfile? profile,
     Coach? coach,
-  }) async* {
+  }) {
     final payload = jsonEncode(buildPayload(history, tier, profile, coach));
-    final client = _clientFactory();
-    try {
-      final req = http.Request('POST', Uri.parse(endpoint))
-        ..headers['Content-Type'] = 'application/json'
-        ..headers['Accept'] = 'text/event-stream'
-        ..body = payload;
-      final http.StreamedResponse res;
-      try {
-        res = await client.send(req).timeout(connectTimeout);
-      } on TimeoutException {
-        throw const CoachUnavailableException('timeout');
-      } catch (e) {
-        throw CoachUnavailableException('network: $e');
-      }
+    late final StreamController<String> out;
+    http.Client? client;
+    var canceled = false;
 
-      if (res.statusCode != 200) {
-        // Read (a bounded amount of) the error body so the connection is freed.
-        await res.stream.drain<void>().timeout(const Duration(seconds: 5), onTimeout: () {});
-        throw CoachUnavailableException('http', statusCode: res.statusCode);
-      }
-
-      var emitted = false;
+    Future<void> run() async {
+      final c = client = _clientFactory();
       try {
-        await for (final token in parseSse(res.stream.timeout(idleTimeout))) {
-          emitted = true;
-          yield token;
+        final req = http.Request('POST', Uri.parse(endpoint))
+          ..headers['Content-Type'] = 'application/json'
+          ..headers['Accept'] = 'text/event-stream'
+          ..body = payload;
+        final http.StreamedResponse res;
+        try {
+          res = await c.send(req).timeout(connectTimeout);
+        } on TimeoutException {
+          throw const CoachUnavailableException('timeout');
+        } catch (e) {
+          throw CoachUnavailableException('network: $e');
         }
-      } on CoachUnavailableException {
-        rethrow;
-      } on TimeoutException {
-        throw const CoachUnavailableException('timeout');
+        if (canceled) return;
+
+        if (res.statusCode != 200) {
+          // Read (a bounded amount of) the error body so the connection is freed.
+          await res.stream.drain<void>().timeout(const Duration(seconds: 5), onTimeout: () {});
+          throw CoachUnavailableException('http', statusCode: res.statusCode);
+        }
+
+        var emitted = false;
+        try {
+          await for (final token in parseSse(res.stream.timeout(idleTimeout))) {
+            if (canceled) return;
+            emitted = true;
+            out.add(token);
+          }
+        } on CoachUnavailableException {
+          rethrow;
+        } on TimeoutException {
+          throw const CoachUnavailableException('timeout');
+        } catch (e) {
+          throw CoachUnavailableException('stream: $e');
+        }
+        if (!emitted) throw const CoachUnavailableException('empty');
       } catch (e) {
-        throw CoachUnavailableException('stream: $e');
+        if (!canceled) out.addError(e);
+      } finally {
+        c.close();
+        if (!canceled) await out.close();
       }
-      if (!emitted) throw const CoachUnavailableException('empty');
-    } finally {
-      client.close();
     }
+
+    out = StreamController<String>(
+      onListen: run,
+      onCancel: () {
+        // Synchronous: aborts the in-flight request and returns immediately.
+        canceled = true;
+        client?.close();
+      },
+    );
+    return out.stream;
   }
 
   /// Parses a Server-Sent Events byte stream into reply tokens. Handles
@@ -189,77 +210,13 @@ class BackendAIService implements AIService {
       if (!m.isComplete) continue; // failed / stopped / streaming replies
       var text = m.text.trim();
       if (text.isEmpty) {
-        // Keep photo-only turns in the thread so the model has context.
-        final hasPhoto =
-            m.imageBase64 != null || (m.imageBase64s?.isNotEmpty ?? false);
-        if (!hasPhoto) continue;
+        // A photo turn saved by v1 (the photo itself is no longer kept):
+        // a placeholder keeps the turns in order for the model.
+        if (!m.hadPhoto) continue;
         text = m.isUser ? '[shared a photo for review]' : '[gave a photo critique]';
       }
       messages.add({'role': m.isUser ? 'user' : 'assistant', 'content': text});
     }
     return messages;
-  }
-
-  @override
-  Future<PhotoAnalysis> analyzePhoto({
-    required String imageBase64,
-    required SubscriptionTier tier,
-    String? userNote,
-    AnalysisMode mode = AnalysisMode.deep,
-  }) async {
-    final res = await http
-        .post(
-          Uri.parse(endpoint),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'imageBase64': imageBase64,
-            'mimeType': 'image/jpeg',
-            'tier': tier.name,
-            'mode': mode.name,
-            if (userNote != null && userNote.isNotEmpty) 'userNote': userNote,
-          }),
-        )
-        .timeout(const Duration(seconds: 45));
-
-    if (res.statusCode != 200) {
-      throw Exception(
-        'Photo coach backend error (${res.statusCode}): ${res.body}',
-      );
-    }
-    final map = jsonDecode(res.body) as Map<String, dynamic>;
-    return PhotoAnalysis.fromJson(map);
-  }
-
-  @override
-  Future<BatchPhotoAnalysis> analyzePhotos({
-    required List<String> imageBase64s,
-    required SubscriptionTier tier,
-    String? userNote,
-    AnalysisMode mode = AnalysisMode.deep,
-  }) async {
-    final res = await http
-        .post(
-          Uri.parse(endpoint),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'images': imageBase64s,
-            'mimeType': 'image/jpeg',
-            'tier': tier.name,
-            'mode': mode.name,
-            if (userNote != null && userNote.isNotEmpty) 'userNote': userNote,
-          }),
-        )
-        // Batch runs several vision passes server-side; allow extra time.
-        .timeout(const Duration(seconds: 90));
-
-    if (res.statusCode != 200) {
-      throw Exception(
-        'Photo coach backend error (${res.statusCode}): ${res.body}',
-      );
-    }
-    final map = jsonDecode(res.body) as Map<String, dynamic>;
-    // Carry the uploaded images so the result card can show thumbnails.
-    return BatchPhotoAnalysis.fromJson(map)
-        .copyWithThumbnails(imageBase64s);
   }
 }

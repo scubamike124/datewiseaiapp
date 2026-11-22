@@ -101,17 +101,9 @@ class DeviceVoiceService implements VoiceService {
     try {
       final tts = FlutterTts();
       await tts.awaitSpeakCompletion(false);
-      if (defaultTargetPlatform == TargetPlatform.iOS) {
-        await tts.setSharedInstance(true);
-        await tts.setIosAudioCategory(
-          IosTextToSpeechAudioCategory.playAndRecord,
-          [
-            IosTextToSpeechAudioCategoryOptions.defaultToSpeaker,
-            IosTextToSpeechAudioCategoryOptions.allowBluetooth,
-          ],
-          IosTextToSpeechAudioMode.voicePrompt,
-        );
-      }
+      // No audio session is configured or activated here: launching the app
+      // must not stop or duck the user's music, and must not touch the
+      // microphone. The session is set up on the first [speak].
       final raw = await tts.getVoices;
       final voices = <Map<String, String>>[
         if (raw is List)
@@ -211,6 +203,7 @@ class DeviceVoiceService implements VoiceService {
         .trim();
     if (clean.isEmpty) return;
     await _tts.stop();
+    await _prepareAudioSession();
     final voice = _voiceFor(coach);
     if (voice != null && voice['name'] != null && voice['locale'] != null) {
       await _tts.setVoice({
@@ -225,6 +218,29 @@ class DeviceVoiceService implements VoiceService {
     await _tts.setPitch(profile.pitch);
     await _tts.setSpeechRate(profile.rate);
     await _tts.speak(clean);
+  }
+
+  /// Configures the iOS audio session only when the coach is about to speak:
+  /// playback (no recording, so never a microphone prompt) that ducks and
+  /// mixes with the user's own audio instead of stopping it. flutter_tts
+  /// deactivates the session again when the utterance finishes. Set before
+  /// every utterance, since hold-to-talk recognition changes the category.
+  Future<void> _prepareAudioSession() async {
+    if (defaultTargetPlatform != TargetPlatform.iOS) return;
+    try {
+      await _tts.setIosAudioCategory(
+        IosTextToSpeechAudioCategory.playback,
+        [
+          IosTextToSpeechAudioCategoryOptions.mixWithOthers,
+          IosTextToSpeechAudioCategoryOptions.duckOthers,
+          IosTextToSpeechAudioCategoryOptions.allowBluetoothA2DP,
+        ],
+        IosTextToSpeechAudioMode.spokenAudio,
+      );
+      await _tts.setSharedInstance(true);
+    } catch (_) {
+      // Speaking still works with the system's default session.
+    }
   }
 
   @override

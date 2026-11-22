@@ -66,11 +66,11 @@ void main() {
       expect(store.isEntitled, isFalse);
     });
 
-    test('one product, \$9.99/month, price from the store with a fallback', () {
+    test('one product; the price only ever comes from the store (no hard-coded fallback)', () {
       expect(StoreConfig.productId, 'datewise_premium_monthly');
-      expect(StoreConfig.fallbackPrice, r'$9.99');
-      expect(FakeStoreService(price: '9,99 €').price, '9,99 €', reason: 'the StoreKit price is shown as is');
-      expect(FakeStoreService(price: null).price, r'$9.99');
+      expect(FakeStoreService(price: '9,99 €').storePrice, '9,99 €', reason: 'the StoreKit price is shown as is');
+      expect(FakeStoreService(price: null).storePrice, isNull);
+      expect(UnsupportedStoreService().storePrice, isNull);
       expect(UnsupportedStoreService().canPurchase, isFalse);
     });
   });

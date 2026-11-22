@@ -112,10 +112,6 @@ flutter:
   generate: true
 
   assets:
-    # NOTE: kept in a folder named "images" (not "assets/images") on purpose.
-    # Flutter web would otherwise output the doubled path build/web/assets/
-    # assets/images/..., which GoDaddy/cPanel ModSecurity blocks with a 403.
-    - images/
     # Coach portraits: {id}-hero.jpg and {id}-avatar.jpg for ava, ethan, sofia,
     # diego. Replace the files in place (same names) with the final portraits.
     - assets/coaches/

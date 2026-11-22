@@ -1,10 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
-import '../models/batch_photo_analysis.dart';
 import '../models/chat_message.dart';
 import '../models/coach.dart';
-import '../models/photo_analysis.dart';
 import '../models/tier.dart';
 import '../models/user_profile.dart';
 import '../screens/onboarding_screen.dart';
@@ -83,22 +81,4 @@ class _UnreachableCoach implements AIService {
     Coach? coach,
   }) =>
       Stream.error(const CoachUnavailableException('http', statusCode: 502));
-
-  @override
-  Future<PhotoAnalysis> analyzePhoto({
-    required String imageBase64,
-    required SubscriptionTier tier,
-    String? userNote,
-    AnalysisMode mode = AnalysisMode.deep,
-  }) =>
-      throw UnimplementedError();
-
-  @override
-  Future<BatchPhotoAnalysis> analyzePhotos({
-    required List<String> imageBase64s,
-    required SubscriptionTier tier,
-    String? userNote,
-    AnalysisMode mode = AnalysisMode.deep,
-  }) =>
-      throw UnimplementedError();
 }

@@ -944,6 +944,48 @@ abstract class AppLocalizations {
   /// **'{perMonth}. Payment is charged to your Apple ID account at confirmation of purchase. The subscription auto-renews monthly at {price} until canceled, unless canceled at least 24 hours before the end of the current period. Cancel any time in Settings › Apple ID › Subscriptions.'**
   String paywallDisclosure(String perMonth, String price);
 
+  /// No description provided for @priceFromAppStore.
+  ///
+  /// In en, this message translates to:
+  /// **'Price shown by the App Store'**
+  String get priceFromAppStore;
+
+  /// No description provided for @subscribe.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscribe'**
+  String get subscribe;
+
+  /// No description provided for @paywallDisclosureNoPrice.
+  ///
+  /// In en, this message translates to:
+  /// **'Monthly subscription at the price shown by the App Store. Payment is charged to your Apple ID account at confirmation of purchase. The subscription auto-renews monthly at that price until canceled, unless canceled at least 24 hours before the end of the current period. Cancel any time in Settings › Apple ID › Subscriptions.'**
+  String get paywallDisclosureNoPrice;
+
+  /// No description provided for @tapToSend.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop and send'**
+  String get tapToSend;
+
+  /// No description provided for @tapToTalkHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Double-tap to start talking, then double-tap again to send'**
+  String get tapToTalkHint;
+
+  /// No description provided for @voiceLanguageUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice isn\'t available for this language on this device. You can type your message instead.'**
+  String get voiceLanguageUnsupported;
+
+  /// No description provided for @photoNoLongerAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo from an earlier version (no longer available)'**
+  String get photoNoLongerAvailable;
+
   /// No description provided for @restorePurchases.
   ///
   /// In en, this message translates to:

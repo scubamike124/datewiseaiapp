@@ -68,59 +68,10 @@ class SettingsScreen extends StatelessWidget {
   }
 
   void _editMemory(BuildContext context, AppState state) {
-    final controller = TextEditingController(text: state.memoryText);
-    final l = context.l10n;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.viewInsetsOf(ctx).bottom + 20),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(l.memoryTitle, style: AppText.name.copyWith(fontSize: 24)),
-              const SizedBox(height: 6),
-              Text(
-                l.memorySheetBody,
-                style: const TextStyle(fontSize: 14, height: 1.4, color: AppColors.textMuted),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                decoration: BoxDecoration(
-                  color: AppColors.background,
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
-                  border: Border.all(color: AppColors.line2),
-                ),
-                child: TextField(
-                  key: const ValueKey('memory-field'),
-                  controller: controller,
-                  minLines: 3,
-                  maxLines: 6,
-                  maxLength: AppState.memoryMaxLength,
-                  style: const TextStyle(color: AppColors.text, fontSize: 15, height: 1.4),
-                  decoration: InputDecoration(
-                    hintText: l.memoryHint,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              DwButton(
-                key: const ValueKey('memory-save'),
-                label: l.save,
-                expand: true,
-                onPressed: () {
-                  state.saveMemory(controller.text);
-                  Navigator.pop(ctx);
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
+      builder: (ctx) => _MemorySheet(state: state),
     );
   }
 
@@ -439,5 +390,77 @@ class _SwitchRow extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// The Coach memory editor. Owns (and disposes) its text controller.
+class _MemorySheet extends StatefulWidget {
+  const _MemorySheet({required this.state});
+  final AppState state;
+
+  @override
+  State<_MemorySheet> createState() => _MemorySheetState();
+}
+
+class _MemorySheetState extends State<_MemorySheet> {
+  late final _controller = TextEditingController(text: widget.state.memoryText);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    return Padding(
+        padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.viewInsetsOf(context).bottom + 20),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(l.memoryTitle, style: AppText.name.copyWith(fontSize: 24)),
+              const SizedBox(height: 6),
+              Text(
+                l.memorySheetBody,
+                style: const TextStyle(fontSize: 14, height: 1.4, color: AppColors.textMuted),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                  border: Border.all(color: AppColors.line2),
+                ),
+                child: TextField(
+                  key: const ValueKey('memory-field'),
+                  controller: _controller,
+                  minLines: 3,
+                  maxLines: 6,
+                  maxLength: AppState.memoryMaxLength,
+                  style: const TextStyle(color: AppColors.text, fontSize: 15, height: 1.4),
+                  decoration: InputDecoration(
+                    hintText: l.memoryHint,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              DwButton(
+                key: const ValueKey('memory-save'),
+                label: l.save,
+                expand: true,
+                onPressed: () {
+                  widget.state.saveMemory(_controller.text);
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
+        ),
+      );
   }
 }

@@ -83,8 +83,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
     final store = context.watch<StoreService>();
     final coach = context.watch<AppState>().selectedCoach;
     final l = context.l10n;
-    final price = store.price;
-    final perMonth = l.pricePerMonth(price);
+    // Only the price StoreKit returns is ever shown.
+    final price = store.storePrice;
     final unsupported = store is UnsupportedStoreService;
     final top = MediaQuery.paddingOf(context).top;
 
@@ -177,12 +177,23 @@ class _PaywallScreenState extends State<PaywallScreen> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              Text(
-                                price,
-                                key: const ValueKey('paywall-price'),
-                                style: const TextStyle(fontFamily: AppFonts.serif, fontSize: 26, color: AppColors.gold, height: 1.1),
-                              ),
-                              Text(l.perMonth, style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted)),
+                              if (price != null) ...[
+                                Text(
+                                  price,
+                                  key: const ValueKey('paywall-price'),
+                                  style: const TextStyle(fontFamily: AppFonts.serif, fontSize: 26, color: AppColors.gold, height: 1.1),
+                                ),
+                                Text(l.perMonth, style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted)),
+                              ] else
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(maxWidth: 130),
+                                  child: Text(
+                                    l.priceFromAppStore,
+                                    key: const ValueKey('paywall-price'),
+                                    textAlign: TextAlign.end,
+                                    style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                                  ),
+                                ),
                             ],
                           ),
                         ],
@@ -200,10 +211,10 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     else
                       DwButton(
                         key: const ValueKey('paywall-subscribe'),
-                        label: l.subscribeFor(price),
+                        label: price != null ? l.subscribeFor(price) : l.subscribe,
                         expand: true,
                         busy: store.busy,
-                        onPressed: store.canPurchase ? () => _buy(store) : null,
+                        onPressed: store.canPurchase && price != null ? () => _buy(store) : null,
                       ),
                     if (_message != null || (!unsupported && !store.canPurchase && store.lastError != null)) ...[
                       const SizedBox(height: 10),
@@ -217,7 +228,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     ],
                     const SizedBox(height: 16),
                     Text(
-                      l.paywallDisclosure(perMonth, price),
+                      price != null ? l.paywallDisclosure(l.pricePerMonth(price), price) : l.paywallDisclosureNoPrice,
                       key: const ValueKey('paywall-disclosure'),
                       textAlign: TextAlign.center,
                       style: AppText.small.copyWith(height: 1.45),

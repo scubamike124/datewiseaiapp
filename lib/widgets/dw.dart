@@ -252,15 +252,37 @@ class _HeartPainter extends CustomPainter {
 /// A coach portrait from `assets/coaches/{id}-hero.jpg` or `-avatar.jpg`,
 /// cover-cropped around the coach's focal point.
 class CoachImage extends StatelessWidget {
-  const CoachImage({super.key, required this.coach, this.avatar = false, this.semanticLabel});
+  const CoachImage({super.key, required this.coach, this.avatar = false, this.semanticLabel, this.displaySize});
   final Coach coach;
   final bool avatar;
   final String? semanticLabel;
 
+  /// The logical size the image is shown at (small avatars). When set, the
+  /// file is decoded at that size instead of full resolution.
+  final double? displaySize;
+
+  /// Decode box for an image shown cover-cropped in a [size] square: the
+  /// image is scaled to fit a box twice that size (aspect ratio kept, never
+  /// upscaled), so its shorter side still covers the square for any photo
+  /// up to 2:1, whatever file the owner drops in.
+  @visibleForTesting
+  static int decodeExtent(double size, double devicePixelRatio) => (size * devicePixelRatio * 2).ceil();
+
   @override
   Widget build(BuildContext context) {
-    return Image.asset(
-      avatar ? coach.avatarAsset : coach.heroAsset,
+    final asset = avatar ? coach.avatarAsset : coach.heroAsset;
+    final size = displaySize;
+    final ImageProvider provider = size == null
+        ? AssetImage(asset)
+        : ResizeImage(
+            AssetImage(asset),
+            width: decodeExtent(size, MediaQuery.devicePixelRatioOf(context)),
+            height: decodeExtent(size, MediaQuery.devicePixelRatioOf(context)),
+            policy: ResizeImagePolicy.fit,
+            allowUpscaling: false,
+          );
+    return Image(
+      image: provider,
       fit: BoxFit.cover,
       alignment: avatar ? coach.avatarFocus : coach.heroFocus,
       semanticLabel: semanticLabel,
@@ -296,7 +318,7 @@ class CoachAvatar extends StatelessWidget {
         border: Border.all(color: speaking ? AppColors.gold : AppColors.line2, width: speaking ? 1.5 : 1),
         boxShadow: speaking ? const [BoxShadow(color: Color(0x66DDB67F), blurRadius: 14, spreadRadius: 1)] : const [],
       ),
-      child: ClipOval(child: CoachImage(coach: coach, avatar: true, semanticLabel: semanticLabel)),
+      child: ClipOval(child: CoachImage(coach: coach, avatar: true, semanticLabel: semanticLabel, displaySize: size)),
     );
   }
 }
