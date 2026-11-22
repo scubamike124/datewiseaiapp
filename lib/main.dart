@@ -14,16 +14,16 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Native polish (mobile only): draw behind the system bars and tint them to
-  // match the app's cream theme, so the Android app reads as a real native app
+  // match the app's midnight theme, so the Android app reads as a real native app
   // rather than a web viewport. Skipped on web.
   if (!kIsWeb) {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-      statusBarBrightness: Brightness.light,
-      systemNavigationBarColor: Colors.white,
-      systemNavigationBarIconBrightness: Brightness.dark,
+      statusBarIconBrightness: Brightness.light,
+      statusBarBrightness: Brightness.dark,
+      systemNavigationBarColor: AppColors.surface,
+      systemNavigationBarIconBrightness: Brightness.light,
       systemNavigationBarDividerColor: AppColors.cardBorder,
     ));
   }

@@ -18,7 +18,9 @@ class DateWiseApp extends StatelessWidget {
     return MaterialApp(
       title: 'DateWise AI',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
+      theme: AppTheme.dark,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.dark,
       home: kIsWeb ? const LandingScreen() : const SplashScreen(),
     );
   }

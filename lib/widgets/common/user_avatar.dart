@@ -10,7 +10,7 @@ class UserAvatar extends StatelessWidget {
     required this.avatarUrl,
     this.label,
     this.radius = 18,
-    this.backgroundColor = AppColors.primary,
+    this.backgroundColor = AppColors.primaryDeep,
   });
 
   final String? avatarUrl;

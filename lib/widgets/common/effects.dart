@@ -73,8 +73,13 @@ class _RevealOnScrollState extends State<RevealOnScroll> {
     super.dispose();
   }
 
+  // Measured after the frame: during the scroll notification the render
+  // objects still hold the previous offset, so a large jump (mouse wheel,
+  // nav link) could leave a section that is now on screen hidden.
   void _onScroll() {
-    if (!_shown) _check();
+    if (_shown) return;
+    _check();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _check());
   }
 
   void _check() {
@@ -100,6 +105,102 @@ class _RevealOnScrollState extends State<RevealOnScroll> {
         opacity: _shown ? 1 : 0,
         duration: widget.duration,
         curve: Curves.easeOut,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+/// Whether the platform asks for reduced motion (accessibility setting).
+bool reduceMotion(BuildContext context) =>
+    MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+
+/// Shrinks its child slightly while pressed: tactile feedback for buttons and
+/// cards. Purely visual; taps still go to the child.
+class PressScale extends StatefulWidget {
+  const PressScale({super.key, required this.child, this.scale = 0.97});
+
+  final Widget child;
+  final double scale;
+
+  @override
+  State<PressScale> createState() => _PressScaleState();
+}
+
+class _PressScaleState extends State<PressScale> {
+  bool _down = false;
+
+  void _set(bool v) {
+    if (_down != v) setState(() => _down = v);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      onPointerDown: (_) => _set(true),
+      onPointerUp: (_) => _set(false),
+      onPointerCancel: (_) => _set(false),
+      child: AnimatedScale(
+        scale: _down && !reduceMotion(context) ? widget.scale : 1.0,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+/// Fades and slides its child in once, when first built. [delay] staggers a
+/// group of items. Skipped when the platform asks for reduced motion.
+class FadeSlideIn extends StatefulWidget {
+  const FadeSlideIn({
+    super.key,
+    required this.child,
+    this.delay = Duration.zero,
+    this.duration = const Duration(milliseconds: 420),
+    this.offset = const Offset(0, 0.06),
+  });
+
+  final Widget child;
+  final Duration delay;
+  final Duration duration;
+  final Offset offset;
+
+  @override
+  State<FadeSlideIn> createState() => _FadeSlideInState();
+}
+
+class _FadeSlideInState extends State<FadeSlideIn>
+    with SingleTickerProviderStateMixin {
+  // One controller covers the delay and the motion (no timers), so a test or
+  // a fast navigation never leaves a pending callback behind.
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: widget.delay + widget.duration,
+  )..forward();
+  late final Animation<double> _t = CurvedAnimation(
+    parent: _c,
+    curve: Interval(
+      widget.delay.inMicroseconds /
+          (widget.delay + widget.duration).inMicroseconds,
+      1,
+      curve: Curves.easeOutCubic,
+    ),
+  );
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (reduceMotion(context)) return widget.child;
+    return FadeTransition(
+      opacity: _t,
+      child: SlideTransition(
+        position: Tween(begin: widget.offset, end: Offset.zero).animate(_t),
         child: widget.child,
       ),
     );
