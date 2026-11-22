@@ -106,6 +106,9 @@ jobs:
           git diff --stat -- ios
           git diff -- ios > ios-flutter-migrations.patch
           wc -l ios-flutter-migrations.patch
+          echo "----- BEGIN ios-flutter-migrations.patch -----"
+          cat ios-flutter-migrations.patch
+          echo "----- END ios-flutter-migrations.patch -----"
 
       - uses: actions/upload-artifact@v5
         with:
