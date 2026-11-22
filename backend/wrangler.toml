@@ -4,3 +4,19 @@ compatibility_date = "2024-11-01"
 
 [ai]
 binding = "AI"
+
+# Per-client request limit (plan A2 step 2). Uncomment after checking the
+# Workers Rate Limiting docs for this account (syntax as documented on
+# developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit; verify the
+# plan includes it). The Worker reads it as env.RATE_LIMITER and skips limiting
+# when it is absent.
+# [[ratelimits]]
+# name = "RATE_LIMITER"
+# namespace_id = "1001"
+#   [ratelimits.simple]
+#   limit = 30
+#   period = 60
+
+# Reject requests without coachId (old app versions) once the new app is out:
+# [vars]
+# REQUIRE_COACH_ID = "1"
