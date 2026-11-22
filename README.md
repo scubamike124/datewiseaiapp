@@ -4,6 +4,40 @@ An AI-powered dating coach built in Flutter (web · Android · iOS), implementin
 the **Lumière** PRD: a premium, blush-toned coaching experience with a
 three-tier subscription model, threaded AI chat, and a Magnet-tier photo coach.
 
+## DateWise v2 (iPhone app)
+
+Dark "Evening" design, four AI coaches (Ava and Ethan in English, Sofía and
+Diego in Spanish), five tabs: Home, Coaches, Chat, Progress, You.
+
+- **Chat** streams real replies from the secure backend (`BackendAIService`,
+  SSE) and saves conversations on the device, per coach. Reply chips appear
+  only when the model ends a reply with an `OPTIONS:` line.
+- **Voice mode** (iOS/Android only): hold to talk with on-device speech
+  recognition (`speech_to_text`), replies read aloud with the system voices
+  (`flutter_tts`). Hidden on web and when permission is denied.
+- **Subscription**: one auto-renewable product, `datewise_premium_monthly`
+  ($9.99/month, price read from StoreKit). No free plan, no trial. Chat needs
+  an active subscription. **The owner must create this product in App Store
+  Connect** (auto-renewable, 1 month) before real purchases work.
+- **No accounts**: everything is stored on the device. You › Delete my data
+  wipes it.
+- **Coach portraits**: `assets/coaches/{ava,ethan,sofia,diego}-{hero,avatar}.jpg`.
+  Replace the files with the final portraits (same names); focal points are
+  `Coach.heroFocus` / `Coach.avatarFocus` in `lib/models/coach.dart`.
+
+Review build for the web (fake store, offline coach, `?screen=` to open a
+screen with sample data):
+
+```bash
+flutter run -d chrome --dart-define=DW_FAKE_STORE=true --dart-define=DW_MOCK_AI=true
+# e.g. http://localhost:PORT/?screen=chat  (welcome, home, coaches, chat, progress, settings, paywall)
+```
+
+A web build without `DW_FAKE_STORE` has no purchase path ("Subscribe in the
+iPhone app"), so it cannot chat.
+
+The sections below describe the previous (v1) app and are kept for history.
+
 ## Features
 
 - **Landing & conversion funnel** — hero, feature highlights, how-it-works,

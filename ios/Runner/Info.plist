@@ -45,7 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>DateWise AI uses photos you choose from your library to coach your dating-profile pictures.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>DateWise AI uses the microphone only while you hold the talk button, so you can speak to your AI coach.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>DateWise AI turns what you say into text on your iPhone so it can be sent to your AI coach as a message.</string>
 </dict>
 </plist>

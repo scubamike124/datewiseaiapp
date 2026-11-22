@@ -1,25 +1,32 @@
 import 'package:flutter/material.dart';
 
-/// The language a coach speaks. Each coach speaks exactly one.
+/// The language a coach speaks by default.
 enum CoachLanguage {
-  en('English', 'EN'),
-  es('Español', 'ES');
+  en('English', 'EN', 'en-US'),
+  es('Español', 'ES', 'es-MX');
 
-  const CoachLanguage(this.label, this.code);
+  const CoachLanguage(this.label, this.code, this.locale);
   final String label;
   final String code;
+
+  /// BCP-47 locale used for on-device speech (TTS and recognition).
+  final String locale;
 
   static CoachLanguage fromCode(String? code) =>
       CoachLanguage.values.firstWhere((l) => l.name == code, orElse: () => CoachLanguage.en);
 }
 
-/// A coach's presented gender (for voice, portrait and ring colour later).
+/// A coach's presented gender (used to pick a matching system voice).
 enum CoachGender { female, male }
 
-/// One of DateWise's four coaches. A coach is a voice and a focus, not a
-/// different product: every coach has the same capabilities (bios, openers,
-/// conversation help, date planning, the photo coach). What changes is who
-/// is speaking, how, and in which language.
+/// One of DateWise's four AI coaches. A coach is a voice and a focus, not a
+/// different product: every coach has the same capabilities. What changes is
+/// who is speaking, how, and in which language.
+///
+/// Portraits live at `assets/coaches/{id}-hero.jpg` and
+/// `assets/coaches/{id}-avatar.jpg`. The owner replaces those files with final
+/// high-res images of the same name; the app only references these paths and
+/// crops with [BoxFit.cover] around [heroFocus] / [avatarFocus].
 @immutable
 class Coach {
   const Coach({
@@ -27,180 +34,210 @@ class Coach {
     required this.name,
     required this.language,
     required this.gender,
-    required this.tagline,
-    required this.specialty,
+    required this.description,
     required this.styleRules,
     required this.greeting,
+    required this.voiceIntro,
     required this.starters,
-    required this.welcomeTitle,
-    required this.welcomeBody,
-    required this.color,
+    required this.chatLabel,
+    required this.composerHint,
+    this.heroFocus = const Alignment(0, -0.2),
+    this.avatarFocus = const Alignment(0, -0.3),
   });
 
-  /// Stable id, stored with each conversation (`emily`, `james`, `isabella`, `mateo`).
+  /// Stable id, stored with each conversation (`ava`, `ethan`, `sofia`, `diego`).
   final String id;
   final String name;
   final CoachLanguage language;
   final CoachGender gender;
 
-  /// The name shown to users (the redesign prototype issues #6-#10 call it this).
-  String get displayName => name;
+  /// The approved one-line identity shown on the coach card (coach's language).
+  final String description;
 
-  /// One line for the coach card, in the coach's own language.
-  final String tagline;
-
-  /// What the coach is best at, in the coach's own language (shown on the card).
-  final String specialty;
-
-  /// How this coach speaks, given to the model in English (instructions only;
-  /// the language rule decides the reply language).
+  /// How this coach speaks, given to the model in English.
   final List<String> styleRules;
 
   /// The coach's first message in a new conversation.
   final String greeting;
 
+  /// Short spoken introduction for the voice preview on the Coaches tab.
+  final String voiceIntro;
+
   /// Starter prompts shown in a fresh conversation, in the coach's language.
   final List<String> starters;
 
-  final String welcomeTitle;
-  final String welcomeBody;
+  /// Call to action on the coach card ("Chat with Ava", "Chatear con Sofía").
+  final String chatLabel;
 
-  /// The coach's accent colour (avatar ring, card highlight).
-  final Color color;
+  /// Placeholder of the message box, in the coach's language.
+  final String composerHint;
 
+  /// Focal points for the cover-cropped portraits. Kept here (one place) so
+  /// replacement portraits only need a tweak in this file.
+  final Alignment heroFocus;
+  final Alignment avatarFocus;
+
+  String get displayName => name;
   String get initial => name.substring(0, 1);
+  String get heroAsset => 'assets/coaches/$id-hero.jpg';
+  String get avatarAsset => 'assets/coaches/$id-avatar.jpg';
+
+  /// "AI dating coach · English" (every chat surface labels the coach as AI).
+  String get aiLabel => language == CoachLanguage.es
+      ? 'Coach de citas con IA · ${language.label}'
+      : 'AI dating coach · ${language.label}';
 }
 
-/// The four DateWise coaches: two English (Emily, James), two Spanish
-/// (Isabella, Mateo). Ids match the coaching evaluation scenarios.
+/// The four DateWise coaches: two English (Ava, Ethan), two Spanish
+/// (Sofía, Diego). Identities are approved by the owner; do not alter.
 class Coaches {
   Coaches._();
 
-  static const emily = Coach(
-    id: 'emily',
-    name: 'Emily',
+  static const ava = Coach(
+    id: 'ava',
+    name: 'Ava',
     language: CoachLanguage.en,
     gender: CoachGender.female,
-    tagline: 'Warm, encouraging, and honest',
-    specialty: 'Profiles, confidence and first impressions',
+    description: 'Confidence coach. Direct, supportive, focused on results.',
     styleRules: [
-      'You are warm and encouraging, like a supportive friend who also tells the truth.',
-      'You celebrate what already works before fixing what does not.',
-      'You focus on profiles, photos, confidence and first impressions.',
+      'You are a confidence coach: direct, supportive and focused on results.',
+      'You name what is already working, then give the one change that matters most.',
+      'You end with a clear next step the user can take today.',
     ],
-    greeting:
-        "Hi, I'm **Emily** 💛 I'm here to help you show up as the best version of you, "
-        "from your profile to your first date.\n\nTo start: **what would you like help with today?**",
+    greeting: "Hi, I'm **Ava**, your AI confidence coach. I'll be direct, "
+        "and I'm on your side.\n\n**What would you like to work on today?**",
+    voiceIntro: "Hi, I'm Ava, your AI confidence coach. I'll be direct, "
+        "I'm on your side, and we'll focus on results.",
     starters: [
       'Rewrite my dating bio',
       'Help me feel confident before a date',
-      'What does my profile say about me?',
-      'Review my dating photos',
+      'Give me a strong opener',
+      'What should I reply?',
     ],
-    welcomeTitle: "Hi, I'm Emily. Where shall we start?",
-    welcomeBody: 'Ask me about your bio, your photos, first impressions or date nerves. Pick a starter or just type.',
-    color: Color(0xFFC2185B),
+    chatLabel: 'Chat with Ava',
+    composerHint: 'Message Ava…',
+    heroFocus: Alignment(0.1, -0.25),
+    avatarFocus: Alignment(0.1, -0.2),
   );
 
-  static const james = Coach(
-    id: 'james',
-    name: 'James',
+  static const ethan = Coach(
+    id: 'ethan',
+    name: 'Ethan',
     language: CoachLanguage.en,
     gender: CoachGender.male,
-    tagline: 'Direct, practical, no fluff',
-    specialty: 'Openers, conversations and asking someone out',
+    description: 'Strategy coach. Practical, modern, laid-back.',
     styleRules: [
-      'You are direct and practical: clear steps, exact wording, no fluff.',
-      'You give the user one concrete thing to send or do next.',
-      'You focus on openers, keeping conversations going and asking someone out.',
+      'You are a strategy coach: practical, modern and laid-back.',
+      'You give exact wording the user can send and a simple plan, without fluff.',
+      'You keep a relaxed, friendly tone and never lecture.',
     ],
-    greeting:
-        "I'm **James**. Let's get you from match to date. 👊\n\n"
-        "**Who are you talking to, and where has the conversation got to?**",
+    greeting: "Hey, I'm **Ethan**, your AI strategy coach. Let's keep it simple "
+        "and practical.\n\n**Who are you talking to, and where has it got to?**",
+    voiceIntro: "Hey, I'm Ethan, your AI strategy coach. Practical, modern, "
+        "and pretty laid-back. Tell me what's going on.",
     starters: [
       'Give me a strong opener',
-      'The conversation stalled — what do I send?',
+      'The conversation stalled. What do I send?',
       'How do I ask them out?',
-      'Review my dating photos',
+      'Plan a first date',
     ],
-    welcomeTitle: "James here. What's the situation?",
-    welcomeBody: 'Openers, stalled chats, asking someone out. Tell me where things stand and I will tell you what to send.',
-    color: Color(0xFF1565C0),
+    chatLabel: 'Chat with Ethan',
+    composerHint: 'Message Ethan…',
+    heroFocus: Alignment(0.05, -0.35),
+    avatarFocus: Alignment(0.05, -0.3),
   );
 
-  static const isabella = Coach(
-    id: 'isabella',
-    name: 'Isabella',
+  static const sofia = Coach(
+    id: 'sofia',
+    name: 'Sofía',
     language: CoachLanguage.es,
     gender: CoachGender.female,
-    tagline: 'Cálida, empática y sincera',
-    specialty: 'Relaciones, comunicación y confianza',
+    description: 'Coach de confianza. Cálida y motivadora.',
     styleRules: [
-      'You are warm and empathetic, and you listen before you advise.',
-      'You help with communication, feelings, relationships and healthy boundaries.',
-      'You always respect consent and safety.',
+      'You are a confidence coach: warm and motivating.',
+      'You encourage first, then give honest, specific advice.',
+      'You help the user feel capable and end with one small next step.',
     ],
-    greeting:
-        "¡Hola! Soy **Isabella** 🌸 Estoy aquí para acompañarte en el amor, "
-        "desde tu perfil hasta tu relación.\n\n**¿En qué te puedo ayudar hoy?**",
+    greeting: '¡Hola! Soy **Sofía**, tu coach de confianza con IA. Estoy aquí '
+        'para motivarte.\n\n**¿En qué quieres trabajar hoy?**',
+    voiceIntro: 'Hola, soy Sofía, tu coach de confianza con inteligencia '
+        'artificial. Cálida, motivadora y siempre de tu lado.',
     starters: [
       'Reescribe mi biografía',
-      'Mi pareja dejó de escribirme',
-      '¿Cómo hablo de lo que siento?',
-      'Revisa mis fotos de perfil',
+      'Quiero sentirme más seguro en una cita',
+      'Dame un buen primer mensaje',
+      '¿Qué le respondo?',
     ],
-    welcomeTitle: 'Hola, soy Isabella. ¿Por dónde empezamos?',
-    welcomeBody: 'Pregúntame sobre tu perfil, tus conversaciones o tu relación. Elige una sugerencia o escríbeme.',
-    color: Color(0xFF8E24AA),
+    chatLabel: 'Chatear con Sofía',
+    composerHint: 'Escríbele a Sofía…',
+    heroFocus: Alignment(0, -0.15),
+    avatarFocus: Alignment(0, -0.1),
   );
 
-  static const mateo = Coach(
-    id: 'mateo',
-    name: 'Mateo',
+  static const diego = Coach(
+    id: 'diego',
+    name: 'Diego',
     language: CoachLanguage.es,
     gender: CoachGender.male,
-    tagline: 'Directo, divertido y práctico',
-    specialty: 'Primeros mensajes, citas y seguridad',
+    description: 'Coach de relaciones. Práctico y honesto.',
     styleRules: [
-      'You are direct and light-hearted, with a touch of humour, and always respectful.',
-      'You give exact messages the user can send and simple date plans.',
-      'You focus on openers, first dates and meeting matches safely.',
+      'You are a relationship coach: practical and honest.',
+      'You say what you really think, kindly, and give concrete steps.',
+      'You help with communication, expectations and healthy boundaries.',
     ],
-    greeting:
-        "¡Qué tal! Soy **Mateo** 😎 Vamos a convertir esos matches en citas.\n\n"
-        "**¿Con quién estás hablando y cómo va la conversación?**",
+    greeting: '¡Hola! Soy **Diego**, tu coach de relaciones con IA. Te voy a '
+        'hablar claro.\n\n**¿Qué está pasando y cómo te puedo ayudar?**',
+    voiceIntro: 'Hola, soy Diego, tu coach de relaciones con inteligencia '
+        'artificial. Práctico, honesto y directo.',
     starters: [
-      'Dame un buen primer mensaje',
       'La conversación se enfrió, ¿qué le escribo?',
+      '¿Cómo hablo de lo que siento?',
       'Planea una primera cita',
-      'Revisa mis fotos de perfil',
+      '¿Qué le respondo?',
     ],
-    welcomeTitle: 'Soy Mateo. ¿Qué hacemos hoy?',
-    welcomeBody: 'Primeros mensajes, conversaciones que se enfrían, primeras citas. Cuéntame y te digo qué escribir.',
-    color: Color(0xFFE65100),
+    chatLabel: 'Chatear con Diego',
+    composerHint: 'Escríbele a Diego…',
+    heroFocus: Alignment(0, -0.2),
+    avatarFocus: Alignment(0, -0.15),
   );
 
-  static const List<Coach> all = [emily, james, isabella, mateo];
+  static const List<Coach> all = [ava, ethan, sofia, diego];
 
-  /// The coach used when none was chosen, or for conversations saved before
-  /// coaches existed.
-  static const Coach fallback = emily;
+  /// The coach used when none was chosen.
+  static const Coach fallback = ava;
 
-  static Coach byId(String? id) =>
-      all.firstWhere((c) => c.id == id, orElse: () => fallback);
+  /// Ids from the previous roster, kept so existing users keep their coach
+  /// and conversations.
+  static const Map<String, String> legacyIds = {
+    'emily': 'ava',
+    'james': 'ethan',
+    'isabella': 'sofia',
+    'mateo': 'diego',
+  };
+
+  /// Maps a stored id (old or new) to a current coach id, or null.
+  static String? migrateId(String? id) {
+    if (id == null) return null;
+    final mapped = legacyIds[id] ?? id;
+    return all.any((c) => c.id == mapped) ? mapped : null;
+  }
+
+  static Coach byId(String? id) {
+    final mapped = migrateId(id);
+    return all.firstWhere((c) => c.id == mapped, orElse: () => fallback);
+  }
 
   static List<Coach> forLanguage(CoachLanguage language) =>
       all.where((c) => c.language == language).toList();
 }
 
-// Names the redesign issues (#6-#10, #13) use for the same data, so their
-// prototype code reuses this roster instead of defining a second one.
 const List<Coach> kCoaches = Coaches.all;
 
-/// The coach with [id], or null when there is none (unlike [Coaches.byId]).
+/// The coach with [id] (old ids migrate), or null when there is none.
 Coach? coachById(String id) {
+  final mapped = Coaches.migrateId(id);
   for (final c in Coaches.all) {
-    if (c.id == id) return c;
+    if (c.id == mapped) return c;
   }
   return null;
 }

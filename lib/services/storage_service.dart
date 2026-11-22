@@ -6,7 +6,9 @@ import '../models/batch_photo_analysis.dart';
 import '../models/chat_thread.dart';
 import '../models/photo_analysis.dart';
 import '../models/tier.dart';
+import '../models/coach.dart';
 import '../models/user_profile.dart';
+import '../models/weekly_plan.dart';
 
 /// Browser-localStorage-style persistence (PRD: all data stays on the device,
 /// no cloud). On web, [SharedPreferences] is backed by window.localStorage.
@@ -23,6 +25,10 @@ class StorageService {
   static const _kAnalysisCache = 'dw_analysis_cache';
   static const _kBatchCache = 'dw_batch_cache';
   static const _kCoach = 'dw_coach';
+  static const _kPlan = 'dw_plan';
+  static const _kMemoryOn = 'dw_memory_on';
+  static const _kMemoryText = 'dw_memory_text';
+  static const _kActiveDays = 'dw_active_days';
 
   /// Cap on cached photo analyses; oldest entries are evicted past this (LRU).
   static const _maxCacheEntries = 50;
@@ -56,9 +62,54 @@ class StorageService {
 
   // --- Coach --------------------------------------------------------------
 
-  /// The coach new conversations start with, or null before the user picks one.
-  String? loadCoachId() => _prefs.getString(_kCoach);
+  /// The coach new conversations start with, or null before the user picks
+  /// one. Ids from the previous roster migrate (emily→ava, james→ethan,
+  /// isabella→sofia, mateo→diego) and are re-saved under the new id.
+  String? loadCoachId() {
+    final raw = _prefs.getString(_kCoach);
+    final id = Coaches.migrateId(raw);
+    if (raw != null && id != null && id != raw) {
+      _prefs.setString(_kCoach, id);
+    }
+    return id;
+  }
+
   Future<void> saveCoachId(String id) => _prefs.setString(_kCoach, id);
+
+  // --- Weekly plan --------------------------------------------------------
+
+  WeeklyPlan? loadPlan() {
+    final raw = _prefs.getString(_kPlan);
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      return WeeklyPlan.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> savePlan(WeeklyPlan plan) =>
+      _prefs.setString(_kPlan, jsonEncode(plan.toJson()));
+
+  // --- Coach memory (OFF by default) --------------------------------------
+
+  bool get memoryEnabled => _prefs.getBool(_kMemoryOn) ?? false;
+  Future<void> setMemoryEnabled(bool on) => _prefs.setBool(_kMemoryOn, on);
+
+  String get memoryText => _prefs.getString(_kMemoryText) ?? '';
+  Future<void> saveMemoryText(String text) => _prefs.setString(_kMemoryText, text);
+
+  // --- Days used (for the streak) -----------------------------------------
+
+  Set<String> loadActiveDays() =>
+      (_prefs.getStringList(_kActiveDays) ?? const <String>[]).toSet();
+
+  Future<void> saveActiveDays(Set<String> days) {
+    final sorted = days.toList()..sort();
+    // Keep the last year only; the streak never needs more.
+    final kept = sorted.length > 366 ? sorted.sublist(sorted.length - 366) : sorted;
+    return _prefs.setStringList(_kActiveDays, kept);
+  }
 
   // --- User profile -------------------------------------------------------
 
@@ -184,13 +235,17 @@ class StorageService {
     await _prefs.setString(_kBatchCache, jsonEncode(trimmed));
   }
 
-  Future<void> clearAll() async {
+  /// Deletes every conversation (and cached photo results), keeping settings.
+  Future<void> clearConversations() async {
     await _prefs.remove(_kThreads);
-    await _prefs.remove(_kTier);
-    await _prefs.remove(_kOnboarded);
-    await _prefs.remove(_kProfile);
-    await _prefs.remove(_kIntroSeen);
     await _prefs.remove(_kAnalysisCache);
     await _prefs.remove(_kBatchCache);
+  }
+
+  /// "Delete my data": removes everything DateWise stored on this device.
+  Future<void> clearAll() async {
+    for (final key in _prefs.getKeys().toList()) {
+      if (key.startsWith('dw_')) await _prefs.remove(key);
+    }
   }
 }

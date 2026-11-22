@@ -205,7 +205,9 @@ class MockAIService implements AIService {
         "3. **Direct & warm:** \"You seem genuinely interesting and I'd kick "
         "myself for a boring opener — what's been the best part of your week?\"\n\n"
         "Rule of thumb: **reference one specific thing** from their profile in "
-        "the first line. Who are you messaging — want me to tailor these to their photos or prompts?";
+        "the first line. Who are you messaging — want me to tailor these to their photos or prompts?\n"
+        "OPTIONS: Playful | \"Be honest: is your dog screening my messages?\" || "
+        "Specific | \"That ramen photo is dangerous. Broth first or noodles first?\"";
   }
 
   String _ghosting() {

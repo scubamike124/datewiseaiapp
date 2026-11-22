@@ -1,225 +1,166 @@
 import 'dart:async';
-import 'dart:convert';
 
-import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
-import '../app_flags.dart';
-import '../models/batch_photo_analysis.dart';
 import '../models/chat_message.dart';
 import '../models/chat_thread.dart';
 import '../models/coach.dart';
-import '../models/photo_analysis.dart';
 import '../models/tier.dart';
 import '../models/user_profile.dart';
+import '../models/weekly_plan.dart';
 import '../services/ai_service.dart';
-import '../services/auth_service.dart';
 import '../services/persona.dart';
 import '../services/storage_service.dart';
+import '../services/store_service.dart';
 
-/// Max photo analyses that trigger a real API call per app session (cache hits
-/// don't count). Resets on restart — a cheap guard against runaway API cost.
-const int kMaxPhotoAnalysesPerSession = 10;
-
-/// Central app state: subscription tier, coaching threads, and orchestration of
-/// streaming AI replies. Backed by [StorageService] for local persistence and
-/// an [AIService] (real Gemini or offline mock) for coaching.
+/// Central app state: onboarding, the chosen coach, conversations (saved on
+/// the device, per coach), the weekly plan, Coach memory and usage stats.
+/// Backed by [StorageService]; replies come from an [AIService] (the secure
+/// backend in production, the offline mock in tests); chat is gated by the
+/// [StoreService] subscription.
 class AppState extends ChangeNotifier {
   AppState({
     required StorageService storage,
     required AIService ai,
-    AuthService? auth,
+    StoreService? store,
+    DateTime Function()? clock,
   })  : _storage = storage,
         _ai = ai,
-        _auth = auth ?? AuthService() {
+        _store = store,
+        _clock = clock ?? DateTime.now {
     _load();
-    _listenToAuth();
   }
 
   final StorageService _storage;
   final AIService _ai;
-  final AuthService _auth;
+  final StoreService? _store;
+  final DateTime Function() _clock;
   final _uuid = const Uuid();
 
-  StreamSubscription<dynamic>? _authSub;
-
-  // --- Accounts (optional Supabase backend) -------------------------------
-
-  /// Whether account/sign-in features are switched on for this build.
-  bool get authEnabled => _auth.isConfigured;
-  bool get isSignedIn => _auth.isSignedIn;
-  String? get userEmail => _auth.email;
-  AuthService get auth => _auth;
-
-  bool _isAdmin = false;
-  bool get isAdmin => _isAdmin;
-
-  String? _displayName;
-  String? get displayName => _displayName;
-
-  String? _avatarUrl;
-  String? get avatarUrl => _avatarUrl;
-
-  void _listenToAuth() {
-    final stream = _auth.onAuthStateChange;
-    if (stream == null) return;
-    _authSub = stream.listen((_) async {
-      if (!_auth.isSignedIn) {
-        _isAdmin = false;
-        _displayName = null;
-        _avatarUrl = null;
-        notifyListeners();
-        return;
-      }
-      // Load profile to learn role + suspension; sign out suspended accounts.
-      final me = await _auth.loadMyProfile();
-      if (me != null && me.suspended) {
-        await _auth.signOut();
-        _isAdmin = false;
-        _displayName = null;
-        _avatarUrl = null;
-        notifyListeners();
-        return;
-      }
-      _isAdmin = me?.isAdmin ?? false;
-      _displayName = me?.displayName;
-      _avatarUrl = me?.avatarUrl;
-
-      // On sign-in, prefer the plan saved server-side (syncs across devices).
-      final serverTier = await _auth.loadSelectedTier();
-      if (serverTier != null) {
-        _tier = serverTier;
-        await _storage.saveTier(serverTier);
-      }
-      notifyListeners();
-    });
-  }
-
-  /// Re-reads the current user's profile from the backend (after edits).
-  Future<void> refreshProfile() async {
-    final me = await _auth.loadMyProfile();
-    _displayName = me?.displayName;
-    _avatarUrl = me?.avatarUrl;
-    _isAdmin = me?.isAdmin ?? false;
-    notifyListeners();
-  }
-
-  @override
-  void dispose() {
-    _authSub?.cancel();
-    super.dispose();
-  }
-
-  // --- Tier ---------------------------------------------------------------
-
-  SubscriptionTier? _tier;
-  SubscriptionTier? get tier => _tier;
-  bool get hasTier => _tier != null;
-  TierInfo get tierInfo => TierInfo.of(_tier ?? SubscriptionTier.spark);
+  /// DateWise has one premium plan; the backend protocol still names a tier,
+  /// and the full-toolkit tier is the honest one to send.
+  static const SubscriptionTier aiTier = SubscriptionTier.magnet;
 
   String get providerLabel => _ai.providerLabel;
 
-  // --- First-launch intro slider ------------------------------------------
+  /// Chat needs an active subscription. Without a store (tests that do not
+  /// care about billing) chat is allowed.
+  bool get canChat => _store?.isEntitled ?? true;
 
-  /// Whether the user has already seen the one-time intro walkthrough.
-  bool get hasSeenIntro => _storage.hasSeenIntro;
+  // --- Onboarding ---------------------------------------------------------
 
-  /// Records that the intro slider has been completed/skipped so it won't
-  /// show again on subsequent launches.
-  Future<void> markIntroSeen() => _storage.setIntroSeen();
+  bool _onboarded = false;
+  bool get onboarded => _onboarded;
 
-  bool can(Capability capability) =>
-      AppFlags.freeLaunch || tierInfo.can(capability);
-
-  /// Tier the AI persona/coach should speak as. During the free launch every
-  /// feature is unlocked, so the coach speaks as Magnet (the full toolkit) —
-  /// this also suppresses the upsell/price text the persona and mock emit for
-  /// lower tiers. Read-only: the user's stored [tier] is never mutated, so the
-  /// paid revert stays clean.
-  SubscriptionTier get _aiTier => AppFlags.freeLaunch
-      ? SubscriptionTier.magnet
-      : (_tier ?? SubscriptionTier.spark);
-
-  /// Whether the AI Photo Coach is usable. Normally Magnet-only, but the
-  /// testing flag unlocks it on every tier (see [AppFlags]).
-  bool get photoCoachUnlocked =>
-      AppFlags.unlockPhotoCoachForTesting || can(Capability.photoCoach);
-
-  // --- Photo analysis: mode, cache, session limit -------------------------
-
-  AnalysisMode _analysisMode = AnalysisMode.deep;
-
-  /// Selected depth for the next photo analysis (quick = fast/cheap, deep = full).
-  AnalysisMode get analysisMode => _analysisMode;
-
-  void setAnalysisMode(AnalysisMode mode) {
-    if (_analysisMode == mode) return;
-    _analysisMode = mode;
+  /// Set when the user closes the paywall this session (not persisted, so a
+  /// non-subscriber sees it again on the next launch).
+  bool _paywallDismissed = false;
+  bool get paywallDismissed => _paywallDismissed;
+  void dismissPaywall() {
+    _paywallDismissed = true;
     notifyListeners();
   }
 
-  /// SHA256-keyed cache of past analyses (loaded from storage at startup) so the
-  /// same photo is never analysed twice. Keyed by `mode_hash`.
-  Map<String, PhotoAnalysis> _analysisCache = {};
+  UserProfile? _profile;
+  UserProfile? get profile => _profile;
+  CoachLanguage get language => _profile?.language ?? selectedCoach.language;
 
-  /// Same idea for multi-photo (rank & compare) results. Keyed by
-  /// `mode_batch_combinedHash`.
-  Map<String, BatchPhotoAnalysis> _batchCache = {};
+  /// Finishes onboarding: goals, language, 18+ confirmed, coach chosen.
+  Future<void> completeOnboarding({
+    required List<CoachingGoal> goals,
+    required CoachLanguage language,
+    required String coachId,
+  }) async {
+    _profile = (_profile ?? const UserProfile()).copyWith(goals: goals, language: language);
+    await _storage.saveProfile(_profile!);
+    _plan = WeeklyPlan.fromGoals(goals, _clock());
+    await _storage.savePlan(_plan!);
+    await selectCoach(coachId);
+    _onboarded = true;
+    await _storage.setOnboarded();
+    notifyListeners();
+  }
 
-  /// Real API calls made this session; cache hits don't count toward the limit.
-  int _sessionPhotoCount = 0;
+  Future<void> setLanguage(CoachLanguage lang) async {
+    _profile = (_profile ?? const UserProfile()).copyWith(language: lang);
+    await _storage.saveProfile(_profile!);
+    notifyListeners();
+  }
 
   // --- Coach --------------------------------------------------------------
 
   String? _coachId;
-
-  /// The coach new conversations start with (Emily until the user picks one).
   Coach get selectedCoach => Coaches.byId(_coachId);
-
-  /// Whether the user has picked a coach yet.
   bool get hasChosenCoach => _coachId != null;
 
-  /// The coach of the open conversation (each conversation keeps its coach).
-  Coach get activeCoach {
-    final t = activeThread;
-    return t == null ? selectedCoach : Coaches.byId(t.coachId);
-  }
-
-  /// Picks the coach for new conversations and opens a fresh conversation with
-  /// them, unless the open one is already theirs and still untouched.
-  Future<void> selectCoach(String id, {bool startConversation = true}) async {
+  Future<void> selectCoach(String id) async {
     final coach = Coaches.byId(id);
     _coachId = coach.id;
     await _storage.saveCoachId(coach.id);
-    final t = activeThread;
-    final untouched = t != null && !t.messages.any((m) => m.isUser);
-    if (startConversation && !(untouched && t.coachId == coach.id)) {
-      if (untouched) _threads.remove(t);
-      await createThread(coach: coach);
-    } else {
-      notifyListeners();
-    }
-  }
-
-  // --- User profile -------------------------------------------------------
-
-  UserProfile? _profile;
-  UserProfile? get profile => _profile;
-  bool get hasProfile => _profile != null;
-
-  /// Saves the onboarding profile and creates the first personalised thread.
-  Future<void> completeOnboarding(UserProfile profile) async {
-    _profile = profile;
-    await _storage.saveProfile(profile);
-    await ensureStarterThread();
+    final latest = latestThreadFor(coach);
+    _activeThreadId = latest?.id;
     notifyListeners();
   }
 
-  /// Creates the initial "Profile Setup" thread if the user has none yet.
-  Future<void> ensureStarterThread() async {
-    if (_threads.isEmpty) {
-      await createThread(title: 'Profile Setup', greet: true);
+  // --- Coach memory (OFF by default) --------------------------------------
+
+  bool _memoryEnabled = false;
+  bool get memoryEnabled => _memoryEnabled;
+  String _memoryText = '';
+  String get memoryText => _memoryText;
+
+  Future<void> setMemoryEnabled(bool on) async {
+    _memoryEnabled = on;
+    await _storage.setMemoryEnabled(on);
+    notifyListeners();
+  }
+
+  static const int memoryMaxLength = 500;
+
+  Future<void> saveMemory(String text) async {
+    final t = text.trim();
+    _memoryText = t.length > memoryMaxLength ? t.substring(0, memoryMaxLength) : t;
+    await _storage.saveMemoryText(_memoryText);
+    notifyListeners();
+  }
+
+  Future<void> clearMemory() => saveMemory('');
+
+  /// The profile sent with each chat request. The memory summary is included
+  /// only while Coach memory is ON.
+  UserProfile? get profileForCoach {
+    final base = _profile;
+    final memory = _memoryEnabled && _memoryText.trim().isNotEmpty ? _memoryText.trim() : null;
+    if (base == null) return memory == null ? null : UserProfile(memory: memory);
+    return memory == null ? base.copyWith(clearMemory: true) : base.copyWith(memory: memory);
+  }
+
+  // --- Weekly plan --------------------------------------------------------
+
+  WeeklyPlan? _plan;
+  WeeklyPlan? get plan => _plan;
+
+  Future<void> togglePlanItem(int index) async {
+    final p = _plan;
+    if (p == null || index < 0 || index >= p.items.length) return;
+    p.items[index].done = !p.items[index].done;
+    await _storage.savePlan(p);
+    notifyListeners();
+  }
+
+  // --- Usage (Progress tab) -----------------------------------------------
+
+  Set<String> _activeDays = {};
+  int get streakDays => currentStreak(_activeDays, _clock());
+  int get daysUsed => _activeDays.length;
+
+  /// Conversations in which the user has sent at least one message.
+  int get conversationCount => _threads.where((t) => t.messages.any((m) => m.isUser)).length;
+
+  Future<void> _recordActiveDay() async {
+    if (_activeDays.add(dayKey(_clock()))) {
+      await _storage.saveActiveDays(_activeDays);
     }
   }
 
@@ -228,13 +169,22 @@ class AppState extends ChangeNotifier {
   final List<ChatThread> _threads = [];
   List<ChatThread> get threads => List.unmodifiable(_threads);
 
-  String? _activeThreadId;
-  String? get activeThreadId => _activeThreadId;
+  List<ChatThread> threadsFor(Coach coach) =>
+      _threads.where((t) => t.coachId == coach.id).toList();
 
-  ChatThread? get activeThread {
-    if (_activeThreadId == null) return null;
+  ChatThread? latestThreadFor(Coach coach) {
     for (final t in _threads) {
-      if (t.id == _activeThreadId) return t;
+      if (t.coachId == coach.id) return t;
+    }
+    return null;
+  }
+
+  String? _activeThreadId;
+
+  /// The open conversation, always one with the selected coach.
+  ChatThread? get activeThread {
+    for (final t in _threads) {
+      if (t.id == _activeThreadId && t.coachId == selectedCoach.id) return t;
     }
     return null;
   }
@@ -243,78 +193,45 @@ class AppState extends ChangeNotifier {
   bool get isResponding => _isResponding;
 
   void _load() {
-    _tier = _storage.loadTier();
+    _onboarded = _storage.hasOnboarded;
     _profile = _storage.loadProfile();
     _coachId = _storage.loadCoachId();
-    _analysisCache = _storage.loadAnalysisCache();
-    _batchCache = _storage.loadBatchCache();
+    _memoryEnabled = _storage.memoryEnabled;
+    _memoryText = _storage.memoryText;
+    _activeDays = _storage.loadActiveDays();
+    final plan = _storage.loadPlan();
+    _plan = plan?.forWeekOf(_clock());
+    if (plan != null && !identical(plan, _plan)) _storage.savePlan(_plan!);
+    if (_plan == null && _onboarded) {
+      _plan = WeeklyPlan.fromGoals(_profile?.goals ?? const [], _clock());
+    }
     _threads
       ..clear()
       ..addAll(_storage.loadThreads());
     _threads.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    if (_threads.isNotEmpty) _activeThreadId = _threads.first.id;
-    notifyListeners();
+    _activeThreadId = latestThreadFor(selectedCoach)?.id;
   }
 
-  // --- Tier selection -----------------------------------------------------
-
-  /// Records the chosen tier. The starter thread is created after onboarding
-  /// (see [completeOnboarding]) so the greeting can be personalised.
-  Future<void> selectTier(SubscriptionTier tier) async {
-    _tier = tier;
-    await _storage.saveTier(tier);
-    notifyListeners();
-    // Mirror the choice into the backend (no-op when unconfigured / signed out)
-    // so it appears in the admin dashboard and syncs across devices.
-    await _auth.saveSelectedTier(tier);
-  }
-
-  /// Signs the user out (when accounts are enabled). Local device data is kept.
-  Future<void> signOut() async {
-    await _auth.signOut();
-    notifyListeners();
-  }
-
-  /// Requests account deletion and wipes all local device data. The auth user's
-  /// final removal is completed server-side (see [AuthService.requestAccountDeletion]).
-  Future<void> deleteAccount() async {
-    if (authEnabled) {
-      await _auth.requestAccountDeletion();
-    }
-    await resetAll();
-    _profile = null;
-    notifyListeners();
-  }
-
-  // --- Thread CRUD --------------------------------------------------------
-
-  /// Starts a conversation with [coach] (default: the selected coach). Its
-  /// default title is replaced by the user's first words (see [_autoTitle]).
-  Future<ChatThread> createThread(
-      {String? title, bool greet = true, Coach? coach}) async {
-    final now = _now();
-    coach ??= selectedCoach;
+  /// Starts a new conversation with the selected coach, opening with the
+  /// coach's greeting.
+  Future<ChatThread> createThread() async {
+    final now = _clock();
+    final coach = selectedCoach;
     final thread = ChatThread(
       id: _uuid.v4(),
-      title: title ?? defaultThreadTitle(coach),
+      title: defaultThreadTitle(coach),
       createdAt: now,
       updatedAt: now,
       coachId: coach.id,
     );
-    if (greet) {
-      thread.messages.add(
-        ChatMessage(
-          id: _uuid.v4(),
-          role: MessageRole.coach,
-          text: CoachPersona.greeting(
-            _aiTier,
-            profile: _profile,
-            coach: coach,
-          ),
-          createdAt: now,
-        ),
-      );
-    }
+    thread.messages.add(ChatMessage(
+      id: _uuid.v4(),
+      role: MessageRole.coach,
+      text: CoachPersona.greeting(aiTier, coach: coach),
+      createdAt: now,
+    ));
+    // An untouched greeting-only conversation is replaced, not stacked.
+    _threads.removeWhere((t) => t.coachId == coach.id && !t.messages.any((m) => m.isUser));
     _threads.insert(0, thread);
     _activeThreadId = thread.id;
     await _persist();
@@ -322,77 +239,58 @@ class AppState extends ChangeNotifier {
     return thread;
   }
 
-  void selectThread(String id) {
-    _activeThreadId = id;
-    notifyListeners();
-  }
-
-  Future<void> renameThread(String id, String title) async {
-    final t = _threadById(id);
-    if (t == null) return;
-    t.title = title.trim().isEmpty ? t.title : title.trim();
-    await _persist();
-    notifyListeners();
+  void openThread(String id) {
+    for (final t in _threads) {
+      if (t.id == id) {
+        _coachId = t.coachId;
+        _storage.saveCoachId(t.coachId);
+        _activeThreadId = id;
+        notifyListeners();
+        return;
+      }
+    }
   }
 
   Future<void> deleteThread(String id) async {
     _threads.removeWhere((t) => t.id == id);
-    if (_activeThreadId == id) {
-      _activeThreadId = _threads.isEmpty ? null : _threads.first.id;
-    }
+    if (_activeThreadId == id) _activeThreadId = latestThreadFor(selectedCoach)?.id;
     await _persist();
     notifyListeners();
   }
 
   // --- Messaging ----------------------------------------------------------
 
-  /// Sends a user message (optionally with one or more photos) and produces the
-  /// coach reply: a single analysis for one photo, a rank & compare result for
-  /// 2-4, or a streamed text reply when there are no photos.
-  Future<void> sendMessage({String text = '', List<String>? images}) async {
-    if (_isResponding) return;
-    final tier = _aiTier;
+  /// Sends a user message to the selected coach and streams the reply.
+  /// Returns false (and sends nothing) without an active subscription.
+  Future<bool> sendMessage(String text) async {
+    final trimmed = text.trim();
+    if (_isResponding || trimmed.isEmpty) return false;
+    if (!canChat) return false;
 
-    var thread = activeThread;
-    thread ??= await createThread(greet: false);
-
-    final imgs = images ?? const <String>[];
-    final now = _now();
-    final userMsg = ChatMessage(
+    final thread = activeThread ?? await createThread();
+    final now = _clock();
+    thread.messages.add(ChatMessage(
       id: _uuid.v4(),
       role: MessageRole.user,
-      text: text.trim(),
+      text: trimmed,
       createdAt: now,
-      imageBase64: imgs.length == 1 ? imgs.first : null,
-      imageBase64s: imgs.length > 1 ? imgs : null,
-    );
-    thread.messages.add(userMsg);
+    ));
     thread.updatedAt = now;
     _autoTitle(thread);
     _bumpToTop(thread);
+    await _recordActiveDay();
     notifyListeners();
-
-    // Photo coach: produce a structured analysis card (Magnet, or any tier
-    // while the testing flag is on).
-    if (imgs.isNotEmpty && photoCoachUnlocked) {
-      if (imgs.length == 1) {
-        await _runPhotoAnalysis(thread, imgs.first, text);
-      } else {
-        await _runBatchPhotoAnalysis(thread, imgs, text);
-      }
-      return;
-    }
-
-    await _streamCoachReply(thread, tier);
+    await _streamCoachReply(thread);
+    return true;
   }
 
-  Future<void> _streamCoachReply(ChatThread thread, SubscriptionTier tier) async {
+  Future<void> _streamCoachReply(ChatThread thread) async {
     _isResponding = true;
     final coachMsg = ChatMessage(
       id: _uuid.v4(),
       role: MessageRole.coach,
       text: '',
-      createdAt: _now(),
+      createdAt: _clock(),
       isStreaming: true,
     );
     thread.messages.add(coachMsg);
@@ -401,208 +299,59 @@ class AppState extends ChangeNotifier {
     try {
       await for (final chunk in _ai.streamReply(
         history: List.of(thread.messages.where((m) => !m.isStreaming)),
-        tier: tier,
-        profile: _profile,
+        tier: aiTier,
+        profile: profileForCoach,
         coach: Coaches.byId(thread.coachId),
       )) {
         coachMsg.text += chunk;
         notifyListeners();
       }
     } catch (_) {
-      coachMsg.text = coachMsg.text.isEmpty
-          ? (_isSpanish(thread)
-              ? 'Algo me interrumpió. ¿Puedes enviarlo otra vez?'
-              : "Something interrupted me there — try sending that again?")
-          : coachMsg.text;
+      if (coachMsg.text.isEmpty) {
+        coachMsg.text = _isSpanish(thread)
+            ? 'Algo me interrumpió. ¿Puedes enviarlo otra vez?'
+            : 'Something interrupted me there. Try sending that again?';
+      }
     } finally {
       coachMsg.isStreaming = false;
       _isResponding = false;
-      thread.updatedAt = _now();
+      thread.updatedAt = _clock();
       await _persist();
       notifyListeners();
     }
   }
 
-  Future<void> _runPhotoAnalysis(
-    ChatThread thread,
-    String imageBase64,
-    String note,
-  ) async {
-    _isResponding = true;
-    final coachMsg = ChatMessage(
-      id: _uuid.v4(),
-      role: MessageRole.coach,
-      text: '',
-      createdAt: _now(),
-      isStreaming: true,
-      isAnalyzing: true,
-    );
-    thread.messages.add(coachMsg);
+  // --- Deleting -----------------------------------------------------------
+
+  Future<void> deleteAllConversations() async {
+    _threads.clear();
+    _activeThreadId = null;
+    await _storage.clearConversations();
     notifyListeners();
-
-    final mode = _analysisMode;
-    final cacheKey =
-        '${mode.name}_${sha256.convert(base64Decode(imageBase64))}';
-
-    try {
-      // 1) Cache hit → reuse instantly, no API call, doesn't touch the limit.
-      PhotoAnalysis? analysis = _analysisCache[cacheKey];
-
-      // 2) Cache miss → enforce the per-session cap before spending an API call.
-      if (analysis == null) {
-        if (_sessionPhotoCount >= kMaxPhotoAnalysesPerSession) {
-          thread.messages.remove(coachMsg);
-          thread.messages.add(
-            ChatMessage(
-              id: _uuid.v4(),
-              role: MessageRole.coach,
-              text: _isSpanish(thread)
-                  ? 'Llegaste al límite de análisis de fotos de esta sesión '
-                      '($kMaxPhotoAnalysesPerSession). Vuelve a abrir la app para analizar '
-                      'más, o revisa una foto que ya enviaste (eso es gratis).'
-                  : "You've hit this session's photo-analysis limit "
-                      '($kMaxPhotoAnalysesPerSession). Reopen the app to analyse more — '
-                      'or re-check a photo you already sent (that part is free).',
-              createdAt: _now(),
-            ),
-          );
-          return;
-        }
-
-        // When testing-unlocked on a lower tier, present as Magnet so the
-        // backend (which gates on tier) accepts the request.
-        final effectiveTier = photoCoachUnlocked && !can(Capability.photoCoach)
-            ? SubscriptionTier.magnet
-            : (_tier ?? SubscriptionTier.magnet);
-        analysis = await _ai.analyzePhoto(
-          imageBase64: imageBase64,
-          tier: effectiveTier,
-          userNote: note,
-          mode: mode,
-        );
-        _sessionPhotoCount++;
-        _analysisCache[cacheKey] = analysis;
-        await _storage.saveAnalysisCacheEntry(cacheKey, analysis);
-      }
-
-      final verdict = analysis.verdict.label;
-      thread.messages.remove(coachMsg);
-      thread.messages.add(
-        ChatMessage(
-          id: _uuid.v4(),
-          role: MessageRole.coach,
-          text:
-              '**${analysis.overallScore}/10 · $verdict** — ${analysis.headline}',
-          createdAt: _now(),
-          analysis: analysis,
-        ),
-      );
-    } catch (_) {
-      coachMsg.text = _isSpanish(thread)
-          ? 'No pude leer esa imagen. ¿Pruebas con un JPG o PNG de menos de 5 MB?'
-          : "I couldn't read that image — try a JPG or PNG under ~5MB?";
-      coachMsg.isStreaming = false;
-      coachMsg.isAnalyzing = false;
-    } finally {
-      _isResponding = false;
-      thread.updatedAt = _now();
-      await _persist();
-      notifyListeners();
-    }
   }
 
-  /// Multi-photo (rank & compare) path: scores 2-4 photos and ranks them.
-  Future<void> _runBatchPhotoAnalysis(
-    ChatThread thread,
-    List<String> images,
-    String note,
-  ) async {
-    _isResponding = true;
-    final coachMsg = ChatMessage(
-      id: _uuid.v4(),
-      role: MessageRole.coach,
-      text: '',
-      createdAt: _now(),
-      isStreaming: true,
-      isAnalyzing: true,
-    );
-    thread.messages.add(coachMsg);
+  /// "Delete my data": wipes everything on this device and returns the app to
+  /// the welcome screen. (Subscriptions are managed by Apple and are not
+  /// affected; Restore Purchases brings an active one back.)
+  Future<void> deleteMyData() async {
+    await _storage.clearAll();
+    _threads.clear();
+    _activeThreadId = null;
+    _profile = null;
+    _coachId = null;
+    _plan = null;
+    _memoryEnabled = false;
+    _memoryText = '';
+    _activeDays = {};
+    _onboarded = false;
+    _paywallDismissed = false;
     notifyListeners();
-
-    final mode = _analysisMode;
-    // Order-independent? No — order matters for "photo #N", so hash in order.
-    final combined =
-        images.map((b) => sha256.convert(base64Decode(b)).toString()).join('_');
-    final cacheKey = '${mode.name}_batch_${sha256.convert(utf8.encode(combined))}';
-
-    try {
-      BatchPhotoAnalysis? analysis = _batchCache[cacheKey];
-
-      if (analysis == null) {
-        if (_sessionPhotoCount >= kMaxPhotoAnalysesPerSession) {
-          thread.messages.remove(coachMsg);
-          thread.messages.add(
-            ChatMessage(
-              id: _uuid.v4(),
-              role: MessageRole.coach,
-              text: _isSpanish(thread)
-                  ? 'Llegaste al límite de análisis de fotos de esta sesión '
-                      '($kMaxPhotoAnalysesPerSession). Vuelve a abrir la app para analizar '
-                      'más, o revisa un grupo que ya enviaste (eso es gratis).'
-                  : "You've hit this session's photo-analysis limit "
-                      '($kMaxPhotoAnalysesPerSession). Reopen the app to analyse more — '
-                      'or re-check a set you already sent (that part is free).',
-              createdAt: _now(),
-            ),
-          );
-          return;
-        }
-
-        final effectiveTier = photoCoachUnlocked && !can(Capability.photoCoach)
-            ? SubscriptionTier.magnet
-            : (_tier ?? SubscriptionTier.magnet);
-        analysis = await _ai.analyzePhotos(
-          imageBase64s: images,
-          tier: effectiveTier,
-          userNote: note,
-          mode: mode,
-        );
-        _sessionPhotoCount++;
-        _batchCache[cacheKey] = analysis;
-        await _storage.saveBatchCacheEntry(cacheKey, analysis);
-      }
-
-      thread.messages.remove(coachMsg);
-      thread.messages.add(
-        ChatMessage(
-          id: _uuid.v4(),
-          role: MessageRole.coach,
-          text: '**Ranked ${analysis.photos.length} photos** — '
-              '${analysis.recommendation}',
-          createdAt: _now(),
-          batchAnalysis: analysis,
-        ),
-      );
-    } catch (_) {
-      coachMsg.text =
-          "I couldn't analyse those photos — try JPG or PNG images under ~5MB each?";
-      coachMsg.isStreaming = false;
-      coachMsg.isAnalyzing = false;
-    } finally {
-      _isResponding = false;
-      thread.updatedAt = _now();
-      await _persist();
-      notifyListeners();
-    }
   }
 
   // --- Helpers ------------------------------------------------------------
 
-  /// The title a new conversation with [coach] starts with.
   static String defaultThreadTitle(Coach coach) =>
-      coach.language == CoachLanguage.es
-          ? 'Nueva conversación'
-          : 'New conversation';
+      coach.language == CoachLanguage.es ? 'Nueva conversación' : 'New conversation';
 
   static final Set<String> _defaultTitles = {
     for (final c in Coaches.all) defaultThreadTitle(c),
@@ -612,20 +361,13 @@ class AppState extends ChangeNotifier {
       Coaches.byId(thread.coachId).language == CoachLanguage.es;
 
   void _autoTitle(ChatThread thread) {
-    final isDefault = _defaultTitles.contains(thread.title);
-    final firstUser = thread.messages.firstWhere(
-      (m) => m.isUser && m.text.trim().isNotEmpty,
-      orElse: () => ChatMessage(
-        id: '',
-        role: MessageRole.user,
-        text: '',
-        createdAt: _now(),
-      ),
-    );
-    if (isDefault && firstUser.text.trim().isNotEmpty) {
-      final words = firstUser.text.trim().split(RegExp(r'\s+'));
-      thread.title = words.take(5).join(' ');
-      if (words.length > 5) thread.title += '…';
+    if (!_defaultTitles.contains(thread.title)) return;
+    for (final m in thread.messages) {
+      if (m.isUser && m.text.trim().isNotEmpty) {
+        final words = m.text.trim().split(RegExp(r'\s+'));
+        thread.title = words.take(5).join(' ') + (words.length > 5 ? '…' : '');
+        return;
+      }
     }
   }
 
@@ -634,27 +376,5 @@ class AppState extends ChangeNotifier {
     _threads.insert(0, thread);
   }
 
-  ChatThread? _threadById(String id) {
-    for (final t in _threads) {
-      if (t.id == id) return t;
-    }
-    return null;
-  }
-
   Future<void> _persist() => _storage.saveThreads(_threads);
-
-  Future<void> resetAll() async {
-    await _storage.clearAll();
-    _threads.clear();
-    _activeThreadId = null;
-    _tier = null;
-    _profile = null;
-    _analysisCache = {};
-    _batchCache = {};
-    _sessionPhotoCount = 0;
-    notifyListeners();
-  }
-
-  // Date.now() is unavailable in some sandboxes but fine in-app at runtime.
-  DateTime _now() => DateTime.now();
 }

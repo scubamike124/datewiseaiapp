@@ -4,41 +4,55 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'app.dart';
+import 'dev/review_mode.dart';
+import 'screens/shell.dart';
 import 'services/ai_service.dart';
-import 'services/auth_service.dart';
+import 'services/mock_ai_service.dart';
+import 'services/speech_service.dart';
 import 'services/storage_service.dart';
+import 'services/store_service.dart';
+import 'services/voice_service.dart';
 import 'state/app_state.dart';
-import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Native polish (mobile only): draw behind the system bars and tint them to
-  // match the app's cream theme, so the Android app reads as a real native app
-  // rather than a web viewport. Skipped on web.
   if (!kIsWeb) {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-      statusBarBrightness: Brightness.light,
-      systemNavigationBarColor: Colors.white,
-      systemNavigationBarIconBrightness: Brightness.dark,
-      systemNavigationBarDividerColor: AppColors.cardBorder,
+      statusBarIconBrightness: Brightness.light,
+      statusBarBrightness: Brightness.dark,
+      systemNavigationBarColor: Color(0xFF120C0E),
+      systemNavigationBarIconBrightness: Brightness.light,
     ));
   }
 
-  // Optional accounts backend. No-op unless Supabase is configured
-  // (see lib/services/supabase_config.dart).
-  await AuthService.initialize();
-
   final storage = await StorageService.create();
-  final ai = AIServiceFactory.create();
+  final ai = ReviewMode.mockAI ? MockAIService() : AIServiceFactory.create();
+  final store = createStoreService();
+  final voice = await DeviceVoiceService.create();
+  final speech = DeviceSpeechService.create();
+  final state = AppState(storage: storage, ai: ai, store: store);
+  store.init();
+
+  var initialTab = AppTab.home;
+  final review = ReviewMode.requestedScreen();
+  if (review != null) {
+    await storage.clearAll();
+    await state.deleteMyData();
+    initialTab = await ReviewMode.seed(review, state, store);
+  }
 
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => AppState(storage: storage, ai: ai, auth: AuthService()),
-      child: const DateWiseApp(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider<StoreService>.value(value: store),
+        ChangeNotifierProvider<AppState>.value(value: state),
+        Provider<VoiceService>.value(value: voice),
+        Provider<SpeechService>.value(value: speech),
+      ],
+      child: DateWiseApp(initialTab: initialTab),
     ),
   );
 }

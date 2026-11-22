@@ -1,258 +1,445 @@
-import 'package:flutter/foundation.dart'
-    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../app_flags.dart';
 import '../app_links.dart';
 import '../content/legal_text.dart';
-import '../services/purchase_service.dart';
+import '../models/coach.dart';
+import '../services/store_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/dw.dart';
 import 'legal_screen.dart';
+import 'paywall_screen.dart';
+import 'shell.dart';
 
-/// App settings: subscription management, legal documents, support, app info,
-/// and the account-deletion / log-out actions.
-class SettingsScreen extends StatefulWidget {
+/// The "You" tab: language, coach, Coach memory, subscription, data, legal.
+class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
-  @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
-}
-
-class _SettingsScreenState extends State<SettingsScreen> {
-  String _version = '';
-  static const PurchaseService _purchases = MockPurchaseService();
-
-  @override
-  void initState() {
-    super.initState();
-    _loadVersion();
-  }
-
-  Future<void> _loadVersion() async {
-    try {
-      final info = await PackageInfo.fromPlatform();
-      if (!mounted) return;
-      setState(() => _version = 'v${info.version} (${info.buildNumber})');
-    } catch (_) {
-      // Leave blank if unavailable.
-    }
-  }
-
-  void _toast(String msg, {bool error = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: error ? Colors.red.shade700 : AppColors.primary,
-      ),
-    );
-  }
-
-  Future<void> _open(String url) async {
-    final ok = await launchUrl(Uri.parse(url),
-        mode: LaunchMode.externalApplication);
-    if (!ok) _toast('Could not open the link.', error: true);
-  }
-
-  Future<void> _emailSupport() async {
-    final uri = Uri(
-      scheme: 'mailto',
-      path: AppLinks.supportEmail,
-      query: 'subject=${Uri.encodeComponent('DateWise AI support')}',
-    );
-    if (!await launchUrl(uri)) {
-      _toast('No email app found. Write to ${AppLinks.supportEmail}.',
-          error: true);
-    }
-  }
-
-  void _openLegal(String title, String content) {
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => LegalScreen(title: title, content: content),
-    ));
-  }
-
-  Future<void> _restore() async {
-    await _purchases.restore();
-    _toast('No purchases to restore yet.');
-  }
-
-  Future<void> _confirmDelete() async {
-    final state = context.read<AppState>();
-    final confirmed = await showDialog<bool>(
+  Future<bool> _confirm(BuildContext context, String title, String body, String action) async {
+    final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete account?'),
-        content: const Text(
-          'This removes your data from this device and requests deletion of your '
-          'account records. This cannot be undone.',
-        ),
+        title: Text(title),
+        content: Text(body),
         actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel', style: TextStyle(color: AppColors.text))),
           TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
+            key: const ValueKey('confirm-action'),
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red.shade700),
-            child: const Text('Delete'),
+            child: Text(action, style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
     );
-    if (confirmed != true) return;
-    try {
-      await state.deleteAccount();
-      if (!mounted) return;
-      Navigator.of(context).pop(); // close settings
-      _toast('Account deletion requested and local data cleared.');
-    } catch (_) {
-      _toast('Could not complete deletion. Please contact support.',
-          error: true);
+    return ok ?? false;
+  }
+
+  void _pickLanguage(BuildContext context, AppState state) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final l in CoachLanguage.values)
+              ListTile(
+                minTileHeight: 52,
+                title: Text(l.label, style: AppText.label),
+                subtitle: Text(
+                  l == CoachLanguage.en ? 'Coaches: Ava and Ethan' : 'Coaches: Sofía y Diego',
+                  style: AppText.small,
+                ),
+                trailing: state.language == l ? const Icon(Icons.check_rounded, color: AppColors.gold) : null,
+                onTap: () {
+                  state.setLanguage(l);
+                  Navigator.pop(ctx);
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _editMemory(BuildContext context, AppState state) {
+    final controller = TextEditingController(text: state.memoryText);
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.viewInsetsOf(ctx).bottom + 20),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Coach memory', style: AppText.name.copyWith(fontSize: 24)),
+              const SizedBox(height: 6),
+              const Text(
+                'A short note your coaches see with each message while Coach memory is on. '
+                'Write only what you are happy to share.',
+                style: TextStyle(fontSize: 14, height: 1.4, color: AppColors.textMuted),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                  border: Border.all(color: AppColors.line2),
+                ),
+                child: TextField(
+                  key: const ValueKey('memory-field'),
+                  controller: controller,
+                  minLines: 3,
+                  maxLines: 6,
+                  maxLength: AppState.memoryMaxLength,
+                  style: const TextStyle(color: AppColors.text, fontSize: 15, height: 1.4),
+                  decoration: const InputDecoration(
+                    hintText: 'e.g. I am 31, shy at first, on Hinge, looking for something serious.',
+                    contentPadding: EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              DwButton(
+                key: const ValueKey('memory-save'),
+                label: 'Save',
+                expand: true,
+                onPressed: () {
+                  state.saveMemory(controller.text);
+                  Navigator.pop(ctx);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _open(BuildContext context, String url) async {
+    final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication).catchError((_) => false);
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not open $url')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    final signedIn = state.authEnabled && state.isSignedIn;
+    final store = context.watch<StoreService>();
+    final top = MediaQuery.paddingOf(context).top;
+    final memory = state.memoryText;
 
-    // "Rate the app" must open the correct store per platform. Hidden until a
-    // listing exists for the current platform (so iOS never opens Google Play).
-    final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
-    final storeUrl = isIOS ? AppLinks.appStoreUrl : AppLinks.playStoreUrl;
-    final hasStoreListing = isIOS
-        ? AppLinks.iosAppStoreId.isNotEmpty
-        : AppLinks.androidPackage.isNotEmpty;
-
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Settings')),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-        children: [
-          // Billing actions are hidden during the free launch (no subscriptions
-          // exist). They return — and become store-aware — in the paid update.
-          if (!AppFlags.freeLaunch) ...[
-            _section('Subscription'),
-            _tile(
-              icon: Icons.workspace_premium_outlined,
-              title: 'Manage subscription',
-              subtitle: 'Change or cancel via Google Play',
-              onTap: () => _open(AppLinks.manageSubscriptionsUrl),
-            ),
-            _tile(
-              icon: Icons.restore_rounded,
-              title: 'Restore purchases',
-              onTap: _restore,
-            ),
-          ],
-
-          _section('Legal'),
-          _tile(
-            icon: Icons.privacy_tip_outlined,
-            title: 'Privacy Policy',
-            onTap: () => _openLegal('Privacy Policy', kPrivacyPolicy),
-          ),
-          _tile(
-            icon: Icons.description_outlined,
-            title: 'Terms of Service',
-            onTap: () => _openLegal('Terms of Service', kTermsOfService),
-          ),
-          _tile(
-            icon: Icons.gpp_maybe_outlined,
-            title: 'Disclaimer',
-            onTap: () => _openLegal('Disclaimer', kDisclaimer),
-          ),
-
-          _section('Support'),
-          _tile(
-            icon: Icons.mail_outline_rounded,
-            title: 'Contact support',
-            subtitle: AppLinks.supportEmail,
-            onTap: _emailSupport,
-          ),
-          if (hasStoreListing)
-            _tile(
-              icon: Icons.star_outline_rounded,
-              title: 'Rate the app',
-              onTap: () => _open(storeUrl),
-            ),
-
-          _section('About'),
-          _tile(
-            icon: Icons.info_outline_rounded,
-            title: 'App version',
-            trailing: Text(_version,
-                style: const TextStyle(color: AppColors.textMuted)),
-          ),
-          _tile(
-            icon: Icons.article_outlined,
-            title: 'Open-source licenses',
-            onTap: () => showLicensePage(
-              context: context,
-              applicationName: 'DateWise AI',
-              applicationVersion: _version,
-            ),
-          ),
-
-          _section('Account'),
-          _tile(
-            icon: Icons.delete_outline_rounded,
-            title: 'Delete account',
-            danger: true,
-            onTap: _confirmDelete,
-          ),
-          if (signedIn)
-            _tile(
-              icon: Icons.logout_rounded,
-              title: 'Log out',
-              onTap: () async {
-                final nav = Navigator.of(context);
-                await context.read<AppState>().signOut();
-                if (mounted) nav.pop();
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(16, top + 16, 16, 28),
+      child: ContentWidth(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: LargeTitle(title: 'You')),
+            const _SectionLabel('Coaching'),
+            _Group(children: [
+              _Row(
+                key: const ValueKey('row-language'),
+                icon: Icons.translate_rounded,
+                title: 'Coaching language',
+                value: state.language.label,
+                onTap: () => _pickLanguage(context, state),
+              ),
+              _Row(
+                key: const ValueKey('row-coach'),
+                icon: Icons.people_outline_rounded,
+                title: 'Your coach',
+                value: state.selectedCoach.name,
+                onTap: () => context.read<ShellController>().go(AppTab.coaches),
+              ),
+            ]),
+            const _SectionLabel('Coach memory'),
+            _Group(children: [
+              _SwitchRow(
+                key: const ValueKey('row-memory'),
+                icon: Icons.psychology_alt_outlined,
+                title: 'Coach memory',
+                subtitle: state.memoryEnabled
+                    ? 'On: your note below is sent with each message.'
+                    : 'Off: coaches only see the current conversation.',
+                value: state.memoryEnabled,
+                onChanged: state.setMemoryEnabled,
+              ),
+              _Row(
+                key: const ValueKey('row-memory-edit'),
+                icon: Icons.edit_note_rounded,
+                title: memory.isEmpty ? 'Write your note' : 'Your note',
+                subtitle: memory.isEmpty ? null : memory,
+                onTap: () => _editMemory(context, state),
+              ),
+              if (memory.isNotEmpty)
+                _Row(
+                  key: const ValueKey('row-memory-clear'),
+                  icon: Icons.backspace_outlined,
+                  title: 'Clear memory',
+                  destructive: true,
+                  onTap: () async {
+                    if (await _confirm(context, 'Clear Coach memory?', 'Your note will be deleted from this device.', 'Clear')) {
+                      state.clearMemory();
+                    }
+                  },
+                ),
+            ]),
+            const _SectionLabel('Subscription'),
+            _Group(children: [
+              _Row(
+                key: const ValueKey('row-sub-status'),
+                icon: Icons.workspace_premium_outlined,
+                title: StoreConfig.productTitle,
+                value: store.isEntitled ? 'Active' : 'Not subscribed',
+                onTap: store.isEntitled ? null : () => showPaywall(context),
+              ),
+              if (store.manageUrl != null)
+                _Row(
+                  key: const ValueKey('row-manage'),
+                  icon: Icons.open_in_new_rounded,
+                  title: 'Manage subscription',
+                  onTap: () => _open(context, store.manageUrl!),
+                ),
+              if (store.canPurchase || store is AppStoreService)
+                _Row(
+                  key: const ValueKey('row-restore'),
+                  icon: Icons.restore_rounded,
+                  title: 'Restore purchases',
+                  onTap: () async {
+                    final ok = await store.restore();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(ok ? 'DateWise Premium is active.' : 'No active subscription found.'),
+                      ));
+                    }
+                  },
+                ),
+            ]),
+            const _SectionLabel('Your data'),
+            _Group(children: [
+              _Row(
+                key: const ValueKey('row-delete-conversations'),
+                icon: Icons.delete_sweep_outlined,
+                title: 'Delete all conversations',
+                destructive: true,
+                onTap: () async {
+                  if (await _confirm(context, 'Delete all conversations?',
+                      'Every conversation with every coach will be deleted from this device.', 'Delete')) {
+                    state.deleteAllConversations();
+                  }
+                },
+              ),
+              _Row(
+                key: const ValueKey('row-delete-data'),
+                icon: Icons.delete_forever_outlined,
+                title: 'Delete my data',
+                destructive: true,
+                onTap: () async {
+                  if (await _confirm(
+                      context,
+                      'Delete all your data?',
+                      'Conversations, plan, progress, Coach memory and settings will be erased from this device, '
+                          'and the app will start again. Your Apple subscription is not affected.',
+                      'Delete everything')) {
+                    state.deleteMyData();
+                  }
+                },
+              ),
+            ]),
+            const _SectionLabel('About'),
+            _Group(children: [
+              _Row(
+                icon: Icons.privacy_tip_outlined,
+                title: 'Privacy Policy',
+                onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => const LegalScreen(title: 'Privacy Policy', content: kPrivacyPolicy),
+                )),
+              ),
+              _Row(
+                icon: Icons.description_outlined,
+                title: 'Terms of Use',
+                onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => const LegalScreen(title: 'Terms of Use', content: kTermsOfService),
+                )),
+              ),
+              _Row(
+                icon: Icons.mail_outline_rounded,
+                title: 'Support',
+                value: AppLinks.supportEmail,
+                onTap: () => _open(context, 'mailto:${AppLinks.supportEmail}'),
+              ),
+            ]),
+            const SizedBox(height: 18),
+            FutureBuilder<PackageInfo>(
+              future: PackageInfo.fromPlatform().catchError((Object _) => PackageInfo(appName: '', packageName: '', version: '', buildNumber: '')),
+              builder: (_, snap) {
+                final v = snap.data?.version ?? '';
+                return Text(
+                  'Your coaches are AI. Conversations are stored on this device.${v.isEmpty ? '' : '\nDateWise AI $v'}',
+                  textAlign: TextAlign.center,
+                  style: AppText.small,
+                );
               },
             ),
-          const SizedBox(height: AppSpacing.xl),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(8, 22, 8, 8),
+        child: Text(text.toUpperCase(), style: AppText.eyebrow.copyWith(color: AppColors.faint, fontSize: 12)),
+      );
+}
+
+class _Group extends StatelessWidget {
+  const _Group({required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.line),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) const Divider(indent: 52),
+            children[i],
+          ],
         ],
       ),
     );
   }
+}
 
-  Widget _section(String label) => Padding(
-        padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xs),
-        child: Text(
-          label.toUpperCase(),
-          style: const TextStyle(
-            color: AppColors.textMuted,
-            fontWeight: FontWeight.w700,
-            fontSize: 12,
-            letterSpacing: 0.6,
+class _Row extends StatelessWidget {
+  const _Row({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.value,
+    this.subtitle,
+    this.onTap,
+    this.destructive = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? value;
+  final String? subtitle;
+  final VoidCallback? onTap;
+  final bool destructive;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = destructive ? AppColors.danger : AppColors.text;
+    return InkWell(
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            children: [
+              Icon(icon, size: 22, color: destructive ? AppColors.danger : AppColors.gold),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: TextStyle(fontSize: 15.5, color: color, height: 1.3)),
+                    if (subtitle != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(subtitle!, maxLines: 3, overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 13, height: 1.35, color: AppColors.textMuted)),
+                      ),
+                  ],
+                ),
+              ),
+              if (value != null) ...[
+                const SizedBox(width: 8),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 150),
+                  child: Text(value!, textAlign: TextAlign.end, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 14.5, color: AppColors.textMuted)),
+                ),
+              ],
+              if (onTap != null && !destructive) ...[
+                const SizedBox(width: 4),
+                const Icon(Icons.chevron_right_rounded, color: AppColors.faint, size: 22),
+              ],
+            ],
           ),
         ),
-      );
+      ),
+    );
+  }
+}
 
-  Widget _tile({
-    required IconData icon,
-    required String title,
-    String? subtitle,
-    Widget? trailing,
-    VoidCallback? onTap,
-    bool danger = false,
-  }) {
-    final color = danger ? Colors.red.shade700 : AppColors.text;
-    return ListTile(
-      leading: Icon(icon, color: danger ? Colors.red.shade700 : AppColors.primary),
-      title: Text(title, style: TextStyle(color: color)),
-      subtitle: subtitle == null ? null : Text(subtitle),
-      trailing: trailing ??
-          (onTap == null ? null : const Icon(Icons.chevron_right, size: 20)),
-      onTap: onTap,
+class _SwitchRow extends StatelessWidget {
+  const _SwitchRow({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return MergeSemantics(
+      child: InkWell(
+        onTap: () => onChanged(!value),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            children: [
+              Icon(icon, size: 22, color: AppColors.gold),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: const TextStyle(fontSize: 15.5, color: AppColors.text, height: 1.3)),
+                    const SizedBox(height: 2),
+                    Text(subtitle, style: const TextStyle(fontSize: 13, height: 1.35, color: AppColors.textMuted)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Switch.adaptive(value: value, onChanged: onChanged),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

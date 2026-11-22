@@ -1,3 +1,5 @@
+> **Note (v2 app):** the app no longer uses accounts or Supabase; this guide applies only to the old v1 web app.
+
 # DateWise AI — Admin & Accounts Guide
 
 This explains how to switch on user accounts and use the **Supabase dashboard as
