@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/common/premium.dart';
 import 'home_shell.dart';
 import 'intro_screen.dart';
 import 'onboarding_screen.dart';
@@ -31,9 +32,10 @@ class _SplashScreenState extends State<SplashScreen>
       duration: const Duration(milliseconds: 900),
     );
     _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    _scale = Tween<double>(begin: 0.85, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
-    );
+    _scale = Tween<double>(
+      begin: 0.85,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
     _controller.forward();
     _scheduleNext();
   }
@@ -57,8 +59,9 @@ class _SplashScreenState extends State<SplashScreen>
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 450),
         pageBuilder: (_, __, ___) => next,
-        transitionsBuilder: (_, animation, __, child) =>
-            FadeTransition(opacity: animation, child: child),
+        transitionsBuilder:
+            (_, animation, __, child) =>
+                FadeTransition(opacity: animation, child: child),
       ),
     );
   }
@@ -72,14 +75,8 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [AppColors.primary, AppColors.primaryDark],
-          ),
-        ),
+      body: AmbientBackground(
+        intensity: 1.4,
         child: SafeArea(
           child: Stack(
             children: [
@@ -95,33 +92,39 @@ class _SplashScreenState extends State<SplashScreen>
                           width: 96,
                           height: 96,
                           decoration: BoxDecoration(
-                            gradient: AppColors.accentGradient,
+                            gradient: AppColors.romanticGradient,
                             shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppColors.accent.withValues(alpha: 0.6),
+                              width: 1.5,
+                            ),
                             boxShadow: [
                               BoxShadow(
-                                color: AppColors.accent.withValues(alpha: 0.4),
-                                blurRadius: 32,
-                                spreadRadius: 2,
+                                color: AppColors.primary.withValues(
+                                  alpha: 0.55,
+                                ),
+                                blurRadius: 48,
+                                spreadRadius: 4,
                               ),
                             ],
                           ),
                           child: const Icon(
                             Icons.favorite_rounded,
                             color: Colors.white,
-                            size: 48,
+                            size: 46,
                           ),
                         ),
                         const SizedBox(height: AppSpacing.lg),
-                        Text.rich(
+                        const Text.rich(
                           TextSpan(
                             children: [
-                              const TextSpan(
+                              TextSpan(
                                 text: 'DateWise',
                                 style: TextStyle(
                                   fontWeight: FontWeight.w800,
                                   fontSize: 32,
-                                  color: Colors.white,
-                                  letterSpacing: -0.5,
+                                  color: AppColors.text,
+                                  letterSpacing: -0.6,
                                 ),
                               ),
                               TextSpan(
@@ -130,19 +133,19 @@ class _SplashScreenState extends State<SplashScreen>
                                   fontWeight: FontWeight.w800,
                                   fontSize: 32,
                                   color: AppColors.accent,
-                                  letterSpacing: -0.5,
+                                  letterSpacing: -0.6,
                                 ),
                               ),
                             ],
                           ),
                         ),
                         const SizedBox(height: AppSpacing.sm),
-                        Text(
+                        const Text(
                           'Your AI dating coach',
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.75),
+                            color: AppColors.textMuted,
                             fontSize: 15,
-                            letterSpacing: 0.3,
+                            letterSpacing: 0.4,
                           ),
                         ),
                       ],
@@ -157,13 +160,13 @@ class _SplashScreenState extends State<SplashScreen>
                 child: Center(
                   child: FadeTransition(
                     opacity: _fade,
-                    child: SizedBox(
+                    child: const SizedBox(
                       width: 26,
                       height: 26,
                       child: CircularProgressIndicator(
                         strokeWidth: 2.4,
                         valueColor: AlwaysStoppedAnimation<Color>(
-                          AppColors.accent.withValues(alpha: 0.9),
+                          AppColors.primaryLight,
                         ),
                       ),
                     ),

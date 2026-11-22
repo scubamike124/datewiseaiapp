@@ -9,6 +9,8 @@ import '../models/user_profile.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common/brand_mark.dart';
+import '../widgets/common/effects.dart';
+import '../widgets/common/premium.dart';
 import 'chat_screen.dart';
 import 'home_shell.dart';
 
@@ -60,9 +62,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       interestedIn: _interestedIn!,
       goal: _goal!,
       app: _app!,
-      city: _cityController.text.trim().isEmpty
-          ? null
-          : _cityController.text.trim(),
+      city:
+          _cityController.text.trim().isEmpty
+              ? null
+              : _cityController.text.trim(),
     );
     final state = context.read<AppState>();
     // Mobile reaches onboarding without picking a plan first (no landing page),
@@ -71,9 +74,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     // recommended Flame plan. (On web the tier is already chosen on the landing
     // page; this is a no-op there.)
     if (!state.hasTier) {
-      await state.selectTier(AppFlags.freeLaunch
-          ? SubscriptionTier.magnet
-          : SubscriptionTier.flame);
+      await state.selectTier(
+        AppFlags.freeLaunch ? SubscriptionTier.magnet : SubscriptionTier.flame,
+      );
     }
     await state.completeOnboarding(profile);
     if (!mounted) return;
@@ -95,143 +98,167 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       appBar: AppBar(
         title: const BrandMark(),
         titleSpacing: AppSpacing.lg,
+        backgroundColor: Colors.transparent,
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 580),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: AppColors.accent.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(AppRadius.pill),
-                  ),
-                  child: Text(
-                    '$tierName · STEP 2 OF 2',
-                    style: const TextStyle(
-                      color: Color(0xFFB07E20),
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12,
-                      letterSpacing: 1,
+      body: AmbientBackground(
+        intensity: 0.8,
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 580),
+              child: FadeSlideIn(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Eyebrow(
+                      '$tierName · Step 2 of 2',
+                      icon: Icons.auto_awesome_rounded,
                     ),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Text("Let's set up your profile",
-                    style: theme.textTheme.headlineMedium),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  "A few quick questions so your coach's advice actually fits "
-                  "you — not generic tips.",
-                  style: theme.textTheme.bodyLarge
-                      ?.copyWith(color: AppColors.textMuted),
-                ),
-                const SizedBox(height: AppSpacing.xl),
-
-                _Question(
-                  label: "I'm a…",
-                  error: _submitted && _gender == null,
-                  child: _Chips<Gender>(
-                    values: Gender.values,
-                    selected: _gender,
-                    labelOf: (g) => g.label,
-                    onChanged: (g) => setState(() => _gender = g),
-                  ),
-                ),
-                _Question(
-                  label: 'My age',
-                  error: _submitted && _age == null,
-                  errorText: 'Enter an age between 18 and 99',
-                  child: SizedBox(
-                    width: 160,
-                    child: TextField(
-                      controller: _ageController,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(2),
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      "Let's set up your profile",
+                      style: theme.textTheme.headlineMedium,
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      "A few quick questions so your coach's advice actually "
+                      "fits you — not generic tips.",
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    GlassCard(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.lg,
+                        AppSpacing.lg,
+                        AppSpacing.lg,
+                        AppSpacing.sm,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _Question(
+                            label: "I'm a…",
+                            error: _submitted && _gender == null,
+                            child: _Chips<Gender>(
+                              values: Gender.values,
+                              selected: _gender,
+                              labelOf: (g) => g.label,
+                              onChanged: (g) => setState(() => _gender = g),
+                            ),
+                          ),
+                          _Question(
+                            label: 'My age',
+                            error: _submitted && _age == null,
+                            errorText: 'Enter an age between 18 and 99',
+                            child: SizedBox(
+                              width: 160,
+                              child: TextField(
+                                controller: _ageController,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.digitsOnly,
+                                  LengthLimitingTextInputFormatter(2),
+                                ],
+                                onChanged: (_) => setState(() {}),
+                                decoration: const InputDecoration(
+                                  hintText: 'e.g. 28',
+                                ),
+                              ),
+                            ),
+                          ),
+                          _Question(
+                            label: "I'm interested in…",
+                            error: _submitted && _interestedIn == null,
+                            child: _Chips<InterestedIn>(
+                              values: InterestedIn.values,
+                              selected: _interestedIn,
+                              labelOf: (i) => i.label,
+                              onChanged:
+                                  (i) => setState(() => _interestedIn = i),
+                            ),
+                          ),
+                          _Question(
+                            label: "I'm looking for…",
+                            error: _submitted && _goal == null,
+                            child: _Chips<DatingGoal>(
+                              values: DatingGoal.values,
+                              selected: _goal,
+                              labelOf: (g) => g.label,
+                              onChanged: (g) => setState(() => _goal = g),
+                            ),
+                          ),
+                          _Question(
+                            label: 'Which app are you on?',
+                            error: _submitted && _app == null,
+                            child: _Chips<DatingApp>(
+                              values: DatingApp.values,
+                              selected: _app,
+                              labelOf: (a) => a.label,
+                              onChanged: (a) => setState(() => _app = a),
+                            ),
+                          ),
+                          _Question(
+                            label: 'City (optional)',
+                            child: TextField(
+                              controller: _cityController,
+                              textCapitalization: TextCapitalization.words,
+                              decoration: const InputDecoration(
+                                hintText: 'Helps with date-spot ideas',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    GradientButton(
+                      expand: true,
+                      onPressed: _submit,
+                      label: 'Start coaching',
+                      trailingIcon: Icons.arrow_forward_rounded,
+                    ),
+                    if (_submitted && !_isValid)
+                      Padding(
+                        padding: const EdgeInsets.only(top: AppSpacing.sm),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: Text(
+                            'Please answer the questions above to continue.',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: AppColors.danger,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: AppSpacing.md),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.lock_outline_rounded,
+                          size: 14,
+                          color: AppColors.textMuted,
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            'Private by design — your answers stay on your '
+                            'device.',
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        ),
                       ],
-                      onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(hintText: 'e.g. 28'),
                     ),
-                  ),
+                  ],
                 ),
-                _Question(
-                  label: "I'm interested in…",
-                  error: _submitted && _interestedIn == null,
-                  child: _Chips<InterestedIn>(
-                    values: InterestedIn.values,
-                    selected: _interestedIn,
-                    labelOf: (i) => i.label,
-                    onChanged: (i) => setState(() => _interestedIn = i),
-                  ),
-                ),
-                _Question(
-                  label: "I'm looking for…",
-                  error: _submitted && _goal == null,
-                  child: _Chips<DatingGoal>(
-                    values: DatingGoal.values,
-                    selected: _goal,
-                    labelOf: (g) => g.label,
-                    onChanged: (g) => setState(() => _goal = g),
-                  ),
-                ),
-                _Question(
-                  label: 'Which app are you on?',
-                  error: _submitted && _app == null,
-                  child: _Chips<DatingApp>(
-                    values: DatingApp.values,
-                    selected: _app,
-                    labelOf: (a) => a.label,
-                    onChanged: (a) => setState(() => _app = a),
-                  ),
-                ),
-                _Question(
-                  label: 'City (optional)',
-                  child: TextField(
-                    controller: _cityController,
-                    textCapitalization: TextCapitalization.words,
-                    decoration: const InputDecoration(
-                      hintText: 'Helps with date-spot ideas',
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: AppSpacing.lg),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _submit,
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 6),
-                      child: Text('Start coaching →'),
-                    ),
-                  ),
-                ),
-                if (_submitted && !_isValid)
-                  Padding(
-                    padding: const EdgeInsets.only(top: AppSpacing.sm),
-                    child: Text(
-                      'Please answer the questions above to continue.',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: const Color(0xFFD64545)),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                const SizedBox(height: AppSpacing.sm),
-                Center(
-                  child: Text(
-                    'Private by design — your answers stay on your device.',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: AppColors.textMuted),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -268,8 +295,9 @@ class _Question extends StatelessWidget {
               padding: const EdgeInsets.only(top: 6),
               child: Text(
                 errorText ?? 'Please pick one',
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: const Color(0xFFD64545)),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: AppColors.danger,
+                ),
               ),
             ),
         ],
@@ -295,14 +323,15 @@ class _Chips<T> extends StatelessWidget {
     return Wrap(
       spacing: AppSpacing.sm,
       runSpacing: AppSpacing.sm,
-      children: values.map((v) {
-        final isSelected = v == selected;
-        return _SelectChip(
-          label: labelOf(v),
-          selected: isSelected,
-          onTap: () => onChanged(v),
-        );
-      }).toList(),
+      children:
+          values.map((v) {
+            final isSelected = v == selected;
+            return _SelectChip(
+              label: labelOf(v),
+              selected: isSelected,
+              onTap: () => onChanged(v),
+            );
+          }).toList(),
     );
   }
 }
@@ -319,27 +348,48 @@ class _SelectChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md, vertical: 11),
-          decoration: BoxDecoration(
-            color: selected ? AppColors.primary : Colors.white,
-            borderRadius: BorderRadius.circular(AppRadius.pill),
-            border: Border.all(
-              color: selected ? AppColors.primary : AppColors.cardBorder,
-              width: selected ? 2 : 1,
-            ),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: selected ? Colors.white : AppColors.text,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: onTap,
+          child: PressScale(
+            child: AnimatedContainer(
+              duration: AppMotion.fast,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: 11,
+              ),
+              decoration: BoxDecoration(
+                gradient: selected ? AppColors.romanticGradient : null,
+                color: selected ? null : AppColors.raised,
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+                border: Border.all(
+                  color:
+                      selected
+                          ? AppColors.primaryLight.withValues(alpha: 0.6)
+                          : AppColors.cardBorder,
+                ),
+                boxShadow:
+                    selected
+                        ? [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.35),
+                            blurRadius: 14,
+                            offset: const Offset(0, 4),
+                          ),
+                        ]
+                        : null,
+              ),
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: selected ? Colors.white : AppColors.text,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
             ),
           ),
         ),

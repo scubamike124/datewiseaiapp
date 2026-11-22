@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/common/effects.dart';
+import '../widgets/common/premium.dart';
 import 'home_shell.dart';
 import 'onboarding_screen.dart';
 
@@ -65,8 +67,9 @@ class _IntroScreenState extends State<IntroScreen> {
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 400),
         pageBuilder: (_, __, ___) => next,
-        transitionsBuilder: (_, animation, __, child) =>
-            FadeTransition(opacity: animation, child: child),
+        transitionsBuilder:
+            (_, animation, __, child) =>
+                FadeTransition(opacity: animation, child: child),
       ),
     );
   }
@@ -91,49 +94,51 @@ class _IntroScreenState extends State<IntroScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: AnimatedOpacity(
-                opacity: _isLast ? 0 : 1,
-                duration: const Duration(milliseconds: 200),
-                child: TextButton(
-                  onPressed: _isLast ? null : _finish,
-                  child: const Text('Skip'),
-                ),
-              ),
-            ),
-            Expanded(
-              child: PageView.builder(
-                controller: _controller,
-                itemCount: _slides.length,
-                onPageChanged: (i) => setState(() => _page = i),
-                itemBuilder: (_, i) => _SlideView(slide: _slides[i]),
-              ),
-            ),
-            _Dots(count: _slides.length, active: _page),
-            const SizedBox(height: AppSpacing.lg),
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.lg,
-                vertical: AppSpacing.md,
-              ),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _next,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Text(_isLast ? 'Get started →' : 'Next'),
+      body: AmbientBackground(
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Column(
+                children: [
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: AnimatedOpacity(
+                      opacity: _isLast ? 0 : 1,
+                      duration: const Duration(milliseconds: 200),
+                      child: TextButton(
+                        onPressed: _isLast ? null : _finish,
+                        child: const Text('Skip'),
+                      ),
+                    ),
                   ),
-                ),
+                  Expanded(
+                    child: PageView.builder(
+                      controller: _controller,
+                      itemCount: _slides.length,
+                      onPageChanged: (i) => setState(() => _page = i),
+                      itemBuilder: (_, i) => _SlideView(slide: _slides[i]),
+                    ),
+                  ),
+                  _Dots(count: _slides.length, active: _page),
+                  const SizedBox(height: AppSpacing.lg),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg,
+                      vertical: AppSpacing.md,
+                    ),
+                    child: GradientButton(
+                      expand: true,
+                      onPressed: _next,
+                      label: _isLast ? 'Get started' : 'Next',
+                      trailingIcon: Icons.arrow_forward_rounded,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                ],
               ),
             ),
-            const SizedBox(height: AppSpacing.sm),
-          ],
+          ),
         ),
       ),
     );
@@ -147,35 +152,46 @@ class _SlideView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 132,
-            height: 132,
-            decoration: const BoxDecoration(
-              gradient: AppColors.romanticGradient,
-              shape: BoxShape.circle,
+    // Scrolls on short screens or with large text instead of overflowing.
+    return LayoutBuilder(
+      builder:
+          (context, constraints) => SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: FadeSlideIn(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.glassFill,
+                        border: Border.all(color: AppColors.glassBorder),
+                      ),
+                      child: GradientIcon(icon: slide.icon, size: 112),
+                    ),
+                    const SizedBox(height: AppSpacing.xl),
+                    Text(
+                      slide.title,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.headlineMedium,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      slide.body,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: AppColors.textMuted,
+                        height: 1.55,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-            child: Icon(slide.icon, color: Colors.white, size: 60),
           ),
-          const SizedBox(height: AppSpacing.xl),
-          Text(
-            slide.title,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.headlineMedium,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            slide.body,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyLarge
-                ?.copyWith(color: AppColors.textMuted, height: 1.55),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -197,7 +213,8 @@ class _Dots extends StatelessWidget {
           width: isActive ? 24 : 8,
           height: 8,
           decoration: BoxDecoration(
-            color: isActive ? AppColors.primary : AppColors.cardBorder,
+            gradient: isActive ? AppColors.romanticGradient : null,
+            color: isActive ? null : AppColors.cardBorder,
             borderRadius: BorderRadius.circular(AppRadius.pill),
           ),
         );
