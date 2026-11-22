@@ -104,7 +104,9 @@ class CoachCard extends StatelessWidget {
                   const SizedBox(height: 10),
                   DwButton(
                     key: ValueKey('chat-${coach.id}'),
-                    label: '${l.chatWith(coach.name)} →',
+                    label: l.chatWith(coach.name),
+                    trailing: Icons.arrow_forward_rounded,
+                    fitLabel: true,
                     onPressed: onChat,
                     style: DwButtonStyle.rose,
                     expand: true,

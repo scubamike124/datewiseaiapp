@@ -36,7 +36,7 @@ final Map<String, Pump> screens = {
   },
   'onboarding coach': (t, size, scale) async {
     await pumpScreen(t, const OnboardingScreen(initialStep: 3), size: size, scale: scale);
-    expect(find.text('Chat with Ava →'), findsOneWidget);
+    expect(find.text('Chat with Ava'), findsOneWidget);
   },
   'paywall': (t, size, scale) async {
     await pumpScreen(t, PaywallScreen(onClose: () {}), size: size, scale: scale, entitled: false, prefs: onboardedPrefs());
@@ -53,7 +53,7 @@ final Map<String, Pump> screens = {
   },
   'coaches': (t, size, scale) async {
     await pumpApp(t, size: size, scale: scale, prefs: onboardedPrefs(), tab: AppTab.coaches);
-    expect(find.text('Chat with Sofía →'), findsOneWidget);
+    expect(find.text('Chat with Sofía'), findsOneWidget);
   },
   'chat with a conversation': (t, size, scale) async {
     final app = await pumpApp(t, size: size, scale: scale, prefs: onboardedPrefs(), tab: AppTab.chat);

@@ -46,7 +46,11 @@ class DwButton extends StatelessWidget {
     this.fontSize = 16,
     this.padding = 26,
     this.busy = false,
+    this.fitLabel = false,
   });
+
+  /// Keep the label on one line, shrinking it to fit (narrow cards).
+  final bool fitLabel;
 
   final String label;
   final VoidCallback? onPressed;
@@ -101,7 +105,7 @@ class DwButton extends StatelessWidget {
           )
         else if (leading != null)
           Padding(padding: const EdgeInsets.only(right: 8), child: Icon(leading, size: fontSize + 2, color: fg)),
-        Flexible(child: text),
+        Flexible(child: fitLabel ? FittedBox(fit: BoxFit.scaleDown, child: text) : text),
         if (trailing != null)
           Padding(padding: const EdgeInsets.only(left: 6), child: Icon(trailing, size: fontSize + 2, color: fg)),
       ],

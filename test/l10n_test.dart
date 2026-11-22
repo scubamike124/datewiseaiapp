@@ -136,7 +136,7 @@ void main() {
       expect(find.text('Continuar'), findsOneWidget);
       await pumpScreen(tester, const OnboardingScreen(key: ValueKey('step-4'), initialStep: 3), locale: es);
       expect(find.text('Elige a tu coach de citas'), findsOneWidget);
-      expect(find.text('Chatear con Sofía →'), findsOneWidget);
+      expect(find.text('Chatear con Sofía'), findsOneWidget);
       expect(find.text('Coach de confianza. Directa, solidaria y enfocada en resultados.'), findsOneWidget);
     });
 
