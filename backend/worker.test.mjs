@@ -65,7 +65,7 @@ test('no retired model is referenced anywhere in worker.js', () => {
 test('GET ?version names the fix', async () => {
   const res = await worker.fetch(new Request('https://example.workers.dev/?version'), fakeEnv(() => ({})).env);
   const body = await res.json();
-  assert.equal(body.version, 'chat-v7');
+  assert.equal(body.version, 'chat-v8');
 });
 
 test('coach chat streams from the text model and forwards the SSE body unchanged', async () => {
@@ -299,4 +299,86 @@ test('without REQUIRE_COACH_ID, legacy requests are unchanged', async () => {
   const f = fakeEnv(() => sseOk());
   const res = await worker.fetch(post({ tier: 'magnet', messages: [{ role: 'user', content: 'hi' }] }), f.env);
   assert.equal(res.status, 200);
+});
+
+// --- chat-v8: ordered models, fallback, normalised stream --------------------
+
+const chatSse = (parts) =>
+  new Response(
+    parts.map((p) => `data: ${JSON.stringify({ choices: [{ delta: p }] })}\n\n`).join('') + 'data: [DONE]\n\n',
+  ).body;
+
+test('the default model list is Llama 3.3 then Gemma 4; CHAT_MODELS reorders it and ignores unknown ids', async () => {
+  const { chatModels } = await import('./worker.js');
+  assert.deepEqual(chatModels({}), ['@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/google/gemma-4-26b-a4b-it']);
+  assert.deepEqual(chatModels({ CHAT_MODELS: ' @cf/qwen/qwen3.8-27b, evil/model, @cf/qwen/qwen3.8-27b ,@cf/google/gemma-4-26b-a4b-it' }), [
+    '@cf/qwen/qwen3.8-27b',
+    '@cf/google/gemma-4-26b-a4b-it',
+  ]);
+  assert.deepEqual(chatModels({ CHAT_MODELS: 'nothing/known' }), ['@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/google/gemma-4-26b-a4b-it']);
+});
+
+test('chat-style models get max_completion_tokens and their reasoning setting; Llama keeps max_tokens', async () => {
+  const { chatInput } = await import('./worker.js');
+  const m = [{ role: 'user', content: 'hi' }];
+  assert.deepEqual(Object.keys(chatInput('@cf/meta/llama-3.3-70b-instruct-fp8-fast', m)).sort(), ['max_tokens', 'messages', 'stream']);
+  assert.equal(chatInput('@cf/qwen/qwen3.8-27b', m).reasoning_effort, 'low');
+  assert.equal(chatInput('@cf/deepseek-ai/deepseek-v4.1-flash-1017', m).reasoning_effort, 'none');
+  assert.ok('max_completion_tokens' in chatInput('@cf/google/gemma-4-26b-a4b-it', m));
+});
+
+test('a retired primary falls back to the next model, logs it, and names the model that answered', async () => {
+  const logs = [];
+  const orig = console.log;
+  console.log = (l) => logs.push(l);
+  try {
+    const f = fakeEnv((model) => {
+      if (model === '@cf/meta/llama-3.3-70b-instruct-fp8-fast') throw new Error('AiError: 5028: deprecated');
+      return chatSse([{ content: 'Hola' }, { content: ' amigo' }]);
+    });
+    const res = await worker.fetch(post({ coachId: 'mateo', messages: [{ role: 'user', content: 'hola' }] }), f.env);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('X-DateWise-Model'), '@cf/google/gemma-4-26b-a4b-it');
+    assert.equal(await res.text(), 'data: {"response":"Hola"}\n\ndata: {"response":" amigo"}\n\ndata: [DONE]\n\n');
+    assert.deepEqual(f.calls.map((c) => c.model), ['@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/google/gemma-4-26b-a4b-it']);
+    assert.ok(logs.some((l) => l.includes('"model_fallback"') && l.includes('5028')), logs.join('\n'));
+    assert.ok(!logs.some((l) => l.includes('hola')), 'no user content in logs');
+  } finally {
+    console.log = orig;
+  }
+});
+
+test('reasoning text is never shown to the user; split SSE chunks are reassembled', async () => {
+  const body =
+    'data: {"choices":[{"delta":{"reasoning_content":"secret plan"}}]}\n\ndata: {"choices":[{"delta":{"con' +
+    'tent":"Hi"}}]}\n\nnot-json\ndata: {oops}\n\ndata: [DONE]\n\n';
+  const f = fakeEnv(() => {
+    const enc = new TextEncoder().encode(body);
+    return new ReadableStream({
+      start(c) {
+        c.enqueue(enc.slice(0, 40));
+        c.enqueue(enc.slice(40, 75));
+        c.enqueue(enc.slice(75));
+        c.close();
+      },
+    });
+  });
+  f.env.CHAT_MODELS = '@cf/qwen/qwen3.8-27b';
+  const res = await worker.fetch(post({ coachId: 'emily', messages: [{ role: 'user', content: 'hi' }] }), f.env);
+  const text = await res.text();
+  assert.equal(text, 'data: {"response":"Hi"}\n\ndata: [DONE]\n\n');
+});
+
+test('when every model fails the client gets a 502 (the app shows its localised notice)', async () => {
+  const f = fakeEnv(() => {
+    throw new Error('AiError: 5028: deprecated');
+  });
+  const res = await worker.fetch(post({ coachId: 'james', messages: [{ role: 'user', content: 'hi' }] }), f.env);
+  assert.equal(res.status, 502);
+  assert.equal(f.calls.length, 2);
+});
+
+test('?health lists the models in order and the protection switches, nothing secret', async () => {
+  const res = await worker.fetch(new Request('https://example.workers.dev/?health'), { CHAT_MODELS: '@cf/qwen/qwen3.8-27b', REQUIRE_COACH_ID: '1' });
+  assert.deepEqual(await res.json(), { version: 'chat-v8', chatModels: ['@cf/qwen/qwen3.8-27b'], requireCoachId: true, rateLimited: false });
 });

@@ -38,6 +38,7 @@ function corsHeaders() {
     'Access-Control-Allow-Origin': ACTIVE_CORS_ORIGIN,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Expose-Headers': 'X-DateWise-Model',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
@@ -89,7 +90,88 @@ const TEXT_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 // The same free text model powers the coaching chat. Replies stream back
 // token-by-token as Server-Sent Events so the app renders them live. Unlike the
 // photo coach, chat is available on every tier.
-const CHAT_MODEL = TEXT_MODEL;
+const CHAT_MODEL = TEXT_MODEL; // the default primary chat model (see CHAT_MODEL_PROFILES)
+
+// --- Chat models: ordered primary + fallbacks --------------------------------
+// One retired model took coaching offline on 2026-11-20. The chat now tries an
+// ordered list and falls back when a model errors before replying. The list is
+// the Worker variable CHAT_MODELS (comma-separated, set in the Cloudflare
+// dashboard: changing it is an instant rollback, no redeploy); unknown ids are
+// ignored. Each profile says how to call the model and read its stream.
+//   legacy: {messages, max_tokens} in, `data: {"response": …}` out (Llama 3.x)
+//   chat:   OpenAI-style {messages, max_completion_tokens} in, choices[0].delta.content out
+// Prices: developers.cloudflare.com/workers-ai/models (2026-11-22), per 1M tokens in/out.
+const CHAT_MODEL_PROFILES = {
+  '@cf/meta/llama-3.3-70b-instruct-fp8-fast': { api: 'legacy', price: [0.293, 2.253] },
+  '@cf/google/gemma-4-26b-a4b-it': { api: 'chat', price: [0.1, 0.3] },
+  '@cf/qwen/qwen3.8-27b': { api: 'chat', price: [0.45, 3.2], extra: { reasoning_effort: 'low' } },
+  // Needs the Workers Paid plan (not available on Workers Free billing).
+  '@cf/deepseek-ai/deepseek-v4.1-flash-1017': { api: 'chat', price: [0.3, 1.2], extra: { reasoning_effort: 'none' }, paidOnly: true },
+};
+const DEFAULT_CHAT_MODELS = ['@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/google/gemma-4-26b-a4b-it'];
+
+function chatModels(env) {
+  const configured = typeof env?.CHAT_MODELS === 'string'
+    ? env.CHAT_MODELS.split(',').map((m) => m.trim()).filter((m) => Object.hasOwn(CHAT_MODEL_PROFILES, m))
+    : [];
+  return configured.length ? [...new Set(configured)] : DEFAULT_CHAT_MODELS;
+}
+
+function chatInput(model, messages) {
+  const profile = CHAT_MODEL_PROFILES[model];
+  return profile.api === 'chat'
+    ? { messages, max_completion_tokens: MAX_CHAT_TOKENS, stream: true, ...(profile.extra || {}) }
+    : { messages, max_tokens: MAX_CHAT_TOKENS, stream: true };
+}
+
+// Re-emits any model's stream in the app's format, `data: {"response": "…"}`,
+// and drops reasoning text (reasoning/reasoning_content) so users only see the
+// answer. Unparseable lines are dropped, never forwarded raw.
+function normalizeChatStream(stream) {
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  let buffer = '';
+  const emitLine = (line, controller) => {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('data:')) return;
+    const data = trimmed.slice(5).trim();
+    if (data === '[DONE]') {
+      controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+      return;
+    }
+    let obj;
+    try {
+      obj = JSON.parse(data);
+    } catch {
+      return;
+    }
+    const token =
+      typeof obj?.response === 'string'
+        ? obj.response
+        : typeof obj?.choices?.[0]?.delta?.content === 'string'
+          ? obj.choices[0].delta.content
+          : '';
+    if (token) controller.enqueue(encoder.encode(`data: ${JSON.stringify({ response: token })}\n\n`));
+  };
+  return stream.pipeThrough(
+    new TransformStream({
+      transform(chunk, controller) {
+        buffer += decoder.decode(chunk, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) emitLine(line, controller);
+      },
+      flush(controller) {
+        if (buffer) emitLine(buffer, controller);
+      },
+    }),
+  );
+}
+
+// Structured log line for Workers Logs / wrangler tail (no user content).
+function logModelEvent(event, fields) {
+  console.log(JSON.stringify({ service: 'datewise-coach', event, ...fields }));
+}
 const MAX_CHAT_MESSAGES = 24; // cap how many turns we forward to the model
 const MAX_CHAT_CHARS = 24_000; // total prompt budget, trimmed from the newest end
 const MAX_CHAT_TOKENS = 800;
@@ -650,18 +732,35 @@ function sanitizeMessages(messages) {
 
 // Runs the chat model in streaming mode, accepting the one-time Meta Llama
 // license (AiError 5016) on first use, then retrying — same as runModel.
+// Runs the chat on the first model that answers, in CHAT_MODELS order. A model
+// that throws before returning a stream (retired, overloaded, not on this plan)
+// is logged and the next one is tried. Returns { stream, model }.
 async function runChatStream(env, messages) {
-  const input = { messages, max_tokens: MAX_CHAT_TOKENS, stream: true };
-  try {
-    return await env.AI.run(CHAT_MODEL, input);
-  } catch (e) {
-    const msg = String(e);
-    if (msg.includes('5016') || msg.toLowerCase().includes("prompt 'agree'")) {
-      await env.AI.run(CHAT_MODEL, { prompt: 'agree' });
-      return await env.AI.run(CHAT_MODEL, input);
+  const errors = [];
+  for (const model of chatModels(env)) {
+    const input = chatInput(model, messages);
+    try {
+      let stream;
+      try {
+        stream = await env.AI.run(model, input);
+      } catch (e) {
+        const msg = String(e);
+        // One-time Meta Llama licence acceptance, then retry once.
+        if (!(msg.includes('5016') || msg.toLowerCase().includes("prompt 'agree'"))) throw e;
+        await env.AI.run(model, { prompt: 'agree' });
+        stream = await env.AI.run(model, input);
+      }
+      if (errors.length) logModelEvent('model_fallback', { served: model, failed: errors.map((x) => x.model), errors: errors.map((x) => x.error) });
+      return { stream: normalizeChatStream(stream), model };
+    } catch (e) {
+      const error = String(e).slice(0, 300);
+      errors.push({ model, error });
+      logModelEvent('model_error', { model, error });
     }
-    throw e;
   }
+  const err = new Error(errors.map((x) => `${x.model}: ${x.error}`).join(' | ') || 'no chat model configured');
+  err.modelErrors = errors;
+  throw err;
 }
 
 // Handles a coaching chat request: streams the model's reply straight back to
@@ -672,22 +771,26 @@ async function handleChat(env, messages) {
   if (!safe) {
     return json({ error: 'Provide a non-empty "messages" array.' }, 400);
   }
-  let stream;
+  let result;
   try {
-    stream = await runChatStream(env, safe);
+    result = await runChatStream(env, safe);
   } catch (e) {
+    logModelEvent('chat_unavailable', { errors: (e.modelErrors || []).length });
     return json({ error: 'Workers AI error', detail: String(e) }, 502);
   }
   // Workers AI returns an SSE ReadableStream ("data: {\"response\":\"…\"}\n\n"
   // … "data: [DONE]"); forward it verbatim with CORS so the app can stream it.
-  return new Response(stream, {
+  return new Response(result.stream, {
     headers: {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
+      'X-DateWise-Model': result.model,
       ...corsHeaders(),
     },
   });
 }
+
+export { CHAT_MODEL_PROFILES, DEFAULT_CHAT_MODELS, chatModels, chatInput, coachSystemPrompt, COACHES };
 
 export default {
   async fetch(request, env) {
@@ -704,8 +807,12 @@ export default {
     if (request.method === 'GET') {
       const url = new URL(request.url);
       // Quick deploy check: open <worker-url>/?version to confirm this code is live.
+      // Monitoring: which chat models this deployment will try, in order (no secrets).
+      if (url.searchParams.has('health')) {
+        return json({ version: 'chat-v8', chatModels: chatModels(env), requireCoachId: env.REQUIRE_COACH_ID === '1', rateLimited: Boolean(env.RATE_LIMITER) });
+      }
       if (url.searchParams.has('version')) {
-        return json({ version: 'chat-v7', note: 'streaming coach chat + single + batch parsing; text model llama-3.3-70b-instruct-fp8-fast; server-side coach prompts for requests with coachId; structured profile' });
+        return json({ version: 'chat-v8', note: 'coach chat with ordered fallback models (CHAT_MODELS), server-side coach prompts, structured profile, request limit and legacy switch' });
       }
       if (url.searchParams.get('agree') === '1') {
         if (!env.AI) return json({ error: 'AI binding "AI" missing' }, 500);
