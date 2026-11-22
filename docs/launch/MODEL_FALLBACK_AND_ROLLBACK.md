@@ -40,5 +40,5 @@ Real usage depends on prompt length.
 - `GET /?health` shows the deployed version, the model order and the protection switches.
 
 ## Rollback
-1. **Model problem (instant, no deploy).** In the Cloudflare dashboard, open Workers & Pages → `datewise-photo-coach` → Settings → Variables. Set `CHAT_MODELS` to a working order, for example only `@cf/google/gemma-4-26b-a4b-it`. Check `/?health`.
+1. **Model problem (instant, no deploy; later deploys keep it because `wrangler.toml` has `keep_vars = true`).** In the Cloudflare dashboard, open Workers & Pages → `datewise-photo-coach` → Settings → Variables. Set `CHAT_MODELS` to a working order, for example only `@cf/google/gemma-4-26b-a4b-it`. Check `/?health`.
 2. **Code problem.** Actions → **Deploy coach backend** → "Use workflow from": pick the previous branch or tag → type `deploy`. Or paste the previous `worker.js` in the dashboard.

@@ -27,14 +27,15 @@ jobs:
           health=$(curl -sS --max-time 20 "$WORKER/?health"); echo "health: $health"
           for c in "emily|Give me one tip for a first message." "mateo|Dame un consejo para un primer mensaje."; do
             coach="${c%%|*}"; text="${c#*|}"
+            rm -f headers.txt reply.txt
             body=$(jq -nc --arg c "$coach" --arg t "$text" '{coachId:$c,messages:[{role:"user",content:$t}]}')
             out=$(curl -sS --max-time 60 -D headers.txt -o reply.txt -w '%{http_code}' -X POST "$WORKER" -H 'Content-Type: application/json' -H 'Origin: https://datewiseai.com' -d "$body")
             model=$(grep -i '^x-datewise-model' headers.txt | tr -d '\r' | cut -d' ' -f2)
             chars=$(grep -o '"response":"[^"]*"' reply.txt | wc -c)
             echo "$coach: HTTP $out, model ${model:-?}, ${chars} chars"
-            if [ "$out" != "200" ] || [ "$chars" -lt 20 ]; then fail="$fail $coach(HTTP $out: $(head -c 200 reply.txt))"; fi
+            if [ "$out" != "200" ] || [ "$chars" -lt 20 ]; then fail="$fail $coach(HTTP $out: $(head -c 200 reply.txt 2>/dev/null | tr -d '\r\n'))"; fi
           done
-          echo "fail=$fail" >> "$GITHUB_OUTPUT"
+          echo "fail=$(printf '%s' "$fail" | tr -d '\r\n')" >> "$GITHUB_OUTPUT"
       - name: Open or update the coach-down issue
         if: steps.probe.outputs.fail != ''
         env:
@@ -46,3 +47,10 @@ jobs:
           msg="Coach monitor failed at $(date -u +%FT%TZ):$FAIL. Rollback: set the Worker variable CHAT_MODELS to a working model order in the Cloudflare dashboard (no redeploy), or redeploy a previous version with Deploy coach backend."
           if [ -n "$n" ]; then gh issue comment "$n" -R "$GITHUB_REPOSITORY" --body "$msg"; else gh issue create -R "$GITHUB_REPOSITORY" --label coach-down --title "Live coaching is failing" --body "$msg"; fi
           exit 1
+      - name: Close the coach-down issue when coaching works again
+        if: steps.probe.outputs.fail == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          n=$(gh issue list -R "$GITHUB_REPOSITORY" --label coach-down --state open --json number --jq '.[0].number' 2>/dev/null)
+          if [ -n "$n" ]; then gh issue close "$n" -R "$GITHUB_REPOSITORY" --comment "Coach monitor: English and Spanish replies are working again at $(date -u +%FT%TZ)."; fi

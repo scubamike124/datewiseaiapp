@@ -168,6 +168,38 @@ function normalizeChatStream(stream) {
   );
 }
 
+// Waits for the first piece of answer text. Returns a stream that replays what
+// was read and then continues, or null when the model ended without any answer
+// (an empty or reasoning-only reply), so the caller can try the next model.
+async function primeStream(stream) {
+  const reader = stream.getReader();
+  const seen = [];
+  const decoder = new TextDecoder();
+  let text = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) {
+      return null;
+    }
+    seen.push(value);
+    text += decoder.decode(value, { stream: true });
+    if (text.includes('"response"')) break;
+  }
+  return new ReadableStream({
+    start(controller) {
+      for (const c of seen) controller.enqueue(c);
+    },
+    async pull(controller) {
+      const { value, done } = await reader.read();
+      if (done) controller.close();
+      else controller.enqueue(value);
+    },
+    cancel(reason) {
+      return reader.cancel(reason);
+    },
+  });
+}
+
 // Structured log line for Workers Logs / wrangler tail (no user content).
 function logModelEvent(event, fields) {
   console.log(JSON.stringify({ service: 'datewise-coach', event, ...fields }));
@@ -745,13 +777,15 @@ async function runChatStream(env, messages) {
         stream = await env.AI.run(model, input);
       } catch (e) {
         const msg = String(e);
-        // One-time Meta Llama licence acceptance, then retry once.
-        if (!(msg.includes('5016') || msg.toLowerCase().includes("prompt 'agree'"))) throw e;
+        // One-time Meta Llama licence acceptance, then retry once (Meta models only).
+        if (!model.startsWith('@cf/meta/') || !(msg.includes('5016') || msg.toLowerCase().includes("prompt 'agree'"))) throw e;
         await env.AI.run(model, { prompt: 'agree' });
         stream = await env.AI.run(model, input);
       }
+      const primed = await primeStream(normalizeChatStream(stream));
+      if (!primed) throw new Error('empty_reply: the model ended without any answer text');
       if (errors.length) logModelEvent('model_fallback', { served: model, failed: errors.map((x) => x.model), errors: errors.map((x) => x.error) });
-      return { stream: normalizeChatStream(stream), model };
+      return { stream: primed, model };
     } catch (e) {
       const error = String(e).slice(0, 300);
       errors.push({ model, error });
@@ -776,10 +810,12 @@ async function handleChat(env, messages) {
     result = await runChatStream(env, safe);
   } catch (e) {
     logModelEvent('chat_unavailable', { errors: (e.modelErrors || []).length });
-    return json({ error: 'Workers AI error', detail: String(e) }, 502);
+    // Full errors stay in the log; the client only gets the error codes.
+    const codes = [...new Set((String(e).match(/\b\d{4}\b/g) || []))].join(', ');
+    return json({ error: 'Workers AI error', detail: codes ? `codes: ${codes}` : 'all chat models failed' }, 502);
   }
-  // Workers AI returns an SSE ReadableStream ("data: {\"response\":\"…\"}\n\n"
-  // … "data: [DONE]"); forward it verbatim with CORS so the app can stream it.
+  // The reply streams as Server-Sent Events in the app's format
+  // ("data: {\"response\":\"…\"}" … "data: [DONE]"), normalised from any model.
   return new Response(result.stream, {
     headers: {
       'Content-Type': 'text/event-stream',

@@ -38,7 +38,7 @@ function language(t) {
   const es = w.filter((x) => STOP.es.includes(x)).length;
   return es > en * 1.5 ? 'es' : en > es * 1.5 ? 'en' : 'mixed';
 }
-const BRAND = /\b(amber|openai|gpt|llama|gemma|qwen|deepseek|meta ai|google|anthropic|claude|language model|modelo de lenguaje)\b/i;
+const BRAND = /\b(amber|openai|chatgpt|gpt-\d|llama|gemma|qwen|deepseek|anthropic|claude|language model|modelo de lenguaje)\b/i;
 
 async function run(model, messages) {
   const input = { ...chatInput(model, messages), stream: false };
@@ -80,7 +80,8 @@ for (const model of models) {
         checks.brandSafe = !BRAND.test(r.text) && !/<think>/i.test(r.text);
         const n = words(r.text).length;
         checks.length = n >= 15 && n <= 260;
-        if (sc.mustAsk) checks.asksFirst = /[?¿]/.test(r.text);
+        // Asks before writing: a question, and no full draft (a bio would run long).
+        if (sc.mustAsk) checks.asksFirst = /[?¿]/.test(r.text) && n <= 120;
       }
       rows.push({ model, coachId, scenario: sc.id, ...r, checks });
     }

@@ -68,7 +68,7 @@ test('GET ?version names the fix', async () => {
   assert.equal(body.version, 'chat-v8');
 });
 
-test('coach chat streams from the text model and forwards the SSE body unchanged', async () => {
+test('coach chat streams from the text model in the app format', async () => {
   const sse = 'data: {"response":"Hola"}\n\ndata: {"response":"!"}\n\ndata: [DONE]\n\n';
   const f = fakeEnv((model, input) => {
     assert.equal(input.stream, true);
@@ -120,7 +120,9 @@ test('a retired-model error (HTTP 410) surfaces as a 502 with the detail, not a 
   });
   const res = await worker.fetch(post({ tier: 'free', messages: [{ role: 'user', content: 'hi' }] }), f.env);
   assert.equal(res.status, 502);
-  assert.match((await res.json()).detail, /5028/);
+  const detail = (await res.json()).detail;
+  assert.match(detail, /5028/);
+  assert.ok(!/deprecated|llama/i.test(detail), 'only error codes reach the client');
 });
 
 // --- chat-v7: server-side coach prompts -------------------------------------
@@ -381,4 +383,65 @@ test('when every model fails the client gets a 502 (the app shows its localised 
 test('?health lists the models in order and the protection switches, nothing secret', async () => {
   const res = await worker.fetch(new Request('https://example.workers.dev/?health'), { CHAT_MODELS: '@cf/qwen/qwen3.8-27b', REQUIRE_COACH_ID: '1' });
   assert.deepEqual(await res.json(), { version: 'chat-v8', chatModels: ['@cf/qwen/qwen3.8-27b'], requireCoachId: true, rateLimited: false });
+});
+
+// --- chat-v8 review fixes -----------------------------------------------------
+
+const bytesStream = (parts) =>
+  new ReadableStream({
+    start(c) {
+      for (const p of parts) c.enqueue(typeof p === 'string' ? new TextEncoder().encode(p) : p);
+      c.close();
+    },
+  });
+
+test('CRLF lines, "data:" without a space, a split 4-byte emoji and a last line without newline all come through', async () => {
+  const full = new TextEncoder().encode('data:{"response":"Hola 😀"}\r\n\r\ndata: {"response":"!"}');
+  const f = fakeEnv(() => bytesStream([full.slice(0, 22), full.slice(22, 25), full.slice(25)]));
+  const res = await worker.fetch(post({ coachId: 'mateo', messages: [{ role: 'user', content: 'hola' }] }), f.env);
+  assert.equal(await res.text(), 'data: {"response":"Hola 😀"}\n\ndata: {"response":"!"}\n\n');
+});
+
+test('an empty or reasoning-only reply falls back to the next model and is logged', async () => {
+  const logs = [];
+  const orig = console.log;
+  console.log = (l) => logs.push(l);
+  try {
+    const f = fakeEnv((model) =>
+      model === '@cf/meta/llama-3.3-70b-instruct-fp8-fast'
+        ? bytesStream(['data: {"choices":[{"delta":{"reasoning_content":"thinking"}}]}\n\ndata: [DONE]\n\n'])
+        : chatSse([{ content: 'Hi there' }]),
+    );
+    const res = await worker.fetch(post({ coachId: 'emily', messages: [{ role: 'user', content: 'hi' }] }), f.env);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('X-DateWise-Model'), '@cf/google/gemma-4-26b-a4b-it');
+    assert.match(await res.text(), /Hi there/);
+    assert.ok(logs.some((l) => l.includes('empty_reply')), logs.join('\n'));
+  } finally {
+    console.log = orig;
+  }
+});
+
+test('all models answering empty gives 502, not an empty 200', async () => {
+  const f = fakeEnv(() => bytesStream(['data: [DONE]\n\n']));
+  const res = await worker.fetch(post({ coachId: 'james', messages: [{ role: 'user', content: 'hi' }] }), f.env);
+  assert.equal(res.status, 502);
+});
+
+test('the licence "agree" retry is only tried for Meta models', async () => {
+  const f = fakeEnv((model, input) => {
+    if (input.prompt === 'agree') return { response: 'ok' };
+    if (f.calls.filter((c) => c.model === model && c.input.prompt !== 'agree').length === 1) throw new Error("AiError: 5016: send prompt 'agree'");
+    return model.startsWith('@cf/meta/') ? new Response('data: {"response":"ok"}\n\ndata: [DONE]\n\n').body : chatSse([{ content: 'ok' }]);
+  });
+  f.env.CHAT_MODELS = '@cf/google/gemma-4-26b-a4b-it,@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+  const res = await worker.fetch(post({ coachId: 'emily', messages: [{ role: 'user', content: 'hi' }] }), f.env);
+  assert.equal(res.status, 200);
+  const agreeCalls = f.calls.filter((c) => c.input.prompt === 'agree').map((c) => c.model);
+  assert.deepEqual(agreeCalls, ['@cf/meta/llama-3.3-70b-instruct-fp8-fast']);
+});
+
+test('wrangler.toml keeps dashboard variables on deploy (rollback survives)', () => {
+  const toml = readFileSync(new URL('./wrangler.toml', import.meta.url), 'utf8');
+  assert.match(toml, /^keep_vars = true$/m);
 });

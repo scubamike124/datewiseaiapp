@@ -24,9 +24,11 @@ jobs:
           node-version: 22
       - name: Compare models (real API)
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # Prefer a Workers-AI-only token (CLOUDFLARE_AI_TOKEN) when set; the deploy token otherwise.
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_AI_TOKEN || secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
+          set -o pipefail
           node backend/eval/model-eval.mjs | tee model-eval.md
           cat model-eval.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4

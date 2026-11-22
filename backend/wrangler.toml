@@ -1,6 +1,9 @@
 name = "datewise-photo-coach"
 main = "worker.js"
 compatibility_date = "2024-11-01"
+# Keep variables set in the dashboard (CHAT_MODELS rollback, REQUIRE_COACH_ID)
+# when this file is deployed; without this, wrangler deploy would reset them.
+keep_vars = true
 
 [ai]
 binding = "AI"
