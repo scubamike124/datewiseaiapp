@@ -39,10 +39,7 @@ class BackendAIService implements AIService {
     UserProfile? profile,
     Coach? coach,
   }) async* {
-    final payload = jsonEncode({
-      'tier': tier.name,
-      'messages': buildMessages(history, tier, profile, coach),
-    });
+    final payload = jsonEncode(buildPayload(history, tier, profile, coach));
 
     final client = http.Client();
     var emittedAny = false;
@@ -102,6 +99,23 @@ class BackendAIService implements AIService {
     } catch (_) {/* ignore non-JSON keep-alive lines */}
     return null;
   }
+
+  /// The chat request body. `coachId` and the structured `profile` let a
+  /// chat-v7 Worker build the coach's system prompt itself (it then ignores
+  /// ours); the system message stays so an older Worker keeps working.
+  @visibleForTesting
+  Map<String, Object> buildPayload(
+    List<ChatMessage> history,
+    SubscriptionTier tier,
+    UserProfile? profile, [
+    Coach? coach,
+  ]) =>
+      {
+        'tier': tier.name,
+        'coachId': (coach ?? Coaches.fallback).id,
+        if (profile != null) 'profile': profile.toJson(),
+        'messages': buildMessages(history, tier, profile, coach),
+      };
 
   /// Builds the OpenAI-style message list for the worker: a system prompt
   /// (DateWise persona + the user's profile) followed by the conversation.

@@ -90,6 +90,24 @@ void main() {
       expect(msgs.last, {'role': 'user', 'content': 'Hola'});
     });
 
+    test('the request names the coach and keeps the system message for older Workers', () {
+      final svc = BackendAIService(endpoint: 'https://example.invalid', chatFallback: MockAIService());
+      final history = [ChatMessage(id: '1', role: MessageRole.user, text: 'Hola', createdAt: DateTime(2026))];
+      final body = svc.buildPayload(history, SubscriptionTier.magnet, null, Coaches.isabella);
+      expect(body['coachId'], 'isabella');
+      expect(body.containsKey('profile'), isFalse, reason: 'no profile sent when there is none');
+      final msgs = body['messages'] as List<Map<String, String>>;
+      expect(msgs.first['role'], 'system');
+      expect(svc.buildPayload(history, SubscriptionTier.magnet, null)['coachId'], 'emily');
+      const profile = UserProfile(
+          gender: Gender.female, age: 31, interestedIn: InterestedIn.men, goal: DatingGoal.serious, app: DatingApp.hinge, city: 'Lima');
+      final withProfile = svc.buildPayload(history, SubscriptionTier.magnet, profile, Coaches.isabella);
+      expect(withProfile['profile'],
+          {'gender': 'female', 'age': 31, 'interestedIn': 'men', 'goal': 'serious', 'app': 'hinge', 'city': 'Lima'},
+          reason: 'structured fields only: the Worker builds the summary from known values');
+      expect(withProfile.containsKey('context'), isFalse);
+    });
+
     test('the connection-failure notice is in the coach language', () {
       expect(BackendAIService.unavailableMessage(Coaches.mateo), startsWith('Ahora mismo'));
       expect(BackendAIService.unavailableMessage(Coaches.emily), startsWith("I'm having trouble"));
@@ -211,6 +229,23 @@ void main() {
       await state.selectCoach('isabella'); // James's conversation stays
       expect(state.threads.map((t) => t.coachId).toList(), ['isabella', 'james']);
       expect(state.activeCoach, Coaches.isabella);
+    });
+  });
+
+  group('names the redesign issues use (#6-#10, #13)', () {
+    test('kCoaches, coachById, coachesFor, displayName, gender and systemPrompt', () {
+      expect(kCoaches, Coaches.all);
+      expect(coachById('isabella'), Coaches.isabella);
+      expect(coachById('nobody'), isNull);
+      expect(coachesFor(CoachLanguage.es), [Coaches.isabella, Coaches.mateo]);
+      expect(Coaches.all.map((c) => c.displayName), ['Emily', 'James', 'Isabella', 'Mateo']);
+      expect(Coaches.all.map((c) => c.gender),
+          [CoachGender.female, CoachGender.male, CoachGender.female, CoachGender.male]);
+      expect(Coaches.mateo.systemPrompt, startsWith('You are Mateo'));
+      expect(Coaches.mateo.systemPrompt, contains('Spanish'));
+      for (final c in Coaches.all) {
+        expect('${c.systemPrompt} ${c.tagline} ${c.greeting}', isNot(contains('Amber')), reason: c.id);
+      }
     });
   });
 }
