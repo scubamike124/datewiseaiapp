@@ -1,237 +1,357 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import '../app_flags.dart';
-import '../models/tier.dart';
+import '../models/coach.dart';
 import '../models/user_profile.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
-import '../widgets/common/brand_mark.dart';
-import 'chat_screen.dart';
-import 'home_shell.dart';
+import '../widgets/coach_card.dart';
+import '../widgets/dw.dart';
+import 'coaches_screen.dart';
+import '../l10n/l10n.dart';
 
-/// Profile questionnaire shown after tier selection, before the first chat.
-/// Collects gender, age, who they're interested in, their goal, and the app
-/// they use — so the coach can ground every reply in their specifics.
+/// Onboarding after the welcome screen: goals, language, 18+ confirmation,
+/// then choosing a coach. Finishing it hands over to the paywall (root).
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key});
+  const OnboardingScreen({super.key, this.initialStep = 0});
+  final int initialStep;
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> {
-  Gender? _gender;
-  InterestedIn? _interestedIn;
-  DatingGoal? _goal;
-  DatingApp? _app;
-  final _ageController = TextEditingController();
-  final _cityController = TextEditingController();
-  bool _submitted = false;
+class _OnboardingScreenState extends State<OnboardingScreen> with VoicePreview {
+  static const _steps = 4;
+  late int _step = widget.initialStep;
+  final List<CoachingGoal> _goals = [];
+  CoachLanguage? _language;
+  bool _adult = false;
 
-  @override
-  void dispose() {
-    _ageController.dispose();
-    _cityController.dispose();
-    super.dispose();
+  /// The language step starts on the current UI language (the device
+  /// language, or an earlier choice).
+  CoachLanguage get _lang => _language ?? AppLocales.languageOf(Localizations.localeOf(context));
+
+  /// Choosing a language switches the app's UI language right away.
+  void _setLanguage(CoachLanguage l) {
+    setState(() => _language = l);
+    context.read<AppState>().setLanguage(l);
   }
 
-  int? get _age {
-    final v = int.tryParse(_ageController.text.trim());
-    if (v == null || v < 18 || v > 99) return null;
-    return v;
-  }
-
-  bool get _isValid =>
-      _gender != null &&
-      _interestedIn != null &&
-      _goal != null &&
-      _app != null &&
-      _age != null;
-
-  Future<void> _submit() async {
-    setState(() => _submitted = true);
-    if (!_isValid) return;
-    final profile = UserProfile(
-      gender: _gender!,
-      age: _age!,
-      interestedIn: _interestedIn!,
-      goal: _goal!,
-      app: _app!,
-      city: _cityController.text.trim().isEmpty
-          ? null
-          : _cityController.text.trim(),
-    );
+  /// Under 18: recorded on the device; the app shows only the "adults only"
+  /// page from now on (see RootGate), with no way back into onboarding. It
+  /// is permanent, so a confirmation comes first (a mistaken tap is undone
+  /// with Cancel).
+  Future<void> _underage() async {
+    stopPreview();
+    final l = context.l10n;
     final state = context.read<AppState>();
-    // Mobile reaches onboarding without picking a plan first (no landing page),
-    // so pick a sensible default silently. During the free launch every feature
-    // is unlocked, so default to Magnet (the full toolkit) — otherwise the
-    // recommended Flame plan. (On web the tier is already chosen on the landing
-    // page; this is a no-op there.)
-    if (!state.hasTier) {
-      await state.selectTier(AppFlags.freeLaunch
-          ? SubscriptionTier.magnet
-          : SubscriptionTier.flame);
+    final nav = Navigator.of(context);
+    if (!await showConfirmDialog(context, l.ageUnderConfirmTitle, l.ageUnderConfirmBody, l.ageUnderConfirmAction)) return;
+    await state.markUnderage();
+    nav.popUntil((r) => r.isFirst);
+  }
+
+  void _back() {
+    if (_step == 0) {
+      Navigator.of(context).maybePop();
+    } else {
+      setState(() => _step--);
     }
-    await state.completeOnboarding(profile);
-    if (!mounted) return;
-    // Web continues into the standalone chat (reached from the landing page);
-    // mobile drops into the native tab shell.
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => kIsWeb ? const ChatScreen() : const HomeShell(),
-      ),
+  }
+
+  void _next() => setState(() => _step++);
+
+  Future<void> _choose(Coach coach) async {
+    stopPreview();
+    final state = context.read<AppState>();
+    final nav = Navigator.of(context);
+    final ok = await state.completeOnboarding(
+      goals: List.of(_goals),
+      language: _lang,
+      coachId: coach.id,
+      adultConfirmed: _adult,
     );
+    if (!ok) return;
+    // The root now shows the paywall / app; close the onboarding route.
+    nav.popUntil((r) => r.isFirst);
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final tierName = context.read<AppState>().tierInfo.name;
+    final top = MediaQuery.paddingOf(context).top;
+    final bottom = MediaQuery.paddingOf(context).bottom;
+    final l = context.l10n;
+    final (Widget body, Widget? action) = _stepBody(l);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const BrandMark(),
-        titleSpacing: AppSpacing.lg,
+    // The system back gesture / button goes to the previous step; only on
+    // the first step does it leave onboarding.
+    return PopScope(
+      canPop: _step == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _step > 0) _back();
+      },
+      child: Scaffold(
+        key: ValueKey('onboarding-$_step'),
+        backgroundColor: AppColors.background,
+        body: Column(
+          children: [
+            SizedBox(height: top),
+            ContentWidth(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 4, 20, 4),
+                child: Row(
+                  children: [
+                    IconButton(
+                      key: const ValueKey('onboarding-back'),
+                      tooltip: l.back,
+                      constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                      onPressed: _back,
+                      icon: const Icon(Icons.chevron_left_rounded, size: 30, color: AppColors.text),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          for (var i = 0; i < _steps; i++) ...[
+                            if (i > 0) const SizedBox(width: 6),
+                            Expanded(
+                              child: AnimatedContainer(
+                                duration: motion(context, const Duration(milliseconds: 250)),
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: i <= _step ? AppColors.gold : AppColors.line2,
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                child: ContentWidth(child: body),
+              ),
+            ),
+            if (action != null)
+              ContentWidth(
+                child: Padding(padding: EdgeInsets.fromLTRB(20, 8, 20, bottom + 16), child: action),
+              ),
+          ],
+        ),
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 580),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: AppColors.accent.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(AppRadius.pill),
-                  ),
-                  child: Text(
-                    '$tierName · STEP 2 OF 2',
-                    style: const TextStyle(
-                      color: Color(0xFFB07E20),
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Text("Let's set up your profile",
-                    style: theme.textTheme.headlineMedium),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  "A few quick questions so your coach's advice actually fits "
-                  "you — not generic tips.",
-                  style: theme.textTheme.bodyLarge
-                      ?.copyWith(color: AppColors.textMuted),
-                ),
-                const SizedBox(height: AppSpacing.xl),
+    );
+  }
 
-                _Question(
-                  label: "I'm a…",
-                  error: _submitted && _gender == null,
-                  child: _Chips<Gender>(
-                    values: Gender.values,
-                    selected: _gender,
-                    labelOf: (g) => g.label,
-                    onChanged: (g) => setState(() => _gender = g),
-                  ),
+  (Widget, Widget?) _stepBody(AppLocalizations l) {
+    switch (_step) {
+      case 0:
+        return (
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              LargeTitle(
+                eyebrow: l.stepOf(1, _steps),
+                title: l.goalsTitle,
+                subtitle: l.goalsSubtitle,
+              ),
+              const SizedBox(height: 20),
+              for (final g in CoachingGoal.values)
+                _OptionTile(
+                  key: ValueKey('goal-${g.name}'),
+                  icon: _goalIcon(g),
+                  title: l.goal(g),
+                  selected: _goals.contains(g),
+                  onTap: () => setState(() {
+                    if (_goals.contains(g)) {
+                      _goals.remove(g);
+                    } else if (_goals.length < 3) {
+                      _goals.add(g);
+                    }
+                  }),
                 ),
-                _Question(
-                  label: 'My age',
-                  error: _submitted && _age == null,
-                  errorText: 'Enter an age between 18 and 99',
-                  child: SizedBox(
-                    width: 160,
-                    child: TextField(
-                      controller: _ageController,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(2),
-                      ],
-                      onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(hintText: 'e.g. 28'),
-                    ),
-                  ),
-                ),
-                _Question(
-                  label: "I'm interested in…",
-                  error: _submitted && _interestedIn == null,
-                  child: _Chips<InterestedIn>(
-                    values: InterestedIn.values,
-                    selected: _interestedIn,
-                    labelOf: (i) => i.label,
-                    onChanged: (i) => setState(() => _interestedIn = i),
-                  ),
-                ),
-                _Question(
-                  label: "I'm looking for…",
-                  error: _submitted && _goal == null,
-                  child: _Chips<DatingGoal>(
-                    values: DatingGoal.values,
-                    selected: _goal,
-                    labelOf: (g) => g.label,
-                    onChanged: (g) => setState(() => _goal = g),
-                  ),
-                ),
-                _Question(
-                  label: 'Which app are you on?',
-                  error: _submitted && _app == null,
-                  child: _Chips<DatingApp>(
-                    values: DatingApp.values,
-                    selected: _app,
-                    labelOf: (a) => a.label,
-                    onChanged: (a) => setState(() => _app = a),
-                  ),
-                ),
-                _Question(
-                  label: 'City (optional)',
-                  child: TextField(
-                    controller: _cityController,
-                    textCapitalization: TextCapitalization.words,
-                    decoration: const InputDecoration(
-                      hintText: 'Helps with date-spot ideas',
-                    ),
-                  ),
-                ),
+            ],
+          ),
+          DwButton(
+            key: const ValueKey('onboarding-continue'),
+            label: l.continueAction,
+            expand: true,
+            onPressed: _goals.isEmpty ? null : _next,
+          ),
+        );
+      case 1:
+        return (
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              LargeTitle(
+                eyebrow: l.stepOf(2, _steps),
+                title: l.languageTitle,
+                subtitle: l.languageSubtitle,
+              ),
+              const SizedBox(height: 20),
+              _OptionTile(
+                key: const ValueKey('lang-en'),
+                icon: Icons.translate_rounded,
+                title: 'English',
+                subtitle: l.coachesFor(CoachLanguage.en),
+                selected: _lang == CoachLanguage.en,
+                onTap: () => _setLanguage(CoachLanguage.en),
+              ),
+              _OptionTile(
+                key: const ValueKey('lang-es'),
+                icon: Icons.translate_rounded,
+                title: 'Español',
+                subtitle: l.coachesFor(CoachLanguage.es),
+                selected: _lang == CoachLanguage.es,
+                onTap: () => _setLanguage(CoachLanguage.es),
+              ),
+            ],
+          ),
+          DwButton(key: const ValueKey('onboarding-continue'), label: l.continueAction, expand: true, onPressed: _next),
+        );
+      case 2:
+        return (
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              LargeTitle(
+                eyebrow: l.stepOf(3, _steps),
+                title: l.ageTitle,
+                subtitle: l.ageSubtitle,
+              ),
+              const SizedBox(height: 20),
+              _OptionTile(
+                key: const ValueKey('age-confirm'),
+                icon: Icons.verified_user_outlined,
+                title: l.ageConfirm,
+                selected: _adult,
+                onTap: () => setState(() => _adult = !_adult),
+              ),
+              const SizedBox(height: 24),
+              // Kept with the question (not pinned to the bottom of an empty
+              // screen): Continue, then the under-18 answer as a secondary button.
+              DwButton(
+                key: const ValueKey('onboarding-continue'),
+                label: l.continueAction,
+                expand: true,
+                onPressed: _adult ? _next : null,
+              ),
+              const SizedBox(height: 12),
+              DwButton(
+                key: const ValueKey('age-under'),
+                label: l.ageUnder,
+                style: DwButtonStyle.ghost,
+                expand: true,
+                height: 50,
+                fontSize: 15,
+                onPressed: _underage,
+              ),
+            ],
+          ),
+          null,
+        );
+      default:
+        return (
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              LargeTitle(
+                eyebrow: l.stepOf(4, _steps),
+                title: l.chooseCoachTitle,
+                subtitle: l.chooseCoachSubtitle,
+              ),
+              const SizedBox(height: 16),
+              CoachGrid(
+                preferred: _lang,
+                previewingId: previewingId,
+                onPreview: previewHandler(),
+                onChat: _choose,
+              ),
+            ],
+          ),
+          null,
+        );
+    }
+  }
 
-                const SizedBox(height: AppSpacing.lg),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _submit,
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 6),
-                      child: Text('Start coaching →'),
+  static IconData _goalIcon(CoachingGoal g) => switch (g) {
+        CoachingGoal.conversations => Icons.chat_bubble_outline_rounded,
+        CoachingGoal.profile => Icons.account_box_outlined,
+        CoachingGoal.dates => Icons.calendar_today_outlined,
+        CoachingGoal.confidence => Icons.bolt_rounded,
+        CoachingGoal.relationship => Icons.favorite_border_rounded,
+      };
+}
+
+class _OptionTile extends StatelessWidget {
+  const _OptionTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.selected,
+    required this.onTap,
+    this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Semantics(
+        selected: selected,
+        button: true,
+        child: Material(
+          color: selected ? const Color(0xFF2E2019) : AppColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+            side: BorderSide(color: selected ? AppColors.gold : AppColors.line, width: selected ? 1.5 : 1),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: onTap,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 60),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    Icon(icon, color: AppColors.gold, size: 22),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // A long word ("conversaciones" at large text) is
+                          // scaled to fit instead of breaking mid-word.
+                          WholeWordsText(title, style: AppText.label.copyWith(fontSize: 16)),
+                          if (subtitle != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(subtitle!, style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                ),
-                if (_submitted && !_isValid)
-                  Padding(
-                    padding: const EdgeInsets.only(top: AppSpacing.sm),
-                    child: Text(
-                      'Please answer the questions above to continue.',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: const Color(0xFFD64545)),
-                      textAlign: TextAlign.center,
+                    const SizedBox(width: 8),
+                    Icon(
+                      selected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                      color: selected ? AppColors.gold : AppColors.line2,
                     ),
-                  ),
-                const SizedBox(height: AppSpacing.sm),
-                Center(
-                  child: Text(
-                    'Private by design — your answers stay on your device.',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: AppColors.textMuted),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -240,106 +360,30 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 }
 
-class _Question extends StatelessWidget {
-  const _Question({
-    required this.label,
-    required this.child,
-    this.error = false,
-    this.errorText,
-  });
-  final String label;
-  final Widget child;
-  final bool error;
-  final String? errorText;
+/// Shown, and kept, once the user says they are under 18: there is no way
+/// forward (no back button, no onboarding, no chat).
+class UnderageScreen extends StatelessWidget {
+  const UnderageScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: theme.textTheme.titleMedium),
-          const SizedBox(height: AppSpacing.sm),
-          child,
-          if (error)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(
-                errorText ?? 'Please pick one',
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: const Color(0xFFD64545)),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Chips<T> extends StatelessWidget {
-  const _Chips({
-    required this.values,
-    required this.selected,
-    required this.labelOf,
-    required this.onChanged,
-  });
-  final List<T> values;
-  final T? selected;
-  final String Function(T) labelOf;
-  final ValueChanged<T> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.sm,
-      children: values.map((v) {
-        final isSelected = v == selected;
-        return _SelectChip(
-          label: labelOf(v),
-          selected: isSelected,
-          onTap: () => onChanged(v),
-        );
-      }).toList(),
-    );
-  }
-}
-
-class _SelectChip extends StatelessWidget {
-  const _SelectChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md, vertical: 11),
-          decoration: BoxDecoration(
-            color: selected ? AppColors.primary : Colors.white,
-            borderRadius: BorderRadius.circular(AppRadius.pill),
-            border: Border.all(
-              color: selected ? AppColors.primary : AppColors.cardBorder,
-              width: selected ? 2 : 1,
-            ),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: selected ? Colors.white : AppColors.text,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+    final l = context.l10n;
+    return Scaffold(
+      key: const ValueKey('underage'),
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 48, 24, 24),
+          child: ContentWidth(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Align(alignment: Alignment.centerLeft, child: BrandMark()),
+                const SizedBox(height: 32),
+                LargeTitle(title: l.underageTitle, subtitle: l.underageBody),
+                const SizedBox(height: 16),
+                Text(l.underageClose, key: const ValueKey('underage-close'), style: AppText.body),
+              ],
             ),
           ),
         ),

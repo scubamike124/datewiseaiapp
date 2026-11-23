@@ -1,0 +1,1 @@
+{"error":"Workers AI error","detail":"AiError: 5028: @cf/meta/llama-3.1-8b-instruct-fp8 was deprecated on 2026-11-20. See the model catalog for alternatives: https://developers.cloudflare.com/workers-ai/models/"}

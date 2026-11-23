@@ -4,3 +4,213 @@ compatibility_date = "2024-11-01"
 
 [ai]
 binding = "AI"
+
+# chat-v7 cost guard: per-subscriber counters and the global neuron budget.
+# SQLite-backed Durable Objects are available on Workers Free
+# (developers.cloudflare.com/durable-objects/platform/pricing, checked 2026-11-22).
+# Without this binding the Worker refuses AI requests (fails closed).
+[[durable_objects.bindings]]
+name = "USAGE_GUARD"
+class_name = "UsageGuard"
+
+[[migrations]]
+tag = "v1-usage-guard"
+new_sqlite_classes = ["UsageGuard"]
+
+# Per-network request limit (Workers Rate Limiting binding; current syntax per
+# developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit, which
+# replaced the older [[unsafe.bindings]] type = "ratelimit" form; needs
+# wrangler 4.36+). The docs list no charge for it. Counts are approximate and
+# per Cloudflare location; the Durable Object counters stay the strict limits.
+# The key is a salted hash of the IPv4 address or IPv6 /64. Without the
+# binding, the Worker falls back to an in-isolate window.
+# namespace_id must be unique in the Cloudflare account: bindings that share
+# one share counters across Workers. 740219 is reserved for this Worker; check
+# that no other Worker on the account uses it before deploying.
+[[ratelimits]]
+name = "RATE_LIMITER"
+namespace_id = "740219"
+
+  [ratelimits.simple]
+  limit = 60
+  period = 60
+
+# Required to turn fail-open on: the dedicated cross-isolate bound for
+# `failopen:all` / `failopen:<subscriber>`. RATE_LIMITER is never used for it;
+# without this binding fail-open stays closed. Counted per Cloudflare location,
+# so the bound is per colo. Pick a namespace_id unique in the account first.
+# [[ratelimits]]
+# name = "FAILOPEN_LIMITER"
+# namespace_id = "740220"
+#   [ratelimits.simple]
+#   limit = 10
+#   period = 60
+
+# All limits are PROVISIONAL defaults (docs/business/AI_COST_MODEL.md, section 7).
+# The global budget is the main protection. Change values here or in the dashboard.
+[vars]
+# Global circuit breaker, neurons per UTC day for the whole service.
+# 10000 = the Workers AI free daily allowance, so $0 of spending. Raising it
+# needs Workers Paid and the owner's approval.
+DAILY_NEURON_BUDGET = "10000"
+# The share of that budget requests without a StoreKit token may use (the v1
+# App Store build). Unset or "-1" = 20% of DAILY_NEURON_BUDGET. "0": none. The
+# owner chose full enforcement on 2026-11-23: no model call without a valid
+# StoreKit token, so v1 (token-less) traffic gets no share.
+ANON_NEURON_BUDGET = "0"
+# Optional monthly ceiling in neurons ("0" = off).
+MONTHLY_NEURON_BUDGET = "0"
+# Per subscriber (keyed by a salted hash of the App Store originalTransactionId).
+DAILY_MESSAGE_LIMIT = "150"
+MONTHLY_MESSAGE_LIMIT = "1500"
+SOFT_NOTICE_PERCENT = "80"
+PER_MINUTE_LIMIT = "12"
+MAX_CONCURRENT = "2"
+# Per request.
+MAX_INPUT_TOKENS = "6000"
+MAX_OUTPUT_TOKENS = "800"
+# Abuse protection per client IP (best effort, per Worker isolate; also uses
+# a RATE_LIMITER binding when one is configured).
+IP_PER_MINUTE_LIMIT = "60"
+# v2 chat requests (a coachId or the X-DateWise-Entitlement header) always need
+# a valid StoreKit token: without one they get 403 SUBSCRIPTION_REQUIRED, whatever
+# this says. REQUIRE_SUBSCRIPTION applies only to token-less v1 (legacy) requests:
+# "1" refuses them with 403 SUBSCRIPTION_REQUIRED; "0" lets them share a per-IP
+# bucket (below) while LEGACY_CLIENTS = "1".
+REQUIRE_SUBSCRIPTION = "1"
+# Per IPv4 address / IPv6 /64 (token-less v1 requests only).
+ANON_DAILY_LIMIT = "0"
+ANON_MONTHLY_LIMIT = "0"
+# v1 App Store build (1.0.2: no coachId, no token): chat with its own prompt and the
+# photo coach, counted per network and on ANON_NEURON_BUDGET. Anyone can pose as v1
+# (drop coachId and the token), so this path is the anonymous allowance: see
+# docs/qa/SUBSCRIPTION_RESILIENCE.md, section 2. Set "0" the day v2 is live in the
+# App Store: v1 chat then shows an "update the app" reply (no model call) and the
+# v1 photo coach gets 426 APP_UPDATE_REQUIRED. "0" since 2026-11-23 (owner: full
+# enforcement; the live chat-v5 Worker had no subscription check at all).
+LEGACY_CLIENTS = "0"
+# Per-request caps for that v1 path only (v2 subscribers keep MAX_INPUT_TOKENS /
+# MAX_OUTPUT_TOKENS), so posing as v1 buys only short prompts and short replies.
+LEGACY_MAX_INPUT_TOKENS = "3000"
+LEGACY_MAX_OUTPUT_TOKENS = "500"
+# Subscription checks (offline StoreKit 2 JWS verification against Apple Root CA - G3).
+APPLE_BUNDLE_ID = "com.datewise.datewiseAi"
+APPLE_PRODUCT_ID = "datewise_premium_monthly"
+# TestFlight and App Review purchases are Sandbox transactions. They get their
+# own small daily cap. A missing or "Xcode" environment is refused.
+ALLOW_SANDBOX = "1"
+SANDBOX_DAILY_LIMIT = "20"
+# Sandbox has its own slice of DAILY_NEURON_BUDGET, so TestFlight testers cannot use
+# up the subscribers' budget and v1 traffic cannot starve App Review. Unset or "-1" = 10%.
+SANDBOX_NEURON_BUDGET = "1000"
+# Minutes accepted after expiresDate while a renewal reaches the device.
+EXPIRY_LEEWAY_MINUTES = "60"
+# Must equal App Store Connect's Billing Grace Period (0, 3, 16 or 28 days for
+# monthly plans). The recommendation is grace OFF, so 0; if it is turned on in
+# App Store Connect, set the same number of days here (docs/appstore/checklist.md, step 12a).
+BILLING_GRACE_DAYS = "0"
+# App Store Server Notifications v2 at POST /apple/notifications. Recommended ON at
+# launch (docs/appstore/ASSN_SETUP.md): refunds and revocations close at once, a
+# confirmed renewal keeps a device's older token working, and Apple's Billing Grace
+# Period is followed automatically. Verified offline (JWS), so an Apple outage never
+# blocks chat. "1" only after the URL is set in App Store Connect.
+ASSN_ENABLED = "0"
+# Opt-in fail-open while the Durable Object throws (never when its binding is
+# missing). "0" = fail closed for everyone (the default). If the owner opts in,
+# the recommended values are 3 per subscriber and 10 per isolate per hour, with
+# at most FAIL_OPEN_MAX_MINUTES per isolate per outage and the legacy per-request
+# caps. Across isolates, the dedicated FAILOPEN_LIMITER binding (above, per
+# Cloudflare location) must allow `failopen:<subscriber>` and `failopen:all`;
+# without it fail-open stays closed (RATE_LIMITER is never used as a fallback).
+# Only verified Production tokens; Sandbox and v1 never.
+# Exposure math: docs/qa/SUBSCRIPTION_RESILIENCE.md, section 4.
+FAIL_OPEN_PER_SUBSCRIBER = "0"
+FAIL_OPEN_PER_ISOLATE = "0"
+FAIL_OPEN_MAX_MINUTES = "15"
+# ID_HASH_SALT: set as a secret (wrangler secret put ID_HASH_SALT), not here.
+# Rotating it resets every counter and the revoked list. Without it, a public
+# default salt is used and logs carry no `who`.
+
+# ---------------------------------------------------------------------------
+# STAGING: an isolated test Worker for the live AI test
+# (docs/qa/LIVE_AI_TEST_PLAN.md). Deployed only with
+# `wrangler deploy --env staging`, through the Deploy coach Worker workflow
+# (target chat-v7-staging, owner approval). Everything above is production and
+# is not changed by anything below.
+#
+# Wrangler environments do not inherit bindings or vars, so every binding and
+# variable is declared again here. The Worker has its own name, so it gets its
+# own scripts, its own Durable Object namespace (counters and budget spend are
+# separate from production) and its own rate-limit namespace.
+# Same security settings as production: v2 chat always needs a valid StoreKit
+# token, verified offline against Apple Root CA - G3; only the limits are
+# test-sized. Tear it down after the test: `npx wrangler@4.158.0 delete --env staging`.
+# ---------------------------------------------------------------------------
+[env.staging]
+name = "datewise-coach-staging"
+
+[env.staging.ai]
+binding = "AI"
+
+[[env.staging.durable_objects.bindings]]
+name = "USAGE_GUARD"
+class_name = "UsageGuard"
+
+[[env.staging.migrations]]
+tag = "v1-usage-guard"
+new_sqlite_classes = ["UsageGuard"]
+
+# Must be unique in the Cloudflare account and differ from production's 740219
+# (and the reserved 740220). 740221 is reserved for the staging Worker: the
+# owner confirms that no other Worker on the account uses it before the first
+# staging deploy (docs/launch/WORKER_DEPLOY_RUNBOOK.md, section 9).
+[[env.staging.ratelimits]]
+name = "RATE_LIMITER"
+namespace_id = "740221"
+
+  [env.staging.ratelimits.simple]
+  limit = 60
+  period = 60
+
+[env.staging.vars]
+# Test-sized budgets. DAILY_NEURON_BUDGET stays well under the account's free
+# 10,000-neuron daily allowance (at most 4000 here), so a run cannot spend money
+# on Workers Free. The full live plan needs about 1,839 neurons (worst case
+# stopped by SANDBOX_NEURON_BUDGET at 3,000).
+DAILY_NEURON_BUDGET = "4000"
+# No v1 traffic on staging: no anonymous slice.
+ANON_NEURON_BUDGET = "0"
+MONTHLY_NEURON_BUDGET = "0"
+# Per subscriber and per request: the same as production, so the live test
+# measures the production caps (PER_MINUTE_LIMIT 12, MAX_CONCURRENT 2).
+DAILY_MESSAGE_LIMIT = "150"
+MONTHLY_MESSAGE_LIMIT = "1500"
+SOFT_NOTICE_PERCENT = "80"
+PER_MINUTE_LIMIT = "12"
+MAX_CONCURRENT = "2"
+MAX_INPUT_TOKENS = "6000"
+MAX_OUTPUT_TOKENS = "800"
+IP_PER_MINUTE_LIMIT = "60"
+# v2 chat always needs a valid token (whatever this says); "1" also refuses
+# token-less v1 requests, which LEGACY_CLIENTS = "0" already answers with the
+# no-model "update the app" notice.
+REQUIRE_SUBSCRIPTION = "1"
+ANON_DAILY_LIMIT = "0"
+ANON_MONTHLY_LIMIT = "0"
+LEGACY_CLIENTS = "0"
+LEGACY_MAX_INPUT_TOKENS = "3000"
+LEGACY_MAX_OUTPUT_TOKENS = "500"
+APPLE_BUNDLE_ID = "com.datewise.datewiseAi"
+APPLE_PRODUCT_ID = "datewise_premium_monthly"
+ALLOW_SANDBOX = "1"
+# Test-sized: the full live plan admits 30 requests per Sandbox subscriber.
+SANDBOX_DAILY_LIMIT = "40"
+SANDBOX_NEURON_BUDGET = "3000"
+EXPIRY_LEEWAY_MINUTES = "60"
+BILLING_GRACE_DAYS = "0"
+ASSN_ENABLED = "0"
+FAIL_OPEN_PER_SUBSCRIBER = "0"
+FAIL_OPEN_PER_ISOLATE = "0"
+FAIL_OPEN_MAX_MINUTES = "15"
+# ID_HASH_SALT: the deploy workflow sets a random one on the staging Worker if
+# it has none (never production's salt).

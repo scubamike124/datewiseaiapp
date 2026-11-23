@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  DateWise AI v2 privacy manifest. Keep in step with the App Privacy answers
+  in docs/appstore/metadata.md.
+
+  Collected:
+  - Other User Content: chat messages (and the optional "what your coach
+    should remember" note, goals and language) are sent to the DateWise coach
+    backend to generate the reply. Not linked to identity (no account, no
+    user id), not used for tracking.
+  - Purchase History: the subscription is bought through Apple (StoreKit).
+    With each message the app sends the App Store-signed StoreKit 2
+    transaction (JWS) in X-DateWise-Entitlement; the backend verifies it
+    with Apple's certificates. A refund or revocation status is stored as a
+    hash of the transaction ID. With App Store Server Notifications on
+    (ASSN_ENABLED=1), the renewal and billing-grace end dates are stored,
+    keyed by a hash of the transaction ID, and deleted 35 days after the
+    paid or grace period ends. Not linked, not used for tracking.
+  - Product Interaction (Usage Data): the backend keeps anonymous counts of
+    coach replies for the fair-use limits, keyed by a one-way salted hash
+    of the transaction ID (daily counts reset daily, monthly counts are kept
+    for the current month). No conversation content. Not linked, not used
+    for tracking.
+  Not collected: contact info, identifiers, location, health, diagnostics,
+  other usage data, audio (speech is recognised on the device; only the
+  text you send leaves it). A one-way hash of the IP address (or IPv6
+  network block) is used only for short-lived rate limiting (about a
+  minute) and is disclosed in the privacy policy.
+
+  Required-reason APIs: UserDefaults via shared_preferences (CA92.1, data
+  only this app reads and writes). The app code itself uses no file
+  timestamp, system boot time, disk space or active keyboard APIs. Plugins
+  ship their own manifests where they need one.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeOtherUserContent</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePurchaseHistory</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeProductInteraction</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>
