@@ -57,7 +57,7 @@ class ProgressScreen extends StatelessWidget {
               _Stat(
                 key: const ValueKey('stat-plan'),
                 value: plan == null ? '0' : '${plan.doneCount}/${plan.items.length}',
-                label: l.statPlanDone,
+                label: l.statPlanDone(plan?.doneCount ?? 0),
                 icon: Icons.task_alt_rounded,
               ),
             ]),
@@ -132,18 +132,35 @@ class _StatRow extends StatelessWidget {
   const _StatRow({required this.children});
   final List<Widget> children;
 
+  /// Above this text scale two tiles side by side break words mid-way, so
+  /// they stack instead.
+  static const double stackAboveScale = 1.3;
+
   @override
-  Widget build(BuildContext context) => IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (var i = 0; i < children.length; i++) ...[
-              if (i > 0) const SizedBox(width: 10),
-              Expanded(child: children[i]),
-            ],
+  Widget build(BuildContext context) {
+    if (MediaQuery.textScalerOf(context).scale(1) > stackAboveScale) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            children[i],
           ],
-        ),
+        ],
       );
+    }
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) const SizedBox(width: 10),
+            Expanded(child: children[i]),
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 class _Stat extends StatelessWidget {

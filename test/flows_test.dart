@@ -62,10 +62,9 @@ void main() {
     final disclosure = tester.widget<Text>(find.byKey(const ValueKey('paywall-disclosure'))).data!;
     expect(disclosure, contains(r'$9.99/mes'));
     expect(disclosure, contains('se renueva automáticamente cada mes'));
-    expect(disclosure, contains('hasta que la canceles'));
     expect(disclosure, contains('24 horas antes'));
-    expect(disclosure, contains('Configuración › Apple ID › Suscripciones'));
-    expect(disclosure, contains('Apple ID'));
+    expect(disclosure, contains('Configuración › [tu nombre] › Suscripciones'));
+    expect(disclosure, contains('Cuenta de Apple'));
     expect(find.text('Restaurar compras'), findsOneWidget);
     expect(find.text('Términos de uso'), findsOneWidget);
     expect(find.text('Privacidad'), findsOneWidget);

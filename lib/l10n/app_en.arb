@@ -111,7 +111,7 @@
   "goalConfidence": "More confidence",
   "goalRelationship": "A healthier relationship",
   "languageTitle": "Choose your language",
-  "languageSubtitle": "The app and your coaches will use it. You can change it any time in You.",
+  "languageSubtitle": "The app and your coaches will use it. You can change it any time in the You tab.",
   "ageTitle": "DateWise is for adults.",
   "ageSubtitle": "Please confirm your age to continue.",
   "ageConfirm": "I am 18 or older",
@@ -185,7 +185,7 @@
       }
     }
   },
-  "planItemDates": "Plan a first date idea",
+  "planItemDates": "Plan a first date",
   "planItemConfidence": "Talk through what makes you nervous",
   "planItemRelationship": "Practice saying how you feel",
   "planPromptConversations": "Help me practice an opener for someone I matched with.",
@@ -307,6 +307,17 @@
       }
     }
   },
+  "tapToTalkFooter": "Tap to talk · {name} is an AI coach",
+  "@tapToTalkFooter": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "gender": {
+        "type": "String"
+      }
+    }
+  },
   "premiumEyebrow": "DateWise Premium",
   "lockedTitle": "Chat with {name} is part of DateWise Premium.",
   "@lockedTitle": {
@@ -323,7 +334,7 @@
   "chatErrorOffline": "You seem to be offline. Check your connection and try again. Your message is saved.",
   "chatErrorServer": "Coaching is temporarily unavailable. Try again in a few minutes. Your message is saved.",
   "chatErrorStopped": "The reply was stopped. Your message is saved.",
-  "paywallHeadline": "Unlimited coaching with {name} and the team.",
+  "paywallHeadline": "Everyday coaching with {name} and the team.",
   "@paywallHeadline": {
     "placeholders": {
       "name": {
@@ -332,7 +343,7 @@
     }
   },
   "benefitCoaches": "Chat with all four AI coaches, in English and Spanish",
-  "benefitVoice": "Voice practice: speak and hear replies on your iPhone",
+  "benefitVoice": "Voice practice: speak and hear replies on your device",
   "benefitPlan": "Your weekly plan and progress, kept on your device",
   "monthlyAutoRenews": "Monthly · auto-renews",
   "perMonth": "per month",
@@ -360,9 +371,9 @@
   "storeUnreachable": "Could not reach the App Store.",
   "productUnavailable": "DateWise Premium is not available in the store yet.",
   "restoreFailed": "Could not restore purchases.",
-  "noSubscriptionForAppleId": "No active DateWise Premium subscription was found for this Apple ID.",
+  "noSubscriptionForAppleId": "No active DateWise Premium subscription was found for this Apple Account.",
   "reviewBuildNote": "Review build: purchases are simulated and nothing is charged.",
-  "paywallDisclosure": "{perMonth}. Payment is charged to your Apple ID account at confirmation of purchase. The subscription auto-renews monthly at {price} until canceled, unless canceled at least 24 hours before the end of the current period. Cancel any time in Settings › Apple ID › Subscriptions.",
+  "paywallDisclosure": "{perMonth}. Payment is charged to your Apple Account at confirmation of purchase. The subscription renews automatically every month at {price} unless you cancel it at least 24 hours before the end of the current period. Cancel any time in Settings › [your name] › Subscriptions.",
   "@paywallDisclosure": {
     "placeholders": {
       "perMonth": {
@@ -375,13 +386,13 @@
   },
   "priceFromAppStore": "Price shown by the App Store",
   "subscribe": "Subscribe",
-  "paywallDisclosureNoPrice": "Monthly subscription at the price shown by the App Store. Payment is charged to your Apple ID account at confirmation of purchase. The subscription auto-renews monthly at that price until canceled, unless canceled at least 24 hours before the end of the current period. Cancel any time in Settings › Apple ID › Subscriptions.",
+  "paywallDisclosureNoPrice": "Monthly subscription at the price shown by the App Store. Payment is charged to your Apple Account at confirmation of purchase. The subscription renews automatically every month at that price unless you cancel it at least 24 hours before the end of the current period. Cancel any time in Settings › [your name] › Subscriptions.",
   "tapToSend": "Stop and send",
   "tapToTalkHint": "Double-tap to start talking, then double-tap again to send",
   "voiceRecognitionUnavailable": "Speech recognition isn't available on this device right now. You can type your message instead.",
   "voiceLanguageUnsupported": "Voice isn't available for this language on this device. You can type your message instead.",
   "photoNoLongerAvailable": "Photo from an earlier version (no longer available)",
-  "restorePurchases": "Restore Purchases",
+  "restorePurchases": "Restore purchases",
   "termsOfUse": "Terms of Use",
   "privacyPolicy": "Privacy Policy",
   "privacyShort": "Privacy",
@@ -411,7 +422,14 @@
       }
     }
   },
-  "statPlanDone": "plan steps done this week",
+  "statPlanDone": "{count, plural, =1{plan step done this week} other{plan steps done this week}}",
+  "@statPlanDone": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "noDaysYet": "No coaching days yet. Send {name} a message to start your streak.",
   "@noDaysYet": {
     "placeholders": {
@@ -420,7 +438,7 @@
       }
     }
   },
-  "daysTotal": "You have talked with a coach on {count, plural, =1{1 day} other{{count} days}} in total.",
+  "daysTotal": "You've talked with a coach on {count, plural, =1{1 day} other{{count} days}} in total.",
   "@daysTotal": {
     "placeholders": {
       "count": {
@@ -470,7 +488,7 @@
   "deleteMyData": "Delete my data",
   "deleteMyDataNote": "Does not cancel your subscription. Cancel it in Apple settings.",
   "deleteMyDataTitle": "Delete all your data?",
-  "deleteMyDataBody": "Conversations, plan, progress, Coach memory, settings and the saved subscription status will be erased from this device, and the app will start again.\n\nThis does not cancel your App Store subscription. To cancel it, go to Settings › Apple ID › Subscriptions.",
+  "deleteMyDataBody": "Conversations, plan, progress, Coach memory, settings and the saved subscription status will be erased from this device, and the app will start again.\n\nThis does not cancel your App Store subscription. To cancel it, go to Settings › [your name] › Subscriptions.",
   "deleteEverything": "Delete everything",
   "sectionAbout": "About",
   "support": "Support",
@@ -491,6 +509,5 @@
       }
     }
   },
-  "legalTranslationNote": "",
-  "lastUpdated": "Last updated: November 22, 2026"
+  "legalTranslationNote": ""
 }

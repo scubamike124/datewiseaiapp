@@ -34,7 +34,7 @@ import 'helpers.dart';
 ProductDetails _product({String price = r'$9.99'}) => ProductDetails(
       id: StoreConfig.productId,
       title: 'DateWise Premium Monthly',
-      description: 'Unlimited chat and voice with all four AI coaches.',
+      description: 'Chat and voice coaching with all four AI coaches.',
       price: price,
       rawPrice: 9.99,
       currencyCode: 'USD',

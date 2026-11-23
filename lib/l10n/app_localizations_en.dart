@@ -177,7 +177,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get languageSubtitle =>
-      'The app and your coaches will use it. You can change it any time in You.';
+      'The app and your coaches will use it. You can change it any time in the You tab.';
 
   @override
   String get ageTitle => 'DateWise is for adults.';
@@ -259,7 +259,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get planItemDates => 'Plan a first date idea';
+  String get planItemDates => 'Plan a first date';
 
   @override
   String get planItemConfidence => 'Talk through what makes you nervous';
@@ -412,6 +412,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String tapToTalkFooter(String name, String gender) {
+    return 'Tap to talk · $name is an AI coach';
+  }
+
+  @override
   String get premiumEyebrow => 'DateWise Premium';
 
   @override
@@ -448,7 +453,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String paywallHeadline(String name) {
-    return 'Unlimited coaching with $name and the team.';
+    return 'Everyday coaching with $name and the team.';
   }
 
   @override
@@ -457,7 +462,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get benefitVoice =>
-      'Voice practice: speak and hear replies on your iPhone';
+      'Voice practice: speak and hear replies on your device';
 
   @override
   String get benefitPlan =>
@@ -508,7 +513,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get noSubscriptionForAppleId =>
-      'No active DateWise Premium subscription was found for this Apple ID.';
+      'No active DateWise Premium subscription was found for this Apple Account.';
 
   @override
   String get reviewBuildNote =>
@@ -516,7 +521,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String paywallDisclosure(String perMonth, String price) {
-    return '$perMonth. Payment is charged to your Apple ID account at confirmation of purchase. The subscription auto-renews monthly at $price until canceled, unless canceled at least 24 hours before the end of the current period. Cancel any time in Settings › Apple ID › Subscriptions.';
+    return '$perMonth. Payment is charged to your Apple Account at confirmation of purchase. The subscription renews automatically every month at $price unless you cancel it at least 24 hours before the end of the current period. Cancel any time in Settings › [your name] › Subscriptions.';
   }
 
   @override
@@ -527,7 +532,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get paywallDisclosureNoPrice =>
-      'Monthly subscription at the price shown by the App Store. Payment is charged to your Apple ID account at confirmation of purchase. The subscription auto-renews monthly at that price until canceled, unless canceled at least 24 hours before the end of the current period. Cancel any time in Settings › Apple ID › Subscriptions.';
+      'Monthly subscription at the price shown by the App Store. Payment is charged to your Apple Account at confirmation of purchase. The subscription renews automatically every month at that price unless you cancel it at least 24 hours before the end of the current period. Cancel any time in Settings › [your name] › Subscriptions.';
 
   @override
   String get tapToSend => 'Stop and send';
@@ -549,7 +554,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Photo from an earlier version (no longer available)';
 
   @override
-  String get restorePurchases => 'Restore Purchases';
+  String get restorePurchases => 'Restore purchases';
 
   @override
   String get termsOfUse => 'Terms of Use';
@@ -601,7 +606,15 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get statPlanDone => 'plan steps done this week';
+  String statPlanDone(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'plan steps done this week',
+      one: 'plan step done this week',
+    );
+    return '$_temp0';
+  }
 
   @override
   String noDaysYet(String name) {
@@ -616,7 +629,7 @@ class AppLocalizationsEn extends AppLocalizations {
       other: '$count days',
       one: '1 day',
     );
-    return 'You have talked with a coach on $_temp0 in total.';
+    return 'You\'ve talked with a coach on $_temp0 in total.';
   }
 
   @override
@@ -725,7 +738,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get deleteMyDataBody =>
-      'Conversations, plan, progress, Coach memory, settings and the saved subscription status will be erased from this device, and the app will start again.\n\nThis does not cancel your App Store subscription. To cancel it, go to Settings › Apple ID › Subscriptions.';
+      'Conversations, plan, progress, Coach memory, settings and the saved subscription status will be erased from this device, and the app will start again.\n\nThis does not cancel your App Store subscription. To cancel it, go to Settings › [your name] › Subscriptions.';
 
   @override
   String get deleteEverything => 'Delete everything';
@@ -752,7 +765,4 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get legalTranslationNote => '';
-
-  @override
-  String get lastUpdated => 'Last updated: November 22, 2026';
 }

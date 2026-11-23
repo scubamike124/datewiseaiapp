@@ -118,7 +118,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('row-delete-data')));
       await tester.pumpAndSettle();
       expect(find.textContaining('This does not cancel your App Store subscription'), findsOneWidget);
-      expect(find.textContaining('Settings › Apple ID › Subscriptions'), findsOneWidget);
+      expect(find.textContaining('Settings › [your name] › Subscriptions'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('confirm-action')));
       await tester.pumpAndSettle();
       final prefs = await SharedPreferences.getInstance();
@@ -145,9 +145,9 @@ void main() {
           RegExp(r'\blifetime', caseSensitive: false), RegExp(r'free (plan|tier|trial|version)', caseSensitive: false),
           RegExp(r'/wk|per week|weekly ?price', caseSensitive: false), RegExp(r'prueba gratis|gratis', caseSensitive: false)]) {
         final hits = w.allMatches(code).map((m) => code.substring((m.start - 40).clamp(0, code.length), (m.end + 40).clamp(0, code.length))).toList();
-        // The Terms say there is *no* free plan and *no* free trial.
+        // The Terms say chat is available only with the paid subscription.
         hits.removeWhere((h) =>
-            h.contains('no free plan and no free trial') || h.contains('No hay plan gratuito') || h.contains('No free plan, no trial, no annual plan'));
+            h.contains('only with this paid subscription') || h.contains('solo está disponible con esta suscripción') || h.contains('No free plan, no trial, no annual plan'));
         expect(hits, isEmpty, reason: '$w: $hits');
       }
     });
@@ -169,7 +169,7 @@ void main() {
       await tester.ensureVisible(find.byKey(const ValueKey('paywall-restore')));
       await tester.tap(find.byKey(const ValueKey('paywall-restore')));
       await tester.pumpAndSettle();
-      expect(find.text('No active DateWise Premium subscription was found for this Apple ID.'), findsOneWidget);
+      expect(find.text('No active DateWise Premium subscription was found for this Apple Account.'), findsOneWidget);
     });
 
     testWidgets('restore from You (fake store)', (tester) async {
@@ -202,10 +202,10 @@ void main() {
       await pumpApp(tester, prefs: onboardedPrefs(), entitled: false);
       final d = tester.widget<Text>(find.byKey(const ValueKey('paywall-disclosure'))).data!;
       expect(d, startsWith(r'$9.99/month.'));
-      expect(d, contains('charged to your Apple ID account at confirmation of purchase'));
-      expect(d, contains('auto-renews monthly at \$9.99 until canceled'));
+      expect(d, contains('charged to your Apple Account at confirmation of purchase'));
+      expect(d, contains('renews automatically every month at \$9.99 unless you cancel it'));
       expect(d, contains('at least 24 hours before the end of the current period'));
-      expect(d, contains('Settings › Apple ID › Subscriptions'));
+      expect(d, contains('Settings › [your name] › Subscriptions'));
       expect(find.text(r'Subscribe for $9.99/month'), findsOneWidget);
       expect(find.text('DateWise Premium'), findsOneWidget);
       expect(find.byKey(const ValueKey('paywall-terms')), findsOneWidget);

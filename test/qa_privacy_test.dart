@@ -245,7 +245,7 @@ void main() {
         expect(policy, contains('aged 18 and over'));
       }
       expect(kPrivacyPolicyEs, contains('no contiene publicidad, analítica ni rastreo'));
-      expect(kTermsOfService, contains('There is no free plan and no free trial.'));
+      expect(kTermsOfService, contains('Coaching chat is available only with this paid subscription.'));
       expect(kTermsOfService, contains('auto-renewable monthly subscription'));
       // Nothing beyond what the policy lists is sent (see the identifiers test).
       final deps = File('pubspec.yaml').readAsStringSync();
@@ -309,7 +309,7 @@ void main() {
     expect(price, '9,99 €');
     expect(find.text('Subscribe for 9,99 €/month'), findsOneWidget);
     final d = tester.widget<Text>(find.byKey(const ValueKey('paywall-disclosure'))).data!;
-    expect(d, contains('auto-renews monthly at 9,99 €'));
+    expect(d, contains('renews automatically every month at 9,99 €'));
     expect(d, isNot(contains(r'$')));
     for (final k in ['paywall-restore', 'paywall-terms', 'paywall-privacy']) {
       expect(find.byKey(ValueKey(k)), findsOneWidget, reason: k);

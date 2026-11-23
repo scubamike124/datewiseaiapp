@@ -22,7 +22,7 @@ void main() {
       expect(Coaches.all.map((c) => c.name), ['Ava', 'Ethan', 'Sofía', 'Diego']);
       expect(Coaches.ava.description, 'Confidence coach. Direct, supportive, focused on results.');
       expect(Coaches.ethan.description, 'Strategy coach. Practical, modern, laid-back.');
-      expect(Coaches.sofia.description, 'Coach de confianza. Cálida y motivadora.');
+      expect(Coaches.sofia.description, 'Coach de autoconfianza. Cálida y motivadora.');
       expect(Coaches.diego.description, 'Coach de relaciones. Práctico y honesto.');
     });
 
@@ -105,7 +105,7 @@ void main() {
       expect(prompts, hasLength(4));
       expect(Coaches.ava.systemPrompt, contains('confidence coach: direct, supportive and focused on results'));
       expect(Coaches.ethan.systemPrompt, contains('strategy coach: practical, modern and laid-back'));
-      expect(Coaches.sofia.systemPrompt, contains('Eres una coach de confianza: cálida, cercana y motivadora.'));
+      expect(Coaches.sofia.systemPrompt, contains('Eres una coach de autoconfianza: cálida, cercana y motivadora.'));
       expect(Coaches.diego.systemPrompt, contains('Eres un coach de relaciones: práctico, honesto y directo.'));
       // Spanish coaches' style rules are written in Spanish, English ones in English.
       for (final c in Coaches.forLanguage(CoachLanguage.es)) {

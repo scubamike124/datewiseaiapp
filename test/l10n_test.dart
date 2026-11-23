@@ -126,7 +126,7 @@ void main() {
       await pumpScreen(tester, const WelcomeScreen(), locale: es);
       expect(find.text('Comenzar'), findsOneWidget);
       expect(find.text('Mejores conversaciones'), findsOneWidget);
-      expect(find.text('Ava · Coach con IA · Inglés'), findsOneWidget);
+      expect(find.text('Ava · coach con IA · Inglés'), findsOneWidget);
     });
 
     testWidgets('onboarding steps', (tester) async {
@@ -137,7 +137,7 @@ void main() {
       await pumpScreen(tester, const OnboardingScreen(key: ValueKey('step-4'), initialStep: 3), locale: es);
       expect(find.text('Elige a tu coach de citas'), findsOneWidget);
       expect(find.text('Chatear con Sofía'), findsOneWidget);
-      expect(find.text('Coach de confianza. Directa, solidaria y enfocada en resultados.'), findsOneWidget);
+      expect(find.text('Coach de autoconfianza. Directa, comprensiva y enfocada en resultados.'), findsOneWidget);
     });
 
     testWidgets('home, coaches, chat, progress, settings with Sofía', (tester) async {
@@ -156,7 +156,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('tab-progress')));
       await tester.pumpAndSettle();
       expect(find.text('Progreso'), findsWidgets);
-      expect(find.text('0 de 3 hechos'), findsOneWidget);
+      expect(find.text('0 de 3 completados'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('tab-you')));
       await tester.pumpAndSettle();
       expect(find.text('Memoria del coach'), findsWidgets);
@@ -177,9 +177,9 @@ void main() {
       expect(find.text('Mensual · renovación automática'), findsOneWidget);
       final disclosure = tester.widget<Text>(find.byKey(const ValueKey('paywall-disclosure'))).data!;
       expect(disclosure, startsWith(r'$9.99/mes.'));
-      expect(disclosure, contains('Apple ID'));
+      expect(disclosure, contains('Cuenta de Apple'));
       expect(disclosure, contains('se renueva automáticamente cada mes'));
-      expect(disclosure, contains('Configuración › Apple ID › Suscripciones'));
+      expect(disclosure, contains('Configuración › [tu nombre] › Suscripciones'));
       expect(find.text('Restaurar compras'), findsOneWidget);
     });
 
@@ -190,7 +190,7 @@ void main() {
       expect(find.text('Información que proporcionas'), findsOneWidget);
       await pumpScreen(tester, const LegalScreen.doc(LegalDoc.terms), locale: es);
       expect(find.text('Términos de uso'), findsOneWidget);
-      expect(kTermsOfServiceEs, contains('Configuración › Apple ID › Suscripciones'));
+      expect(kTermsOfServiceEs, contains('Configuración › [tu nombre] › Suscripciones'));
       await pumpScreen(tester, const LegalScreen.doc(LegalDoc.terms));
       expect(find.text('Terms of Use'), findsOneWidget);
       expect(find.byKey(const ValueKey('legal-translation-note')), findsNothing);
@@ -199,7 +199,54 @@ void main() {
     testWidgets('store errors are localized', (tester) async {
       final es = lookupAppLocalizations(const Locale('es'));
       expect(es.purchaseFailed, 'No se pudo completar la compra. Inténtalo de nuevo.');
-      expect(es.noSubscriptionForAppleId, contains('Apple ID'));
+      expect(es.noSubscriptionForAppleId, contains('Cuenta de Apple'));
+    });
+  });
+
+  group('l10n QA fixes', () {
+    final en = lookupAppLocalizations(const Locale('en'));
+    final es = lookupAppLocalizations(const Locale('es'));
+
+    test('plan steps done is a plural in both languages', () {
+      expect(en.statPlanDone(1), 'plan step done this week');
+      expect(en.statPlanDone(3), 'plan steps done this week');
+      expect(es.statPlanDone(1), 'paso del plan completado esta semana');
+      expect(es.statPlanDone(0), 'pasos del plan completados esta semana');
+    });
+
+    test('terminology: autoconfianza, con IA, Cuenta de Apple, Configuración, presionado', () {
+      final esArb = File('lib/l10n/app_es.arb').readAsStringSync();
+      for (final banned in ['Ajustes', 'pulsad', 'Apple ID', 'entrenador', 'coach de confianza', 'coaches de IA', 'coach de IA']) {
+        expect(esArb.contains(banned), isFalse, reason: banned);
+      }
+      expect(File('lib/l10n/app_en.arb').readAsStringSync().contains('Apple ID'), isFalse);
+      expect(Coaches.sofia.greeting, contains('coach de autoconfianza con IA'));
+      expect(File('ios/Runner/es.lproj/InfoPlist.strings').readAsStringSync(), contains('mantienes presionado'));
+      expect(es.tapToTalkFooter('Sofía', 'female'), 'Toca para hablar · Sofía es una coach con IA');
+      expect(es.tapToTalkFooter('Diego', 'male'), 'Toca para hablar · Diego es un coach con IA');
+      expect(en.tapToTalkFooter('Ava', 'female'), 'Tap to talk · Ava is an AI coach');
+    });
+
+    test('no "unlimited" claim anywhere the customer sees it', () {
+      final banned = RegExp(r'unlimited|ilimitad', caseSensitive: false);
+      for (final f in [
+        'lib/l10n/app_en.arb',
+        'lib/l10n/app_es.arb',
+        'ios/Runner/DateWise.storekit',
+        'docs/appstore/metadata.md',
+        'lib/content/legal_text.dart',
+        'lib/models/coach.dart',
+        'web/index.html',
+      ]) {
+        expect(banned.hasMatch(File(f).readAsStringSync()), isFalse, reason: f);
+      }
+      expect(en.paywallHeadline('Ava'), 'Everyday coaching with Ava and the team.');
+      expect(es.paywallHeadline('Sofía'), 'Coaching diario con Sofía y todo el equipo.');
+    });
+
+    test('Coach memory: turning it off says the note is deleted', () {
+      expect(en.memoryOff, contains('deleted'));
+      expect(es.memoryOff, contains('se borra'));
     });
   });
 }

@@ -11,9 +11,9 @@ Items marked **OWNER** need the owner's decision or confirmation.
 
 Locales: English (U.S.) is the primary language. Spanish text is written for
 **Spanish (Mexico)**; it can be copied to Spanish (Spain) if the owner wants
-both. Note: the app's interface labels are in English; the two Spanish coaches
-(Sofía, Diego) coach entirely in Spanish, and the starter cards and weekly plan
-follow the coaching language.
+both. The app's interface follows the device language (English or Spanish)
+and can be changed in You › Language; Ava and Ethan coach in English, Sofía
+and Diego in Spanish.
 
 ---
 
@@ -43,9 +43,9 @@ Changing it to "DateWise AI" is optional; the subtitle carries "dating coach".
 
 ### Keywords (≤100 bytes, comma separated, no spaces)
 
-**EN** (94): `dating,coach,dating advice,openers,dating profile,bio,first date,texting,flirting,conversation`
+**EN** (96): `advice,openers,profile,bio,first date,texting,flirting,conversation,relationship,match,tips,chat`
 
-**ES** (98 bytes): `citas,coach,consejos,ligar,primer mensaje,perfil,biografía,primera cita,conversación,pareja,amor`
+**ES** (97 bytes): `consejos,ligar,primer mensaje,perfil,biografía,primera cita,conversación,pareja,amor,match,chat`
 
 (Do not repeat the app name or category in keywords; Apple ignores them.
 Do not add competitor or other app names.)
@@ -85,7 +85,7 @@ Do not add competitor or other app names.)
 > DateWise AI is for adults 18+. The coaches are AI, not people, and they can make mistakes. Their advice is not professional, medical, legal or mental health advice. Always meet new people in public places and put your safety first.
 >
 > DATEWISE PREMIUM
-> Chatting with the coaches requires DateWise Premium, an auto-renewing monthly subscription ($9.99/month in the U.S.; local prices vary). Payment is charged to your Apple ID at confirmation of purchase. The subscription renews automatically unless canceled at least 24 hours before the end of the current period. Manage or cancel it in Settings › Apple ID › Subscriptions.
+> Chatting with the coaches requires DateWise Premium, an auto-renewing monthly subscription ($9.99/month in the U.S.; local prices vary). Payment is charged to your Apple Account at confirmation of purchase. The subscription renews automatically unless canceled at least 24 hours before the end of the current period. Manage or cancel it in Settings › [your name] › Subscriptions.
 >
 > Terms of Use: https://datewiseai.com/terms-of-service
 > Privacy Policy: https://datewiseai.com/privacy-policy
@@ -94,10 +94,10 @@ Do not add competitor or other app names.)
 
 > DateWise AI es un coach de citas con inteligencia artificial. Elige un coach, cuéntale en qué estás trabajando y recibe ayuda sincera y práctica para tu vida amorosa.
 >
-> CUATRO COACHES DE IA
-> • Ava: coach de confianza, directa y comprensiva (inglés)
+> CUATRO COACHES CON IA
+> • Ava: coach de autoconfianza, directa y comprensiva (inglés)
 > • Ethan: coach de estrategia, práctico y relajado (inglés)
-> • Sofía: coach de confianza, cálida y motivadora (español)
+> • Sofía: coach de autoconfianza, cálida y motivadora (español)
 > • Diego: coach de relaciones, práctico y honesto (español)
 > Cambia de coach cuando quieras. Cada coach guarda su propia conversación en tu dispositivo.
 >
@@ -109,7 +109,7 @@ Do not add competitor or other app names.)
 > • Seguir un plan semanal corto y ver tu progreso
 >
 > PRÁCTICA POR VOZ
-> Mantén pulsado el botón para hablar con tu coach y escuchar sus respuestas en voz alta. El reconocimiento de voz funciona en tu iPhone; solo se envía el texto de tu mensaje.
+> Mantén presionado el botón para hablar con tu coach y escucha sus respuestas en voz alta. El reconocimiento de voz funciona en tu iPhone; solo se envía el texto de tu mensaje.
 >
 > PRIVACIDAD
 > • Sin cuenta y sin inicio de sesión
@@ -117,13 +117,13 @@ Do not add competitor or other app names.)
 > • Tus mensajes se envían a nuestro proveedor de IA solo para generar la respuesta
 > • La memoria del coach está apagada salvo que la actives
 > • Sin anuncios, sin analíticas, sin rastreo
-> • Borra tus conversaciones o todos tus datos desde la pestaña You
+> • Borra tus conversaciones o todos tus datos desde la pestaña Tú
 >
 > IMPORTANTE
 > DateWise AI es para mayores de 18 años. Los coaches son IA, no personas, y pueden equivocarse. Sus consejos no son asesoría profesional, médica, legal ni de salud mental. Conoce a personas nuevas siempre en lugares públicos y prioriza tu seguridad.
 >
 > DATEWISE PREMIUM
-> Para chatear con los coaches necesitas DateWise Premium, una suscripción mensual con renovación automática (9.99 USD al mes en EE. UU.; el precio local puede variar). El pago se carga a tu cuenta de Apple al confirmar la compra. La suscripción se renueva automáticamente salvo que la canceles al menos 24 horas antes del final del periodo actual. Adminístrala o cancélala en Configuración › Apple ID › Suscripciones.
+> Para chatear con los coaches necesitas DateWise Premium, una suscripción mensual con renovación automática (9.99 USD al mes en EE. UU.; el precio local puede variar). El pago se carga a tu Cuenta de Apple al confirmar la compra. La suscripción se renueva automáticamente salvo que la canceles al menos 24 horas antes del final del periodo actual. Adminístrala o cancélala en Configuración › [tu nombre] › Suscripciones.
 >
 > Términos de uso: https://datewiseai.com/terms-of-service
 > Política de privacidad: https://datewiseai.com/privacy-policy
@@ -134,7 +134,7 @@ Do not add competitor or other app names.)
 > DateWise AI 2.0 is a full redesign: four AI coaches (two in English, two in Spanish), voice practice, a weekly plan, and DateWise Premium, one simple monthly subscription.
 
 **ES**
-> DateWise AI 2.0 es un rediseño completo: cuatro coaches de IA (dos en inglés y dos en español), práctica por voz, un plan semanal y DateWise Premium, una sola suscripción mensual.
+> DateWise AI 2.0 es un rediseño completo: cuatro coaches con IA (dos en inglés y dos en español), práctica por voz, un plan semanal y DateWise Premium, una sola suscripción mensual.
 
 ---
 
@@ -239,9 +239,9 @@ Create in App Store Connect › Monetization › Subscriptions (must match
 | Family Sharing | Off |
 | Availability | All storefronts where the app is sold |
 | Display name (≤35) EN | DateWise Premium Monthly |
-| Description (≤55) EN | Unlimited chat and voice with all four AI coaches. |
+| Description (≤55) EN | Chat and voice coaching with all four AI coaches. |
 | Display name ES | DateWise Premium Mensual |
-| Description ES | Chat y voz ilimitados con los cuatro coaches de IA. |
+| Description ES | Coaching por chat y voz con los cuatro coaches con IA. |
 | Review screenshot | Required: a screenshot of the paywall on an iPhone (any supported size, e.g. 1320x2868). Capture it from a TestFlight or simulator build so it shows the real StoreKit price, without the "Review build" note that only the web review build shows. |
 | Review notes | "Unlocks chat and voice with the AI coaches. Testable with a Sandbox Apple Account; no app account needed." |
 

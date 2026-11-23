@@ -8,8 +8,8 @@
 /// else is body text (see LegalScreen).
 library;
 
-const String kLegalLastUpdated = 'Last updated: November 22, 2026';
-const String kLegalLastUpdatedEs = 'Última actualización: 22 de noviembre de 2026';
+const String kLegalLastUpdated = 'Last updated: November 23, 2026';
+const String kLegalLastUpdatedEs = 'Última actualización: 23 de noviembre de 2026';
 
 const String kPrivacyPolicy = '''
 $kLegalLastUpdated
@@ -46,7 +46,7 @@ DateWise AI ("DateWise AI", "we", "us") provides an AI dating-coaching app with 
 - These providers process data only to provide their service to us.
 
 # Data retention and deletion
-- On-device data remains until you delete it: You › Delete all conversations, You › Delete my data (erases everything DateWise stored on the device), or uninstalling the app. Deleting your data does not cancel your App Store subscription; to cancel it, go to Settings › Apple ID › Subscriptions.
+- On-device data remains until you delete it: You › Delete all conversations, You › Delete my data (erases everything DateWise stored on the device), or uninstalling the app. Deleting your data does not cancel your App Store subscription; to cancel it, go to Settings › [your name] › Subscriptions.
 - Messages sent for a reply are not retained on our servers after processing.
 
 # Security
@@ -84,7 +84,7 @@ Suggestions are automated and are not a substitute for professional relationship
 Ava, Ethan, Sofía and Diego are AI coaches, not people. Their portraits are illustrations of the coach characters.
 
 # Subscription
-Coaching chat requires DateWise Premium, an auto-renewable monthly subscription. The price is shown in the app before you buy. Payment is charged to your Apple ID at confirmation of purchase. The subscription renews automatically each month unless canceled at least 24 hours before the end of the current period. You can manage or cancel it any time in Settings › Apple ID › Subscriptions. There is no free plan and no free trial.
+Coaching chat requires DateWise Premium, an auto-renewable monthly subscription. The price is shown in the app before you buy. Payment is charged to your Apple Account at confirmation of purchase. The subscription renews automatically each month unless canceled at least 24 hours before the end of the current period. You can manage or cancel it any time in Settings › [your name] › Subscriptions. Coaching chat is available only with this paid subscription.
 
 # Acceptable use
 Don't upload content you don't have the right to share, and don't use the service for unlawful purposes.
@@ -138,7 +138,7 @@ DateWise AI ("DateWise AI", "nosotros") ofrece una app de coaching de citas con 
 - Estos proveedores procesan datos solo para prestarnos su servicio.
 
 # Conservación y eliminación de datos
-- Los datos del dispositivo se conservan hasta que los eliminas: Tú › Eliminar todas las conversaciones, Tú › Eliminar mis datos (borra todo lo que DateWise guardó en el dispositivo) o desinstalando la app. Eliminar tus datos no cancela tu suscripción del App Store; para cancelarla, ve a Configuración › Apple ID › Suscripciones.
+- Los datos del dispositivo se conservan hasta que los eliminas: Tú › Eliminar todas las conversaciones, Tú › Eliminar mis datos (borra todo lo que DateWise guardó en el dispositivo) o desinstalando la app. Eliminar tus datos no cancela tu suscripción del App Store; para cancelarla, ve a Configuración › [tu nombre] › Suscripciones.
 - Los mensajes enviados para obtener una respuesta no se conservan en nuestros servidores después de procesarse.
 
 # Seguridad
@@ -177,7 +177,7 @@ Las sugerencias son automáticas y no sustituyen la asesoría profesional en rel
 Ava, Ethan, Sofía y Diego son coaches con IA, no personas. Sus retratos son ilustraciones de los personajes.
 
 # Suscripción
-El chat de coaching requiere DateWise Premium, una suscripción mensual de renovación automática. El precio se muestra en la app antes de comprar. El pago se carga a tu Apple ID al confirmar la compra. La suscripción se renueva automáticamente cada mes, a menos que la canceles al menos 24 horas antes de que termine el período actual. Puedes administrarla o cancelarla en cualquier momento en Configuración › Apple ID › Suscripciones. No hay plan gratuito ni prueba gratuita.
+El chat de coaching requiere DateWise Premium, una suscripción mensual de renovación automática. El precio se muestra en la app antes de comprar. El pago se carga a tu Cuenta de Apple al confirmar la compra. La suscripción se renueva automáticamente cada mes, a menos que la canceles al menos 24 horas antes de que termine el período actual. Puedes administrarla o cancelarla en cualquier momento en Configuración › [tu nombre] › Suscripciones. El chat de coaching solo está disponible con esta suscripción de pago.
 
 # Uso aceptable
 No compartas contenido que no tengas derecho a compartir y no uses el servicio con fines ilegales.

@@ -462,7 +462,7 @@ void main() {
       final d = tester.widget<Text>(find.byKey(const ValueKey('paywall-disclosure'))).data!;
       expect(d, isNot(contains(r'$')));
       expect(d, contains('price shown by the App Store'));
-      expect(d, contains('Settings › Apple ID › Subscriptions'));
+      expect(d, contains('Settings › [your name] › Subscriptions'));
       expect(find.textContaining('9.99'), findsNothing);
       expect(find.text('Price shown by the App Store'), findsOneWidget);
       final button = tester.widget<DwButton>(find.byKey(const ValueKey('paywall-subscribe')));

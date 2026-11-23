@@ -49,12 +49,12 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Unlimited chat and voice with all four AI coaches.",
+              "description" : "Chat and voice coaching with all four AI coaches.",
               "displayName" : "DateWise Premium Monthly",
               "locale" : "en_US"
             },
             {
-              "description" : "Chat y voz ilimitados con los cuatro coaches de IA.",
+              "description" : "Coaching por chat y voz con los cuatro coaches con IA.",
               "displayName" : "DateWise Premium Mensual",
               "locale" : "es_MX"
             }

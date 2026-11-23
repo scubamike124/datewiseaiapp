@@ -395,7 +395,7 @@ abstract class AppLocalizations {
   /// No description provided for @languageSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'The app and your coaches will use it. You can change it any time in You.'**
+  /// **'The app and your coaches will use it. You can change it any time in the You tab.'**
   String get languageSubtitle;
 
   /// No description provided for @ageTitle.
@@ -533,7 +533,7 @@ abstract class AppLocalizations {
   /// No description provided for @planItemDates.
   ///
   /// In en, this message translates to:
-  /// **'Plan a first date idea'**
+  /// **'Plan a first date'**
   String get planItemDates;
 
   /// No description provided for @planItemConfidence.
@@ -788,6 +788,12 @@ abstract class AppLocalizations {
   /// **'Hold to talk · {name} is an AI coach'**
   String holdToTalkFooter(String name, String gender);
 
+  /// No description provided for @tapToTalkFooter.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to talk · {name} is an AI coach'**
+  String tapToTalkFooter(String name, String gender);
+
   /// No description provided for @premiumEyebrow.
   ///
   /// In en, this message translates to:
@@ -845,7 +851,7 @@ abstract class AppLocalizations {
   /// No description provided for @paywallHeadline.
   ///
   /// In en, this message translates to:
-  /// **'Unlimited coaching with {name} and the team.'**
+  /// **'Everyday coaching with {name} and the team.'**
   String paywallHeadline(String name);
 
   /// No description provided for @benefitCoaches.
@@ -857,7 +863,7 @@ abstract class AppLocalizations {
   /// No description provided for @benefitVoice.
   ///
   /// In en, this message translates to:
-  /// **'Voice practice: speak and hear replies on your iPhone'**
+  /// **'Voice practice: speak and hear replies on your device'**
   String get benefitVoice;
 
   /// No description provided for @benefitPlan.
@@ -941,7 +947,7 @@ abstract class AppLocalizations {
   /// No description provided for @noSubscriptionForAppleId.
   ///
   /// In en, this message translates to:
-  /// **'No active DateWise Premium subscription was found for this Apple ID.'**
+  /// **'No active DateWise Premium subscription was found for this Apple Account.'**
   String get noSubscriptionForAppleId;
 
   /// No description provided for @reviewBuildNote.
@@ -953,7 +959,7 @@ abstract class AppLocalizations {
   /// No description provided for @paywallDisclosure.
   ///
   /// In en, this message translates to:
-  /// **'{perMonth}. Payment is charged to your Apple ID account at confirmation of purchase. The subscription auto-renews monthly at {price} until canceled, unless canceled at least 24 hours before the end of the current period. Cancel any time in Settings › Apple ID › Subscriptions.'**
+  /// **'{perMonth}. Payment is charged to your Apple Account at confirmation of purchase. The subscription renews automatically every month at {price} unless you cancel it at least 24 hours before the end of the current period. Cancel any time in Settings › [your name] › Subscriptions.'**
   String paywallDisclosure(String perMonth, String price);
 
   /// No description provided for @priceFromAppStore.
@@ -971,7 +977,7 @@ abstract class AppLocalizations {
   /// No description provided for @paywallDisclosureNoPrice.
   ///
   /// In en, this message translates to:
-  /// **'Monthly subscription at the price shown by the App Store. Payment is charged to your Apple ID account at confirmation of purchase. The subscription auto-renews monthly at that price until canceled, unless canceled at least 24 hours before the end of the current period. Cancel any time in Settings › Apple ID › Subscriptions.'**
+  /// **'Monthly subscription at the price shown by the App Store. Payment is charged to your Apple Account at confirmation of purchase. The subscription renews automatically every month at that price unless you cancel it at least 24 hours before the end of the current period. Cancel any time in Settings › [your name] › Subscriptions.'**
   String get paywallDisclosureNoPrice;
 
   /// No description provided for @tapToSend.
@@ -1007,7 +1013,7 @@ abstract class AppLocalizations {
   /// No description provided for @restorePurchases.
   ///
   /// In en, this message translates to:
-  /// **'Restore Purchases'**
+  /// **'Restore purchases'**
   String get restorePurchases;
 
   /// No description provided for @termsOfUse.
@@ -1061,8 +1067,8 @@ abstract class AppLocalizations {
   /// No description provided for @statPlanDone.
   ///
   /// In en, this message translates to:
-  /// **'plan steps done this week'**
-  String get statPlanDone;
+  /// **'{count, plural, =1{plan step done this week} other{plan steps done this week}}'**
+  String statPlanDone(int count);
 
   /// No description provided for @noDaysYet.
   ///
@@ -1073,7 +1079,7 @@ abstract class AppLocalizations {
   /// No description provided for @daysTotal.
   ///
   /// In en, this message translates to:
-  /// **'You have talked with a coach on {count, plural, =1{1 day} other{{count} days}} in total.'**
+  /// **'You\'ve talked with a coach on {count, plural, =1{1 day} other{{count} days}} in total.'**
   String daysTotal(int count);
 
   /// No description provided for @weekPlanTitle.
@@ -1271,7 +1277,7 @@ abstract class AppLocalizations {
   /// No description provided for @deleteMyDataBody.
   ///
   /// In en, this message translates to:
-  /// **'Conversations, plan, progress, Coach memory, settings and the saved subscription status will be erased from this device, and the app will start again.\n\nThis does not cancel your App Store subscription. To cancel it, go to Settings › Apple ID › Subscriptions.'**
+  /// **'Conversations, plan, progress, Coach memory, settings and the saved subscription status will be erased from this device, and the app will start again.\n\nThis does not cancel your App Store subscription. To cancel it, go to Settings › [your name] › Subscriptions.'**
   String get deleteMyDataBody;
 
   /// No description provided for @deleteEverything.
@@ -1315,12 +1321,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **''**
   String get legalTranslationNote;
-
-  /// No description provided for @lastUpdated.
-  ///
-  /// In en, this message translates to:
-  /// **'Last updated: November 22, 2026'**
-  String get lastUpdated;
 }
 
 class _AppLocalizationsDelegate

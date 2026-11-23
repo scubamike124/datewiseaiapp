@@ -49,7 +49,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String coachChip(String name, String language) {
-    return '$name · Coach con IA · $language';
+    return '$name · coach con IA · $language';
   }
 
   @override
@@ -69,14 +69,14 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get coachDescAva =>
-      'Coach de confianza. Directa, solidaria y enfocada en resultados.';
+      'Coach de autoconfianza. Directa, comprensiva y enfocada en resultados.';
 
   @override
   String get coachDescEthan =>
       'Coach de estrategia. Práctico, moderno y relajado.';
 
   @override
-  String get coachDescSofia => 'Coach de confianza. Cálida y motivadora.';
+  String get coachDescSofia => 'Coach de autoconfianza. Cálida y motivadora.';
 
   @override
   String get coachDescDiego => 'Coach de relaciones. Práctico y honesto.';
@@ -144,7 +144,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get welcomeFootnote =>
-      'Coaches con IA · Solo para mayores de 18 · English · Español';
+      'Coaches con IA · Solo para mayores de 18 años · English · Español';
 
   @override
   String stepOf(int step, int total) {
@@ -177,7 +177,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get languageSubtitle =>
-      'La app y tus coaches lo usarán. Puedes cambiarlo cuando quieras en Tú.';
+      'La app y tus coaches lo usarán. Puedes cambiarlo cuando quieras en la pestaña Tú.';
 
   @override
   String get ageTitle => 'DateWise es solo para adultos.';
@@ -426,11 +426,20 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String tapToTalkFooter(String name, String gender) {
+    String _temp0 = intl.Intl.selectLogic(gender, {
+      'female': 'una',
+      'other': 'un',
+    });
+    return 'Toca para hablar · $name es $_temp0 coach con IA';
+  }
+
+  @override
   String get premiumEyebrow => 'DateWise Premium';
 
   @override
   String lockedTitle(String name) {
-    return 'El chat con $name es parte de DateWise Premium.';
+    return 'El chat con $name forma parte de DateWise Premium.';
   }
 
   @override
@@ -462,7 +471,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String paywallHeadline(String name) {
-    return 'Coaching ilimitado con $name y todo el equipo.';
+    return 'Coaching diario con $name y todo el equipo.';
   }
 
   @override
@@ -471,7 +480,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get benefitVoice =>
-      'Práctica por voz: habla y escucha las respuestas en tu iPhone';
+      'Práctica por voz: habla y escucha las respuestas en tu dispositivo';
 
   @override
   String get benefitPlan =>
@@ -525,7 +534,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get noSubscriptionForAppleId =>
-      'No se encontró una suscripción activa a DateWise Premium para este Apple ID.';
+      'No se encontró una suscripción activa a DateWise Premium para esta Cuenta de Apple.';
 
   @override
   String get reviewBuildNote =>
@@ -533,7 +542,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String paywallDisclosure(String perMonth, String price) {
-    return '$perMonth. El pago se carga a tu cuenta de Apple ID al confirmar la compra. La suscripción se renueva automáticamente cada mes por $price hasta que la canceles, a menos que la canceles al menos 24 horas antes de que termine el período actual. Cancela cuando quieras en Configuración › Apple ID › Suscripciones.';
+    return '$perMonth. El pago se carga a tu Cuenta de Apple al confirmar la compra. La suscripción se renueva automáticamente cada mes por $price, a menos que la canceles al menos 24 horas antes de que termine el período actual. Cancela cuando quieras en Configuración › [tu nombre] › Suscripciones.';
   }
 
   @override
@@ -544,7 +553,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get paywallDisclosureNoPrice =>
-      'Suscripción mensual al precio indicado por el App Store. El pago se carga a tu cuenta de Apple ID al confirmar la compra. La suscripción se renueva automáticamente cada mes a ese precio hasta que la canceles, a menos que la canceles al menos 24 horas antes de que termine el período actual. Cancela cuando quieras en Configuración › Apple ID › Suscripciones.';
+      'Suscripción mensual al precio indicado por el App Store. El pago se carga a tu Cuenta de Apple al confirmar la compra. La suscripción se renueva automáticamente cada mes a ese precio, a menos que la canceles al menos 24 horas antes de que termine el período actual. Cancela cuando quieras en Configuración › [tu nombre] › Suscripciones.';
 
   @override
   String get tapToSend => 'Detener y enviar';
@@ -600,8 +609,8 @@ class AppLocalizationsEs extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'días seguidos',
-      one: 'día seguido',
+      other: 'días de racha',
+      one: 'día de racha',
     );
     return '$_temp0';
   }
@@ -618,7 +627,15 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String get statPlanDone => 'pasos del plan hechos esta semana';
+  String statPlanDone(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'pasos del plan completados esta semana',
+      one: 'paso del plan completado esta semana',
+    );
+    return '$_temp0';
+  }
 
   @override
   String noDaysYet(String name) {
@@ -633,7 +650,7 @@ class AppLocalizationsEs extends AppLocalizations {
       other: '$count días',
       one: '1 día',
     );
-    return 'Has hablado con un coach $_temp0 en total.';
+    return 'En total, hablaste con un coach $_temp0.';
   }
 
   @override
@@ -641,7 +658,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String planCount(int done, int total) {
-    return '$done de $total hechos';
+    return '$done de $total completados';
   }
 
   @override
@@ -743,7 +760,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get deleteMyDataBody =>
-      'Las conversaciones, el plan, el progreso, la memoria del coach, los ajustes y el estado guardado de la suscripción se borrarán de este dispositivo, y la app empezará de nuevo.\n\nEsto no cancela tu suscripción del App Store. Para cancelarla, ve a Configuración › Apple ID › Suscripciones.';
+      'Las conversaciones, el plan, el progreso, la memoria del coach, tus preferencias y el estado guardado de la suscripción se borrarán de este dispositivo, y la app empezará de nuevo.\n\nEsto no cancela tu suscripción del App Store. Para cancelarla, ve a Configuración › [tu nombre] › Suscripciones.';
 
   @override
   String get deleteEverything => 'Eliminar todo';
@@ -771,7 +788,4 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get legalTranslationNote =>
       'Esta es una traducción para tu comodidad. Si difiere de la versión en inglés, prevalece la versión en inglés.';
-
-  @override
-  String get lastUpdated => 'Última actualización: 22 de noviembre de 2026';
 }

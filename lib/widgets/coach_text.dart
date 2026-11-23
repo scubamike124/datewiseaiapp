@@ -5,7 +5,8 @@ import '../../theme/app_theme.dart';
 /// Minimal markdown renderer for coach messages. Supports the subset DateWise AI
 /// actually emits (PRD voice guidelines): **bold**, bullet lists (`• `/`- `),
 /// numbered lists (`1. `), and blockquotes (`> `). Avoids a heavy markdown
-/// dependency for what is a small, well-known grammar.
+/// dependency for what is a small, well-known grammar. Every block uses
+/// Text.rich, so replies follow the system text size (Dynamic Type).
 class CoachText extends StatelessWidget {
   const CoachText(this.text, {super.key, this.color});
 
@@ -59,7 +60,7 @@ class CoachText extends StatelessWidget {
         blocks.add(
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 2),
-            child: RichText(text: _inline(trimmed, base)),
+            child: Text.rich(_inline(trimmed, base)),
           ),
         );
       }
@@ -83,9 +84,7 @@ class CoachText extends StatelessWidget {
           left: BorderSide(color: AppColors.accent, width: 3),
         ),
       ),
-      child: RichText(
-        text: _inline(content, base.copyWith(fontStyle: FontStyle.italic)),
-      ),
+      child: Text.rich(_inline(content, base.copyWith(fontStyle: FontStyle.italic))),
     );
   }
 
@@ -99,7 +98,7 @@ class CoachText extends StatelessWidget {
             padding: EdgeInsets.only(top: 6, right: 8),
             child: Icon(Icons.circle, size: 6, color: AppColors.primary),
           ),
-          Expanded(child: RichText(text: _inline(content, base))),
+          Expanded(child: Text.rich(_inline(content, base))),
         ],
       ),
     );
@@ -117,7 +116,7 @@ class CoachText extends StatelessWidget {
                 style: base.copyWith(
                     fontWeight: FontWeight.w700, color: AppColors.primary)),
           ),
-          Expanded(child: RichText(text: _inline(content, base))),
+          Expanded(child: Text.rich(_inline(content, base))),
         ],
       ),
     );

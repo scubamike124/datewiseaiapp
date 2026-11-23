@@ -1090,7 +1090,15 @@ class _VoiceDock extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Text(l.holdToTalkFooter(coach.name, l.gender(coach)), textAlign: TextAlign.center, style: AppText.small),
+          // With VoiceOver/TalkBack the talk button toggles with a tap.
+          Text(
+            MediaQuery.accessibleNavigationOf(context)
+                ? l.tapToTalkFooter(coach.name, l.gender(coach))
+                : l.holdToTalkFooter(coach.name, l.gender(coach)),
+            key: const ValueKey('talk-footer'),
+            textAlign: TextAlign.center,
+            style: AppText.small,
+          ),
         ],
       ),
     );
