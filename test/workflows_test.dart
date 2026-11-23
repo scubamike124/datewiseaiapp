@@ -72,6 +72,83 @@ void main() {
     expect(checklist, contains('covers the **purchase UI only**'));
   });
 
+  group('ios-build.yml: TestFlight build against the staging coach Worker', () {
+    final s = File('.github/workflows/ios-build.yml').readAsStringSync();
+    final unsigned = s.substring(s.indexOf('  unsigned:'), s.indexOf('  signed-testflight:'));
+    final job = s.substring(s.indexOf('  signed-testflight:'));
+    final build = job.substring(job.indexOf('- name: flutter build ipa'), job.indexOf('- uses: actions/upload-artifact'));
+    const stagingUrl = 'https://datewise-coach-staging.scubamike124.workers.dev';
+
+    test('coach_backend is a choice input, production by default (never a free-form URL)', () {
+      expect(s, contains("      coach_backend:\n"));
+      expect(s, contains('        type: choice\n        options:\n          - production\n          - staging\n        default: production\n'));
+      expect(RegExp(r'^\s+\w+:\n\s+description:[^\n]*\n\s+type: string', multiLine: true).hasMatch(s), isFalse,
+          reason: 'no free-form string inputs');
+    });
+
+    test('the input reaches the shell only through env:, and the URL is a constant', () {
+      expect(RegExp(r'\$\{\{ *inputs\.coach_backend *\}\}').allMatches(s).length, 1);
+      expect(build, contains('COACH_BACKEND: \${{ inputs.coach_backend }}'));
+      // No ${{ }} expression inside any run: block.
+      for (final m in RegExp(r'run: \|\n((?:          .*\n|\n)+)').allMatches(s)) {
+        expect(m[1], isNot(contains(r'${{')), reason: m[1]);
+      }
+      expect(build, contains('STAGING_COACH_URL="$stagingUrl"'));
+      expect(build, contains(r'staging) DEFINES+=(--dart-define=COACH_BACKEND_URL="$STAGING_COACH_URL") ;;'));
+      expect(build, contains(r'*) echo "::error::Unknown coach_backend"; exit 1 ;;'));
+      expect(build, contains(r'"${DEFINES[@]}"'));
+      expect(RegExp('COACH_BACKEND_URL=').allMatches(s).length, 2, reason: 'one define, one summary line');
+      // Production keeps the app's built-in production URL (no define).
+      expect(build, contains('production|"") COACH_BACKEND=production ;;'));
+      // The staging host matches the app's production subdomain.
+      final appUrl = RegExp(r"productionUrl = '([^']+)'").firstMatch(File('lib/services/ai_config.dart').readAsStringSync())![1]!;
+      expect(Uri.parse(appUrl).host.split('.').sublist(1), Uri.parse(stagingUrl).host.split('.').sublist(1));
+    });
+
+    test('staging builds get their own +50000 build-number range and a loud summary', () {
+      expect(build, contains(r'BUILD_NUMBER=$((100 + GITHUB_RUN_NUMBER))'));
+      expect(build, contains(r'BUILD_NUMBER=$((5000 + BUILD_NUMBER))'));
+      expect(build, contains(r'BUILD_NUMBER=$((50000 + BUILD_NUMBER))'));
+      expect(build.indexOf('50000 + BUILD_NUMBER'), greaterThan(build.indexOf('5000 + BUILD_NUMBER')));
+      expect(build, contains('STAGING COACH BUILD'));
+      expect(build, contains('do NOT submit for App Store review'));
+      expect(job, contains("\${{ inputs.coach_backend == 'staging' && 'datewise-ios-ipa-signed-STAGING' || 'datewise-ios-ipa-signed' }}"));
+    });
+
+    test('the built binary is checked for the right coach host', () {
+      expect(build, contains("find build/ios/archive -path '*App.framework/App'"));
+      expect(build, contains('grep -a -q "datewise-coach-staging.scubamike124.workers.dev" "\$APP_BIN"'));
+      expect(build, contains('elif grep -a -q "datewise-coach-staging" "\$APP_BIN"; then'));
+      expect(RegExp(r'^\s*! ', multiLine: true).hasMatch(build), isFalse, reason: 'a bare negated command does not trip bash -e');
+    });
+
+    test('staging without signed_build fails; the unsigned build stays production', () {
+      expect(unsigned, contains("if: github.event_name == 'workflow_dispatch' && inputs.coach_backend == 'staging' && !inputs.signed_build"));
+      expect(unsigned, contains('run: flutter build ios --release --no-codesign\n'));
+      expect(unsigned, isNot(contains('COACH_BACKEND_URL')));
+    });
+
+    test('the runbook and checklist document the scheme', () {
+      final runbook = File('docs/qa/IPHONE_E2E_DEMO.md').readAsStringSync();
+      expect(runbook, contains('coach_backend'));
+      expect(runbook, contains('50000'));
+      expect(runbook, contains(stagingUrl));
+      // iPhone-only, with the pre-live isolation check and the bindings it lists.
+      expect(runbook, contains('iPhone only: no Mac needed'));
+      expect(runbook, contains('## 1. Pre-live isolation check'));
+      for (final id in ['740219', '740220', '740221']) {
+        expect(runbook, contains(id));
+      }
+      final toml = File('backend/wrangler.toml').readAsStringSync();
+      final staging = toml.substring(toml.indexOf('[env.staging]'));
+      expect(RegExp(r'^namespace_id = "740221"', multiLine: true).hasMatch(staging), isTrue);
+      expect(RegExp(r'^\[+env\.staging\.(kv_namespaces|d1_databases|r2_buckets|services|queues|tail_consumers)', multiLine: true).hasMatch(staging), isFalse);
+      expect(RegExp(r'^script_name', multiLine: true).hasMatch(staging), isFalse);
+      expect(File('docs/appstore/checklist.md').readAsStringSync(), contains('IPHONE_E2E_DEMO.md'));
+      expect(File('docs/qa/LIVE_AI_TEST_PLAN.md').readAsStringSync(), contains('IPHONE_E2E_DEMO.md'));
+    });
+  });
+
   group('deploy-worker.yml: the staging target', () {
     final s = File('.github/workflows/deploy-worker.yml').readAsStringSync();
     final deployJob = s.substring(s.indexOf('\n  deploy:\n'));

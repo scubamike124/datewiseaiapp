@@ -39,6 +39,7 @@ Where two docs disagree, this list names the one that wins. Docs marked
 [avtool]: ../../tool/avatar/README.md
 [bakeoff]: ../avatar/PAID_PROVIDER_BAKEOFF.md
 [live]: ../qa/LIVE_AI_TEST_PLAN.md
+[demo]: ../qa/IPHONE_E2E_DEMO.md
 
 ### A. Owner decisions
 
@@ -149,6 +150,7 @@ only the staging Worker (D8) and a Sandbox token from a debug build.
 | E4 | **Avatar word timing per voice tier**: default, Enhanced and Premium voices; native audio path on iOS 15/16 (loudness only) and iOS 17+ (word markers), and the fallback; tune A/V sync | Owner-only | Lip sync was measured only on a host, never on an iPhone | [avatar] "Blocked / to do" |
 | E5 | **Frame time and memory** in a profile build on the voice stage | Owner-only | Must not drop frames or grow memory on older iPhones | [avatar](../avatar/TALKING_AVATARS.md) |
 | E7 | **Avatar native audio path** (only if it should ship): run `iOS build` by hand with `signed_build`, `upload_testflight` and `avatar_audio_path` ticked. That build is marked "AVATAR AUDIO-PATH TEST BUILD" in the run summary and gets a build number 5000 higher (e.g. 5150 instead of 150): **never submit a 5000+ build for review**. Upload the App Store build of a version before any 5000+ test build of that same version (or give test builds their own version, e.g. 2.0.1), because App Store Connect can reject a lower build number after a higher one; the ranges would also overlap once run numbers pass about 4,900. Test playback, ducking and release, a call/Siri interruption, unplugging headphones, backgrounding, and the fallback. Release builds keep the flag off (flutter_tts path) until this passes | Owner-only | The native path cannot be tested off-device | [avatar](../avatar/TALKING_AVATARS.md) |
+| E8 | **iPhone end-to-end demo** (after D8): run `iOS build` by hand with `signed_build`, `upload_testflight` and `coach_backend` = **`staging`**; speak to a coach, the staging Worker's real AI replies, the avatar speaks it back. The build points at `https://datewise-coach-staging.scubamike124.workers.dev`, is marked "STAGING COACH BUILD" and gets a build number 50000 higher (e.g. 50150): **never submit a 50000+ build for review**. Pass/fail checklist, recording and teardown in [demo] | Owner-only | First proof of the whole chain (speech, StoreKit JWS, live AI, voice, mouth sync) on hardware | [demo] |
 | E6 | **Live AI tests for the four coaches** (Ava, Ethan, Sofía, Diego) in EN and ES. (a) The scripted 36-request test (`tool/live/live_chat_test.mjs --mode live`) against the **staging Worker** URL from D8 (`https://datewise-coach-staging.<subdomain>.workers.dev`), with a Sandbox token in `DW_TEST_JWS`: replies, language, limits, streaming, usage headers. No production var changes; the kit refuses the production URL. Then tear down staging (D8). (b) On a TestFlight build against production (after D3): onboarding and the 18+ gate, limit notices, Delete my data, and the iPad layout | Owner-only | The model has not been called from a v2 build yet | [live], Details step 22, [models] (PR #30) |
 
 ### F. Submission
@@ -163,7 +165,7 @@ only the staging Worker (D8) and a Sandbox token from a debug build.
 | F6 | **Select the build, attach `datewise_premium_monthly`, manual release with a 7-day phased release, Submit for Review** | Owner-only | The subscription is submitted together with 2.0.0 | Details steps 26–28 |
 | F7 | **After approval**: release, a real production purchase, 1.0.2 users update cleanly; check App Analytics at R+30 | Owner-only | Confirms production before the phased release widens | Details step 29, [v1] |
 
-**Count:** 53 Owner-only items, 2 Done in code (A6, A9), 4 Agent, after owner (C3, C4, C5, D7).
+**Count:** 54 Owner-only items, 2 Done in code (A6, A9), 4 Agent, after owner (C3, C4, C5, D7).
 
 ---
 

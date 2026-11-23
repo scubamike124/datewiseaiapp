@@ -37,6 +37,13 @@ on:
         description: 'TestFlight device test of the talking avatar''s native audio path (DW_AVATAR_AUDIO_PATH). Leave off for a build meant for App Store review.'
         type: boolean
         default: false
+      coach_backend:
+        description: 'Coach backend of a signed build. "staging" = the isolated staging Worker, for the iPhone end-to-end demo only (build number +50000; never submit it for App Store review). See docs/qa/IPHONE_E2E_DEMO.md.'
+        type: choice
+        options:
+          - production
+          - staging
+        default: production
 
 permissions:
   contents: read
@@ -58,6 +65,12 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.upload_testflight && !inputs.signed_build
         run: |
           echo "::error::upload_testflight was ticked without signed_build. Tick signed_build too; nothing would be uploaded."
+          exit 1
+
+      - name: coach_backend staging needs signed_build
+        if: github.event_name == 'workflow_dispatch' && inputs.coach_backend == 'staging' && !inputs.signed_build
+        run: |
+          echo "::error::coach_backend=staging only applies to the signed TestFlight build. Tick signed_build too; this unsigned build always targets production."
           exit 1
 
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -242,8 +255,20 @@ jobs:
         if: steps.secrets.outputs.ready == 'true'
         env:
           AVATAR_AUDIO_PATH: ${{ inputs.avatar_audio_path && 'true' || 'false' }}
+          COACH_BACKEND: ${{ inputs.coach_backend }}
         run: |
           flutter pub get
+          # The coach backend is a fixed choice, never a free-form URL. The
+          # staging host is a constant here (docs/launch/WORKER_DEPLOY_RUNBOOK.md
+          # section 9); production builds pass no define and keep
+          # AIConfig.productionUrl.
+          STAGING_COACH_URL="https://datewise-coach-staging.scubamike124.workers.dev"
+          DEFINES=(--dart-define=DW_AVATAR_AUDIO_PATH="$AVATAR_AUDIO_PATH")
+          case "$COACH_BACKEND" in
+            production|"") COACH_BACKEND=production ;;
+            staging) DEFINES+=(--dart-define=COACH_BACKEND_URL="$STAGING_COACH_URL") ;;
+            *) echo "::error::Unknown coach_backend"; exit 1 ;;
+          esac
           # App Store Connect rejects a second upload with the same
           # CFBundleVersion: derive the build number from the run (the +100
           # offset keeps it above pubspec's +N and any earlier uploads).
@@ -255,20 +280,41 @@ jobs:
             BUILD_NUMBER=$((5000 + BUILD_NUMBER))
             echo "### ⚠️ AVATAR AUDIO-PATH TEST BUILD (DW_AVATAR_AUDIO_PATH=true): TestFlight device test only, do NOT submit for App Store review" >> "$GITHUB_STEP_SUMMARY"
           fi
+          if [ "$COACH_BACKEND" = "staging" ]; then
+            # A build pointed at the staging Worker: its own range (+50000,
+            # e.g. 50150, or 55150 with the audio path) so it can never be
+            # mistaken for, or submitted as, an App Store build. Production
+            # users never get it: it reaches only TestFlight testers.
+            BUILD_NUMBER=$((50000 + BUILD_NUMBER))
+            echo "### ⚠️ STAGING COACH BUILD (COACH_BACKEND_URL=$STAGING_COACH_URL): TestFlight iPhone demo only, do NOT submit for App Store review" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "Coach backend: $COACH_BACKEND" >> "$GITHUB_STEP_SUMMARY"
+          echo "COACH_BACKEND=$COACH_BACKEND" >> "$GITHUB_ENV"
           echo "Build number: $BUILD_NUMBER" >> "$GITHUB_STEP_SUMMARY"
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
           # The avatar's native audio path stays off unless this run is a
           # TestFlight device test (docs/avatar/TALKING_AVATARS.md).
           echo "DW_AVATAR_AUDIO_PATH=$AVATAR_AUDIO_PATH" >> "$GITHUB_STEP_SUMMARY"
           flutter build ipa --release --build-number="$BUILD_NUMBER" \
-            --dart-define=DW_AVATAR_AUDIO_PATH="$AVATAR_AUDIO_PATH" \
+            "${DEFINES[@]}" \
             --export-options-plist="$RUNNER_TEMP/ExportOptions.plist"
           ls -lh build/ios/ipa
+          # Prove which coach host the compiled Dart code carries.
+          APP_BIN=$(find build/ios/archive -path '*App.framework/App' -type f | head -n 1)
+          test -n "$APP_BIN"
+          if [ "$COACH_BACKEND" = "staging" ]; then
+            if ! grep -a -q "datewise-coach-staging.scubamike124.workers.dev" "$APP_BIN"; then
+              echo "::error::The staging build does not contain the staging coach host."; exit 1
+            fi
+          elif grep -a -q "datewise-coach-staging" "$APP_BIN"; then
+            echo "::error::A production build contains the staging coach host."; exit 1
+          fi
+          echo "Coach host check passed ($COACH_BACKEND)" >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: steps.secrets.outputs.ready == 'true'
         with:
-          name: datewise-ios-ipa-signed
+          name: ${{ inputs.coach_backend == 'staging' && 'datewise-ios-ipa-signed-STAGING' || 'datewise-ios-ipa-signed' }}
           path: build/ios/ipa/*.ipa
           retention-days: 7
           if-no-files-found: error

@@ -6,6 +6,10 @@ no production variable is changed and there is nothing to restore. Production ru
 The kit checks the deployed version first and stops before any chat request when it is not `chat-v7-cost-guard`, and it
 refuses the production Worker as `--base-url` (unless `--allow-production-worker` is passed on purpose).
 
+The same staging Worker also serves the **iPhone end-to-end demo** (speak to a coach in a TestFlight build pointed at
+staging, real AI reply, talking avatar): [`IPHONE_E2E_DEMO.md`](IPHONE_E2E_DEMO.md). Run both before the teardown in
+section 6.
+
 The kit is `tool/live/live_chat_test.mjs`. One set of scenarios runs in two modes, and each report is labelled with
 exactly one of them:
 

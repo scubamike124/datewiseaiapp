@@ -592,5 +592,23 @@ void main() {
       expect(app.state.activeThread?.messages.where((m) => m.isUser), anyOf(isNull, isEmpty), reason: 'never sent by itself');
       expect(app.state.isResponding, isFalse);
     });
+
+    testWidgets('words heard before "Delete all conversations" are dropped, not sent on release', (t) async {
+      final speech = _Speech();
+      final app = await pumpApp(t, prefs: onboardedPrefs(), tab: AppTab.chat, speech: speech);
+      await t.pumpAndSettle();
+      await t.tap(find.byKey(const ValueKey('voice-mode')));
+      await t.pumpAndSettle();
+      final g = await t.startGesture(t.getCenter(_talk));
+      await t.pump();
+      speech.onWords!('Something private');
+      await t.pump();
+      await app.state.deleteAllConversations();
+      await t.pump();
+      await g.up();
+      await t.pumpAndSettle(const Duration(seconds: 5));
+      expect(find.text('Something private'), findsNothing);
+      expect(app.state.activeThread?.messages.where((m) => m.isUser), anyOf(isNull, isEmpty));
+    });
   });
 }

@@ -142,6 +142,8 @@ class _ChatScreenState extends State<ChatScreen> {
     if (_state.dataEpoch != _dataEpoch) {
       _dataEpoch = _state.dataEpoch;
       _input.clear();
+      // A transcript in progress belongs to the deleted data too.
+      _partial = '';
     }
     final responding = _state.isResponding;
     if (_wasResponding && !responding && _voiceMode && _readAloud) {

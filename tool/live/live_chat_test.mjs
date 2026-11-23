@@ -326,14 +326,17 @@ export async function runKit(opts = {}) {
     const baseUrl = String(opts.baseUrl).replace(/\/+$/, '');
     const u = new URL(baseUrl);
     if (!(u.protocol === 'https:' || ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname))) throw new KitError('--base-url must be https (or http://localhost for wrangler dev).');
-    const host = u.hostname.toLowerCase();
+    // A trailing dot (fully qualified name) is the same host: drop it on both sides.
+    const host = u.hostname.toLowerCase().replace(/\.$/, '');
     // A custom domain of the production Worker (DW_PRODUCTION_WORKER_URL, a URL
     // or a bare host) is refused too; one that cannot be read stops the run.
     let customHost = '';
     const custom = String(opts.productionWorkerUrl ?? '').trim();
     if (custom) {
+      // One host only: a list or a wildcard would silently refuse nothing.
+      if (/[,*]/.test(custom)) throw new KitError('DW_PRODUCTION_WORKER_URL must be one URL or host name (no "," or "*").');
       try {
-        customHost = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(custom) ? custom : `https://${custom}`).hostname.toLowerCase();
+        customHost = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(custom) ? custom : `https://${custom}`).hostname.toLowerCase().replace(/\.$/, '');
       } catch {
         throw new KitError('DW_PRODUCTION_WORKER_URL is not a URL or host name.');
       }
