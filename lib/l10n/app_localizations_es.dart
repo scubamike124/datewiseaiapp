@@ -554,6 +554,10 @@ class AppLocalizationsEs extends AppLocalizations {
       'Toca dos veces para empezar a hablar y otra vez para enviar';
 
   @override
+  String get voiceRecognitionUnavailable =>
+      'El reconocimiento de voz no está disponible en este dispositivo por ahora. Puedes escribir tu mensaje.';
+
+  @override
   String get voiceLanguageUnsupported =>
       'La voz no está disponible para este idioma en este dispositivo. Puedes escribir tu mensaje.';
 

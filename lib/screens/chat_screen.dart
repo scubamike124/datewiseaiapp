@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../models/chat_message.dart';
 import '../models/coach.dart';
 import '../models/reply_options.dart';
+import '../services/reply_language.dart';
 import '../services/speech_service.dart';
 import '../services/store_service.dart';
 import '../services/voice_service.dart';
@@ -146,8 +147,10 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!await _speech.ensureReady()) {
       if (mounted) {
         setState(() {});
+        // Still "available" means permission is fine but the recognizer is
+        // not (e.g. Siri & Dictation off): say so, not "permission needed".
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(context.l10n.voicePermissionNeeded),
+          content: Text(_speech.available ? context.l10n.voiceRecognitionUnavailable : context.l10n.voicePermissionNeeded),
         ));
       }
       return;
@@ -194,8 +197,13 @@ class _ChatScreenState extends State<ChatScreen> {
     await _voice.stop();
     if (!mounted || gen != _listenGen) return;
     _starting = true;
+    // The coach's language, or the other one if the user's last message was
+    // in it; each with its regional fallbacks (es-MX → es-US → es-ES → es).
+    final micLanguage = ReplyLanguage.forMic(_state.selectedCoach, _state.activeThread?.messages ?? const []);
+    final locales = SpeechService.localesFor(micLanguage);
     final result = await _speech.start(
-      localeId: _state.selectedCoach.language.locale,
+      localeId: locales.first,
+      fallbackLocales: locales.sublist(1),
       onWords: (w) {
         if (mounted && gen == _listenGen) setState(() => _partial = w);
       },

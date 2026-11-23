@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
+import '../models/coach.dart';
+
 /// How a hold-to-talk start ended.
 enum SpeechStart {
   /// Listening.
@@ -28,13 +30,37 @@ abstract class SpeechService {
   /// since allowed access in Settings, so voice comes back. Call on resume.
   Future<void> recheckPermission();
 
-  /// Starts listening in [localeId]; [onWords] gets the running transcript.
-  /// [onUnsupported] is called if recognition for the language fails later.
+  /// Starts listening in [localeId], or the first of [fallbackLocales] the
+  /// device can recognize when it cannot; [onWords] gets the running
+  /// transcript. [onUnsupported] is called if recognition fails later.
   Future<SpeechStart> start({
     required String localeId,
+    List<String> fallbackLocales = const [],
     required void Function(String words) onWords,
     void Function()? onUnsupported,
   });
+
+  /// The recognition locales to try for [language], best first. A bare
+  /// language code ("es") means any regional variant of it.
+  static List<String> localesFor(CoachLanguage language) => switch (language) {
+        CoachLanguage.es => const ['es-MX', 'es-US', 'es-ES', 'es'],
+        CoachLanguage.en => const ['en-US', 'en-GB', 'en'],
+      };
+
+  /// The first of [wanted] among the device's [available] locale ids (either
+  /// "es_MX" or "es-MX"), returned as the device spells it. When the device
+  /// list is unknown (empty) or has none of them, the first wanted locale.
+  static String pickLocale(List<String> available, List<String> wanted) {
+    String norm(String s) => s.replaceAll('_', '-').toLowerCase();
+    for (final w in wanted) {
+      final want = norm(w);
+      for (final a in available) {
+        final n = norm(a);
+        if (want.contains('-') ? n == want : (n == want || n.startsWith('$want-'))) return a;
+      }
+    }
+    return wanted.first;
+  }
 
   /// Stops listening and returns the final transcript.
   Future<String> stop();
@@ -53,6 +79,7 @@ class NoSpeechService implements SpeechService {
   @override
   Future<SpeechStart> start({
     required String localeId,
+    List<String> fallbackLocales = const [],
     required void Function(String words) onWords,
     void Function()? onUnsupported,
   }) async =>
@@ -84,6 +111,9 @@ class DeviceSpeechService implements SpeechService {
   @override
   bool get available => !_denied;
 
+  /// Locale ids the recognizer supports on this device (read once).
+  List<String>? _locales;
+
   /// Recognizer errors that mean the language cannot be recognized here.
   static bool _isUnsupported(String msg) {
     final m = msg.toLowerCase();
@@ -102,7 +132,17 @@ class DeviceSpeechService implements SpeechService {
     } catch (_) {
       _ready = false;
     }
-    _denied = !_ready;
+    if (_ready) {
+      _denied = false;
+    } else {
+      // Not ready is not always a denial: the recognizer can be unavailable
+      // (e.g. Siri & Dictation off). Only a missing permission hides voice.
+      try {
+        _denied = !(await _stt.hasPermission);
+      } catch (_) {
+        _denied = true;
+      }
+    }
     return _ready;
   }
 
@@ -118,12 +158,19 @@ class DeviceSpeechService implements SpeechService {
   @override
   Future<SpeechStart> start({
     required String localeId,
+    List<String> fallbackLocales = const [],
     required void Function(String words) onWords,
     void Function()? onUnsupported,
   }) async {
-    if (!await ensureReady()) return SpeechStart.denied;
+    if (!await ensureReady()) return _denied ? SpeechStart.denied : SpeechStart.unsupported;
     _words = '';
     _onUnsupported = onUnsupported;
+    try {
+      _locales ??= [for (final l in await _stt.locales()) l.localeId];
+    } catch (_) {
+      _locales = const [];
+    }
+    final locale = SpeechService.pickLocale(_locales!, [localeId, ...fallbackLocales]);
     try {
       await _stt.listen(
         onResult: (r) {
@@ -131,7 +178,7 @@ class DeviceSpeechService implements SpeechService {
           onWords(_words);
         },
         listenOptions: SpeechListenOptions(
-          localeId: localeId.replaceAll('-', '_'),
+          localeId: locale.replaceAll('-', '_'),
           partialResults: true,
           onDevice: true,
           cancelOnError: true,

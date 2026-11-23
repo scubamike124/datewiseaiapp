@@ -537,6 +537,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Double-tap to start talking, then double-tap again to send';
 
   @override
+  String get voiceRecognitionUnavailable =>
+      'Speech recognition isn\'t available on this device right now. You can type your message instead.';
+
+  @override
   String get voiceLanguageUnsupported =>
       'Voice isn\'t available for this language on this device. You can type your message instead.';
 

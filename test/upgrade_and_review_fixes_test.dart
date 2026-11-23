@@ -165,6 +165,7 @@ class _FakeSpeech implements SpeechService {
   SpeechStart nextResult = SpeechStart.started;
   bool listening = false;
   int starts = 0;
+  final requestedLocales = <List<String>>[];
   int stops = 0;
   int cancels = 0;
   String words = 'Help me reply';
@@ -173,8 +174,12 @@ class _FakeSpeech implements SpeechService {
   @override
   bool available = true;
 
+  /// When set, ensureReady reports this while [available] stays as is
+  /// (permission granted, recognizer unavailable).
+  bool? ready;
+
   @override
-  Future<bool> ensureReady() async => available;
+  Future<bool> ensureReady() async => ready ?? available;
 
   @override
   Future<void> recheckPermission() async {}
@@ -182,10 +187,12 @@ class _FakeSpeech implements SpeechService {
   @override
   Future<SpeechStart> start({
     required String localeId,
+    List<String> fallbackLocales = const [],
     required void Function(String words) onWords,
     void Function()? onUnsupported,
   }) async {
     starts++;
+    requestedLocales.add([localeId, ...fallbackLocales]);
     if (holdStart) {
       pendingStart = Completer<SpeechStart>();
       final r = await pendingStart!.future;
@@ -527,6 +534,34 @@ void main() {
       expect(speech.stops, 1);
       expect(speech.listening, isFalse);
       await tester.pumpAndSettle(const Duration(seconds: 2));
+    });
+
+    testWidgets('recognizer unavailable but permission granted: not reported as a permission problem (D9)', (tester) async {
+      final speech = _FakeSpeech()..ready = false;
+      await pumpApp(tester, prefs: onboardedPrefs(), tab: AppTab.chat, speech: speech);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('voice-mode')));
+      await tester.pump();
+      expect(find.text("Speech recognition isn't available on this device right now. You can type your message instead."),
+          findsOneWidget);
+      expect(find.textContaining('You can allow it in Settings'), findsNothing);
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+    });
+
+    testWidgets("mic language: the coach's, then the user's when they switch language (D7)", (tester) async {
+      final speech = await openVoice(tester, speech: _FakeSpeech()..words = '¿Qué le escribo después de la cita?');
+      Future<void> talk() async {
+        final g = await tester.startGesture(tester.getCenter(find.byKey(const ValueKey('hold-to-talk'))));
+        await tester.pump();
+        await g.up();
+        await tester.pumpAndSettle(const Duration(seconds: 2));
+      }
+
+      await talk();
+      expect(speech.requestedLocales.first, ['en-US', 'en-GB', 'en'], reason: "Ava's language with fallbacks");
+      await talk();
+      expect(speech.requestedLocales.last, ['es-MX', 'es-US', 'es-ES', 'es'],
+          reason: 'the last user message was Spanish');
     });
 
     testWidgets('accessibility: the talk button toggles with a tap', (tester) async {

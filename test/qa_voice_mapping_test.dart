@@ -94,34 +94,39 @@ void main() {
       expect(picked, {'ava': 'Samantha', 'ethan': 'Aaron', 'sofia': 'Paulina', 'diego': 'Juan'});
     });
 
-    test('voice not installed for the language → null → speak() falls back to setLanguage(coach locale)', () {
+    test('voice not installed for the language → null → speak() falls back to setLanguage(text language locale)', () {
       final englishOnly = [v('Samantha', 'en-US', gender: 'female'), v('Aaron', 'en-US', gender: 'male')];
       expect(pick(englishOnly, Coaches.sofia), isNull);
       expect(pick(englishOnly, Coaches.diego), isNull);
-      // voice_service.dart speak(): voice == null → _tts.setLanguage(coach.language.locale)
+      // voice_service.dart speak(): voice == null → _tts.setLanguage(language.locale),
+      // the detected language of the text (the coach's own by default).
       final src = File('lib/services/voice_service.dart').readAsStringSync();
-      expect(src, contains('await _tts.setLanguage(coach.language.locale);'));
+      expect(src, contains('await _tts.setLanguage(language.locale);'));
     });
 
-    test('FINDING: TTS always uses the coach\'s locale, even when the reply is in the other language', () {
+    test('D6 fixed: TTS follows the language of the reply, with a same-gender voice', () {
       // A Spanish coach answering an English-speaking user (the language rule
-      // in persona.dart allows it) is still read with a Spanish voice.
+      // in persona.dart allows it) is read with an English voice of her gender.
       final src = File('lib/services/voice_service.dart').readAsStringSync();
-      expect(src, contains('final voice = _voiceFor(coach);'));
-      expect(src, isNot(contains('detectLanguage')));
+      expect(src, contains('ReplyLanguage.detect(clean, fallback: coach.language)'));
+      final voices = [v('Samantha', 'en-US', gender: 'female'), v('Aaron', 'en-US', gender: 'male'),
+        v('Paulina', 'es-MX', gender: 'female'), v('Juan', 'es-MX', gender: 'male')];
+      expect(DeviceVoiceService.pickVoice(voices, Coaches.sofia, language: CoachLanguage.en)!['name'], 'Samantha');
+      expect(DeviceVoiceService.pickVoice(voices, Coaches.diego, language: CoachLanguage.en)!['name'], 'Aaron');
+      expect(DeviceVoiceService.pickVoice(voices, Coaches.ava, language: CoachLanguage.es)!['name'], 'Paulina');
+      expect(DeviceVoiceService.pickVoice(voices, Coaches.ethan, language: CoachLanguage.es)!['name'], 'Juan');
     });
   });
 
   group('speech recognition locale', () {
-    test('mic recognition uses the coach locale (en_US / es_MX), on device only', () {
+    test('mic recognition uses the mic language with regional fallbacks, on device only (D7 fixed)', () {
       final chat = File('lib/screens/chat_screen.dart').readAsStringSync();
-      expect(chat, contains('localeId: _state.selectedCoach.language.locale'));
+      expect(chat, contains('ReplyLanguage.forMic(_state.selectedCoach'));
+      expect(chat, contains('fallbackLocales: locales.sublist(1)'));
       final speech = File('lib/services/speech_service.dart').readAsStringSync();
-      expect(speech, contains("localeId.replaceAll('-', '_')"));
+      expect(speech, contains("locale.replaceAll('-', '_')"));
       expect(speech, contains('onDevice: true'));
-      // FINDING: no fallback locale (es_US / es_ES) when es_MX is not
-      // available for on-device recognition: the user gets "unsupported".
-      expect(speech, isNot(contains('es_US')));
+      expect(speech, contains('await _stt.locales()'));
     });
   });
 

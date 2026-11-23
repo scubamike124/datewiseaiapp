@@ -986,6 +986,12 @@ abstract class AppLocalizations {
   /// **'Double-tap to start talking, then double-tap again to send'**
   String get tapToTalkHint;
 
+  /// No description provided for @voiceRecognitionUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Speech recognition isn\'t available on this device right now. You can type your message instead.'**
+  String get voiceRecognitionUnavailable;
+
   /// No description provided for @voiceLanguageUnsupported.
   ///
   /// In en, this message translates to:

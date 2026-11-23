@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
 import '../models/coach.dart';
+import 'reply_language.dart';
 
 /// Reads coach text aloud with the device's own text-to-speech voices
 /// (flutter_tts, MIT). Nothing is sent to a server.
@@ -70,6 +71,14 @@ class CoachVoiceProfile {
   static const diego = CoachVoiceProfile(
       locales: _esLocales, preferredNames: _esMale, otherGenderNames: _esFemale, pitch: 0.9, rate: 0.46);
 
+  /// The voice (locales and names) for [coach] speaking [language]: their
+  /// own profile, or for the other language the profile of the same-gender
+  /// coach of that language. Pitch and rate always come from [of].
+  static CoachVoiceProfile forLanguage(Coach coach, CoachLanguage language) => language == coach.language
+      ? of(coach)
+      : of(Coaches.forLanguage(language).firstWhere((c) => c.gender == coach.gender,
+          orElse: () => Coaches.forLanguage(language).first));
+
   static CoachVoiceProfile of(Coach coach) => switch (coach.id) {
         'ethan' => ethan,
         'sofia' => sofia,
@@ -127,8 +136,8 @@ class DeviceVoiceService implements VoiceService {
   @override
   ValueListenable<bool> get speaking => _speaking;
 
-  Map<String, String>? _voiceFor(Coach coach) =>
-      _chosen.putIfAbsent(coach.id, () => pickVoice(_voices, coach));
+  Map<String, String>? _voiceFor(Coach coach, CoachLanguage language) =>
+      _chosen.putIfAbsent('${coach.id}/${language.name}', () => pickVoice(_voices, coach, language: language));
 
   /// The best installed voice for [coach] among [voices] (flutter_tts
   /// `getVoices` maps: name, locale, and on iOS also quality, gender and
@@ -139,9 +148,11 @@ class DeviceVoiceService implements VoiceService {
   ///  2. any voice in those locales not known to be the other gender;
   ///  3. any voice in those locales (pitch then keeps the coaches apart).
   /// Null when no voice matches the language (the default voice is used).
+  /// [language] (default: the coach's own) is the language of the text: a
+  /// coach answering in the other language gets a same-gender voice of it.
   @visibleForTesting
-  static Map<String, String>? pickVoice(List<Map<String, String>> voices, Coach coach) {
-    final profile = CoachVoiceProfile.of(coach);
+  static Map<String, String>? pickVoice(List<Map<String, String>> voices, Coach coach, {CoachLanguage? language}) {
+    final profile = CoachVoiceProfile.forLanguage(coach, language ?? coach.language);
     final want = coach.gender == CoachGender.female ? 'female' : 'male';
 
     String norm(String? s) => (s ?? '').replaceAll('_', '-').toLowerCase();
@@ -204,7 +215,10 @@ class DeviceVoiceService implements VoiceService {
     if (clean.isEmpty) return;
     await _tts.stop();
     await _prepareAudioSession();
-    final voice = _voiceFor(coach);
+    // Coaches answer in the user's language, so the voice follows the
+    // language of the text, not the coach's default.
+    final language = ReplyLanguage.detect(clean, fallback: coach.language);
+    final voice = _voiceFor(coach, language);
     if (voice != null && voice['name'] != null && voice['locale'] != null) {
       await _tts.setVoice({
         'name': voice['name']!,
@@ -212,8 +226,9 @@ class DeviceVoiceService implements VoiceService {
         if (voice['identifier'] != null) 'identifier': voice['identifier']!,
       });
     } else {
-      await _tts.setLanguage(coach.language.locale);
+      await _tts.setLanguage(language.locale);
     }
+    // The coach's own pitch and rate, whichever language they speak.
     final profile = CoachVoiceProfile.of(coach);
     await _tts.setPitch(profile.pitch);
     await _tts.setSpeechRate(profile.rate);

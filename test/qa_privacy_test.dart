@@ -68,6 +68,7 @@ class _SpyingSpeech extends NoSpeechService {
   @override
   Future<SpeechStart> start({
     required String localeId,
+    List<String> fallbackLocales = const [],
     required void Function(String words) onWords,
     void Function()? onUnsupported,
   }) async {
