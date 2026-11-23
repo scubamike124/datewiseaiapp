@@ -124,6 +124,12 @@ test('the client system prompt is ignored; the server builds the coach prompt', 
   assert.match(sent[0].content, /more confidence/);
   assert.ok(!sent.some((m) => m.content.includes('general assistant')));
   assert.ok(!sent[0].content.includes('bogus'));
+  // The profile line names only the interface language and defers to the
+  // LANGUAGE rule, worded exactly as the app's own persona (user_profile.dart).
+  assert.match(sent[0].content, /uses the app in Español \(follow your LANGUAGE rule for replies\)/);
+  assert.ok(!/\bprefers\b/.test(sent[0].content));
+  const dart = readFileSync(new URL('../lib/models/user_profile.dart', import.meta.url), 'utf8');
+  assert.ok(dart.includes("'uses the app in ${language.label} (follow your LANGUAGE rule for replies)'"));
 });
 
 test('unknown coach ids are refused; v1 ids map to the v2 coaches', async () => {

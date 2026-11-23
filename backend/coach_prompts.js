@@ -103,7 +103,9 @@ function profileLines(profile) {
   const parts = [];
   if (goals.length) parts.push(`wants help with: ${goals.map((g) => GOAL_LABELS[g]).join(', ')}`);
   const lang = typeof profile.language === 'string' && Object.hasOwn(LANGUAGE_LABELS, profile.language) ? profile.language : null;
-  if (lang) parts.push(`prefers ${LANGUAGE_LABELS[lang]}`);
+  // Only the interface language, as in lib/models/user_profile.dart summary: the
+  // coach's LANGUAGE rule decides the reply language, so this is no competing instruction.
+  if (lang) parts.push(`uses the app in ${LANGUAGE_LABELS[lang]} (follow your LANGUAGE rule for replies)`);
   if (parts.length) lines.push(`About the user: ${parts.join('; ')}. Tailor every answer to this.`);
   if (typeof profile.memory === 'string' && profile.memory.trim()) {
     // One line, and no double quotes or backslashes, so the note cannot close its quotation.
