@@ -86,6 +86,7 @@ class _Speech implements SpeechService {
   SpeechStart nextResult = SpeechStart.started;
   void Function()? onUnsupported;
   void Function(String)? onEnded;
+  void Function(String)? onWords;
   int starts = 0, stops = 0, cancels = 0;
 
   @override
@@ -117,6 +118,7 @@ class _Speech implements SpeechService {
     starts++;
     this.onUnsupported = onUnsupported;
     this.onEnded = onEnded;
+    this.onWords = onWords;
     if (holdStart) {
       pendingStart = Completer<SpeechStart>();
       return pendingStart!.future;
@@ -554,6 +556,41 @@ void main() {
         await t.pumpAndSettle();
       }
       expect(t.widget<TextField>(find.byKey(const ValueKey('composer'))).controller!.text, 'Ask her out for coffee');
+    });
+
+    testWidgets('speaking when a lapse swaps in the paywall: listening stops, the words wait in the composer', (t) async {
+      final speech = _Speech();
+      final store = FakeStoreService(entitled: true);
+      final app = await pumpApp(t, prefs: onboardedPrefs(), tab: AppTab.chat, speech: speech, store: store);
+      await t.pumpAndSettle();
+      await t.tap(find.byKey(const ValueKey('voice-mode')));
+      await t.pumpAndSettle();
+      final g = await t.startGesture(t.getCenter(_talk));
+      await t.pump();
+      expect(find.text('Listening…'), findsOneWidget);
+      speech.onWords!('Should I text her');
+      await t.pump();
+      // The paywall was not closed this session: it replaces the tabs.
+      store.expire();
+      await t.pumpAndSettle();
+      expect(find.byType(PaywallScreen), findsOneWidget);
+      expect(find.byKey(const ValueKey('composer')), findsNothing);
+      expect(speech.cancels, greaterThanOrEqualTo(1), reason: 'recognition stopped, microphone released');
+      // A late result from the recognizer is ignored (nothing listens behind the paywall).
+      speech.onEnded?.call('Should I text her tonight');
+      await g.up();
+      await t.pumpAndSettle();
+      expect(find.text('Listening…'), findsNothing);
+      expect(app.state.activeThread?.messages.where((m) => m.isUser), anyOf(isNull, isEmpty), reason: 'nothing sent');
+      await t.ensureVisible(find.byKey(const ValueKey('paywall-subscribe')));
+      await t.pumpAndSettle();
+      await t.tap(find.byKey(const ValueKey('paywall-subscribe')));
+      await t.pump(const Duration(milliseconds: 20));
+      await t.pumpAndSettle();
+      expect(find.byType(PaywallScreen), findsNothing);
+      expect(t.widget<TextField>(find.byKey(const ValueKey('composer'))).controller!.text, 'Should I text her');
+      expect(app.state.activeThread?.messages.where((m) => m.isUser), anyOf(isNull, isEmpty), reason: 'never sent by itself');
+      expect(app.state.isResponding, isFalse);
     });
   });
 }

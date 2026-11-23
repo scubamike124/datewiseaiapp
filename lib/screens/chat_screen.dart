@@ -74,6 +74,13 @@ class _ChatScreenState extends State<ChatScreen> {
     _voice = context.read<VoiceService>();
     _speech = context.read<SpeechService>();
     _state.addListener(_onState);
+    // Back from the paywall that interrupted the chat: what the user was
+    // typing or saying is in the composer again (never sent by itself).
+    final draft = _state.takeDraft();
+    if (draft != null) {
+      _input.text = draft;
+      _input.selection = TextSelection.collapsed(offset: draft.length);
+    }
     // Back from Settings after denying the microphone: check again, so the
     // voice button returns once access is allowed.
     _lifecycle = AppLifecycleListener(onResume: () async {
@@ -103,6 +110,15 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    // A lapsed subscription swapped the tabs for the paywall: keep what was
+    // typed, plus whatever was recognized so far, for when the chat reopens.
+    // Listening stops below (the microphone is released). Not after "Delete
+    // my data" (no longer onboarded), which must leave nothing behind.
+    if (_state.onboarded && !_state.canChat) {
+      final draft = _input.text.trimRight();
+      final words = _listening ? _partial.trim() : '';
+      _state.keepDraft(draft.isEmpty || words.isEmpty ? '$draft$words' : '$draft $words');
+    }
     _state.cancelReply();
     _state.removeListener(_onState);
     _lifecycle.dispose();
