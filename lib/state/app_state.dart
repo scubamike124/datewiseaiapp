@@ -306,6 +306,10 @@ class AppState extends ChangeNotifier {
   /// deleted before a bulk delete can never be brought back by Undo.
   int _dataEpoch = 0;
 
+  /// Changes whenever "Delete all conversations" or "Delete my data" runs,
+  /// so an open chat can clear its composer too.
+  int get dataEpoch => _dataEpoch;
+
   /// The [_dataEpoch] each conversation deleted by [deleteThread] was
   /// deleted under (what [restoreThread] may still put back).
   final Map<String, int> _deletedEpoch = {};
@@ -352,8 +356,10 @@ class AppState extends ChangeNotifier {
 
   String get _draftKey => '${selectedCoach.id}/${activeThread?.id ?? ''}';
 
-  /// Whether a draft is waiting for the chat to reopen.
-  bool get hasDraft => _drafts.isNotEmpty;
+  /// Whether a draft is waiting for the open coach and conversation. A
+  /// draft kept under another coach or conversation does not count, so it
+  /// can never keep sending the app back to the Chat tab.
+  bool get hasDraft => _drafts.containsKey(_draftKey);
 
   /// Keeps [text] for the open conversation (nothing when it is blank). No
   /// listeners are notified: the chat calls this as it closes.

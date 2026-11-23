@@ -322,6 +322,11 @@ jobs:
               for k in ('main', 'route', 'routes', 'workers_dev', 'legacy_env', 'compatibility_date'):
                   if k in st: errors.append(f'{where} must not set {k} (it inherits main and compatibility_date; no routes)')
               if ((st.get('ai') or {}).get('binding')) != 'AI': errors.append(f'{where}: [env.staging.ai] binding = "AI" is missing')
+              # Nothing that reaches another Worker (production's Durable Object, service bindings, tail consumers).
+              for b in ((st.get('durable_objects') or {}).get('bindings') or []):
+                  if isinstance(b, dict) and 'script_name' in b: errors.append(f"{where}: durable_objects binding {b.get('name')} must not set script_name (staging uses its own Durable Object)")
+              for k in ('services', 'tail_consumers'):
+                  if k in st: errors.append(f'{where} must not set {k} (it must not reach other Workers)')
               vars_ = st.get('vars', {}) or {}
               if not isinstance(vars_, dict): errors.append(f'{where}.vars must be a table'); vars_ = {}
               missing = sorted(set(prod_vars) - set(vars_))
@@ -349,6 +354,8 @@ jobs:
               print(f"{where} name={st.get('name')} SANDBOX_DAILY_LIMIT={vars_.get('SANDBOX_DAILY_LIMIT')} SANDBOX_NEURON_BUDGET={vars_.get('SANDBOX_NEURON_BUDGET')}")
           if cfg.get('name') != os.environ['WORKER_NAME']: errors.append(f"name must be {os.environ['WORKER_NAME']}, got {cfg.get('name')}")
           if cfg.get('main') != 'worker.js': errors.append(f"main must be worker.js, got {cfg.get('main')}")
+          # legacy_env = false would turn [env.staging] into a differently named service.
+          if 'legacy_env' in cfg: errors.append('legacy_env must not be set (top level)')
           vars_ = cfg.get('vars', {}) or {}
           if not isinstance(vars_, dict): errors.append('[vars] must be a table'); vars_ = {}
           check_vars('[vars]', vars_)
@@ -726,6 +733,10 @@ jobs:
       - name: Deploy with Wrangler
         id: deploy
         uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
+        env:
+          # Production runs pin CLOUDFLARE_ENV empty, so no inherited value can
+          # pick an [env.*] section; the staging target sets it to staging.
+          CLOUDFLARE_ENV: ${{ needs.check.outputs.target == 'chat-v7-staging' && 'staging' || '' }}
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

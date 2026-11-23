@@ -294,7 +294,8 @@ class KitError extends Error {}
 
 /**
  * Runs the kit. Returns { mode, records, report, reportPath, failures, exitCode }.
- * opts: mode, baseUrl, budget, jws (live), confirmLive, allowProduction, allowProductionWorker, skip
+ * opts: mode, baseUrl, budget, jws (live), confirmLive, allowProduction, allowProductionWorker,
+ * productionWorkerUrl (DW_PRODUCTION_WORKER_URL: a custom domain of the production Worker), skip
  * (Set of GROUPS), perMinute, maxConcurrent, timeoutMs, out, report, localVars,
  * log, fetchImpl (live mode only; tests).
  */
@@ -326,7 +327,18 @@ export async function runKit(opts = {}) {
     const u = new URL(baseUrl);
     if (!(u.protocol === 'https:' || ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname))) throw new KitError('--base-url must be https (or http://localhost for wrangler dev).');
     const host = u.hostname.toLowerCase();
-    if ((host === new URL(PRODUCTION_URL).hostname || host.startsWith(`${PRODUCTION_WORKER}.`)) && !opts.allowProductionWorker) {
+    // A custom domain of the production Worker (DW_PRODUCTION_WORKER_URL, a URL
+    // or a bare host) is refused too; one that cannot be read stops the run.
+    let customHost = '';
+    const custom = String(opts.productionWorkerUrl ?? '').trim();
+    if (custom) {
+      try {
+        customHost = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(custom) ? custom : `https://${custom}`).hostname.toLowerCase();
+      } catch {
+        throw new KitError('DW_PRODUCTION_WORKER_URL is not a URL or host name.');
+      }
+    }
+    if ((host === new URL(PRODUCTION_URL).hostname || host.startsWith(`${PRODUCTION_WORKER}.`) || (customHost && host === customHost)) && !opts.allowProductionWorker) {
       throw new KitError(`--base-url is the production Worker. The live test runs against the staging Worker (https://${STAGING_WORKER}.<subdomain>.workers.dev, docs/qa/LIVE_AI_TEST_PLAN.md); pass --allow-production-worker only on purpose.`);
     }
     const doFetch = opts.fetchImpl ?? globalThis.fetch;
@@ -718,7 +730,8 @@ const HELP = `Usage: node tool/live/live_chat_test.mjs [options]
   --allow-production    accept a Production token in live mode (default: Sandbox only)
   --allow-production-worker
                         allow --base-url to be the production Worker (default: refused;
-                        the live test runs against the staging Worker)
+                        the live test runs against the staging Worker; a custom domain
+                        named in DW_PRODUCTION_WORKER_URL is refused the same way)
   --per-minute N        the Worker's PER_MINUTE_LIMIT (default 12)
   --max-concurrent N    the Worker's MAX_CONCURRENT (default 2)
   --timeout-ms N        per request (default 60000)
@@ -794,6 +807,7 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
       confirmLive: args['confirm-live'],
       allowProduction: args['allow-production'],
       allowProductionWorker: args['allow-production-worker'],
+      productionWorkerUrl: env.DW_PRODUCTION_WORKER_URL,
       skip,
       perMinute,
       maxConcurrent,
