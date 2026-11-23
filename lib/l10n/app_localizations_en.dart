@@ -667,7 +667,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get memoryOff =>
-      'Off: your note is deleted and coaches only see the current conversation.';
+      'Off: no note is kept (turning it off deletes it) and coaches only see the current conversation.';
 
   @override
   String get writeNote => 'Write your note';
@@ -690,6 +690,16 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get memoryOffBody =>
       'Your note will be deleted from this device, and coaches will only see the current conversation.';
+
+  @override
+  String get memoryTurnOnTitle => 'Turn on Coach memory?';
+
+  @override
+  String get memoryTurnOnBody =>
+      'Your note is kept only while Coach memory is on. It will then be sent to your coach with each message.';
+
+  @override
+  String get memoryTurnOnAction => 'Turn on & save';
 
   @override
   String get memoryOffAction => 'Turn off & delete';

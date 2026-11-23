@@ -1145,7 +1145,7 @@ abstract class AppLocalizations {
   /// No description provided for @memoryOff.
   ///
   /// In en, this message translates to:
-  /// **'Off: your note is deleted and coaches only see the current conversation.'**
+  /// **'Off: no note is kept (turning it off deletes it) and coaches only see the current conversation.'**
   String get memoryOff;
 
   /// No description provided for @writeNote.
@@ -1189,6 +1189,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Your note will be deleted from this device, and coaches will only see the current conversation.'**
   String get memoryOffBody;
+
+  /// No description provided for @memoryTurnOnTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn on Coach memory?'**
+  String get memoryTurnOnTitle;
+
+  /// No description provided for @memoryTurnOnBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Your note is kept only while Coach memory is on. It will then be sent to your coach with each message.'**
+  String get memoryTurnOnBody;
+
+  /// Confirm button when saving a Coach memory note while memory is off: turns memory on and saves.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn on & save'**
+  String get memoryTurnOnAction;
 
   /// Confirm button when turning Coach memory off: it deletes the note.
   ///

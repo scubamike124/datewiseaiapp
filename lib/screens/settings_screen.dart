@@ -14,30 +14,37 @@ import 'paywall_screen.dart';
 import 'shell.dart';
 import '../l10n/l10n.dart';
 
+/// A confirmation dialog whose body scrolls, so long text at large sizes is
+/// never clipped. True when the user chose [action].
+Future<bool> _confirmDialog(BuildContext context, String title, String body, String action,
+    {Color actionColor = AppColors.danger}) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      scrollable: true,
+      title: Text(title),
+      content: Text(body),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(ctx.l10n.cancel, style: const TextStyle(color: AppColors.text))),
+        TextButton(
+          key: const ValueKey('confirm-action'),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: Text(action, style: TextStyle(color: actionColor, fontWeight: FontWeight.w600)),
+        ),
+      ],
+    ),
+  );
+  return ok ?? false;
+}
+
 /// The "You" tab: language, coach, Coach memory, subscription, data, legal.
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
-  Future<bool> _confirm(BuildContext context, String title, String body, String action) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(body),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(ctx.l10n.cancel, style: const TextStyle(color: AppColors.text))),
-          TextButton(
-            key: const ValueKey('confirm-action'),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(action, style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
-    );
-    return ok ?? false;
-  }
+  Future<bool> _confirm(BuildContext context, String title, String body, String action) =>
+      _confirmDialog(context, title, body, action);
 
   void _pickLanguage(BuildContext context, AppState state) {
     final l = context.l10n;
@@ -461,9 +468,20 @@ class _MemorySheetState extends State<_MemorySheet> {
                 key: const ValueKey('memory-save'),
                 label: l.save,
                 expand: true,
-                onPressed: () {
-                  widget.state.saveMemory(_controller.text);
-                  Navigator.pop(context);
+                onPressed: () async {
+                  final state = widget.state;
+                  final text = _controller.text;
+                  // A note is kept only while Coach memory is on: saving one
+                  // while it is off asks to turn it on first.
+                  if (!state.memoryEnabled && text.trim().isNotEmpty) {
+                    if (!await _confirmDialog(context, l.memoryTurnOnTitle, l.memoryTurnOnBody, l.memoryTurnOnAction,
+                        actionColor: AppColors.text)) {
+                      return;
+                    }
+                    await state.setMemoryEnabled(true);
+                  }
+                  await state.saveMemory(text);
+                  if (context.mounted) Navigator.pop(context);
                 },
               ),
             ],

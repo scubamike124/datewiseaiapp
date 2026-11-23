@@ -225,6 +225,54 @@ void main() {
     });
   }
 
+  for (final (lang, prefs, title, action, off) in [
+    ('en', onboardedPrefs(), 'Turn on Coach memory?', 'Turn on & save',
+        'Off: no note is kept (turning it off deletes it) and coaches only see the current conversation.'),
+    ('es', spanishPrefs(), '¿Activar la memoria del coach?', 'Activar y guardar',
+        'Desactivada: no se guarda ninguna nota (al desactivarla se borra) y los coaches solo ven la conversación actual.'),
+  ]) {
+    testWidgets('[$lang] saving a note while Coach memory is off asks to turn it on', (tester) async {
+      final app = await pumpApp(tester, prefs: prefs, tab: AppTab.you);
+      expect(app.state.memoryEnabled, isFalse);
+      expect(find.text(off), findsOneWidget);
+
+      // Declining keeps memory off and saves nothing.
+      await tester.tap(find.byKey(const ValueKey('row-memory-edit')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const ValueKey('memory-field')), 'Shy at first.');
+      await tester.tap(find.byKey(const ValueKey('memory-save')));
+      await tester.pumpAndSettle();
+      expect(find.text(title), findsOneWidget);
+      expect(find.text(action), findsOneWidget);
+      await tester.tap(find.text(lang == 'es' ? 'Cancelar' : 'Cancel'));
+      await tester.pumpAndSettle();
+      expect(app.state.memoryEnabled, isFalse);
+      expect(app.state.memoryText, isEmpty);
+      expect(app.storage.memoryText, isEmpty);
+      expect(find.byKey(const ValueKey('memory-field')), findsOneWidget, reason: 'the sheet stays open');
+
+      // Accepting turns memory on and saves the note.
+      await tester.tap(find.byKey(const ValueKey('memory-save')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('confirm-action')));
+      await tester.pumpAndSettle();
+      expect(app.state.memoryEnabled, isTrue);
+      expect(app.state.memoryText, 'Shy at first.');
+      expect(find.byKey(const ValueKey('memory-field')), findsNothing);
+      expect(find.text(off), findsNothing);
+    });
+  }
+
+  testWidgets('saving an empty note while Coach memory is off needs no confirmation', (tester) async {
+    final app = await pumpApp(tester, prefs: onboardedPrefs(), tab: AppTab.you);
+    await tester.tap(find.byKey(const ValueKey('row-memory-edit')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('memory-save')));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(app.state.memoryEnabled, isFalse);
+  });
+
   testWidgets('turning Coach memory off with no note needs no confirmation', (tester) async {
     final app = await pumpApp(tester, prefs: {...onboardedPrefs(), 'dw_memory_on': true}, tab: AppTab.you);
     await tester.tap(find.byKey(const ValueKey('row-memory')));

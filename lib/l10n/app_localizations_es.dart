@@ -688,7 +688,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get memoryOff =>
-      'Desactivada: tu nota se borra y los coaches solo ven la conversación actual.';
+      'Desactivada: no se guarda ninguna nota (al desactivarla se borra) y los coaches solo ven la conversación actual.';
 
   @override
   String get writeNote => 'Escribe tu nota';
@@ -711,6 +711,16 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get memoryOffBody =>
       'Tu nota se eliminará de este dispositivo y los coaches solo verán la conversación actual.';
+
+  @override
+  String get memoryTurnOnTitle => '¿Activar la memoria del coach?';
+
+  @override
+  String get memoryTurnOnBody =>
+      'Tu nota solo se guarda mientras la memoria del coach está activada. Entonces se enviará a tu coach con cada mensaje.';
+
+  @override
+  String get memoryTurnOnAction => 'Activar y guardar';
 
   @override
   String get memoryOffAction => 'Desactivar y borrar';

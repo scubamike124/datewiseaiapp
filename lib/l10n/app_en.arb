@@ -466,7 +466,7 @@
   "sectionMemory": "Coach memory",
   "memoryTitle": "Coach memory",
   "memoryOn": "On: your note is sent with each message.",
-  "memoryOff": "Off: your note is deleted and coaches only see the current conversation.",
+  "memoryOff": "Off: no note is kept (turning it off deletes it) and coaches only see the current conversation.",
   "writeNote": "Write your note",
   "yourNote": "Your note",
   "clearMemory": "Clear memory",
@@ -474,6 +474,12 @@
   "clearMemoryBody": "Your note will be deleted from this device.",
   "memoryOffTitle": "Turn off Coach memory?",
   "memoryOffBody": "Your note will be deleted from this device, and coaches will only see the current conversation.",
+  "memoryTurnOnTitle": "Turn on Coach memory?",
+  "memoryTurnOnBody": "Your note is kept only while Coach memory is on. It will then be sent to your coach with each message.",
+  "memoryTurnOnAction": "Turn on & save",
+  "@memoryTurnOnAction": {
+    "description": "Confirm button when saving a Coach memory note while memory is off: turns memory on and saves."
+  },
   "memoryOffAction": "Turn off & delete",
   "@memoryOffAction": {
     "description": "Confirm button when turning Coach memory off: it deletes the note."

@@ -244,9 +244,11 @@ void main() {
       expect(es.paywallHeadline('Sofía'), 'Coaching diario con Sofía y todo el equipo.');
     });
 
-    test('Coach memory: turning it off says the note is deleted', () {
-      expect(en.memoryOff, contains('deleted'));
+    test('Coach memory: turning it off says the note is deleted and none is kept', () {
+      expect(en.memoryOff, contains('deletes'));
+      expect(en.memoryOff, contains('no note is kept'));
       expect(es.memoryOff, contains('se borra'));
+      expect(es.memoryOff, contains('no se guarda ninguna nota'));
     });
   });
 }
