@@ -79,8 +79,11 @@ Be brief. Give: an overall score from 1 to 10; a verdict (KEEP, RESHOOT, or DELE
 a one-sentence headline; the predicted change in match rate as a percentage; and ONE actionable tip.`;
 
 // Second-pass text model (supports JSON mode / structured outputs).
-// llama-3.1-8b-instruct was deprecated 2026-05-30 — use fp8 / fast variants.
-const TEXT_MODEL = '@cf/meta/llama-3.1-8b-instruct-fp8';
+// llama-3.1-8b-instruct was deprecated 2026-05-30, and llama-3.1-8b-instruct-fp8
+// on 2026-11-20 (Workers AI now answers it with HTTP 410, error 5028). Llama 3.3
+// 70B fp8-fast stays active, is on the JSON Mode list, and returns the same
+// `response` shape (and the same SSE stream) the photo coach and the app read.
+const TEXT_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 
 // --- Chat (AI coach replies) ----------------------------------------------
 // The same free text model powers the coaching chat. Replies stream back
@@ -571,7 +574,7 @@ export default {
       const url = new URL(request.url);
       // Quick deploy check: open <worker-url>/?version to confirm this code is live.
       if (url.searchParams.has('version')) {
-        return json({ version: 'chat-v5', note: 'streaming coach chat + single + batch parsing' });
+        return json({ version: 'chat-v6', note: 'streaming coach chat + single + batch parsing; text model llama-3.3-70b-instruct-fp8-fast' });
       }
       if (url.searchParams.get('agree') === '1') {
         if (!env.AI) return json({ error: 'AI binding "AI" missing' }, 500);
