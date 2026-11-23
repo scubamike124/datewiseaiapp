@@ -504,6 +504,11 @@ class AppStoreService extends StoreService {
         _error = null;
       } else if (syncFailed) {
         _error = StoreError.restoreFailed;
+      } else {
+        // The sync and the read both worked: there really is no subscription.
+        // A stale error (e.g. "Could not reach the App Store" from a failed
+        // launch read) must not replace "No active subscription found".
+        _error = null;
       }
     } catch (_) {
       _error = StoreError.restoreFailed;
@@ -540,6 +545,9 @@ class AppStoreService extends StoreService {
     }
     try {
       await _refreshEntitlement().timeout(const Duration(seconds: 10));
+      // The App Store answered: a "Could not reach the App Store" left over
+      // from a failed launch read no longer applies.
+      if (_error == StoreError.storeUnreachable) _error = null;
     } catch (_) {
       // Keep the last known state when the App Store cannot be reached.
     }

@@ -134,15 +134,40 @@ class _ChatScreenState extends State<ChatScreen> {
     if (prompt != null) _send(prompt);
   }
 
-  Future<void> _send(String text) async {
+  /// Sends [text]. From the composer ([fromComposer]), the field is cleared
+  /// only once the message is accepted: while a reply is still streaming
+  /// nothing is sent and the text stays in the field. A voice transcript
+  /// ([fromVoice]) that cannot be sent is put in the composer instead of
+  /// being dropped.
+  Future<void> _send(String text, {bool fromComposer = false, bool fromVoice = false}) async {
     if (text.trim().isEmpty) return;
     if (!_state.canChat) {
       showPaywall(context);
       return;
     }
-    _input.clear();
+    if (_state.isResponding) {
+      if (fromVoice) _keepTranscript(text);
+      return;
+    }
     await _voice.stop();
-    await _state.sendMessage(text);
+    final sent = await _state.sendMessage(text, onAccepted: () {
+      if (fromComposer && mounted && _input.text == text) _input.clear();
+    });
+    if (!sent && fromVoice && mounted && _state.canChat) _keepTranscript(text);
+  }
+
+  /// Puts a voice transcript that could not be sent into the composer (after
+  /// any draft already there), so what the user said is never lost.
+  void _keepTranscript(String text) {
+    if (!mounted) return;
+    final words = text.trim();
+    final draft = _input.text.trimRight();
+    _input.text = draft.isEmpty ? words : '$draft $words';
+    _input.selection = TextSelection.collapsed(offset: _input.text.length);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      key: const ValueKey('voice-kept-in-composer'),
+      content: Text(context.l10n.voiceKeptInComposer),
+    ));
   }
 
   // --- Voice session ------------------------------------------------------
@@ -153,9 +178,11 @@ class _ChatScreenState extends State<ChatScreen> {
         setState(() {});
         // Still "available" means permission is fine but the recognizer is
         // not (e.g. Siri & Dictation off): say so, not "permission needed".
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(_speech.available ? context.l10n.voiceRecognitionUnavailable : context.l10n.voicePermissionNeeded),
-        ));
+        if (_speech.available) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.voiceRecognitionUnavailable)));
+        } else {
+          _showPermissionNeeded();
+        }
       }
       return;
     }
@@ -214,6 +241,9 @@ class _ChatScreenState extends State<ChatScreen> {
       onUnsupported: () {
         if (mounted && gen == _listenGen) _listenFailed(SpeechStart.unsupported);
       },
+      onEnded: (words) {
+        if (mounted && gen == _listenGen) _listenEnded(words);
+      },
     );
     _starting = false;
     if (!mounted || gen != _listenGen) {
@@ -236,9 +266,44 @@ class _ChatScreenState extends State<ChatScreen> {
       _listening = false;
       _partial = '';
     });
+    if (why == SpeechStart.denied) {
+      _showPermissionNeeded();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.voiceLanguageUnsupported)));
+    }
+  }
+
+  /// Recognition ended by itself (silence timeout, no match): what was
+  /// heard is sent; nothing heard leaves "Listening…" with a gentle note.
+  void _listenEnded(String words) {
+    final text = words.trim().isNotEmpty ? words : _partial;
+    _listenGen++;
+    _holding = false;
+    _speech.cancel();
+    setState(() {
+      _listening = false;
+      _partial = '';
+    });
+    if (text.trim().isNotEmpty) {
+      _send(text, fromVoice: true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        key: const ValueKey('voice-no-speech'),
+        content: Text(context.l10n.voiceNoSpeech),
+      ));
+    }
+  }
+
+  /// Microphone or speech permission denied: says so, with "Open Settings"
+  /// where the system allows it.
+  void _showPermissionNeeded() {
     final l = context.l10n;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(why == SpeechStart.denied ? l.voicePermissionNeeded : l.voiceLanguageUnsupported),
+      key: const ValueKey('voice-permission-snackbar'),
+      content: Text(l.voicePermissionNeeded),
+      action: _speech.canOpenSettings
+          ? SnackBarAction(key: const ValueKey('voice-open-settings'), label: l.openSettings, onPressed: _speech.openSettings)
+          : null,
     ));
   }
 
@@ -272,7 +337,7 @@ class _ChatScreenState extends State<ChatScreen> {
       _listening = false;
       _partial = '';
     });
-    if (text.trim().isNotEmpty) await _send(text);
+    if (text.trim().isNotEmpty) await _send(text, fromVoice: true);
   }
 
   String get _elapsed {
@@ -333,7 +398,34 @@ class _ChatScreenState extends State<ChatScreen> {
                   children: [
                     const Icon(Icons.mic_off_outlined, size: 20, color: AppColors.faint),
                     const SizedBox(width: 12),
-                    Expanded(child: Text(l.voiceUnavailableNote(coach.name), style: AppText.small)),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // A denied permission is not "not available on
+                          // this device": it can be allowed again in Settings.
+                          Text(
+                            _speech.permissionDenied ? l.voicePermissionDeniedNote(coach.name) : l.voiceUnavailableNote(coach.name),
+                            key: const ValueKey('voice-unavailable-note'),
+                            style: AppText.small,
+                          ),
+                          if (_speech.permissionDenied && _speech.canOpenSettings)
+                            TextButton(
+                              key: const ValueKey('menu-open-settings'),
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: const Size(44, 44),
+                                foregroundColor: AppColors.gold,
+                              ),
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                _speech.openSettings();
+                              },
+                              child: Text(l.openSettings),
+                            ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -372,14 +464,22 @@ class _ChatScreenState extends State<ChatScreen> {
                         ListTile(
                           minTileHeight: 56,
                           title: Text(AppState.isDefaultTitle(t.title) ? l.newConversation : t.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppText.label),
-                          subtitle: Text(parseReply(t.preview).body,
+                          // Plain text: no markdown markers or OPTIONS line,
+                          // on screen or in what VoiceOver reads.
+                          subtitle: Text(plainPreview(t.preview),
+                              key: ValueKey('history-preview-${t.id}'),
                               maxLines: 1, overflow: TextOverflow.ellipsis, style: AppText.small),
                           trailing: IconButton(
+                            key: ValueKey('history-delete-${t.id}'),
                             tooltip: l.deleteConversation,
+                            // 48x48 on every platform (desktop/web density
+                            // would shrink it to 40x40).
+                            visualDensity: VisualDensity.standard,
+                            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
                             icon: const Icon(Icons.delete_outline_rounded, color: AppColors.faint),
                             onPressed: () {
-                              _state.deleteThread(t.id);
                               Navigator.pop(ctx);
+                              _deleteWithUndo(t.id);
                             },
                           ),
                           onTap: () {
@@ -393,6 +493,27 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       },
     );
+  }
+
+  /// Deletes a conversation from Past conversations at once, with Undo in a
+  /// SnackBar (Undo saves it back).
+  Future<void> _deleteWithUndo(String id) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final l = context.l10n;
+    final wasOpen = _state.activeThread?.id == id;
+    final removed = await _state.deleteThread(id);
+    if (removed == null) return;
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        key: const ValueKey('conversation-deleted'),
+        content: Text(l.conversationDeleted),
+        action: SnackBarAction(
+          key: const ValueKey('undo-delete'),
+          label: l.undo,
+          onPressed: () => _state.restoreThread(removed, reopen: wasOpen),
+        ),
+      ));
   }
 
   @override
@@ -490,7 +611,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         focus: _focus,
                         hint: context.l10n.messageHint(coach.name),
                         busy: state.isResponding,
-                        onSend: () => _send(_input.text),
+                        onSend: () => _send(_input.text, fromComposer: true),
                         onStop: _state.cancelReply,
                         onVoice: _speech.available ? _enterVoice : null,
                       ),
@@ -841,7 +962,7 @@ class _Bubble extends StatelessWidget {
                       : failed
                           ? _FailedReply(
                               partial: parsed.body,
-                              stopped: message.status == MessageStatus.stopped,
+                              status: message.status,
                               failure: message.failure,
                               code: message.failedCode,
                               onRetry: onRetry,
@@ -1002,7 +1123,12 @@ class _Composer extends StatelessWidget {
                 maxLines: 5,
                 textCapitalization: TextCapitalization.sentences,
                 textInputAction: TextInputAction.send,
-                onSubmitted: (_) => onSend(),
+                // While a reply streams, Enter does nothing: the text and the
+                // keyboard stay, ready to send once the reply is done.
+                onSubmitted: (_) {
+                  if (!busy) onSend();
+                },
+                onEditingComplete: busy ? () {} : null,
                 style: const TextStyle(fontSize: 15.5, color: AppColors.text, height: 1.35),
                 decoration: InputDecoration(
                   hintText: hint,
@@ -1218,13 +1344,15 @@ class _Locked extends StatelessWidget {
 class _FailedReply extends StatelessWidget {
   const _FailedReply(
       {required this.partial,
-      required this.stopped,
+      required this.status,
       required this.onRetry,
       this.failure,
       this.code,
       this.showPaywallAction = false});
   final String partial;
-  final bool stopped;
+
+  /// Failed, stopped (by the user) or interrupted (the app restarted).
+  final MessageStatus status;
   final ReplyFailure? failure;
 
   /// The backend's refusal code (chat-v7); a known one shows its limit notice.
@@ -1237,7 +1365,7 @@ class _FailedReply extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
-    final paywall = showPaywallAction && !stopped && CoachLimitCode.paywallAction.contains(code);
+    final paywall = showPaywallAction && status == MessageStatus.failed && CoachLimitCode.paywallAction.contains(code);
     return Column(
       key: const ValueKey('reply-failed'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1257,15 +1385,17 @@ class _FailedReply extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                stopped
-                    ? l.chatErrorStopped
-                    : coachLimitMessage(l, code) ??
-                        switch (failure) {
-                          ReplyFailure.busy => l.chatErrorBusy,
-                          ReplyFailure.offline => l.chatErrorOffline,
-                          ReplyFailure.server => l.chatErrorServer,
-                          null => l.chatErrorUnavailable,
-                        },
+                switch (status) {
+                  MessageStatus.stopped => l.chatErrorStopped,
+                  MessageStatus.interrupted => l.chatErrorInterrupted,
+                  _ => coachLimitMessage(l, code) ??
+                      switch (failure) {
+                        ReplyFailure.busy => l.chatErrorBusy,
+                        ReplyFailure.offline => l.chatErrorOffline,
+                        ReplyFailure.server => l.chatErrorServer,
+                        null => l.chatErrorUnavailable,
+                      },
+                },
                 key: const ValueKey('reply-failed-notice'),
                 style: const TextStyle(fontSize: 14, height: 1.4, color: AppColors.text),
               ),

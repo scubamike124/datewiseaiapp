@@ -38,11 +38,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> with VoicePreview {
   }
 
   /// Under 18: recorded on the device; the app shows only the "adults only"
-  /// page from now on (see RootGate), with no way back into onboarding.
+  /// page from now on (see RootGate), with no way back into onboarding. It
+  /// is permanent, so a confirmation comes first (a mistaken tap is undone
+  /// with Cancel).
   Future<void> _underage() async {
     stopPreview();
+    final l = context.l10n;
+    final state = context.read<AppState>();
     final nav = Navigator.of(context);
-    await context.read<AppState>().markUnderage();
+    if (!await showConfirmDialog(context, l.ageUnderConfirmTitle, l.ageUnderConfirmBody, l.ageUnderConfirmAction)) return;
+    await state.markUnderage();
     nav.popUntil((r) => r.isFirst);
   }
 
@@ -78,59 +83,67 @@ class _OnboardingScreenState extends State<OnboardingScreen> with VoicePreview {
     final l = context.l10n;
     final (Widget body, Widget? action) = _stepBody(l);
 
-    return Scaffold(
-      key: ValueKey('onboarding-$_step'),
-      backgroundColor: AppColors.background,
-      body: Column(
-        children: [
-          SizedBox(height: top),
-          ContentWidth(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 4, 20, 4),
-              child: Row(
-                children: [
-                  IconButton(
-                    key: const ValueKey('onboarding-back'),
-                    tooltip: l.back,
-                    constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-                    onPressed: _back,
-                    icon: const Icon(Icons.chevron_left_rounded, size: 30, color: AppColors.text),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Row(
-                      children: [
-                        for (var i = 0; i < _steps; i++) ...[
-                          if (i > 0) const SizedBox(width: 6),
-                          Expanded(
-                            child: AnimatedContainer(
-                              duration: motion(context, const Duration(milliseconds: 250)),
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: i <= _step ? AppColors.gold : AppColors.line2,
-                                borderRadius: BorderRadius.circular(2),
+    // The system back gesture / button goes to the previous step; only on
+    // the first step does it leave onboarding.
+    return PopScope(
+      canPop: _step == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _step > 0) _back();
+      },
+      child: Scaffold(
+        key: ValueKey('onboarding-$_step'),
+        backgroundColor: AppColors.background,
+        body: Column(
+          children: [
+            SizedBox(height: top),
+            ContentWidth(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 4, 20, 4),
+                child: Row(
+                  children: [
+                    IconButton(
+                      key: const ValueKey('onboarding-back'),
+                      tooltip: l.back,
+                      constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                      onPressed: _back,
+                      icon: const Icon(Icons.chevron_left_rounded, size: 30, color: AppColors.text),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          for (var i = 0; i < _steps; i++) ...[
+                            if (i > 0) const SizedBox(width: 6),
+                            Expanded(
+                              child: AnimatedContainer(
+                                duration: motion(context, const Duration(milliseconds: 250)),
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: i <= _step ? AppColors.gold : AppColors.line2,
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
                               ),
                             ),
-                          ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-              child: ContentWidth(child: body),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                child: ContentWidth(child: body),
+              ),
             ),
-          ),
-          if (action != null)
-            ContentWidth(
-              child: Padding(padding: EdgeInsets.fromLTRB(20, 8, 20, bottom + 16), child: action),
-            ),
-        ],
+            if (action != null)
+              ContentWidth(
+                child: Padding(padding: EdgeInsets.fromLTRB(20, 8, 20, bottom + 16), child: action),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -320,7 +333,9 @@ class _OptionTile extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(title, style: AppText.label.copyWith(fontSize: 16)),
+                          // A long word ("conversaciones" at large text) is
+                          // scaled to fit instead of breaking mid-word.
+                          WholeWordsText(title, style: AppText.label.copyWith(fontSize: 16)),
                           if (subtitle != null)
                             Padding(
                               padding: const EdgeInsets.only(top: 2),

@@ -240,7 +240,27 @@ class AppState extends ChangeNotifier {
       ..clear()
       ..addAll(_storage.loadThreads());
     _threads.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    _markInterruptedReplies();
     _activeThreadId = latestThreadFor(selectedCoach)?.id;
+  }
+
+  /// A conversation saved before its reply arrived (the app closed or
+  /// restarted mid-reply, before any reply was saved) ends on the user's
+  /// message: it gets an interrupted reply, so it shows "Try again" instead
+  /// of waiting forever. (A reply saved mid-stream already loads as
+  /// interrupted.)
+  void _markInterruptedReplies() {
+    for (final t in _threads) {
+      final last = t.messages.lastOrNull;
+      if (last == null || !last.isUser) continue;
+      t.messages.add(ChatMessage(
+        id: _uuid.v4(),
+        role: MessageRole.coach,
+        text: '',
+        createdAt: last.createdAt,
+        status: MessageStatus.interrupted,
+      ));
+    }
   }
 
   /// Starts a new conversation with the selected coach, opening with the
@@ -282,10 +302,27 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> deleteThread(String id) async {
+  /// Deletes a conversation (from the device too) and returns it, so the
+  /// caller can offer Undo ([restoreThread]); null when there was none.
+  Future<ChatThread?> deleteThread(String id) async {
     if (_isResponding && _activeThreadId == id) await cancelReply();
-    _threads.removeWhere((t) => t.id == id);
+    final i = _threads.indexWhere((t) => t.id == id);
+    if (i < 0) return null;
+    final removed = _threads.removeAt(i);
     if (_activeThreadId == id) _activeThreadId = latestThreadFor(selectedCoach)?.id;
+    await _persist();
+    notifyListeners();
+    return removed;
+  }
+
+  /// Undo for [deleteThread]: puts the conversation back (saved again) in
+  /// its place by date; [reopen] opens it again when it was the open one.
+  Future<void> restoreThread(ChatThread thread, {bool reopen = false}) async {
+    if (_threads.any((t) => t.id == thread.id)) return;
+    _threads
+      ..add(thread)
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    if (reopen && thread.coachId == selectedCoach.id) _activeThreadId = thread.id;
     await _persist();
     notifyListeners();
   }
@@ -293,8 +330,11 @@ class AppState extends ChangeNotifier {
   // --- Messaging ----------------------------------------------------------
 
   /// Sends a user message to the selected coach and streams the reply.
-  /// Returns false (and sends nothing) without an active subscription.
-  Future<bool> sendMessage(String text) async {
+  /// Returns false (and sends nothing) without an active subscription or
+  /// while another reply is streaming. [onAccepted] is called as soon as the
+  /// message is added to the conversation (the returned future completes
+  /// only when the reply has finished).
+  Future<bool> sendMessage(String text, {void Function()? onAccepted}) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return false;
     // A reply that is being stopped finishes stopping first.
@@ -302,8 +342,20 @@ class AppState extends ChangeNotifier {
     if (stopping != null) await stopping;
     if (_isResponding) return false;
     if (!canChat) return false;
+    // Claimed before anything is awaited, so a second send cannot slip in.
+    _isResponding = true;
 
-    final thread = activeThread ?? await createThread();
+    final ChatThread thread;
+    try {
+      thread = activeThread ?? await createThread();
+    } catch (e) {
+      // Storage failed while starting a conversation: nothing was sent, and
+      // the app must not stay "responding" (the composer would stay locked).
+      _isResponding = false;
+      notifyListeners();
+      if (kDebugMode) debugPrint('sendMessage: could not start a conversation: $e');
+      return false;
+    }
     final now = _clock();
     thread.messages.add(ChatMessage(
       id: _uuid.v4(),
@@ -314,12 +366,7 @@ class AppState extends ChangeNotifier {
     thread.updatedAt = now;
     _autoTitle(thread);
     _bumpToTop(thread);
-    // Saved before the reply starts, so the user's message survives the app
-    // closing mid-reply.
-    _isResponding = true;
-    notifyListeners();
-    await _persist();
-    await _recordActiveDay();
+    onAccepted?.call();
     await _streamCoachReply(thread);
     return true;
   }
@@ -331,7 +378,12 @@ class AppState extends ChangeNotifier {
   Future<void>? _stopping;
 
   Future<void> _streamCoachReply(ChatThread thread) {
-    final task = _runReply(thread);
+    late final Future<void> task;
+    // Cleared when this reply ends, however it ends (normally [_runReply]
+    // clears it; this covers a reply that fails before it streams).
+    task = _runReply(thread).whenComplete(() {
+      if (identical(_replyTask, task)) _replyTask = null;
+    });
     _replyTask = task;
     return task;
   }
@@ -348,6 +400,32 @@ class AppState extends ChangeNotifier {
     thread.messages.add(coachMsg);
     _replyMsg = coachMsg;
     notifyListeners();
+    // The user's message and this placeholder are saved before the request
+    // starts: if the app closes or restarts mid-reply, the conversation
+    // reloads with an interrupted reply and "Try again" (a reply still
+    // streaming is saved as interrupted; see ChatMessage.toJson).
+    var saved = false;
+    try {
+      await _persist();
+      await _recordActiveDay();
+      saved = true;
+    } catch (e) {
+      if (kDebugMode) debugPrint('reply: could not save before the request: $e');
+    } finally {
+      if (!saved) {
+        // Storage failed: no request is made. The reply shows as failed with
+        // "Try again", and the app is no longer "responding", so the user is
+        // never stuck behind a spinner.
+        coachMsg
+          ..isStreaming = false
+          ..status = MessageStatus.failed;
+        if (identical(_replyMsg, coachMsg)) _replyMsg = null;
+        _replyTask = null;
+        _isResponding = false;
+        notifyListeners();
+      }
+    }
+    if (!saved) return;
 
     final done = Completer<void>();
     _replyDone = done;
@@ -355,32 +433,37 @@ class AppState extends ChangeNotifier {
       if (!done.isCompleted) done.complete();
     }
 
-    try {
-      _replySub = _ai
-          .streamReply(
-            history: [for (final m in thread.messages) if (m.isComplete) m],
-            tier: aiTier,
-            profile: profileForCoach,
-            coach: Coaches.byId(thread.coachId),
-          )
-          .listen(
-            (chunk) {
-              coachMsg.text += chunk;
-              notifyListeners();
-            },
-            onError: (Object e) {
-              coachMsg.status = MessageStatus.failed;
-              coachMsg.failedStatus = e is CoachUnavailableException ? e.statusCode : null;
-              coachMsg.failedCode = e is CoachUnavailableException ? e.code : null;
-              coachMsg.failure = replyFailureFor(e);
-              finish();
-            },
-            onDone: finish,
-            cancelOnError: true,
-          );
-    } catch (_) {
-      coachMsg.status = MessageStatus.failed;
+    // Stopped while the placeholder was being saved: no request is made.
+    if (coachMsg.status != MessageStatus.ok) {
       finish();
+    } else {
+      try {
+        _replySub = _ai
+            .streamReply(
+              history: [for (final m in thread.messages) if (m.isComplete) m],
+              tier: aiTier,
+              profile: profileForCoach,
+              coach: Coaches.byId(thread.coachId),
+            )
+            .listen(
+              (chunk) {
+                coachMsg.text += chunk;
+                notifyListeners();
+              },
+              onError: (Object e) {
+                coachMsg.status = MessageStatus.failed;
+                coachMsg.failedStatus = e is CoachUnavailableException ? e.statusCode : null;
+                coachMsg.failedCode = e is CoachUnavailableException ? e.code : null;
+                coachMsg.failure = replyFailureFor(e);
+                finish();
+              },
+              onDone: finish,
+              cancelOnError: true,
+            );
+      } catch (_) {
+        coachMsg.status = MessageStatus.failed;
+        finish();
+      }
     }
     await done.future;
 
@@ -415,14 +498,15 @@ class AppState extends ChangeNotifier {
   /// be retried. Completes when the stopped reply is saved and the app is
   /// ready for the next message.
   Future<void> cancelReply() {
-    final sub = _replySub;
     final msg = _replyMsg;
-    if (sub == null || msg == null) return _stopping ?? Future<void>.value();
+    if (msg == null || msg.status != MessageStatus.ok) return _stopping ?? Future<void>.value();
+    final sub = _replySub;
     _replySub = null;
     msg.status = MessageStatus.stopped;
     // Not awaited: the backend aborts synchronously, and a misbehaving
-    // stream must never hold up Stop or a delete.
-    unawaited(sub.cancel().catchError((Object _) {}));
+    // stream must never hold up Stop or a delete. (No subscription yet: the
+    // reply is still being set up and makes no request.)
+    if (sub != null) unawaited(sub.cancel().catchError((Object _) {}));
     final done = _replyDone;
     if (done != null && !done.isCompleted) done.complete();
     final task = _replyTask ?? Future<void>.value();
@@ -430,7 +514,8 @@ class AppState extends ChangeNotifier {
     return stopping;
   }
 
-  /// Whether the open conversation ends with a failed or stopped reply.
+  /// Whether the open conversation ends with a failed, stopped or
+  /// interrupted reply.
   bool get canRetry {
     final last = activeThread?.messages.lastOrNull;
     return !_isResponding &&
@@ -442,15 +527,14 @@ class AppState extends ChangeNotifier {
         !CoachLimitCode.noInstantRetry.contains(last.failedCode);
   }
 
-  /// Asks the coach again for the last message after a failed or stopped
-  /// reply. The failed reply is replaced.
+  /// Asks the coach again for the last message after a failed, stopped or
+  /// interrupted reply. That reply is replaced.
   Future<bool> retryLastReply() async {
     final stopping = _stopping;
     if (stopping != null) await stopping;
     final thread = activeThread;
     if (thread == null || !canRetry || !canChat) return false;
     thread.messages.removeLast();
-    await _recordActiveDay();
     await _streamCoachReply(thread);
     return true;
   }

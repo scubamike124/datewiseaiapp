@@ -13,7 +13,10 @@
     With each message the app sends the App Store-signed StoreKit 2
     transaction (JWS) in X-DateWise-Entitlement; the backend verifies it
     with Apple's certificates. A refund or revocation status is stored as a
-    hash of the transaction ID. Not linked, not used for tracking.
+    hash of the transaction ID. With App Store Server Notifications on
+    (ASSN_ENABLED=1), the renewal and billing-grace end dates are stored,
+    keyed by a hash of the transaction ID, and deleted 35 days after the
+    paid or grace period ends. Not linked, not used for tracking.
   - Product Interaction (Usage Data): the backend keeps anonymous counts of
     coach replies for the fair-use limits, keyed by a one-way salted hash
     of the transaction ID (daily counts reset daily, monthly counts are kept

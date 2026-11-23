@@ -88,8 +88,13 @@ void main() {
       }
       testWidgets('underage $lang $sz', (t) async {
         await pumpScreen(t, const OnboardingScreen(initialStep: 2), size: size, scale: scale, locale: locale);
+        await t.ensureVisible(find.byKey(const ValueKey('age-under')));
+        await t.pumpAndSettle(const Duration(milliseconds: 100));
         await t.tap(find.byKey(const ValueKey('age-under')));
-        await t.pump();
+        await t.pumpAndSettle(const Duration(milliseconds: 100));
+        await report(t, 'underage confirm $lang $sz');
+        await t.tap(find.byKey(const ValueKey('confirm-action')));
+        await t.pumpAndSettle(const Duration(milliseconds: 100));
         final cont = find.byKey(const ValueKey('onboarding-continue'));
         if (cont.evaluate().isNotEmpty) {
           await t.ensureVisible(cont);

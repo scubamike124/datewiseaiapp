@@ -257,6 +257,29 @@ async function ipAllowed(env, cfg, netHash, now) {
  * budget. State is a few counters and hashed revoked transaction ids; no
  * content is ever stored.
  */
+/**
+ * Retention of the App Store Server Notification state (renewedUntil,
+ * graceUntil, hashed renewedTx): it is deleted this long after the later of
+ * the paid-up end (renewal or billing grace) and the last notification's
+ * signedDate. The signedDate floor keeps an expiry on record long enough that
+ * a late, older renewal notification (Apple retries ASSN v2 deliveries for about 6.5 days: 1, 12, 24, 48 and 72 hours) cannot
+ * resurrect it. Stated in the privacy policy (lib/content/legal_text.dart).
+ */
+export const ASSN_RETENTION_DAYS = 35;
+const ASSN_RETENTION_MS = ASSN_RETENTION_DAYS * 86_400_000;
+
+/** When this subscriber's ASSN state must be deleted (ms since the epoch). */
+export function assnRetainUntil(a) {
+  return Math.max(Number(a.renewedUntil) || 0, Number(a.graceUntil) || 0, Number(a.at) || 0) + ASSN_RETENTION_MS;
+}
+
+/** Deletes `s.assn` once its retention has passed; returns whether it did. */
+function dropStaleAssn(s, now) {
+  if (!s.assn || now <= assnRetainUntil(s.assn)) return false;
+  delete s.assn;
+  return true;
+}
+
 export class UsageGuard {
   constructor(state) {
     this.storage = state.storage;
@@ -286,7 +309,22 @@ export class UsageGuard {
     if (s.month !== month) Object.assign(s, { month, monthCount: 0 });
     s.inflight = Object.fromEntries(Object.entries(s.inflight || {}).filter(([, exp]) => exp > now));
     s.rev = s.rev || {};
+    dropStaleAssn(s, now);
     return s;
+  }
+
+  /**
+   * Durable Object alarm, set for the ASSN retention end: deletes the state
+   * even if this subscriber never sends another request.
+   */
+  async alarm() {
+    const s = await this.storage.get('u');
+    if (!s?.assn) return;
+    if (dropStaleAssn(s, Date.now())) {
+      await this.storage.put('u', s);
+    } else {
+      await this.storage.setAlarm(assnRetainUntil(s.assn));
+    }
   }
 
   async reserve({ now, txHash: tx, limits }) {
@@ -367,18 +405,22 @@ export class UsageGuard {
    * device token from the previous period keeps working) and graceUntil
    * (Apple's Billing Grace Period end).
    */
-  async subEvent({ at, set }) {
+  async subEvent({ at, set, now = Date.now() }) {
     const s = (await this.storage.get('u')) || {};
+    dropStaleAssn(s, now);
     const prev = s.assn;
     if (prev && prev.at >= at) return { ok: true, applied: false };
     s.assn = { ...(prev || {}), ...set, at };
     await this.storage.put('u', s);
+    // Deleted at the retention end (see ASSN_RETENTION_DAYS) by alarm().
+    await this.storage.setAlarm(assnRetainUntil(s.assn));
     return { ok: true, applied: true };
   }
 
   /** The latest time Apple says this subscription is paid up to (renewal or grace), or 0. */
-  async subStatus() {
+  async subStatus({ now = Date.now() } = {}) {
     const s = (await this.storage.get('u')) || {};
+    if (dropStaleAssn(s, now)) await this.storage.put('u', s);
     const a = s.assn || {};
     const rev = s.rev || {};
     const renewed = a.renewedTx && rev[a.renewedTx]?.revoked ? 0 : Number(a.renewedUntil) || 0;
@@ -892,7 +934,7 @@ export async function handleAppleNotification(request, env) {
   try {
     let applied;
     if (set) {
-      applied = (await callDo(env, key, 'sub-event', { at, set })).applied;
+      applied = (await callDo(env, key, 'sub-event', { at, set, now })).applied;
     } else {
       // REFUND / REVOKE / REFUND_REVERSED: per transaction, the latest signed state wins.
       applied = (

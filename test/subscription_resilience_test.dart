@@ -12,6 +12,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show Locale;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -19,10 +20,12 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_storekit/src/in_app_purchase_apis.dart' show setInAppPurchaseHostApis;
 import 'package:in_app_purchase_storekit/store_kit_2_wrappers.dart';
 
+import 'package:datewise_ai/l10n/app_localizations.dart';
 import 'package:datewise_ai/models/chat_message.dart';
 import 'package:datewise_ai/models/tier.dart';
 import 'package:datewise_ai/services/backend_ai_service.dart';
 import 'package:datewise_ai/services/coach_usage.dart';
+import 'package:datewise_ai/screens/paywall_screen.dart' show restoreFailureText;
 import 'package:datewise_ai/services/store_service.dart';
 
 class _Iap implements InAppPurchase {
@@ -219,6 +222,41 @@ void main() {
       await store.init();
       expect(await store.restore(), isFalse);
       expect(store.lastError, isNull);
+    });
+  });
+
+  group('a stale "Could not reach the App Store" after the store answers', () {
+    test('the launch read fails, then Restore finds nothing: "No active subscription found"', () async {
+      sk2.fail = true;
+      final store = _store(_Iap());
+      await store.init();
+      expect(store.lastError, StoreError.storeUnreachable);
+      sk2.fail = false; // StoreKit answers now; this Apple ID has no subscription
+      expect(await store.restore(), isFalse);
+      expect(store.lastError, isNull);
+      for (final (lang, text) in [('en', 'No active subscription found.'), ('es', 'No se encontró una suscripción activa.')]) {
+        final l = lookupAppLocalizations(Locale(lang));
+        expect(restoreFailureText(l, store.lastError, l.restoreNone), text);
+      }
+    });
+
+    test('the launch read fails, then a resume refresh reads it: the unreachable error is cleared', () async {
+      sk2.fail = true;
+      final store = _store(_Iap());
+      await store.init();
+      expect(store.lastError, StoreError.storeUnreachable);
+      sk2.fail = false;
+      await store.refresh();
+      expect(store.isEntitled, isFalse);
+      expect(store.lastError, isNull);
+    });
+
+    test('a refresh whose read fails again keeps the unreachable error', () async {
+      sk2.fail = true;
+      final store = _store(_Iap());
+      await store.init();
+      await store.refresh();
+      expect(store.lastError, StoreError.storeUnreachable);
     });
   });
 

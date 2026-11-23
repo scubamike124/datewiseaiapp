@@ -593,6 +593,23 @@
   "@coachUsageNoticeMonthly": {
     "description": "Soft notice before the monthly cap."
   },
+  "chatErrorInterrupted": "The reply was interrupted when the app closed. Your message is saved.",
+  "conversationDeleted": "Conversation deleted.",
+  "undo": "Undo",
+  "ageUnderConfirmTitle": "Are you under 18?",
+  "ageUnderConfirmBody": "DateWise is only for adults. If you confirm, the app stays locked on this device.",
+  "ageUnderConfirmAction": "Yes, I'm under 18",
+  "voicePermissionDeniedNote": "Microphone or speech recognition access is turned off for DateWise. Allow it in Settings to talk with {name}, or type instead.",
+  "@voicePermissionDeniedNote": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "openSettings": "Open Settings",
+  "voiceNoSpeech": "I didn't catch that. Hold the button and try again.",
+  "voiceKeptInComposer": "Your coach is still replying. What you said is in the message box.",
   "avatarAnimated": "{name}, animated AI coach",
   "@avatarAnimated": {
     "description": "Voice stage: accessibility label of the moving coach portrait (idle). Approved wording.",
