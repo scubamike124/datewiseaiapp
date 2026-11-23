@@ -380,7 +380,7 @@ void main() {
       expect(cl, hasLength(tl.cues.where((c) => c.viseme == Viseme.mbp).length));
       for (final (s0, e0) in cl) {
         final mid = (s0 + e0) / 2;
-        expect([0.05, 0.40].any((d) => (mid - d).abs() <= 0.03), isTrue, reason: 'closure centred at $mid');
+        expect([0.05, 0.40].any((d) => (mid - d).abs() <= 0.03), isTrue, reason: 'closure centered at $mid');
       }
       expect(a.inClosure(0.40), isTrue);
       expect(a.inClosure(0.25), isFalse);

@@ -324,8 +324,8 @@ class AudioAlignment {
       around.sort();
       final median = around.isEmpty ? 0.0 : around[around.length ~/ 2];
       final clearDip = bestLevel < 0.3 * median;
-      final centre = clearDip ? best : mid;
-      out.add((centre - d / 2, centre + d / 2));
+      final center = clearDip ? best : mid;
+      out.add((center - d / 2, center + d / 2));
     }
     return _closures = out;
   }
