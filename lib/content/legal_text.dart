@@ -59,6 +59,7 @@ DateWise AI ("DateWise AI", "we", "us") provides an AI dating-coaching app with 
 - Subscription check: with each message, the app sends Apple's signed proof of your subscription (the StoreKit transaction) to our server. The server verifies it with Apple's certificates.
 - Fair-use counts: to apply the fair-use limits in the Terms of Use, the server keeps anonymous counts of coach replies, keyed by a one-way salted hash of the subscription's transaction ID. These counts are not linked to your identity and contain no conversation content.
 - Refunds: if Apple reports that a purchase was refunded or revoked, the server stores that status as a hash of the transaction ID, so the transaction is no longer accepted.
+- Renewals and billing grace: if Apple reports a renewal or a billing grace period, the server stores the renewal and billing-grace end dates, keyed by a hash of the transaction ID, so chat keeps working until the new period reaches your device.
 
 # Service providers
 - Cloudflare (Workers AI) generates the AI coaching replies; inputs are processed to return a reply and are not used to train models.
@@ -68,7 +69,7 @@ DateWise AI ("DateWise AI", "we", "us") provides an AI dating-coaching app with 
 # Data retention and deletion
 - On-device data remains until you delete it: You › Delete all conversations, You › Delete my data (erases everything DateWise stored on the device), or uninstalling the app. Deleting your data does not cancel your App Store subscription; to cancel it, go to Settings › [your name] › Subscriptions.
 - Messages sent for a reply are not retained on our servers after processing.
-- On our server: daily reply counts reset every day (00:00 UTC), monthly counts are kept for the current month only, and rate-limit entries are short-lived (about a minute). A refund or revocation status is kept, as a hash, only so the transaction stays refused.
+- On our server: daily reply counts reset every day (00:00 UTC), monthly counts are kept for the current month only, and rate-limit entries are short-lived (about a minute). A refund or revocation status is kept, as a hash, only so the transaction stays refused. Renewal and billing-grace end dates are deleted 35 days after the paid period or grace period ends (for an expired subscription, 35 days after Apple's last notice).
 
 # Security
 All data in transit uses encrypted (HTTPS) connections. No method of transmission or storage is 100% secure, but we take reasonable measures to protect your information.
@@ -159,6 +160,7 @@ DateWise AI ("DateWise AI", "nosotros") ofrece una app de coaching de citas con 
 - Verificación de la suscripción: con cada mensaje, la app envía a nuestro servidor la prueba firmada por Apple de tu suscripción (la transacción de StoreKit). El servidor la verifica con los certificados de Apple.
 - Conteos de uso justo: para aplicar los límites de uso justo de los Términos de uso, el servidor guarda conteos anónimos de respuestas del coach, identificados por un hash unidireccional con sal del ID de transacción de la suscripción. Estos conteos no están vinculados a tu identidad y no contienen nada de tus conversaciones.
 - Reembolsos: si Apple informa que una compra se reembolsó o revocó, el servidor guarda ese estado como un hash del ID de transacción, para que la transacción deje de aceptarse.
+- Renovaciones y período de gracia de facturación: si Apple informa una renovación o un período de gracia de facturación, el servidor guarda las fechas de fin de la renovación y del período de gracia, con un hash del ID de transacción como clave, para que el chat siga funcionando hasta que el nuevo período llegue a tu dispositivo.
 
 # Proveedores de servicios
 - Cloudflare (Workers AI) genera las respuestas de coaching con IA; los datos se procesan para devolver una respuesta y no se usan para entrenar modelos.
@@ -168,7 +170,7 @@ DateWise AI ("DateWise AI", "nosotros") ofrece una app de coaching de citas con 
 # Conservación y eliminación de datos
 - Los datos del dispositivo se conservan hasta que los eliminas: Tú › Eliminar todas las conversaciones, Tú › Eliminar mis datos (borra todo lo que DateWise guardó en el dispositivo) o desinstalando la app. Eliminar tus datos no cancela tu suscripción del App Store; para cancelarla, ve a Configuración › [tu nombre] › Suscripciones.
 - Los mensajes enviados para obtener una respuesta no se conservan en nuestros servidores después de procesarse.
-- En nuestro servidor: los conteos diarios de respuestas se reinician cada día (00:00 UTC), los mensuales se conservan solo durante el mes en curso y los registros de límite de frecuencia duran poco (alrededor de un minuto). El estado de un reembolso o una revocación se conserva, como hash, solo para que la transacción siga rechazada.
+- En nuestro servidor: los conteos diarios de respuestas se reinician cada día (00:00 UTC), los mensuales se conservan solo durante el mes en curso y los registros de límite de frecuencia duran poco (alrededor de un minuto). El estado de un reembolso o una revocación se conserva, como hash, solo para que la transacción siga rechazada. Las fechas de fin de la renovación y del período de gracia de facturación se eliminan 35 días después de que termine el período pagado o el período de gracia (si la suscripción venció, 35 días después del último aviso de Apple).
 
 # Seguridad
 Todos los datos en tránsito usan conexiones cifradas (HTTPS). Ningún método de transmisión o almacenamiento es 100 % seguro, pero tomamos medidas razonables para proteger tu información.

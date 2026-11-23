@@ -181,7 +181,7 @@ Matches `ios/Runner/PrivacyInfo.xcprivacy`. App Store Connect › App Privacy.
 | Data type | Collected | Linked to the user's identity | Used for tracking | Purposes |
 |--|--|--|--|--|
 | User Content › Other User Content (chat messages, optional coach memory note, coaching goals and language) | Yes | No | No | App Functionality |
-| Purchases › Purchase History (the App Store-signed StoreKit transaction, sent with each message and verified on the server with Apple's certificates; a refund or revocation status is stored as a hash of the transaction ID) | Yes | No | No | App Functionality |
+| Purchases › Purchase History (the App Store-signed StoreKit transaction, sent with each message and verified on the server with Apple's certificates; a refund or revocation status is stored as a hash of the transaction ID; with App Store Server Notifications on, the renewal and billing-grace end dates are stored, keyed by a hash, and deleted 35 days after the paid or grace period ends) | Yes | No | No | App Functionality |
 | Usage Data › Product Interaction (anonymous counts of coach replies for the fair-use limits, keyed by a one-way salted hash of the transaction ID; daily counts reset daily, monthly counts are kept for the current month) | Yes | No | No | App Functionality |
 | Everything else (Contact Info, Health, Financial Info, Location, Sensitive Info, Contacts, Browsing/Search History, Identifiers, other Usage Data, Diagnostics, Audio Data, Photos or Videos, Other) | No | | | |
 

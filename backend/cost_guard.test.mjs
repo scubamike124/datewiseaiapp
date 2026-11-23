@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import worker from './worker.js';
 import { APPLE_ROOT_CA_G3_SHA256, sha256Hex, verifyAppleJws } from './apple_jws.js';
-import { _setTrustedRootsForTests, estimateTokens, fitToInputBudget, guardConfig, ipBucket, neuronsFor } from './cost_guard.js';
+import { ASSN_RETENTION_DAYS, UsageGuard, _setTrustedRootsForTests, assnRetainUntil, estimateTokens, fitToInputBudget, guardConfig, ipBucket, neuronsFor } from './cost_guard.js';
 
 const LLAMA = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const VISION = '@cf/meta/llama-3.2-11b-vision-instruct';
@@ -244,6 +244,57 @@ test('refunded / revoked: refused, and an older saved copy of the same transacti
   // A new purchase (new transactionId, same original id) works again.
   const repurchase = await pki.sign(txPayload({ originalTransactionId: o, transactionId: 't-2' }));
   assert.equal((await send(env, { jws: repurchase })).res.status, 200);
+});
+
+test(`ASSN state (renewedUntil, graceUntil, hashed renewedTx) is deleted ${ASSN_RETENTION_DAYS} days after it ends`, async () => {
+  assert.equal(ASSN_RETENTION_DAYS, 35, 'the privacy policy states 35 days');
+  const DAY = 86_400_000;
+  const ns = fakeDoNamespace();
+  const stub = ns.get('sub:retention');
+  const o = ns.objects.get('sub:retention');
+  const call = async (op, body) => (await stub.fetch(`https://usage-guard/${op}`, { method: 'POST', body: JSON.stringify(body) })).json();
+  const t0 = Date.UTC(2026, 0, 1);
+  const paidUntil = t0 + 30 * DAY;
+  assert.equal((await call('sub-event', { at: t0, now: t0, set: { renewedUntil: paidUntil, renewedTx: 'h1', graceUntil: 0 } })).applied, true);
+  // An alarm is set for the retention end, so the state goes even without another request.
+  assert.equal(o.alarm, paidUntil + 35 * DAY);
+  assert.equal(o.alarm, assnRetainUntil(o.data.get('u').assn));
+  // Kept up to the retention end (a renewal still on its way keeps working)...
+  assert.equal((await call('sub-status', { now: paidUntil + 35 * DAY })).activeUntil, paidUntil);
+  assert.ok(o.data.get('u').assn);
+  // ...and deleted after it, on access.
+  assert.equal((await call('sub-status', { now: paidUntil + 35 * DAY + 1 })).activeUntil, 0);
+  assert.equal(o.data.get('u').assn, undefined);
+
+  // The alarm deletes it too, and leaves the other state (fair-use counters) alone.
+  const g = new UsageGuard({ storage: { data: new Map(), alarm: null,
+    async get(k) { return structuredClone(this.data.get(k)); },
+    async put(k, v) { this.data.set(k, structuredClone(v)); },
+    async setAlarm(t) { this.alarm = t; },
+  } });
+  const past = Date.now() - 40 * DAY;
+  await g.subEvent({ at: past - DAY, now: past, set: { renewedUntil: past, renewedTx: 'h2', graceUntil: 0 } });
+  const u = g.storage.data.get('u');
+  g.storage.data.set('u', { ...u, monthCount: 3 });
+  await g.alarm();
+  assert.equal(g.storage.data.get('u').assn, undefined);
+  assert.equal(g.storage.data.get('u').monthCount, 3);
+  // An alarm that fires early (the end moved later) re-arms instead of deleting.
+  const future = Date.now() + 10 * DAY;
+  await g.subEvent({ at: Date.now(), set: { graceUntil: future } });
+  await g.alarm();
+  assert.ok(g.storage.data.get('u').assn);
+  assert.equal(g.storage.alarm, future + 35 * DAY);
+
+  // Billing grace counts as the end; an expiry keeps the record 35 days after the
+  // notification, so a late, older DID_RENEW cannot resurrect the subscription.
+  assert.equal(assnRetainUntil({ renewedUntil: 5, graceUntil: 9 * DAY, at: 1 }), 9 * DAY + 35 * DAY);
+  const ex = new UsageGuard({ storage: g.storage });
+  g.storage.data.clear();
+  const tE = Date.now();
+  await ex.subEvent({ at: tE, now: tE, set: { renewedUntil: 0, graceUntil: 0 } });
+  assert.equal((await ex.subEvent({ at: tE - 3 * DAY, now: tE + DAY, set: { renewedUntil: tE + 20 * DAY, renewedTx: 'old', graceUntil: 0 } })).applied, false);
+  assert.equal((await ex.subStatus({ now: tE + DAY })).activeUntil, 0);
 });
 
 test('App Store Server Notification v2 REFUND revokes the transaction (only when enabled)', async () => {

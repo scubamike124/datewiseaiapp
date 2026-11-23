@@ -245,6 +245,13 @@ void main() {
       expect(metadata, contains('Audio Data'), reason: 'audio is explicitly not collected');
     });
 
+    test('the stated ASSN retention matches the backend (35 days)', () {
+      final guard = File('backend/cost_guard.js').readAsStringSync();
+      expect(guard, contains('export const ASSN_RETENTION_DAYS = 35;'));
+      expect(manifest, contains('deleted 35 days after the'));
+      expect(metadata, contains('deleted 35 days after the paid or grace period ends'));
+    });
+
     test('the privacy policy says what is sent, and nothing more is sent', () {
       for (final policy in [kPrivacyPolicy]) {
         expect(policy, contains('no advertising, analytics, or tracking'));
@@ -265,6 +272,9 @@ void main() {
         'daily reply counts reset every day',
         'monthly counts are kept for the current month only',
         'rate-limit entries are short-lived',
+        // ASSN state (backend/cost_guard.js ASSN_RETENTION_DAYS = 35).
+        'renewal and billing-grace end dates, keyed by a hash',
+        'deleted 35 days after the paid period or grace period ends',
       ]) {
         expect(kPrivacyPolicy, contains(phrase), reason: phrase);
       }
@@ -279,6 +289,8 @@ void main() {
         'se reinician cada día',
         'solo durante el mes en curso',
         'duran poco',
+        'fechas de fin de la renovación y del período de gracia, con un hash',
+        'se eliminan 35 días después',
       ]) {
         expect(kPrivacyPolicyEs, contains(phrase), reason: phrase);
       }

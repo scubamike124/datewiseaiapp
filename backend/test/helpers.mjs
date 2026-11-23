@@ -24,8 +24,16 @@ export function fakeDoNamespace({ fail = false } = {}) {
             await null;
             data.set(k, structuredClone(v));
           },
+          async setAlarm(t) {
+            await null;
+            objects.get(id).alarm = Number(t);
+          },
+          async getAlarm() {
+            await null;
+            return objects.get(id).alarm ?? null;
+          },
         };
-        objects.set(id, { instance: new UsageGuard({ storage }), queue: Promise.resolve(), data });
+        objects.set(id, { instance: new UsageGuard({ storage }), queue: Promise.resolve(), data, alarm: null });
       }
       const o = objects.get(id);
       return {
