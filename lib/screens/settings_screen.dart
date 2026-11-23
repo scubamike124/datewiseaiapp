@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../app_links.dart';
 import '../dev/entitlement_export.dart';
 import '../models/coach.dart';
+import '../services/ai_config.dart';
 import '../services/store_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
@@ -260,8 +261,13 @@ class SettingsScreen extends StatelessWidget {
               future: PackageInfo.fromPlatform().catchError((Object _) => PackageInfo(appName: '', packageName: '', version: '', buildNumber: '')),
               builder: (_, snap) {
                 final v = snap.data?.version ?? '';
+                // Test builds against a non-production coach backend name it,
+                // so a TestFlight tester can confirm the build (not localized:
+                // App Store builds never show it).
+                final host = AIConfig.testBuildHost();
                 return Text(
-                  '${l.settingsFootnote}${v.isEmpty ? '' : '\n${l.appVersion(v)}'}',
+                  '${l.settingsFootnote}${v.isEmpty ? '' : '\n${l.appVersion(v)}'}'
+                  '${host == null ? '' : '\nTest build · coach server: $host'}',
                   textAlign: TextAlign.center,
                   style: AppText.small,
                 );

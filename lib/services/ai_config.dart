@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
 /// Configuration for the AI coach backend.
 ///
 /// The coaches run on a secure backend (a Cloudflare Worker, see
@@ -27,4 +29,19 @@ class AIConfig {
 
   /// Whether [url] can be used as the coach backend (HTTPS only).
   static bool isUsableUrl(String url) => Uri.tryParse(url.trim())?.scheme == 'https';
+
+  /// The coach host to show testers, or null. Only a build pointed at a
+  /// backend other than [productionUrl] (the TestFlight staging build of
+  /// docs/qa/IPHONE_E2E_DEMO.md) shows it, so App Store builds, which never
+  /// set COACH_BACKEND_URL, show nothing. No staging host is written here:
+  /// production binaries do not contain it (ios-build.yml checks this).
+  static String? testBuildHost([String? url]) {
+    url = (url ?? debugUrlForHostLabel ?? coachBackendUrl).trim();
+    if (url == productionUrl || !isUsableUrl(url)) return null;
+    return Uri.parse(url).host;
+  }
+
+  /// Tests only: the URL [testBuildHost] reads instead of the build's.
+  @visibleForTesting
+  static String? debugUrlForHostLabel;
 }
