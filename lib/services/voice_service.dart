@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
 import '../avatar/lip_sync.dart';
+import '../avatar/speech_audio.dart';
 import '../models/coach.dart';
 import 'reply_language.dart';
 
@@ -95,7 +98,86 @@ class CoachVoiceProfile {
 /// voice that fits their language and gender (see [pickVoice]) and speaks
 /// with the coach's own pitch and rate.
 class DeviceVoiceService implements VoiceService, LipSyncSource {
-  DeviceVoiceService._(this._tts, this._voices);
+  DeviceVoiceService._(this._tts, this._voices, this._audio) {
+    _audioSub = _audio?.events.listen(_onAudioEvent);
+    _wireTts();
+  }
+
+  /// A service over [tts] and an optional native [audio] path, for tests.
+  @visibleForTesting
+  factory DeviceVoiceService.forTesting(FlutterTts tts, List<Map<String, String>> voices, {SpeechAudioBackend? audio}) =>
+      DeviceVoiceService._(tts, voices, audio);
+
+  /// Runtime option: speak through the native audio path
+  /// (ios/Runner/AppDelegate.swift), which renders the speech to PCM and
+  /// reports its loudness so the avatar's jaw follows the real audio. On by
+  /// default on iOS; any failure falls back to flutter_tts for the rest of
+  /// the session.
+  static bool useAudioPath = true;
+
+  final SpeechAudioBackend? _audio;
+  StreamSubscription<SpeechAudioEvent>? _audioSub;
+  bool _audioFailed = false;
+
+  /// The flutter_tts utterance to play if the audio path fails before it
+  /// starts (same text, voice, pitch and rate).
+  Future<void> Function()? _fallback;
+  int _audioGeneration = -1;
+
+  bool get _audioPathOn => useAudioPath && _audio != null && !_audioFailed;
+
+  /// Stops listening to the native audio path (tests; the app keeps one
+  /// service while it runs).
+  @visibleForTesting
+  Future<void> dispose() async => _audioSub?.cancel();
+
+  void _wireTts() {
+    final lip = lipSync;
+    _tts.setStartHandler(() {
+      _speaking.value = true;
+      lip.started();
+    });
+    // AVSpeechSynthesizer reports each word as it starts (character range
+    // in the spoken text); the avatar's mouth follows it.
+    _tts.setProgressHandler((_, start, end, _) => lip.word(start, end));
+    _tts.setCompletionHandler(() {
+      _speaking.value = false;
+      lip.end();
+    });
+    _tts.setCancelHandler(() {
+      _speaking.value = false;
+      lip.end();
+    });
+    _tts.setErrorHandler((_) {
+      _speaking.value = false;
+      lip.end();
+    });
+  }
+
+  void _onAudioEvent(SpeechAudioEvent e) {
+    if (_audioGeneration != _generation) return; // a stopped or replaced utterance
+    switch (e) {
+      case SpeechAudioStarted():
+        _speaking.value = true;
+        lipSync.started();
+      case SpeechAudioLevels(:final t0, :final hop, :final values):
+        lipSync.addLevels(t0, hop, values);
+      case SpeechAudioMarker(:final charStart, :final t):
+        lipSync.addMarker(charStart, t);
+      case SpeechAudioSynthesized():
+        lipSync.audioComplete();
+      case SpeechAudioDone():
+        _speaking.value = false;
+        lipSync.end();
+      case SpeechAudioError(:final started):
+        _audioFailed = true;
+        _speaking.value = false;
+        lipSync.end();
+        final fallback = _fallback;
+        _fallback = null;
+        if (!started && fallback != null) fallback();
+    }
+  }
 
   /// Mouth timing for the talking avatar (lib/avatar/): fed from the
   /// synthesizer's start, word-range and completion callbacks.
@@ -129,27 +211,8 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
           for (final v in raw)
             if (v is Map) {for (final e in v.entries) '${e.key}': '${e.value}'},
       ];
-      final service = DeviceVoiceService._(tts, voices);
-      final lip = service.lipSync;
-      tts.setStartHandler(() {
-        service._speaking.value = true;
-        lip.started();
-      });
-      // AVSpeechSynthesizer reports each word as it starts (character range
-      // in the spoken text); the avatar's mouth follows it.
-      tts.setProgressHandler((_, start, end, _) => lip.word(start, end));
-      tts.setCompletionHandler(() {
-        service._speaking.value = false;
-        lip.end();
-      });
-      tts.setCancelHandler(() {
-        service._speaking.value = false;
-        lip.end();
-      });
-      tts.setErrorHandler((_) {
-        service._speaking.value = false;
-        lip.end();
-      });
+      final service = DeviceVoiceService._(
+          tts, voices, defaultTargetPlatform == TargetPlatform.iOS ? ChannelSpeechAudioBackend() : null);
       return service;
     } catch (_) {
       return NoVoiceService();
@@ -262,7 +325,8 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
     if (clean.isEmpty) return;
     final gen = ++_generation;
     await _tts.stop();
-    await _prepareAudioSession();
+    if (_audioPathOn) await _stopAudio();
+    if (!_audioPathOn) await _prepareAudioSession();
     if (gen != _generation) return;
     // Coaches answer in the user's language, so the voice follows the
     // language of the text, not the coach's default.
@@ -283,7 +347,41 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
     await _tts.setSpeechRate(profile.rate);
     if (gen != _generation) return;
     lipSync.begin(clean, language, rate: profile.rate);
-    await _tts.speak(clean);
+    Future<void> viaTts() async {
+      if (gen != _generation) return;
+      await _prepareAudioSession();
+      if (gen != _generation) return;
+      await _tts.speak(clean);
+    }
+
+    if (_audioPathOn) {
+      _audioGeneration = gen;
+      _fallback = viaTts;
+      try {
+        await _audio!.speak(
+          text: clean,
+          voice: voice?['identifier'],
+          language: voice?['locale'] ?? language.locale,
+          rate: profile.rate,
+          pitch: profile.pitch,
+        );
+        return;
+      } catch (_) {
+        // No native channel (MissingPluginException) or it refused: use
+        // flutter_tts from now on.
+        _audioFailed = true;
+        _fallback = null;
+      }
+    }
+    await viaTts();
+  }
+
+  Future<void> _stopAudio() async {
+    try {
+      await _audio?.stop();
+    } catch (_) {
+      _audioFailed = true;
+    }
   }
 
   /// Configures the iOS audio session only when the coach is about to speak:
@@ -312,6 +410,8 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
   @override
   Future<void> stop() async {
     _generation++;
+    _fallback = null;
+    if (_audioPathOn) await _stopAudio();
     await _tts.stop();
     _speaking.value = false;
     lipSync.end();

@@ -1,0 +1,134 @@
+// DeviceVoiceService with a fake flutter_tts channel and a fake native
+// audio path: the speak() generation token, the audio path feeding the
+// avatar's jaw, and the automatic fallback to flutter_tts.
+
+import 'dart:async';
+
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+
+import 'package:datewise_ai/avatar/speech_audio.dart';
+import 'package:datewise_ai/models/coach.dart';
+import 'package:datewise_ai/services/voice_service.dart';
+
+class FakeAudio implements SpeechAudioBackend {
+  final controller = StreamController<SpeechAudioEvent>.broadcast(sync: true);
+  final spoken = <Map<String, Object?>>[];
+  Object? throwOnSpeak;
+  int stops = 0;
+
+  @override
+  Stream<SpeechAudioEvent> get events => controller.stream;
+
+  @override
+  Future<void> speak({required String text, String? voice, required String language, required double rate, required double pitch}) async {
+    if (throwOnSpeak != null) throw throwOnSpeak!;
+    spoken.add({'text': text, 'voice': voice, 'language': language, 'rate': rate, 'pitch': pitch});
+  }
+
+  @override
+  Future<void> stop() async => stops++;
+}
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  const channel = MethodChannel('flutter_tts');
+  late List<String> calls;
+  Completer<void>? holdStop;
+
+  setUp(() {
+    calls = [];
+    holdStop = null;
+    DeviceVoiceService.useAudioPath = true;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call.method);
+      if (call.method == 'stop' && holdStop != null) await holdStop!.future;
+      return 1;
+    });
+  });
+
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, null);
+  });
+
+  final voices = [
+    {'name': 'Ava', 'locale': 'en-US', 'gender': 'female', 'quality': 'enhanced', 'identifier': 'com.apple.voice.enhanced.en-US.Ava'},
+  ];
+
+  test('speak() generation token: a stop that lands between awaits is not undone', () async {
+    final s = DeviceVoiceService.forTesting(FlutterTts(), voices);
+    holdStop = Completer<void>();
+    final speaking = s.speak('Hello there, this is Ava.', Coaches.ava);
+    await Future<void>.delayed(Duration.zero);
+    final stopping = s.stop();
+    holdStop!.complete();
+    await speaking;
+    await stopping;
+    expect(calls.where((c) => c == 'speak'), isEmpty, reason: 'the stopped utterance must not start');
+    // A later speak goes through.
+    await s.speak('Second try.', Coaches.ava);
+    expect(calls.where((c) => c == 'speak'), hasLength(1));
+  });
+
+  test('audio path: native speech with the chosen voice; levels drive the jaw; done ends it', () async {
+    final audio = FakeAudio();
+    final s = DeviceVoiceService.forTesting(FlutterTts(), voices, audio: audio);
+    await s.speak('Hi, I am Ava.', Coaches.ava);
+    expect(audio.spoken.single['voice'], 'com.apple.voice.enhanced.en-US.Ava');
+    expect(audio.spoken.single['rate'], CoachVoiceProfile.ava.rate);
+    expect(calls.where((c) => c == 'speak'), isEmpty, reason: 'flutter_tts not used');
+    audio.controller.add(const SpeechAudioLevels(0, 0.01, [0.0, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]));
+    audio.controller.add(const SpeechAudioStarted());
+    expect(s.speaking.value, isTrue);
+    expect(s.lipSync.hasAudio, isTrue);
+    expect(s.lipSync.active, isTrue);
+    audio.controller.add(const SpeechAudioDone());
+    expect(s.speaking.value, isFalse);
+    expect(s.lipSync.active, isFalse);
+    await s.dispose();
+  });
+
+  test('audio path error before playback: falls back to flutter_tts for this and later replies', () async {
+    final audio = FakeAudio();
+    final s = DeviceVoiceService.forTesting(FlutterTts(), voices, audio: audio);
+    await s.speak('Hi, I am Ava.', Coaches.ava);
+    audio.controller.add(const SpeechAudioError('engine failed'));
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+    expect(calls.where((c) => c == 'speak'), hasLength(1), reason: 'same reply through flutter_tts');
+    await s.speak('Next reply.', Coaches.ava);
+    expect(audio.spoken, hasLength(1), reason: 'the native path stays off after a failure');
+    expect(calls.where((c) => c == 'speak'), hasLength(2));
+    await s.dispose();
+  });
+
+  test('no native channel (MissingPluginException): flutter_tts right away', () async {
+    final audio = FakeAudio()..throwOnSpeak = MissingPluginException();
+    final s = DeviceVoiceService.forTesting(FlutterTts(), voices, audio: audio);
+    await s.speak('Hi.', Coaches.ava);
+    expect(calls.where((c) => c == 'speak'), hasLength(1));
+    await s.dispose();
+  });
+
+  test('the runtime option turns the audio path off', () async {
+    DeviceVoiceService.useAudioPath = false;
+    final audio = FakeAudio();
+    final s = DeviceVoiceService.forTesting(FlutterTts(), voices, audio: audio);
+    await s.speak('Hi.', Coaches.ava);
+    expect(audio.spoken, isEmpty);
+    expect(calls.where((c) => c == 'speak'), hasLength(1));
+    await s.dispose();
+  });
+
+  test('events of a stopped utterance are ignored', () async {
+    final audio = FakeAudio();
+    final s = DeviceVoiceService.forTesting(FlutterTts(), voices, audio: audio);
+    await s.speak('Hi, I am Ava.', Coaches.ava);
+    await s.stop();
+    audio.controller.add(const SpeechAudioStarted());
+    expect(s.speaking.value, isFalse);
+    expect(audio.stops, greaterThan(0));
+    await s.dispose();
+  });
+}
