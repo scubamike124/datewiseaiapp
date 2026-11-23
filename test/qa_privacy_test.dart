@@ -259,6 +259,12 @@ void main() {
       expect(plist, contains('NSMicrophoneUsageDescription'));
       expect(plist, contains('NSSpeechRecognitionUsageDescription'));
       expect(RegExp(r'<key>ITSAppUsesNonExemptEncryption</key>\s*<false/>').hasMatch(plist), isTrue);
+      // The microphone string matches the privacy policy: hold, or VoiceOver tap-to-toggle.
+      expect(plist, contains('only while you hold the talk button (or, with VoiceOver, until you tap it again)'));
+      expect(File('ios/Runner/en.lproj/InfoPlist.strings').readAsStringSync(),
+          contains('only while you hold the talk button (or, with VoiceOver, until you tap it again)'));
+      expect(File('ios/Runner/es.lproj/InfoPlist.strings').readAsStringSync(),
+          contains('mantienes presionado el botón para hablar (o, con VoiceOver, hasta que lo vuelvas a tocar)'));
     });
   });
 

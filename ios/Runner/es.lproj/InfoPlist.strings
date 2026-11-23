@@ -1,4 +1,4 @@
 /* Spanish usage strings. */
 "CFBundleDisplayName" = "DateWise AI";
-"NSMicrophoneUsageDescription" = "DateWise AI usa el micrófono solo mientras mantienes presionado el botón para hablar con tu coach con IA.";
+"NSMicrophoneUsageDescription" = "DateWise AI usa el micrófono solo mientras mantienes presionado el botón para hablar (o, con VoiceOver, hasta que lo vuelvas a tocar) con tu coach con IA.";
 "NSSpeechRecognitionUsageDescription" = "DateWise AI convierte lo que dices en texto en tu iPhone para enviarlo como mensaje a tu coach con IA.";
