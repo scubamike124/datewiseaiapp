@@ -14,11 +14,14 @@ tool/avatar/regenerate.sh            # all four coaches, ~2-3 min each on 4 CPU 
 flutter test test/avatar_widget_test.dart
 ```
 
-The first run calls `setup.sh`, which installs everything **outside the repo**
-in `$AVATAR_TOOLS` (default `~/.cache/datewise-avatar-tools`, about 2.5 GB, no
-GPU). `regenerate.sh` exits non-zero if any frame fails the identity or
-eye-colour gate, and writes review sheets to `build/avatar-review/`.
-Look at the sheets before committing.
+The first run calls `setup.sh`, which asks before installing everything
+**outside the repo** in `$AVATAR_TOOLS` (default
+`~/.cache/datewise-avatar-tools`, about 2.5 GB, no GPU; `AVATAR_YES=1` skips
+the question). Every model comes from a pinned Hugging Face revision and is
+checked by SHA-256 before use; PyTorch is pinned to 2.9.1 (`weights_only`
+loading by default). `regenerate.sh` exits non-zero if any frame fails the
+identity or eye-colour gate, and writes review sheets to
+`build/avatar-review/`. Look at the sheets before committing.
 
 If a portrait changes and the frames are **not** regenerated, the app notices
 (the portrait's pixel size no longer matches `manifest.json`) and falls back
@@ -29,15 +32,25 @@ regenerate.
 
 | Group | Frames | Region blended |
 |---|---|---|
-| Mouth shapes (visemes) | `mbp` (M B P), `a`, `e`, `i`, `o`, `u` (U/W), `fv`, `l`, `th`, `cons` (T D N S K G R CH...) | lips, chin, jaw |
-| Blinks | `blink_half`, `blink_closed` | eyes and lids |
-| Expressions | `nod_1`, `nod_2` (listening nod), `attentive` (brows), `think` (eyes up/aside, lips closed) | whole head |
+| Mouth shapes | `mbp` (M B P), `a`/`a2`, `e`/`e2`, `i`/`i2`, `o`/`o2`, `u`/`u2` (full and half opening), `fv`, `l`, `th`, `cons` (T D N S K G R...), `sh` (SH CH J) | lips, chin and jaw, clipped at the jaw line |
+| Eyes | `blink_half`, `blink_closed`, `gaze` (thinking: eyes up and aside) | eyes and lids |
 
-`rest` is the approved portrait itself. Each frame is rendered by
-LivePortrait's keypoint retargeting (lip open/close, eye open/close, smile,
-purse/grin, brows, gaze, small head pitch/roll), then blended into the
-**untouched** portrait inside a feathered mask; outside the mask the pixels are
-the original ones. Only the mask's bounding box is saved (JPEG q88).
+`rest` is the approved portrait itself. Head motion (listening nods, tilts at
+phrase starts, emphasis) is a small whole-image transform in the app, so no
+frame warps the hair, a hand or the background.
+
+Each frame is rendered by LivePortrait's keypoint retargeting (lip open/close,
+eye open/close, smile, purse/grin, gaze) on a crop of 1.9x the face (more
+pixels on the mouth than LivePortrait's default 2.3x), then:
+
+1. its fine detail and grain are matched to the portrait inside the mask (an
+   unsharp mask scaled to the portrait's high-frequency energy, then luma
+   noise for any remaining difference; no face restoration);
+2. it is blended into the **untouched** portrait inside a feathered mask. The
+   mouth mask is clipped to the face contour from LivePortrait's 203-point
+   landmarks, so a hand under the chin (Ethan) or the collar is never warped.
+   Outside the mask the pixels are the original ones. Only the mask's
+   bounding box is saved (JPEG q88).
 
 ## Gate (verify.py)
 
@@ -62,16 +75,34 @@ No face restoration (GFPGAN, CodeFormer) is used anywhere.
 | InsightFace detector/landmarks | non-commercial | **not used, not downloaded**: replaced by YuNet |
 | YuNet face detector (OpenCV Zoo) | MIT | face box and 5 landmarks for the crop and masks |
 | SFace recogniser (OpenCV Zoo) | Apache-2.0 | identity gate |
-| PyTorch (CPU), OpenCV, NumPy, SciPy, onnxruntime | BSD / Apache-2.0 / MIT | runtime of the generator |
+| PyTorch 2.9.1 (CPU), OpenCV, NumPy, SciPy, onnxruntime | BSD / Apache-2.0 / MIT | runtime of the generator |
+| Piper TTS (`eval/` only) | GPL-3.0 | offline review audio; never in the app or the repo |
 
 The generated frames are derived from the owner's portraits and belong to the
 owner; none of the tools ship in the app.
 
-## Demo renderer
+## Demo renderer and lip-sync evaluation
 
-`render_demo_test.dart` renders frames with the app's own painter and
-timeline from a job file (text, word timings, audio length), for review videos:
+`render_demo_test.dart` renders frames with the app's own painter, animator
+and timeline from a job file (text, word timings, audio length). `eval/`
+reproduces the review videos and the numbers in the PR:
 
 ```sh
-AVATAR_DEMO_JOBS=<jobs dir> AVATAR_DEMO_OUT=<out dir> flutter test tool/avatar/render_demo_test.dart
+# 1. Audio + word timings (Piper TTS in its own venv; voices from rhasspy/piper-voices)
+PIPER_PYTHON=<venv>/bin/python python3 tool/avatar/eval/make_jobs.py <demo>/jobs
+# 2. Frames with the app's code
+AVATAR_DEMO_STATES=1 AVATAR_DEMO_JOBS=<demo>/jobs AVATAR_DEMO_OUT=<demo>/render \
+  flutter test tool/avatar/render_demo_test.dart
+# 3. MP4s, then the measurements
+tool/avatar/eval/mux.sh <demo>
+python3 tool/avatar/eval/analyze_sync.py <demo>/jobs <demo>/render      # timeline vs phonemes
+python3 tool/avatar/eval/measure_av.py $AVATAR_TOOLS/models/yunet.onnx <demo>/*-e[ns].mp4   # video vs audio
 ```
+
+`analyze_sync.py` compares the shown mouth shape with Piper's sample-exact
+phoneme alignments (exact shape, openness correlation and lag, M/B/P
+closures within ±80 ms, rest or held shapes while audio is audible).
+`measure_av.py` measures the rendered video the way the visual reviewer did:
+mouth-region difference from the idle frame, and a cavity-plus-teeth
+openness proxy, each against the audio loudness, with the best lag over
+±300 ms.

@@ -159,15 +159,18 @@ void main() {
     });
   });
 
-  // The voice stage animates the portrait on the device (frame compositing
-  // with lip-sync, lib/avatar/), so "animated" is honest. It is not video:
-  // no video-call, live-video or real-time-video claims anywhere.
-  group('copy honesty: animated portrait + voice, no video or live-avatar claims', () {
+  // The voice stage animates the portrait on the device (lib/avatar/), but
+  // until that is measured on an iPhone the only approved mentions are the
+  // VoiceOver labels below. Nothing else (store text, legal text, other
+  // strings) may claim animation, lip-sync, video or a live/talking avatar.
+  group('copy honesty: no animation, lip-sync or video claims outside the approved labels', () {
     final banned = RegExp(
-      r'video call|videollamada|live video|video en vivo|real[- ]time video|video en tiempo real|'
-      r'live avatar|avatar en vivo|facetime|face[- ]to[- ]face|cara a cara|deepfake',
+      r'animat|lip[- ]?sync|lip sync|lips move|video call|videollamada|live avatar|talking avatar|'
+      r'avatar animado|avatar que habla|sincroniza|labios|moving portrait|facetime|face[- ]to[- ]face|cara a cara',
       caseSensitive: false,
     );
+    // The approved sentences: the voice stage's accessibility labels.
+    final approved = RegExp(r'^\s*"@?(avatarAnimated|avatarSpeaking|avatarListening|avatarThinking)": ');
     final files = [
       'lib/l10n/app_en.arb',
       'lib/l10n/app_es.arb',
@@ -181,7 +184,7 @@ void main() {
             .readAsLinesSync()
             .asMap()
             .entries
-            .where((e) => banned.hasMatch(e.value))
+            .where((e) => banned.hasMatch(e.value) && !approved.hasMatch(e.value))
             .map((e) => '$f:${e.key + 1}: ${e.value.trim()}')
             .toList();
         expect(hits, isEmpty);

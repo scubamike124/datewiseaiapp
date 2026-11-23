@@ -63,14 +63,19 @@ accessories and background, with cross-coach similarity below 0.5.
 
 ## Animated frames (derived from the portraits)
 
-- `assets/avatar/<coach>/*.jpg` are small patches (mouth shapes, blinks,
-  nods, a thinking look) generated offline from each `-hero.jpg` with
-  LivePortrait (MIT code and weights; InsightFace replaced by YuNet, MIT) and
-  gated by SFace identity and iris-colour checks. Outside each patch's mask
-  the pixels are the original portrait. They are derivatives of the portraits
-  above and follow their status. Pipeline and licences: `tool/avatar/README.md`.
-- The app composites them on the device (lip-synced to the device's own
-  speech); nothing is sent to an avatar provider.
+- `assets/avatar/<coach>/*.jpg` are small patches generated offline from
+  each `-hero.jpg`: 16 mouth shapes, two blink stages and a sideways glance
+  (19 per coach, 76 in all; no whole-head frames). Made with LivePortrait (MIT
+  code and weights; InsightFace replaced by YuNet, MIT), sharpness and grain
+  matched to the portrait (unsharp mask plus luma noise; no face
+  restoration), and gated by SFace identity and iris-colour checks. Outside
+  each patch's mask the pixels are the original portrait, and the mouth mask
+  stops at the jaw line (a hand under the chin is never altered). They are
+  derivatives of the portraits above and follow their status. Pipeline and
+  licences: `tool/avatar/README.md`.
+- The app draws them on the device, timed to the device's own speech;
+  nothing is sent to an avatar provider. Not described in the store text
+  until it has been tested on an iPhone.
 - When the finals arrive, run `tool/avatar/regenerate.sh` after the intake
   check.
 

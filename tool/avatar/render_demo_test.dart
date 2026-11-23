@@ -1,3 +1,4 @@
+// ignore_for_file: invalid_use_of_visible_for_testing_member
 // Offline demo renderer: draws the talking avatar with the app's own code
 // (AvatarFrames, AvatarAnimator, VisemeTimeline, AvatarPainter) into PNG
 // frames, for muxing with the demo audio. Not part of `flutter test`'s
@@ -59,9 +60,12 @@ void main() {
         for (var f = 0; f < total; f++) {
           final t = f / fps;
           final st = t - lead;
-          final speaking = st >= 0 && st < duration;
+          final speaking = st >= -VisemeTimeline.lead && st < duration;
           final mood = speaking ? AvatarMood.speaking : AvatarMood.idle;
-          pose.value = animator.frame(t, mood, speaking ? timeline.sample(st) : VisemeSample.rest,
+          // Exactly what LipSyncDriver.sample does: the mouth runs
+          // VisemeTimeline.lead ahead of the word timing. No other offset:
+          // frame f is shown at f / fps and the audio starts at `lead` s.
+          pose.value = animator.frame(t, mood, speaking ? timeline.sample(st + VisemeTimeline.lead) : VisemeSample.rest,
               available: frames.images.keys.toSet());
           final rec = ui.PictureRecorder();
           final p0 = sw.elapsedMicroseconds;
@@ -74,6 +78,7 @@ void main() {
         }
         File('$outDir/$name.cues.json').writeAsStringSync(jsonEncode({
           'lead': lead,
+          'lead_visemes': VisemeTimeline.lead,
           'anchored': [for (final c in timeline.cues) [c.viseme.name, c.start, c.end]],
           'planned': [for (final c in planned.cues) [c.viseme.name, c.start, c.end]],
         }));
