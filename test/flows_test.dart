@@ -108,6 +108,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('age-under')));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('confirm-action')));
+    await tester.pumpAndSettle();
     expect(find.text('Sorry, DateWise is only for adults.'), findsOneWidget);
     expect(find.byKey(const ValueKey('onboarding-continue')), findsNothing);
     expect(find.byKey(const ValueKey('onboarding-back')), findsNothing, reason: 'no way back into onboarding');

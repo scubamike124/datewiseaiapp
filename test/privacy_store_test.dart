@@ -71,6 +71,8 @@ void main() {
       await toAgeStep(tester);
       await tester.tap(find.byKey(const ValueKey('age-under')));
       await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('confirm-action')));
+      await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('underage')), findsOneWidget);
       expect(find.byKey(const ValueKey('onboarding-back')), findsNothing);
       expect(find.byKey(const ValueKey('get-started')), findsNothing);

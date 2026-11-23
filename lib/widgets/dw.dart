@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/l10n.dart';
 import '../models/coach.dart';
 import '../theme/app_theme.dart';
 
@@ -500,4 +501,47 @@ class FadeToBackground extends StatelessWidget {
           ),
         ),
       );
+}
+
+/// Above this text scale a confirmation dialog stacks its buttons.
+const double kDialogStackAboveScale = 1.5;
+
+/// A confirmation dialog whose body scrolls, so long text at large sizes is
+/// never clipped. True when the user chose [action].
+Future<bool> showConfirmDialog(BuildContext context, String title, String body, String action,
+    {Color actionColor = AppColors.danger}) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) {
+      final cancel = TextButton(
+          key: const ValueKey('confirm-cancel'),
+          onPressed: () => Navigator.pop(ctx, false),
+          child: Text(ctx.l10n.cancel, style: const TextStyle(color: AppColors.text)));
+      final confirm = TextButton(
+        key: const ValueKey('confirm-action'),
+        onPressed: () => Navigator.pop(ctx, true),
+        child: Text(action, style: TextStyle(color: actionColor, fontWeight: FontWeight.w600)),
+      );
+      // At large text the two buttons stack, full width, action first (as
+      // iOS does), and the dialog uses more of the screen width, so a label
+      // such as "Desactivar y borrar" stays on one line.
+      final stacked = MediaQuery.textScalerOf(ctx).scale(1) > kDialogStackAboveScale;
+      return AlertDialog(
+        scrollable: true,
+        insetPadding: stacked ? const EdgeInsets.symmetric(horizontal: 16, vertical: 24) : null,
+        title: Text(title),
+        content: Text(body),
+        actions: stacked
+            ? [
+                Column(
+                  key: const ValueKey('confirm-actions-stacked'),
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [confirm, cancel],
+                ),
+              ]
+            : [cancel, confirm],
+      );
+    },
+  );
+  return ok ?? false;
 }
