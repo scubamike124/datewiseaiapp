@@ -136,6 +136,19 @@ void main() {
       expect(group, contains(r'${{ github.ref }}'));
       expect(group, contains("inputs.signed_build && 'signed' || 'unsigned'"));
       expect(group, contains("inputs.coach_backend || 'production'"));
+      expect(group, contains("inputs.signing || 'manual'"));
+      expect(group, contains("inputs.avatar_audio_path && 'audio' || 'tts'"));
+    });
+
+    test('both signing steps validate APPLE_TEAM_ID before it reaches sed or a plist', () {
+      for (final step in ['- name: Manual signing for the Runner target', '- name: Cloud signing for the Runner target']) {
+        final at = s.indexOf(step);
+        expect(at, greaterThan(-1), reason: step);
+        final body = s.substring(at, s.indexOf('\n      - name:', at + 1));
+        final check = body.indexOf(r'=~ ^[A-Z0-9]{10}$');
+        expect(check, greaterThan(-1), reason: step);
+        expect(check, lessThan(body.indexOf("sed -i ''")), reason: step);
+      }
     });
 
     test('runbook: version decision before the build, iOS 18 paths, owner-only merge and deploy', () {
