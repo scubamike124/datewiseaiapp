@@ -18,11 +18,15 @@ import { estimateTokens, GUARD_VERSION, neuronsFor } from '../../backend/cost_gu
 import { checkReply } from './checks.mjs';
 
 export const PRODUCTION_URL = 'https://datewise-photo-coach.scubamike124.workers.dev';
+// The live run targets the isolated staging Worker ([env.staging] in
+// backend/wrangler.toml), never production: https://<STAGING_WORKER>.<subdomain>.workers.dev.
+export const PRODUCTION_WORKER = 'datewise-photo-coach';
+export const STAGING_WORKER = 'datewise-coach-staging';
 // backend/worker.js CHAT_MODEL (= TEXT_MODEL); not exported by the Worker.
 export const CHAT_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 export const GROUPS = ['errors', 'coaches', 'memory', 'safety', 'concurrency', 'burst'];
 // Test-day limits the SIMULATED run uses on top of backend/wrangler.toml [vars]:
-// the same values docs/qa/LIVE_AI_TEST_PLAN.md asks the owner to set for a LIVE run.
+// the same values the staging Worker has ([env.staging.vars]; a test checks they agree).
 export const TEST_DAY_VARS = { SANDBOX_DAILY_LIMIT: '40', SANDBOX_NEURON_BUDGET: '3000' };
 // Output tokens assumed per full reply for the estimate (AI_COST_MODEL.md uses 250 to 300).
 const EST_OUT_TOKENS = 300;
@@ -290,7 +294,7 @@ class KitError extends Error {}
 
 /**
  * Runs the kit. Returns { mode, records, report, reportPath, failures, exitCode }.
- * opts: mode, baseUrl, budget, jws (live), confirmLive, allowProduction, skip
+ * opts: mode, baseUrl, budget, jws (live), confirmLive, allowProduction, allowProductionWorker, skip
  * (Set of GROUPS), perMinute, maxConcurrent, timeoutMs, out, report, localVars,
  * log, fetchImpl (live mode only; tests).
  */
@@ -321,6 +325,10 @@ export async function runKit(opts = {}) {
     const baseUrl = String(opts.baseUrl).replace(/\/+$/, '');
     const u = new URL(baseUrl);
     if (!(u.protocol === 'https:' || ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname))) throw new KitError('--base-url must be https (or http://localhost for wrangler dev).');
+    const host = u.hostname.toLowerCase();
+    if ((host === new URL(PRODUCTION_URL).hostname || host.startsWith(`${PRODUCTION_WORKER}.`)) && !opts.allowProductionWorker) {
+      throw new KitError(`--base-url is the production Worker. The live test runs against the staging Worker (https://${STAGING_WORKER}.<subdomain>.workers.dev, docs/qa/LIVE_AI_TEST_PLAN.md); pass --allow-production-worker only on purpose.`);
+    }
     const doFetch = opts.fetchImpl ?? globalThis.fetch;
     target = {
       label: `deployed Worker at ${baseUrl}`,
@@ -708,6 +716,9 @@ const HELP = `Usage: node tool/live/live_chat_test.mjs [options]
   --dry-run             print the plan and the neuron estimate; send nothing
   --confirm-live        required for --mode live (it spends neurons)
   --allow-production    accept a Production token in live mode (default: Sandbox only)
+  --allow-production-worker
+                        allow --base-url to be the production Worker (default: refused;
+                        the live test runs against the staging Worker)
   --per-minute N        the Worker's PER_MINUTE_LIMIT (default 12)
   --max-concurrent N    the Worker's MAX_CONCURRENT (default 2)
   --timeout-ms N        per request (default 60000)
@@ -729,6 +740,7 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
         'dry-run': { type: 'boolean', default: false },
         'confirm-live': { type: 'boolean', default: false },
         'allow-production': { type: 'boolean', default: false },
+        'allow-production-worker': { type: 'boolean', default: false },
         'per-minute': { type: 'string', default: '12' },
         'max-concurrent': { type: 'string', default: '2' },
         'timeout-ms': { type: 'string', default: '60000' },
@@ -781,6 +793,7 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
       jws: args.mode === 'live' ? env.DW_TEST_JWS : undefined, // local mode signs its own test token
       confirmLive: args['confirm-live'],
       allowProduction: args['allow-production'],
+      allowProductionWorker: args['allow-production-worker'],
       skip,
       perMinute,
       maxConcurrent,

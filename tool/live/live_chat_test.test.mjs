@@ -7,7 +7,7 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { describeJws, estimatePlan, main, makeRedactor, runKit, TEST_DAY_VARS, tokenHash } from './live_chat_test.mjs';
+import { describeJws, estimatePlan, main, makeRedactor, PRODUCTION_URL, runKit, STAGING_WORKER, TEST_DAY_VARS, tokenHash } from './live_chat_test.mjs';
 import { checkReply, detectLanguage, humanClaims, spainOnlyHits } from './checks.mjs';
 import { wranglerVars } from './local_harness.mjs';
 
@@ -138,6 +138,29 @@ test('live mode refuses a malformed token, a token with stray whitespace inside,
     runKit({ mode: 'live', jws: `${good}\n`, confirmLive: true, fetchImpl: never, log: quiet }),
     /explicit --base-url/,
   );
+});
+
+test('live mode refuses the production Worker as --base-url unless --allow-production-worker', async () => {
+  const never = async () => { throw new Error('no request may be sent'); };
+  for (const baseUrl of [PRODUCTION_URL, `${PRODUCTION_URL}/`, 'https://DateWise-Photo-Coach.other-subdomain.workers.dev']) {
+    await assert.rejects(
+      runKit({ mode: 'live', jws: fakeToken(), confirmLive: true, baseUrl, fetchImpl: never, log: quiet }),
+      /production Worker.*staging Worker/,
+    );
+  }
+  // The staging Worker is accepted (the kit then starts with the version check).
+  const calls = [];
+  const fetchImpl = async (url) => {
+    calls.push(url);
+    return new Response(JSON.stringify({ version: 'chat-v5' }), { headers: { 'Content-Type': 'application/json' } });
+  };
+  const staging = `https://${STAGING_WORKER}.scubamike124.workers.dev`;
+  await runKit({ mode: 'live', jws: fakeToken(), confirmLive: true, baseUrl: staging, fetchImpl, write: false, log: quiet });
+  assert.deepEqual(calls, [`${staging}/?version`]);
+  // On purpose only.
+  calls.length = 0;
+  await runKit({ mode: 'live', jws: fakeToken(), confirmLive: true, allowProductionWorker: true, baseUrl: PRODUCTION_URL, fetchImpl, write: false, log: quiet });
+  assert.deepEqual(calls, [`${PRODUCTION_URL}/?version`]);
 });
 
 test('live mode stops after the version check when the Worker is not chat-v7 (production runs chat-v5)', async () => {

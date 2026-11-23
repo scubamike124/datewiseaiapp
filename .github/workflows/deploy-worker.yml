@@ -10,7 +10,15 @@ name: Deploy coach Worker
 #                       binding, ID_HASH_SALT.
 #   chat-v6             backend/ at the pinned commit f5b0401 (single file, AI
 #                       binding only), with a pinned worker.js sha256.
-#   For BOTH targets the commit this workflow runs from (the dispatched branch
+#   chat-v7-staging     the same chat-v7 code (commit on main), deployed with
+#                       `wrangler deploy --env staging` to the separate test
+#                       Worker "datewise-coach-staging" ([env.staging] in
+#                       backend/wrangler.toml: own Durable Object, own
+#                       rate-limit namespace, test-sized budgets). Used for the
+#                       live AI test (docs/qa/LIVE_AI_TEST_PLAN.md) so it never
+#                       touches production. Dispatch only (no tag form), never
+#                       chat-v6 code, never the production Worker name.
+#   For ALL targets the commit this workflow runs from (the dispatched branch
 #   head or the tagged commit) must also be an ancestor of main, because that
 #   commit supplies this workflow file. The owner protects main with a ruleset
 #   (PR + approving review, no force push), so "on main" means "merged through
@@ -31,6 +39,7 @@ name: Deploy coach Worker
 #     worker-v7-<name>          dry run of chat-v7 at the tagged commit
 #     worker-v6-<name>          dry run of chat-v6 (f5b0401)
 #     worker-v7-<name>-deploy   real deploy (after approval); same for v6
+#   Tag names containing "staging" are refused: staging is dispatch only.
 #
 # Security notes: every value that reaches a shell, $GITHUB_OUTPUT or a Wrangler
 # command line is validated first and passed through env, never interpolated
@@ -44,9 +53,10 @@ on:
         options:
           - chat-v7-cost-guard
           - chat-v6
+          - chat-v7-staging
         default: chat-v7-cost-guard
       ref:
-        description: 'chat-v7 only: branch, tag or commit SHA (must already be on main; empty = this run''s commit). chat-v6 is always f5b0401.'
+        description: 'chat-v7 and chat-v7-staging: branch, tag or commit SHA (must already be on main; empty = this run''s commit). chat-v6 is always f5b0401.'
         type: string
         required: false
         default: ''
@@ -74,6 +84,8 @@ env:
   WRANGLER_VERSION: '4.158.0'
   WRANGLER_SEND_METRICS: 'false'
   WORKER_NAME: datewise-photo-coach
+  # chat-v7-staging: [env.staging] in backend/wrangler.toml (wrangler --env staging).
+  STAGING_WORKER_NAME: datewise-coach-staging
   # chat-v6: the reviewed commit and its worker.js sha256.
   V6_SHA: f5b0401f52e78375a4b48b865d6e58314e18e115
   V6_WORKER_SHA256: de390ddb4481cb3e8ceccb3bf2e230a79c80c40db4752c3fc3c0f53e13d23837
@@ -88,7 +100,7 @@ jobs:
     outputs:
       target: ${{ steps.plan.outputs.target }}
       sha: ${{ steps.resolve.outputs.sha }}
-      expect_version: ${{ steps.plan.outputs.target }}
+      expect_version: ${{ steps.plan.outputs.expect }}
       deploy: ${{ steps.plan.outputs.deploy }}
       force_v6: ${{ steps.plan.outputs.force_v6 }}
     steps:
@@ -136,6 +148,8 @@ jobs:
           if [ "$EVENT" = "push" ]; then
             [[ "$REF_NAME" != *"$nl"* ]] || die "bad tag"
             [[ "$REF_NAME" =~ ^worker-v[67]-[A-Za-z0-9._-]{1,100}$ ]] || die "Unexpected tag name"
+            # A worker-v7-staging-* tag would deploy PRODUCTION; staging is dispatch only.
+            [[ "${REF_NAME,,}" != *staging* ]] || die "Tag names with 'staging' are refused: deploy staging with workflow_dispatch, target chat-v7-staging"
             case "$REF_NAME" in
               worker-v7-*) target=chat-v7-cost-guard ;;
               worker-v6-*) target=chat-v6 ;;
@@ -145,7 +159,7 @@ jobs:
             ref="$GITHUB_SHA"
           elif [ "$EVENT" = "workflow_dispatch" ]; then
             case "$IN_TARGET" in
-              chat-v7-cost-guard|chat-v6) target="$IN_TARGET" ;;
+              chat-v7-cost-guard|chat-v6|chat-v7-staging) target="$IN_TARGET" ;;
               *) die "Unknown target" ;;
             esac
             case "$IN_DRY" in
@@ -166,14 +180,26 @@ jobs:
           if [ "$target" = "chat-v6" ]; then
             ref="$V6_SHA"
           fi
+          # Where it goes and what it must report, fixed per target (never from input).
+          case "$target" in
+            chat-v7-cost-guard) cf_env=production; expect=chat-v7-cost-guard ;;
+            chat-v6)            cf_env=production; expect=chat-v6 ;;
+            chat-v7-staging)    cf_env=staging;    expect=chat-v7-cost-guard ;;
+          esac
+          if [ "$target" = "chat-v7-staging" ]; then
+            [ "$force_v6" = "false" ] || die "force_v6_over_unknown is for chat-v6 only"
+            [ "$ref" != "$V6_SHA" ] && [[ "$V6_SHA" != "$ref"* ]] || die "chat-v7-staging never deploys the chat-v6 commit"
+          fi
           # Only validated, single-line values are written here.
           {
             printf 'target=%s\n' "$target"
             printf 'ref=%s\n' "$ref"
             printf 'deploy=%s\n' "$deploy"
             printf 'force_v6=%s\n' "$force_v6"
+            printf 'cf_env=%s\n' "$cf_env"
+            printf 'expect=%s\n' "$expect"
           } >> "$GITHUB_OUTPUT"
-          echo "Target: $target  ref: $ref  deploy: $deploy"
+          echo "Target: $target  ref: $ref  deploy: $deploy  environment: $cf_env"
 
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -203,6 +229,9 @@ jobs:
           else
             on_main "$sha" || { echo "::error::$sha is not on $REVIEWED_BRANCH; chat-v7 deploys only code merged to $REVIEWED_BRANCH"; exit 1; }
             echo "Commit $sha is on $REVIEWED_BRANCH"
+          fi
+          if [ "$TARGET" = "chat-v7-staging" ] && [ "$sha" = "$V6_SHA" ]; then
+            echo "::error::chat-v7-staging never deploys the chat-v6 commit"; exit 1
           fi
           printf 'sha=%s\n' "$sha" >> "$GITHUB_OUTPUT"
 
@@ -257,37 +286,81 @@ jobs:
           target = os.environ['TARGET']
           cfg = tomllib.load(open('backend/wrangler.toml', 'rb'))
           errors = []
+          placeholder = re.compile(r'^$|REPLACE|CHANGE_?ME|TODO|TBD|FIXME|PLACEHOLDER|YOUR[_-]|<[^>]*>|x{4,}|example\.(com|org)', re.I)
+          caps = ['DAILY_NEURON_BUDGET', 'ANON_NEURON_BUDGET', 'DAILY_MESSAGE_LIMIT', 'MONTHLY_MESSAGE_LIMIT',
+                  'PER_MINUTE_LIMIT', 'MAX_CONCURRENT', 'MAX_INPUT_TOKENS', 'MAX_OUTPUT_TOKENS', 'IP_PER_MINUTE_LIMIT',
+                  'ANON_DAILY_LIMIT', 'ANON_MONTHLY_LIMIT']
+          def check_vars(where, vars_):
+              # [vars]: refuse placeholder values.
+              for k, v in vars_.items():
+                  if placeholder.search(str(v)): errors.append(f'{where} {k} looks like a placeholder: "{v}"')
+          def check_guard(where, tbl, vars_):
+              # chat-v7 bindings (declared in this table: wrangler envs inherit none of them).
+              rl = tbl.get('ratelimits', []) or []
+              if not rl: errors.append(f'{where}: [[ratelimits]] block is missing')
+              for b in rl:
+                  ns = str(b.get('namespace_id', ''))
+                  if not re.fullmatch(r'[1-9][0-9]*', ns): errors.append(f"{where}: [[ratelimits]] {b.get('name')}: namespace_id must be a positive integer, got \"{ns}\"")
+                  else: print(f"{where}: rate limit {b.get('name')}: namespace_id {ns}")
+              dob = (tbl.get('durable_objects', {}) or {}).get('bindings', []) or []
+              if not any(b.get('name') == 'USAGE_GUARD' and b.get('class_name') == 'UsageGuard' for b in dob): errors.append(f'{where}: Durable Object binding USAGE_GUARD (UsageGuard) is missing')
+              mig = tbl.get('migrations', []) or []
+              if not any('UsageGuard' in (m.get('new_sqlite_classes') or []) for m in mig): errors.append(f'{where}: [[migrations]] with new_sqlite_classes = ["UsageGuard"] is missing')
+              # Cost limits: every budget and cap must be set to a whole number.
+              for k in caps:
+                  if not re.fullmatch(r'0|[1-9][0-9]*', str(vars_.get(k, ''))): errors.append(f'{where} {k} must be a whole number, got "{vars_.get(k, "")}"')
+              try:
+                  if not int(vars_.get('DAILY_NEURON_BUDGET', 0)) > 0: errors.append(f'{where} DAILY_NEURON_BUDGET must be above 0 (it is the global circuit breaker)')
+                  if int(vars_.get('ANON_NEURON_BUDGET', 0)) > int(vars_.get('DAILY_NEURON_BUDGET', 0)): errors.append(f'{where} ANON_NEURON_BUDGET exceeds DAILY_NEURON_BUDGET')
+              except ValueError:
+                  pass
+              print(f'{where} cost limits: ' + ' '.join(f'{k}={vars_.get(k)}' for k in ['DAILY_NEURON_BUDGET', 'ANON_NEURON_BUDGET', 'DAILY_MESSAGE_LIMIT', 'MONTHLY_MESSAGE_LIMIT']))
+          def check_staging(st, prod_vars):
+              where = '[env.staging]'
+              if st.get('name') != os.environ['STAGING_WORKER_NAME']: errors.append(f"{where} name must be {os.environ['STAGING_WORKER_NAME']}, got {st.get('name')}")
+              if st.get('name') == cfg.get('name') or st.get('name') == os.environ['WORKER_NAME']: errors.append(f'{where} must not use the production Worker name')
+              for k in ('main', 'route', 'routes', 'workers_dev', 'legacy_env', 'compatibility_date'):
+                  if k in st: errors.append(f'{where} must not set {k} (it inherits main and compatibility_date; no routes)')
+              if ((st.get('ai') or {}).get('binding')) != 'AI': errors.append(f'{where}: [env.staging.ai] binding = "AI" is missing')
+              vars_ = st.get('vars', {}) or {}
+              if not isinstance(vars_, dict): errors.append(f'{where}.vars must be a table'); vars_ = {}
+              missing = sorted(set(prod_vars) - set(vars_))
+              if missing: errors.append(f'{where}.vars lacks {", ".join(missing)} (envs do not inherit [vars])')
+              check_vars(f'{where}.vars', vars_)
+              check_guard(where, st, vars_)
+              prod_ns = {str(b.get('namespace_id')) for b in (cfg.get('ratelimits') or [])} | {'740220'}
+              for b in st.get('ratelimits', []) or []:
+                  if str(b.get('namespace_id')) in prod_ns: errors.append(f"{where}: ratelimit namespace_id {b.get('namespace_id')} is production's; staging needs its own")
+              # Same security settings as production.
+              for k in ('APPLE_BUNDLE_ID', 'APPLE_PRODUCT_ID', 'EXPIRY_LEEWAY_MINUTES', 'BILLING_GRACE_DAYS', 'MAX_INPUT_TOKENS', 'MAX_OUTPUT_TOKENS'):
+                  if str(vars_.get(k)) != str(prod_vars.get(k)): errors.append(f'{where}.vars {k} must equal production ({prod_vars.get(k)}), got {vars_.get(k)}')
+              for k, want in (('ALLOW_SANDBOX', '1'), ('LEGACY_CLIENTS', '0'), ('REQUIRE_SUBSCRIPTION', '1'), ('ASSN_ENABLED', '0'),
+                              ('FAIL_OPEN_PER_SUBSCRIBER', '0'), ('FAIL_OPEN_PER_ISOLATE', '0')):
+                  if str(vars_.get(k)) != want: errors.append(f'{where}.vars {k} must be "{want}", got "{vars_.get(k)}"')
+              # Test-sized and inside the free 10,000-neuron allowance; budgets set, never the -1 defaults.
+              for k in ('SANDBOX_DAILY_LIMIT', 'SANDBOX_NEURON_BUDGET'):
+                  if not re.fullmatch(r'[1-9][0-9]*', str(vars_.get(k, ''))): errors.append(f'{where}.vars {k} must be a whole number above 0, got "{vars_.get(k, "")}"')
+              try:
+                  d, sb = int(vars_.get('DAILY_NEURON_BUDGET', 0)), int(vars_.get('SANDBOX_NEURON_BUDGET', 0))
+                  if d > 4000: errors.append(f'{where}.vars DAILY_NEURON_BUDGET must be at most 4000 (free allowance), got {d}')
+                  if sb > d: errors.append(f'{where}.vars SANDBOX_NEURON_BUDGET exceeds DAILY_NEURON_BUDGET')
+              except ValueError:
+                  pass
+              print(f"{where} name={st.get('name')} SANDBOX_DAILY_LIMIT={vars_.get('SANDBOX_DAILY_LIMIT')} SANDBOX_NEURON_BUDGET={vars_.get('SANDBOX_NEURON_BUDGET')}")
           if cfg.get('name') != os.environ['WORKER_NAME']: errors.append(f"name must be {os.environ['WORKER_NAME']}, got {cfg.get('name')}")
           if cfg.get('main') != 'worker.js': errors.append(f"main must be worker.js, got {cfg.get('main')}")
           vars_ = cfg.get('vars', {}) or {}
           if not isinstance(vars_, dict): errors.append('[vars] must be a table'); vars_ = {}
-          # [vars]: refuse placeholder values.
-          placeholder = re.compile(r'^$|REPLACE|CHANGE_?ME|TODO|TBD|FIXME|PLACEHOLDER|YOUR[_-]|<[^>]*>|x{4,}|example\.(com|org)', re.I)
-          for k, v in vars_.items():
-              if placeholder.search(str(v)): errors.append(f'[vars] {k} looks like a placeholder: "{v}"')
-          if target == 'chat-v7-cost-guard':
-              rl = cfg.get('ratelimits', []) or []
-              if not rl: errors.append('[[ratelimits]] block is missing')
-              for b in rl:
-                  ns = str(b.get('namespace_id', ''))
-                  if not re.fullmatch(r'[1-9][0-9]*', ns): errors.append(f"[[ratelimits]] {b.get('name')}: namespace_id must be a positive integer, got \"{ns}\"")
-                  else: print(f"rate limit {b.get('name')}: namespace_id {ns}")
-              dob = (cfg.get('durable_objects', {}) or {}).get('bindings', []) or []
-              if not any(b.get('name') == 'USAGE_GUARD' and b.get('class_name') == 'UsageGuard' for b in dob): errors.append('Durable Object binding USAGE_GUARD (UsageGuard) is missing')
-              mig = cfg.get('migrations', []) or []
-              if not any('UsageGuard' in (m.get('new_sqlite_classes') or []) for m in mig): errors.append('[[migrations]] with new_sqlite_classes = ["UsageGuard"] is missing')
-              # Cost limits: every budget and cap must be set to a whole number.
-              caps = ['DAILY_NEURON_BUDGET', 'ANON_NEURON_BUDGET', 'DAILY_MESSAGE_LIMIT', 'MONTHLY_MESSAGE_LIMIT',
-                      'PER_MINUTE_LIMIT', 'MAX_CONCURRENT', 'MAX_INPUT_TOKENS', 'MAX_OUTPUT_TOKENS', 'IP_PER_MINUTE_LIMIT',
-                      'ANON_DAILY_LIMIT', 'ANON_MONTHLY_LIMIT']
-              for k in caps:
-                  if not re.fullmatch(r'0|[1-9][0-9]*', str(vars_.get(k, ''))): errors.append(f'[vars] {k} must be a whole number, got "{vars_.get(k, "")}"')
-              try:
-                  if not int(vars_.get('DAILY_NEURON_BUDGET', 0)) > 0: errors.append('[vars] DAILY_NEURON_BUDGET must be above 0 (it is the global circuit breaker)')
-                  if int(vars_.get('ANON_NEURON_BUDGET', 0)) > int(vars_.get('DAILY_NEURON_BUDGET', 0)): errors.append('[vars] ANON_NEURON_BUDGET exceeds DAILY_NEURON_BUDGET')
-              except ValueError:
-                  pass
-              print('cost limits: ' + ' '.join(f'{k}={vars_.get(k)}' for k in ['DAILY_NEURON_BUDGET', 'ANON_NEURON_BUDGET', 'DAILY_MESSAGE_LIMIT', 'MONTHLY_MESSAGE_LIMIT']))
+          check_vars('[vars]', vars_)
+          if target in ('chat-v7-cost-guard', 'chat-v7-staging'):
+              check_guard('[top level]', cfg, vars_)
+          envs = cfg.get('env', {}) or {}
+          if not isinstance(envs, dict): errors.append('[env] must be a table'); envs = {}
+          extra = sorted(set(envs) - {'staging'})
+          if extra: errors.append(f'only [env.staging] is allowed, found: {", ".join(extra)}')
+          # Validated whenever it exists (also on production runs), required for chat-v7-staging.
+          if 'staging' in envs: check_staging(envs['staging'] or {}, vars_)
+          elif target == 'chat-v7-staging': errors.append('[env.staging] is missing')
           for e in errors: print(f'::error::{e}')
           if errors: sys.exit(1)
           print('wrangler.toml checks passed')
@@ -295,12 +368,20 @@ jobs:
 
       - name: Dry-run bundle (no upload, no credentials)
         working-directory: backend
+        env:
+          CF_ENV: ${{ steps.plan.outputs.cf_env }}
+        shell: bash
         run: |
           set -euo pipefail
-          npx --yes "wrangler@${WRANGLER_VERSION}" deploy --dry-run --outdir "$RUNNER_TEMP/dist" 2>&1 | tee "$RUNNER_TEMP/dryrun.log"
+          case "$CF_ENV" in
+            production) args=() ;;
+            staging) args=(--env staging) ;;
+            *) echo "::error::bad environment"; exit 1 ;;
+          esac
+          npx --yes "wrangler@${WRANGLER_VERSION}" deploy "${args[@]}" --dry-run --outdir "$RUNNER_TEMP/dist" 2>&1 | tee "$RUNNER_TEMP/dryrun.log"
 
       - name: Dry-run output must list the guard bindings (chat-v7)
-        if: steps.plan.outputs.target == 'chat-v7-cost-guard'
+        if: steps.plan.outputs.target == 'chat-v7-cost-guard' || steps.plan.outputs.target == 'chat-v7-staging'
         run: |
           set -euo pipefail
           log="$RUNNER_TEMP/dryrun.log"
@@ -314,9 +395,25 @@ jobs:
           need 'env\.MONTHLY_MESSAGE_LIMIT \("[0-9]+"\)' 'MONTHLY_MESSAGE_LIMIT var'
           echo "Dry-run bundle has AI, USAGE_GUARD, RATE_LIMITER and the cost-limit vars."
 
+      - name: Dry-run output must show the staging limits and security settings (chat-v7-staging)
+        if: steps.plan.outputs.target == 'chat-v7-staging'
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/dryrun.log"
+          need() { grep -Eq "$1" "$log" || { echo "::error::staging dry-run lacks: $2"; exit 1; }; }
+          need 'env\.SANDBOX_DAILY_LIMIT \("40"\)' 'SANDBOX_DAILY_LIMIT 40'
+          need 'env\.SANDBOX_NEURON_BUDGET \("3000"\)' 'SANDBOX_NEURON_BUDGET 3000'
+          need 'env\.DAILY_NEURON_BUDGET \("([1-9][0-9]{0,2}|[1-3][0-9]{3}|4000)"\)' 'DAILY_NEURON_BUDGET at most 4000'
+          need 'env\.ALLOW_SANDBOX \("1"\)' 'ALLOW_SANDBOX 1'
+          need 'env\.LEGACY_CLIENTS \("0"\)' 'LEGACY_CLIENTS 0'
+          need 'env\.REQUIRE_SUBSCRIPTION \("1"\)' 'REQUIRE_SUBSCRIPTION 1'
+          need 'env\.ASSN_ENABLED \("0"\)' 'ASSN_ENABLED 0'
+          need 'env\.APPLE_PRODUCT_ID \("datewise_premium_monthly"\)' 'APPLE_PRODUCT_ID'
+          echo "Staging dry run has the test-sized limits and the production security settings."
+
       - name: Bundle must report the expected ?version
         env:
-          EXPECT: ${{ steps.plan.outputs.target }}
+          EXPECT: ${{ steps.plan.outputs.expect }}
         run: |
           node --input-type=module - "$RUNNER_TEMP/dist/worker.js" <<'EOF'
           import { pathToFileURL } from 'node:url';
@@ -335,10 +432,12 @@ jobs:
           TARGET: ${{ steps.plan.outputs.target }}
           SHA: ${{ steps.resolve.outputs.sha }}
           DEPLOY: ${{ steps.plan.outputs.deploy }}
+          CF_ENV: ${{ steps.plan.outputs.cf_env }}
         run: |
           {
             echo "### Dry run passed"
             echo "- Target: \`$TARGET\`"
+            if [ "$CF_ENV" = "staging" ]; then echo "- **STAGING**: Worker \`$STAGING_WORKER_NAME\` (\`wrangler deploy --env staging\`). Production is not touched."; else echo "- Worker: \`$WORKER_NAME\` (production)"; fi
             echo "- Commit: \`$SHA\` ($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$SHA)"
             echo "- Wrangler: \`$WRANGLER_VERSION\`"
             echo "- Bundle size: $(wc -c < "$RUNNER_TEMP/dist/worker.js") bytes"
@@ -367,15 +466,29 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          case "$TARGET" in chat-v7-cost-guard|chat-v6) ;; *) echo "::error::bad target"; exit 1 ;; esac
+          case "$TARGET" in chat-v7-cost-guard|chat-v6|chat-v7-staging) ;; *) echo "::error::bad target"; exit 1 ;; esac
           [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::bad commit"; exit 1; }
           if [ "$TARGET" = "chat-v6" ]; then [ "$SHA" = "$V6_SHA" ] || { echo "::error::chat-v6 must be $V6_SHA"; exit 1; }; fi
           case "$FORCE_V6" in true|false) ;; *) echo "::error::bad force flag"; exit 1 ;; esac
-          printf 'EXPECT=%s\n' "$TARGET" >> "$GITHUB_ENV"
-          printf 'ROLLBACK_HINT=%s\n' "cd backend && npx wrangler@${WRANGLER_VERSION} rollback <version-id> -m \"rollback\"" >> "$GITHUB_ENV"
+          # Environment, Worker name and expected version are fixed per target here,
+          # not taken from the check job's outputs.
+          case "$TARGET" in
+            chat-v7-cost-guard) cf_env=production; expect=chat-v7-cost-guard; worker="$WORKER_NAME"; envflag="" ;;
+            chat-v6)            cf_env=production; expect=chat-v6;            worker="$WORKER_NAME"; envflag="" ;;
+            chat-v7-staging)    cf_env=staging;    expect=chat-v7-cost-guard; worker="$STAGING_WORKER_NAME"; envflag=" --env staging" ;;
+          esac
+          if [ "$cf_env" = "staging" ]; then
+            [ "$SHA" != "$V6_SHA" ] || { echo "::error::chat-v7-staging never deploys the chat-v6 commit"; exit 1; }
+            [ "$FORCE_V6" = "false" ] || { echo "::error::force_v6_over_unknown is for chat-v6 only"; exit 1; }
+            [ "$worker" != "$WORKER_NAME" ] || { echo "::error::the staging Worker name must differ from production"; exit 1; }
+          fi
+          printf 'EXPECT=%s\n' "$expect" >> "$GITHUB_ENV"
+          printf 'CF_ENV=%s\n' "$cf_env" >> "$GITHUB_ENV"
+          printf 'DEPLOY_WORKER=%s\n' "$worker" >> "$GITHUB_ENV"
+          printf 'ROLLBACK_HINT=%s\n' "cd backend && npx wrangler@${WRANGLER_VERSION} rollback <version-id>${envflag} -m \"rollback\"" >> "$GITHUB_ENV"
           {
             echo "### Deploying"
-            echo "- Target: \`$TARGET\`"
+            echo "- Target: \`$TARGET\` to Worker \`$worker\` ($cf_env)"
             echo "- Commit: \`$SHA\` ($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$SHA)"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -396,7 +509,7 @@ jobs:
           on_main() { git merge-base --is-ancestor "$1" "refs/remotes/origin/$REVIEWED_BRANCH"; }
           # The workflow file comes from GITHUB_SHA, so it must be merged too.
           on_main "$GITHUB_SHA" || { echo "::error::This workflow run's commit $GITHUB_SHA is not on $REVIEWED_BRANCH. Run it from main, or tag a commit that is on main."; exit 1; }
-          if [ "$TARGET" = "chat-v7-cost-guard" ]; then
+          if [ "$TARGET" = "chat-v7-cost-guard" ] || [ "$TARGET" = "chat-v7-staging" ]; then
             on_main "$SHA" || { echo "::error::$SHA is not on $REVIEWED_BRANCH"; exit 1; }
           else
             [ "$(sha256sum backend/worker.js | cut -d' ' -f1)" = "$V6_WORKER_SHA256" ] || { echo "::error::chat-v6 hash mismatch"; exit 1; }
@@ -431,6 +544,18 @@ jobs:
           for f in found: print(f'::error::backend/wrangler.toml must not have a build key ({f})')
           sys.exit(1 if found else 0)
           EOF
+          if [ "$CF_ENV" = "staging" ]; then
+            # --env staging must resolve to the staging Worker, never production.
+            python3 - <<'EOF' || bad=1
+          import os, sys, tomllib
+          cfg = tomllib.load(open('backend/wrangler.toml', 'rb'))
+          st = ((cfg.get('env') or {}).get('staging') or {})
+          name = st.get('name')
+          ok = name == os.environ['STAGING_WORKER_NAME'] and name != cfg.get('name') and name != os.environ['WORKER_NAME']
+          print(f'[env.staging] name = {name}' if ok else f'::error::[env.staging] name must be {os.environ["STAGING_WORKER_NAME"]}, got {name}')
+          sys.exit(0 if ok else 1)
+          EOF
+          fi
           exit $bad
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -454,11 +579,12 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -uo pipefail
-          if npx --yes "wrangler@${WRANGLER_VERSION}" deployments status --json > "$RUNNER_TEMP/before.json" 2> "$RUNNER_TEMP/before.err"; then
+          args=(); [ "$CF_ENV" = "staging" ] && args=(--env staging)
+          if npx --yes "wrangler@${WRANGLER_VERSION}" deployments status "${args[@]}" --json > "$RUNNER_TEMP/before.json" 2> "$RUNNER_TEMP/before.err"; then
             prev=$(node -e 'const d=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const v=(d.versions||[]).slice().sort((a,b)=>b.percentage-a.percentage)[0];process.stdout.write(v&&/^[0-9a-f-]{36}$/.test(v.version_id)?v.version_id:"")' "$RUNNER_TEMP/before.json")
             [ -n "$prev" ] || { echo "::error::Could not read the current version id; not deploying"; exit 1; }
             exists=true
-          elif grep -Eq '\[code: 10007\]|has no deployments|Worker "?datewise-photo-coach"? not found' "$RUNNER_TEMP/before.err"; then
+          elif grep -Eq "\[code: 10007\]|has no deployments|Worker \"?${DEPLOY_WORKER}\"? not found" "$RUNNER_TEMP/before.err"; then
             prev=""
             exists=false
             echo "The Worker does not exist on this account yet (first deploy)."
@@ -485,6 +611,8 @@ jobs:
         run: |
           set -uo pipefail
           url="${WORKER_URL_VAR:-}"
+          # WORKER_URL is the production URL; staging always uses its own workers.dev host.
+          [ "$CF_ENV" = "staging" ] && url=""
           if [ -n "$url" ] && ! [[ "$url" =~ ^https://[A-Za-z0-9.-]+$ ]]; then
             echo "::error::WORKER_URL must look like https://host (no path)"; exit 1
           fi
@@ -492,9 +620,12 @@ jobs:
             sub=$(curl -sS --max-time 20 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
               "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" \
               | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{try{const v=JSON.parse(s).result?.subdomain||"";process.stdout.write(/^[a-z0-9-]+$/.test(v)?v:"")}catch{}})')
-            [ -n "$sub" ] && url="https://${WORKER_NAME}.${sub}.workers.dev"
+            [ -n "$sub" ] && url="https://${DEPLOY_WORKER}.${sub}.workers.dev"
           fi
           [ -n "$url" ] || { echo "::error::No workers.dev subdomain on this account and no WORKER_URL variable. Register the subdomain (Workers & Pages, Overview) first. Not deploying."; exit 1; }
+          if [ "$CF_ENV" = "staging" ]; then
+            [[ "$url" =~ ^https://${STAGING_WORKER_NAME}\.[a-z0-9-]+\.workers\.dev$ ]] || { echo "::error::staging URL $url is not the staging Worker's workers.dev host"; exit 1; }
+          fi
           printf 'url=%s\n' "$url" >> "$GITHUB_OUTPUT"
           live=""
           if [ "$EXISTS" = "true" ]; then
@@ -557,6 +688,41 @@ jobs:
             exit 1
           fi
 
+      - name: Staging ID_HASH_SALT (random, set only if the staging Worker has none)
+        id: salt_staging
+        if: needs.check.outputs.target == 'chat-v7-staging'
+        working-directory: backend
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -uo pipefail
+          # Never production's salt: the staging Worker gets its own random one,
+          # generated here and never printed (nothing to keep: staging counters
+          # are throwaway).
+          rm -f "$RUNNER_TEMP/salt.json"
+          if npx --yes "wrangler@${WRANGLER_VERSION}" secret list --env staging --format json > "$RUNNER_TEMP/secrets.json" 2> "$RUNNER_TEMP/secrets.err"; then
+            if node -e 'const l=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.exit(Array.isArray(l)&&l.some(s=>s.name==="ID_HASH_SALT")?0:1)' "$RUNNER_TEMP/secrets.json"; then has=true; else has=false; fi
+          elif grep -Eq "Worker \"${STAGING_WORKER_NAME}\"( \(env: [^)]*\))? not found" "$RUNNER_TEMP/secrets.err"; then
+            has=false
+            echo "The staging Worker does not exist yet."
+          else
+            cat "$RUNNER_TEMP/secrets.err"
+            echo "::error::Could not list the staging Worker's secrets; not deploying."
+            rm -f "$RUNNER_TEMP/secrets.json"; exit 1
+          fi
+          rm -f "$RUNNER_TEMP/secrets.json" "$RUNNER_TEMP/secrets.err"
+          if [ "$has" = "true" ]; then
+            echo "ID_HASH_SALT is already set on the staging Worker; keeping it."
+            echo "with_salt=false" >> "$GITHUB_OUTPUT"
+          else
+            umask 077
+            node -e 'require("fs").writeFileSync(process.argv[1], JSON.stringify({ ID_HASH_SALT: require("crypto").randomBytes(32).toString("hex") }))' "$RUNNER_TEMP/salt.json"
+            echo "The staging Worker gets a new random ID_HASH_SALT with this deploy."
+            echo "with_salt=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Deploy with Wrangler
         id: deploy
         uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
@@ -566,7 +732,8 @@ jobs:
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           workingDirectory: backend
           # Only constant strings and the runner's own temp path; no user input.
-          command: ${{ steps.salt.outputs.with_salt == 'true' && format('deploy --secrets-file {0}/salt.json', runner.temp) || 'deploy' }}
+          # chat-v7-staging adds only `--env staging` (the staging Worker in [env.staging]).
+          command: ${{ format('deploy{0}{1}', needs.check.outputs.target == 'chat-v7-staging' && ' --env staging' || '', (steps.salt.outputs.with_salt == 'true' || steps.salt_staging.outputs.with_salt == 'true') && format(' --secrets-file {0}/salt.json', runner.temp) || '') }}
 
       - name: Remove the salt file
         if: always()
@@ -592,7 +759,7 @@ jobs:
             sleep 10
           done
           [ -n "$ok" ] || fail "?version did not report $EXPECT within 3 minutes"
-          if [ "$TARGET" = "chat-v7-cost-guard" ]; then
+          if [ "$TARGET" = "chat-v7-cost-guard" ] || [ "$TARGET" = "chat-v7-staging" ]; then
             # A v2 chat request with no StoreKit token is refused before any model
             # call: 403 SUBSCRIPTION_REQUIRED. That shows the server-side
             # subscription check is on and the IP rate limit answered. It does NOT
@@ -617,4 +784,50 @@ jobs:
             echo "- \`$url/?version\` = \`$EXPECT\`"
             echo "- Previous version id (rollback point): \`${PREV:-none}\`"
             echo "- Roll back with: \`$hint\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post-deploy checks (staging only, no AI is used)
+        if: needs.check.outputs.target == 'chat-v7-staging'
+        shell: bash
+        env:
+          URL: ${{ steps.live.outputs.url }}
+          PREV: ${{ steps.before.outputs.prev_version }}
+        run: |
+          set -uo pipefail
+          url="${URL%/}"
+          hint="${ROLLBACK_HINT/<version-id>/${PREV:-<version-id>}}"
+          fail() { echo "::error::$1"; echo "- FAILED (staging): $1. Roll back: \`$hint\` or tear down: \`cd backend && npx wrangler@${WRANGLER_VERSION} delete --env staging\`" >> "$GITHUB_STEP_SUMMARY"; exit 1; }
+          # Only ever the staging host (checked before the deploy too).
+          [[ "$url" =~ ^https://${STAGING_WORKER_NAME}\.[a-z0-9-]+\.workers\.dev$ ]] || fail "not the staging host: $url"
+          got=$(curl -sS --max-time 15 "$url/?version" | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{try{process.stdout.write(String(JSON.parse(s).version||""))}catch{}})') || true
+          echo "staging ?version = ${got:-<none>}"
+          [ "$got" = "chat-v7-cost-guard" ] || fail "staging ?version is ${got:-<none>}, expected chat-v7-cost-guard"
+          # A v2 request without a token: 403 SUBSCRIPTION_REQUIRED (no model call).
+          code=$(curl -sS --max-time 20 -o "$RUNNER_TEMP/s1.json" -w '%{http_code}' -X POST "$url/" \
+            -H 'Content-Type: application/json' \
+            --data '{"coachId":"ava","messages":[{"role":"user","content":"staging health check"}]}') || true
+          body_code=$(node -e 'try{process.stdout.write(String(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).code||""))}catch{}' "$RUNNER_TEMP/s1.json")
+          echo "staging v2 without token: HTTP $code code=$body_code"
+          [ "$code" = "403" ] && [ "$body_code" = "SUBSCRIPTION_REQUIRED" ] || fail "staging expected 403 SUBSCRIPTION_REQUIRED, got $code $body_code"
+          # A malformed token: 403 SUBSCRIPTION_INVALID (JWS verification is on).
+          code=$(curl -sS --max-time 20 -o "$RUNNER_TEMP/s2.json" -w '%{http_code}' -X POST "$url/" \
+            -H 'Content-Type: application/json' -H 'X-DateWise-Entitlement: not.a.jws' \
+            --data '{"coachId":"ava","messages":[{"role":"user","content":"staging health check"}]}') || true
+          body_code=$(node -e 'try{process.stdout.write(String(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).code||""))}catch{}' "$RUNNER_TEMP/s2.json")
+          echo "staging v2 with a malformed token: HTTP $code code=$body_code"
+          [ "$code" = "403" ] && [ "$body_code" = "SUBSCRIPTION_INVALID" ] || fail "staging expected 403 SUBSCRIPTION_INVALID, got $code $body_code"
+          # A v1-shaped request (no coachId, no token): LEGACY_CLIENTS = "0" answers
+          # with the no-model update notice, which also shows this is the staging
+          # config (production still serves v1).
+          hdr=$(curl -sS --max-time 20 -o /dev/null -D - -X POST "$url/" \
+            -H 'Content-Type: application/json' \
+            --data '{"messages":[{"role":"user","content":"staging health check"}]}' | tr -d '\r' | grep -i '^x-datewise-code:' | cut -d' ' -f2) || true
+          echo "staging v1-shaped request: X-DateWise-Code=${hdr:-<none>}"
+          [ "$hdr" = "APP_UPDATE_REQUIRED" ] || fail "staging expected X-DateWise-Code APP_UPDATE_REQUIRED (LEGACY_CLIENTS=0), got ${hdr:-none}"
+          rm -f "$RUNNER_TEMP/s1.json" "$RUNNER_TEMP/s2.json"
+          {
+            echo "### Staging checks passed"
+            echo "- \`$url\`: chat-v7-cost-guard; v2 without a token 403 SUBSCRIPTION_REQUIRED; malformed token 403 SUBSCRIPTION_INVALID; v1 request APP_UPDATE_REQUIRED (no model call)"
+            echo "- Live AI test: \`node tool/live/live_chat_test.mjs --mode live --confirm-live --base-url $url --budget 40\`"
+            echo "- Tear down afterwards: \`cd backend && npx wrangler@${WRANGLER_VERSION} delete --env staging\`"
           } >> "$GITHUB_STEP_SUMMARY"

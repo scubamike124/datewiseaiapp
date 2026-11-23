@@ -38,6 +38,7 @@ Where two docs disagree, this list names the one that wins. Docs marked
 [avatar]: ../avatar/TALKING_AVATARS.md
 [avtool]: ../../tool/avatar/README.md
 [bakeoff]: ../avatar/PAID_PROVIDER_BAKEOFF.md
+[live]: ../qa/LIVE_AI_TEST_PLAN.md
 
 ### A. Owner decisions
 
@@ -131,12 +132,14 @@ cannot deploy it ([handoff] §8 and [cost] §9 say the same).
 | D4 | **Post-deploy checks**: `?version` = `chat-v7-cost-guard`; a token-less `POST /` returns 403 `SUBSCRIPTION_REQUIRED`; then one real v2 chat from TestFlight returns `x-datewise-*` headers (the first real use of the Durable Object) | Owner-only | The 403 check does not prove the Durable Object; only a real chat does | [runbook] §4 step 7, §5 |
 | D5 | **Turn on ASSN**: B16, then `ASSN_ENABLED = "1"` (reviewed PR, redeploy); a Sandbox purchase logs `kind: assn` `SUBSCRIBED` | Owner-only | A5 | [assn] |
 | D6 | **Rollback if needed**: `npx wrangler@4.158.0 rollback <version-id>` or the dashboard; secrets survive | Owner-only | Return to the previous version in minutes | [runbook] §6 |
+| D8 | **Staging Worker for the live AI test** (after D1, independent of D2–D7): confirm rate-limit namespace `740221` is unused on the account, then dispatch target `chat-v7-staging` (dry run, then `dry_run` off) and approve in `production-worker`. It deploys only `datewise-coach-staging` (`wrangler deploy --env staging`) and checks `?version` and 403 `SUBSCRIPTION_REQUIRED`. Same security as production (verified StoreKit JWS, Sandbox allowed, v1 and ASSN off), test-sized limits (`SANDBOX_DAILY_LIMIT` 40, `SANDBOX_NEURON_BUDGET` 3000, `DAILY_NEURON_BUDGET` 4000). **No production variable changes, nothing to restore.** Tear down after E6: `cd backend && npx wrangler@4.158.0 delete --env staging`. Cost $0 (free allowance) | Owner-only | The 36-request live test needs more Sandbox room than production's 20 a day / 1,000 neurons, without touching production | [runbook] §9, [live] §1 |
 | D7 | **App backend URL PR** to the new Worker (`lib/services/ai_config.dart` `productionUrl`, `test/backend_chat_test.dart`, `scripts/production-e2e-probe.mjs`) before the build used for submission | Agent, after owner | The URL is compiled into the app; until then use `--dart-define=COACH_BACKEND_URL=…` on test builds | [cfsep] §3.1 |
 
 ### E. Device testing (BLOCKED until TestFlight)
 
 Nothing here has run: it needs a signed build on TestFlight (Details steps
-19–21) and chat-v7 live (D3).
+19–21) and chat-v7 live (D3). The scripted live AI test (E6, first part) needs
+only the staging Worker (D8) and a Sandbox token from a debug build.
 
 | # | Test | Who | Why | Detail |
 |---|---|---|---|---|
@@ -146,7 +149,7 @@ Nothing here has run: it needs a signed build on TestFlight (Details steps
 | E4 | **Avatar word timing per voice tier**: default, Enhanced and Premium voices; native audio path on iOS 15/16 (loudness only) and iOS 17+ (word markers), and the fallback; tune A/V sync | Owner-only | Lip sync was measured only on a host, never on an iPhone | [avatar] "Blocked / to do" |
 | E5 | **Frame time and memory** in a profile build on the voice stage | Owner-only | Must not drop frames or grow memory on older iPhones | [avatar](../avatar/TALKING_AVATARS.md) |
 | E7 | **Avatar native audio path** (only if it should ship): run `iOS build` by hand with `signed_build`, `upload_testflight` and `avatar_audio_path` ticked. That build is marked "AVATAR AUDIO-PATH TEST BUILD" in the run summary and gets a build number 5000 higher (e.g. 5150 instead of 150): **never submit a 5000+ build for review**. Upload the App Store build of a version before any 5000+ test build of that same version (or give test builds their own version, e.g. 2.0.1), because App Store Connect can reject a lower build number after a higher one; the ranges would also overlap once run numbers pass about 4,900. Test playback, ducking and release, a call/Siri interruption, unplugging headphones, backgrounding, and the fallback. Release builds keep the flag off (flutter_tts path) until this passes | Owner-only | The native path cannot be tested off-device | [avatar](../avatar/TALKING_AVATARS.md) |
-| E6 | **Live AI tests for the four coaches** (Ava, Ethan, Sofía, Diego) in EN and ES: replies, language, limit notices, usage headers; plus onboarding and the 18+ gate, Delete my data, and the iPad layout | Owner-only | The model has not been called from a v2 build yet | Details step 22, [models] (PR #30) |
+| E6 | **Live AI tests for the four coaches** (Ava, Ethan, Sofía, Diego) in EN and ES. (a) The scripted 36-request test (`tool/live/live_chat_test.mjs --mode live`) against the **staging Worker** URL from D8 (`https://datewise-coach-staging.<subdomain>.workers.dev`), with a Sandbox token in `DW_TEST_JWS`: replies, language, limits, streaming, usage headers. No production var changes; the kit refuses the production URL. Then tear down staging (D8). (b) On a TestFlight build against production (after D3): onboarding and the 18+ gate, limit notices, Delete my data, and the iPad layout | Owner-only | The model has not been called from a v2 build yet | [live], Details step 22, [models] (PR #30) |
 
 ### F. Submission
 
@@ -160,7 +163,7 @@ Nothing here has run: it needs a signed build on TestFlight (Details steps
 | F6 | **Select the build, attach `datewise_premium_monthly`, manual release with a 7-day phased release, Submit for Review** | Owner-only | The subscription is submitted together with 2.0.0 | Details steps 26–28 |
 | F7 | **After approval**: release, a real production purchase, 1.0.2 users update cleanly; check App Analytics at R+30 | Owner-only | Confirms production before the phased release widens | Details step 29, [v1] |
 
-**Count:** 51 Owner-only items, 2 Done in code (A6, A9), 4 Agent, after owner (C3, C4, C5, D7).
+**Count:** 53 Owner-only items, 2 Done in code (A6, A9), 4 Agent, after owner (C3, C4, C5, D7).
 
 ---
 
