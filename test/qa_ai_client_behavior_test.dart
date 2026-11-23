@@ -112,6 +112,7 @@ BackendAIService client(Uri target, {Duration? connect, Duration? idle}) => Back
       clientFactory: () => _LocalClient(target),
       connectTimeout: connect ?? const Duration(seconds: 5),
       idleTimeout: idle ?? const Duration(seconds: 5),
+      retryDelay: const Duration(milliseconds: 20),
     );
 
 final _hi = [ChatMessage(id: '1', role: MessageRole.user, text: 'Hi', createdAt: DateTime(2026))];
@@ -198,14 +199,16 @@ void main() {
   });
 
   group('client behavior tests (no live AI): retries', () {
-    test('no automatic retry: a 503 is one request, then a failed reply the user can retry', () async {
+    test('one automatic retry: a 503 twice is two requests, then a failed reply the user can retry', () async {
       final server = await FakeServer.start(status(503));
       addTearDown(server.close);
       final state = await appState(client(server.uri));
       await state.sendMessage('Help me with my bio');
-      expect(server.requests, 1, reason: 'BackendAIService has no automatic retry/backoff');
+      expect(server.requests, 2, reason: 'one automatic retry for 502/503/504 (D4)');
       final thread = state.activeThread!;
       expect(thread.messages.last.status, MessageStatus.failed);
+      expect(thread.messages.last.failure, ReplyFailure.server);
+      expect(thread.messages.last.failedStatus, 503);
       expect(thread.messages.where((m) => m.isUser).single.text, 'Help me with my bio', reason: 'user message kept');
       expect(state.canRetry, isTrue);
       expect(state.isResponding, isFalse);
@@ -213,7 +216,7 @@ void main() {
       // The backend recovers; "Try again" sends the same conversation again.
       server.handler = streamTokens(['Here is a better bio.']);
       expect(await state.retryLastReply(), isTrue);
-      expect(server.requests, 2);
+      expect(server.requests, 3);
       expect(thread.messages.last.text, 'Here is a better bio.');
       expect(thread.messages.last.status, MessageStatus.ok);
       expect(thread.messages.where((m) => m.status == MessageStatus.failed), isEmpty, reason: 'failed reply replaced');
@@ -223,12 +226,50 @@ void main() {
       expect(state.canRetry, isFalse);
     });
 
-    test('connection refused (backend unreachable) → one attempt, "network" failure', () async {
+    test('a transient 502 before the first token is retried once and the reply arrives', () async {
+      final server = await FakeServer.start((req, _, n) async {
+        if (n == 1) return status(502)(req, '', n);
+        await streamTokens(['Recovered.'])(req, '', n);
+      });
+      addTearDown(server.close);
+      final state = await appState(client(server.uri));
+      await state.sendMessage('Hi');
+      expect(server.requests, 2);
+      expect(state.activeThread!.messages.last.text, 'Recovered.');
+      expect(state.activeThread!.messages.last.status, MessageStatus.ok);
+    });
+
+    test('no retry for other statuses (e.g. 429, 500) or after the first token', () async {
+      for (final code in [400, 429, 500]) {
+        final server = await FakeServer.start(status(code));
+        final (_, error) = await collect(ask(client(server.uri)));
+        expect(error, unavailable('http', code: code));
+        expect(server.requests, 1, reason: 'HTTP $code is not retried');
+        await server.close();
+      }
+      // Tokens then an error: never retried (the reply would be sent twice).
+      final server = await FakeServer.start((req, _, __) async {
+        req.response
+          ..statusCode = 200
+          ..bufferOutput = false;
+        req.response.add(utf8.encode('${sse('Some ')}data: {"error":"overloaded"}\n\n'));
+        await req.response.close();
+      });
+      addTearDown(server.close);
+      final (got, error) = await collect(ask(client(server.uri)));
+      expect(got, ['Some ']);
+      expect(error, isA<CoachUnavailableException>());
+      expect(server.requests, 1);
+    });
+
+    test('connection refused (backend unreachable) → retried once, then a "network" failure (offline notice)', () async {
       final dead = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
       final port = dead.port;
       await dead.close();
       final s = client(Uri.parse('http://127.0.0.1:$port/'));
-      await expectLater(ask(s).toList(), throwsA(unavailable('network')));
+      final (_, error) = await collect(ask(s));
+      expect(error, unavailable('network'));
+      expect(AppState.replyFailureFor(error!), ReplyFailure.offline);
     });
   });
 
@@ -313,19 +354,18 @@ void main() {
       expect(error, unavailable('stream'));
     });
 
-    test('FINDING: a cleanly closed stream without [DONE] is accepted as a complete reply', () async {
+    test('a cleanly closed stream without [DONE] is a cut-off reply: failed, retryable (D2 fixed)', () async {
       // The server (or a proxy) ends the HTTP response properly but the
-      // model stream never sent [DONE]. The client cannot tell this from a
-      // finished reply: the truncated text is saved as OK and goes into the
-      // next request's history. See the report, defect "truncated reply".
+      // model stream never sent [DONE]. The text is kept on screen but the
+      // reply is failed, so it never goes into the next request's history.
       final server = await FakeServer.start(streamTokens(['The first half of'], done: false));
       addTearDown(server.close);
       final state = await appState(client(server.uri));
       await state.sendMessage('Hi');
       final reply = state.activeThread!.messages.last;
       expect(reply.text, 'The first half of');
-      expect(reply.status, MessageStatus.ok, reason: 'current behavior: no [DONE] check');
-      expect(state.canRetry, isFalse);
+      expect(reply.status, MessageStatus.failed);
+      expect(state.canRetry, isTrue);
     });
   });
 
@@ -340,17 +380,18 @@ void main() {
       });
     }
 
-    test('429 with Retry-After: status reaches the client, but AppState only records "failed"', () async {
+    test('429: the status is kept on the failed reply (busy notice), persisted, and recoverable (D3 fixed)', () async {
       final server = await FakeServer.start(status(429, headers: {'Retry-After': '30'}));
       addTearDown(server.close);
       final state = await appState(client(server.uri));
       await state.sendMessage('Hi');
       final last = state.activeThread!.messages.last;
       expect(last.status, MessageStatus.failed);
-      // MessageStatus has no "rate limited" value and the exception is
-      // dropped (app_state.dart onError: (Object _)), so the UI shows the same
-      // generic notice as a 502 and cannot honor Retry-After.
-      expect(MessageStatus.values.map((s) => s.name), ['ok', 'failed', 'stopped']);
+      expect(last.failedStatus, 429);
+      expect(last.failure, ReplyFailure.busy);
+      final restored = ChatMessage.fromJson(last.toJson());
+      expect(restored.failedStatus, 429);
+      expect(restored.failure, ReplyFailure.busy);
       expect(state.canRetry, isTrue);
       server.handler = streamTokens(['OK now.']);
       await state.retryLastReply();
@@ -411,7 +452,7 @@ void main() {
       expect(server.bodies.last['coachId'], 'ava');
     });
 
-    test('no client-side cap: a 40-turn thread sends all 81 messages (cap is only server-side)', () async {
+    test('client-side cap: a 40-turn thread sends the system prompt + the newest 24 turns (D5 fixed)', () async {
       final server = await FakeServer.start(streamTokens(['ok']));
       addTearDown(server.close);
       final state = await appState(client(server.uri));
@@ -419,11 +460,11 @@ void main() {
         await state.sendMessage('Message $i');
       }
       final msgs = server.bodies.last['messages'] as List;
-      // system + greeting + 40 user + 39 assistant replies before the last send.
-      expect(msgs.length, 1 + 1 + 40 + 39);
-      // worker.js sanitizeMessages keeps the system prompt + the newest 24
-      // turns within 24,000 characters (MAX_CHAT_MESSAGES / MAX_CHAT_CHARS),
-      // so the extra turns cost upload bytes but never reach the model.
+      // The thread holds system + greeting + 40 user + 39 replies; the client
+      // now sends what worker.js sanitizeMessages would keep anyway.
+      expect(msgs.length, 1 + BackendAIService.maxHistoryTurns);
+      expect((msgs.first as Map)['role'], 'system');
+      expect((msgs.last as Map)['content'], 'Message 39', reason: 'the newest turns are kept');
     });
 
     test('Coach memory OFF by default: no memory in the profile or the system prompt', () async {
@@ -500,12 +541,12 @@ void main() {
       final before = (server.bodies.first['messages'] as List).first['content'] as String;
       final after = (server.bodies.last['messages'] as List).first['content'] as String;
       expect(server.bodies.last['coachId'], 'sofia', reason: 'the coach does not change with the UI language');
-      expect(before, contains('prefers Español'));
-      // FINDING (low): after the switch, Sofía's prompt says both "By default
-      // reply in … Spanish" and "About the user: … prefers English": the
-      // model gets two contradicting language signals.
-      expect(after, contains('By default reply in natural, warm Latin-American Spanish'));
-      expect(after, contains('prefers English'));
+      expect(before, contains('uses the app in Español'));
+      // D8 fixed: the profile line names only the interface language and
+      // defers to the LANGUAGE rule, so there is no competing "prefers".
+      expect(after, contains('By default reply in natural, warm, neutral Latin-American Spanish'));
+      expect(after, contains('uses the app in English (follow your LANGUAGE rule for replies)'));
+      expect(after, isNot(contains('prefers')));
     });
   });
 }

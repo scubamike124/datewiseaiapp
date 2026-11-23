@@ -783,6 +783,7 @@ class _Bubble extends StatelessWidget {
                           ? _FailedReply(
                               partial: parsed.body,
                               stopped: message.status == MessageStatus.stopped,
+                              failure: message.failure,
                               onRetry: onRetry,
                             )
                           : message.isPhotoOnly
@@ -1132,9 +1133,10 @@ class _Locked extends StatelessWidget {
 /// A reply that could not be delivered: the friendly notice (localized), any
 /// text that arrived before the failure, and "Try again".
 class _FailedReply extends StatelessWidget {
-  const _FailedReply({required this.partial, required this.stopped, required this.onRetry});
+  const _FailedReply({required this.partial, required this.stopped, required this.onRetry, this.failure});
   final String partial;
   final bool stopped;
+  final ReplyFailure? failure;
   final VoidCallback? onRetry;
 
   @override
@@ -1159,7 +1161,15 @@ class _FailedReply extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                stopped ? l.chatErrorStopped : l.chatErrorUnavailable,
+                stopped
+                    ? l.chatErrorStopped
+                    : switch (failure) {
+                        ReplyFailure.busy => l.chatErrorBusy,
+                        ReplyFailure.offline => l.chatErrorOffline,
+                        ReplyFailure.server => l.chatErrorServer,
+                        null => l.chatErrorUnavailable,
+                      },
+                key: const ValueKey('reply-failed-notice'),
                 style: const TextStyle(fontSize: 14, height: 1.4, color: AppColors.text),
               ),
             ),

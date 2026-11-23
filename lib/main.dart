@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -30,7 +30,10 @@ Future<void> main() async {
 
   final storage = await StorageService.create();
   final review = ReviewMode.requestedScreen();
-  final ai = ReviewMode.aiFor(review) ?? (ReviewMode.mockAI ? MockAIService() : AIServiceFactory.create());
+  // DW_MOCK_AI (offline demo coach) is honored only in debug builds and the
+  // web review build used for screenshots, never in an iOS/Android release.
+  final useMockAI = ReviewMode.mockAI && (kIsWeb || !kReleaseMode);
+  final ai = ReviewMode.aiFor(review) ?? (useMockAI ? MockAIService() : AIServiceFactory.create());
   final store = createStoreService();
   final voice = await DeviceVoiceService.create();
   final speech = DeviceSpeechService.create();

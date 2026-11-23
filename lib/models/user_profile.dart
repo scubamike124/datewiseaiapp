@@ -69,7 +69,9 @@ class UserProfile {
     if (goals.isNotEmpty) {
       parts.add('wants help with: ${goals.map((g) => g.label.toLowerCase()).join(', ')}');
     }
-    parts.add('prefers ${language.label}');
+    // Only the interface language: the coach's LANGUAGE rule decides the
+    // reply language, so this must not read as a competing instruction.
+    parts.add('uses the app in ${language.label} (follow your LANGUAGE rule for replies)');
     return parts.join('; ');
   }
 

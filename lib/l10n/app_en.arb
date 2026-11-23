@@ -318,7 +318,10 @@
   },
   "lockedBody": "Subscribe to talk with all four AI coaches. Your conversations stay on this device.",
   "seePremium": "See DateWise Premium",
-  "chatErrorUnavailable": "I couldn't reach your coach. Check your connection and try again. Your message is saved.",
+  "chatErrorUnavailable": "Couldn't reach your coach. Check your connection and try again. Your message is saved.",
+  "chatErrorBusy": "Your coach is getting a lot of messages right now. Try again in a moment. Your message is saved.",
+  "chatErrorOffline": "You seem to be offline. Check your connection and try again. Your message is saved.",
+  "chatErrorServer": "Coaching is temporarily unavailable. Try again in a few minutes. Your message is saved.",
   "chatErrorStopped": "The reply was stopped. Your message is saved.",
   "paywallHeadline": "Unlimited coaching with {name} and the team.",
   "@paywallHeadline": {

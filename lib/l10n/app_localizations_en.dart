@@ -428,7 +428,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatErrorUnavailable =>
-      'I couldn\'t reach your coach. Check your connection and try again. Your message is saved.';
+      'Couldn\'t reach your coach. Check your connection and try again. Your message is saved.';
+
+  @override
+  String get chatErrorBusy =>
+      'Your coach is getting a lot of messages right now. Try again in a moment. Your message is saved.';
+
+  @override
+  String get chatErrorOffline =>
+      'You seem to be offline. Check your connection and try again. Your message is saved.';
+
+  @override
+  String get chatErrorServer =>
+      'Coaching is temporarily unavailable. Try again in a few minutes. Your message is saved.';
 
   @override
   String get chatErrorStopped =>

@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart' show kReleaseMode;
+
 import '../models/chat_message.dart';
 import '../models/coach.dart';
 import '../models/tier.dart';
@@ -29,12 +31,35 @@ abstract class AIService {
 
 /// Decides which [AIService] implementation to use based on [AIConfig].
 class AIServiceFactory {
-  static AIService create() {
+  /// [url] and [release] default to the build's values; tests pass them.
+  static AIService create({String url = AIConfig.coachBackendUrl, bool release = kReleaseMode}) {
     // Production: the secure coach backend (HTTPS; the model and any keys
-    // stay server-side). Without a configured URL the offline demo coach runs.
-    if (AIConfig.hasCoachBackend) {
-      return BackendAIService(endpoint: AIConfig.coachBackendUrl);
+    // stay server-side).
+    if (AIConfig.isUsableUrl(url)) {
+      return BackendAIService(endpoint: url.trim());
     }
+    // A release build never ships canned replies as if they were coaching:
+    // without a valid backend every reply fails with the usual notice.
+    if (release) return const UnconfiguredAIService();
+    // Debug and profile builds without a backend: the offline demo coach.
     return MockAIService();
   }
+}
+
+/// Used by a release build whose coach backend URL is missing or not HTTPS.
+/// Every reply fails with [CoachUnavailableException]; nothing is invented.
+class UnconfiguredAIService implements AIService {
+  const UnconfiguredAIService();
+
+  @override
+  String get providerLabel => 'not configured';
+
+  @override
+  Stream<String> streamReply({
+    required List<ChatMessage> history,
+    required SubscriptionTier tier,
+    UserProfile? profile,
+    Coach? coach,
+  }) =>
+      Stream<String>.error(const CoachUnavailableException('not configured'));
 }

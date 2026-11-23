@@ -270,7 +270,7 @@ void main() {
     test('UserProfile.fromJson ignores legacy keys and toJson never writes them', () {
       final p = UserProfile.fromJson(jsonDecode(_v1Profile) as Map<String, dynamic>);
       expect(p.toJson().keys.toSet(), {'goals', 'language'});
-      expect(p.summary, 'prefers English');
+      expect(p.summary, 'uses the app in English (follow your LANGUAGE rule for replies)');
     });
   });
 

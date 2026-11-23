@@ -99,6 +99,7 @@ void main() {
       expect(Uri.parse(AIConfig.coachBackendUrl).scheme, 'https');
       expect(AIConfig.hasCoachBackend, isTrue);
       expect(AIServiceFactory.create(), isA<BackendAIService>());
+      expect(AIServiceFactory.create(release: true), isA<BackendAIService>());
       final lib = Directory('lib')
           .listSync(recursive: true)
           .whereType<File>()
@@ -112,6 +113,28 @@ void main() {
 
     test('a non-HTTPS endpoint is refused', () {
       expect(() => BackendAIService(endpoint: 'http://datewise-photo-coach.scubamike124.workers.dev'), throwsArgumentError);
+    });
+  });
+
+  group('release builds never use the offline coach (AI QA D15)', () {
+    test('a release build with a non-HTTPS backend URL fails every reply; debug gets the demo coach', () async {
+      final release = AIServiceFactory.create(url: 'http://example.com', release: true);
+      expect(release, isA<UnconfiguredAIService>());
+      final tokens = <String>[];
+      await expectLater(
+          release
+              .streamReply(history: [ChatMessage(id: '1', role: MessageRole.user, text: 'Hi', createdAt: DateTime(2026))],
+                  tier: SubscriptionTier.magnet)
+              .forEach(tokens.add),
+          throwsA(isA<CoachUnavailableException>()));
+      expect(tokens, isEmpty, reason: 'no canned coaching text');
+      expect(AIServiceFactory.create(url: '', release: true), isA<UnconfiguredAIService>());
+      expect(AIServiceFactory.create(url: 'http://example.com', release: false), isNot(isA<UnconfiguredAIService>()));
+    });
+
+    test('main.dart honors DW_MOCK_AI only on the web review build or in debug', () {
+      final main = File('lib/main.dart').readAsStringSync();
+      expect(main, contains('ReviewMode.mockAI && (kIsWeb || !kReleaseMode)'));
     });
   });
 
@@ -164,9 +187,17 @@ void main() {
       final b = FakeBackend(chunks: [
         utf8.encode('data:{"response":"one"}\n'),
         utf8.encode('event: message\nid: 7\ndata: {"choices":[{"delta":{"content":" two"}}]}\n'),
-        utf8.encode('data: {"response":" three"}'),
+        utf8.encode('data: {"response":" three"}\ndata: [DONE]'),
       ]);
       expect((await reply(service(b)).toList()).join(), 'one two three');
+    });
+
+    test('a stream that ends without [DONE] was cut off: it fails, never saved as complete', () async {
+      final b = FakeBackend(chunks: [utf8.encode('data: {"response":"The first half"}\n\n')]);
+      final tokens = <String>[];
+      await expectLater(reply(service(b)).forEach(tokens.add),
+          throwsA(isA<CoachUnavailableException>().having((e) => e.reason, 'reason', 'truncated')));
+      expect(tokens, ['The first half']);
     });
 
     test('an in-stream error event fails the reply', () async {

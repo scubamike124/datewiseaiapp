@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
@@ -40,6 +41,7 @@ class BackendAIService implements AIService {
     http.Client Function()? clientFactory,
     this.connectTimeout = const Duration(seconds: 30),
     this.idleTimeout = const Duration(seconds: 30),
+    this.retryDelay = const Duration(seconds: 1),
   }) : _clientFactory = clientFactory ?? http.Client.new {
     final uri = Uri.parse(endpoint);
     if (uri.scheme != 'https') {
@@ -55,6 +57,17 @@ class BackendAIService implements AIService {
 
   /// Longest silence allowed between two chunks of the stream.
   final Duration idleTimeout;
+
+  /// Wait before the single automatic retry (see [streamReply]).
+  final Duration retryDelay;
+
+  /// The newest complete turns sent as history. The Worker keeps the same
+  /// number (MAX_CHAT_MESSAGES), so older turns would only cost upload bytes.
+  static const int maxHistoryTurns = 24;
+
+  /// Statuses worth one automatic retry: the Worker or Workers AI is briefly
+  /// unavailable.
+  static const Set<int> retryableStatuses = {502, 503, 504};
 
   @override
   String get providerLabel => 'DateWise coach · secure backend';
@@ -76,7 +89,10 @@ class BackendAIService implements AIService {
     http.Client? client;
     var canceled = false;
 
-    Future<void> run() async {
+    /// One request. Returns normally when the reply is complete; throws
+    /// [CoachUnavailableException]. Sets [emitted] once a token went out.
+    var emitted = false;
+    Future<void> attempt() async {
       final c = client = _clientFactory();
       try {
         final req = http.Request('POST', Uri.parse(endpoint))
@@ -99,7 +115,6 @@ class BackendAIService implements AIService {
           throw CoachUnavailableException('http', statusCode: res.statusCode);
         }
 
-        var emitted = false;
         try {
           await for (final token in parseSse(res.stream.timeout(idleTimeout))) {
             if (canceled) return;
@@ -114,10 +129,27 @@ class BackendAIService implements AIService {
           throw CoachUnavailableException('stream: $e');
         }
         if (!emitted) throw const CoachUnavailableException('empty');
+      } finally {
+        c.close();
+      }
+    }
+
+    Future<void> run() async {
+      try {
+        try {
+          await attempt();
+        } on CoachUnavailableException catch (e) {
+          // One automatic retry for a transient failure, and only before the
+          // first token: a reply that has started is never sent twice.
+          final transient = e.reason.startsWith('network') || retryableStatuses.contains(e.statusCode);
+          if (canceled || emitted || !transient) rethrow;
+          await Future<void>.delayed(retryDelay);
+          if (canceled) return;
+          await attempt();
+        }
       } catch (e) {
         if (!canceled) out.addError(e);
       } finally {
-        c.close();
         if (!canceled) await out.close();
       }
     }
@@ -137,7 +169,8 @@ class BackendAIService implements AIService {
   /// `\n`, `\r\n` and `\r` line endings, events and UTF-8 characters split
   /// across chunks, `data:` with or without a space, comments/keep-alives,
   /// a final line without a newline, and stops at `data: [DONE]`. An
-  /// in-stream `{"error": …}` event throws [CoachUnavailableException].
+  /// in-stream `{"error": …}` event throws [CoachUnavailableException], and
+  /// so does a stream that ends without `[DONE]` (the reply was cut off).
   static Stream<String> parseSse(Stream<List<int>> bytes) async* {
     final lines = bytes.transform(utf8.decoder).transform(const LineSplitter());
     await for (final line in lines) {
@@ -150,6 +183,9 @@ class BackendAIService implements AIService {
       final token = tokenFrom(data);
       if (token != null && token.isNotEmpty) yield token;
     }
+    // Reached only when [DONE] never arrived: a proxy, a Worker crash or a
+    // cut stream that still closed cleanly. Never save it as complete.
+    throw const CoachUnavailableException('truncated');
   }
 
   /// The text in one SSE `data:` payload, or null for keep-alives and
@@ -192,7 +228,8 @@ class BackendAIService implements AIService {
       };
 
   /// Builds the OpenAI-style message list for the worker: a system prompt
-  /// (DateWise persona + the user's profile) followed by the conversation.
+  /// (DateWise persona + the user's profile) followed by the newest
+  /// [maxHistoryTurns] complete turns of the conversation.
   @visibleForTesting
   List<Map<String, String>> buildMessages(
     List<ChatMessage> history,
@@ -206,6 +243,7 @@ class BackendAIService implements AIService {
         'content': CoachPersona.systemPrompt(tier, profile: profile, coach: coach),
       },
     ];
+    final turns = <Map<String, String>>[];
     for (final m in history) {
       if (!m.isComplete) continue; // failed / stopped / streaming replies
       var text = m.text.trim();
@@ -215,8 +253,9 @@ class BackendAIService implements AIService {
         if (!m.hadPhoto) continue;
         text = m.isUser ? '[shared a photo for review]' : '[gave a photo critique]';
       }
-      messages.add({'role': m.isUser ? 'user' : 'assistant', 'content': text});
+      turns.add({'role': m.isUser ? 'user' : 'assistant', 'content': text});
     }
+    messages.addAll(turns.skip(math.max(0, turns.length - maxHistoryTurns)));
     return messages;
   }
 }

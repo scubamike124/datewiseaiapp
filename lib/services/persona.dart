@@ -33,9 +33,10 @@ Write the labels and messages in the language of your reply. Do not use this lin
   /// The language rule for [coach]: the coach's own language by default, and
   /// the user's language when the user writes in another one.
   static String languageRule(Coach coach) => coach.language == CoachLanguage.es
-      ? 'LANGUAGE: By default reply in natural, warm Latin-American Spanish, '
-          'using "tú". If the user writes to you in another language, reply in '
-          "the user's language instead."
+      ? 'LANGUAGE: By default reply in natural, warm, neutral Latin-American '
+          'Spanish, always using "tú" (never "vosotros" or Spain-only words such '
+          'as "móvil", "ordenador" or "vale"). If the user writes to you in '
+          "another language, reply in the user's language instead."
       : 'LANGUAGE: By default reply in natural, warm English. If the user '
           "writes to you in another language, reply in the user's language instead.";
 

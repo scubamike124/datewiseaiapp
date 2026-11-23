@@ -10,6 +10,7 @@ import '../models/tier.dart';
 import '../models/user_profile.dart';
 import '../models/weekly_plan.dart';
 import '../services/ai_service.dart';
+import '../services/backend_ai_service.dart' show CoachUnavailableException;
 import '../services/persona.dart';
 import '../services/storage_service.dart';
 import '../services/store_service.dart';
@@ -366,8 +367,10 @@ class AppState extends ChangeNotifier {
               coachMsg.text += chunk;
               notifyListeners();
             },
-            onError: (Object _) {
+            onError: (Object e) {
               coachMsg.status = MessageStatus.failed;
+              coachMsg.failedStatus = e is CoachUnavailableException ? e.statusCode : null;
+              coachMsg.failure = replyFailureFor(e);
               finish();
             },
             onDone: finish,
@@ -391,6 +394,17 @@ class AppState extends ChangeNotifier {
     thread.updatedAt = _clock();
     await _persist();
     notifyListeners();
+  }
+
+  /// Which notice a failed reply shows: busy (HTTP 429), offline (network
+  /// error or timeout), server down (HTTP 5xx), else the generic one.
+  static ReplyFailure? replyFailureFor(Object error) {
+    if (error is! CoachUnavailableException) return null;
+    final code = error.statusCode;
+    if (code == 429) return ReplyFailure.busy;
+    if (code != null && code >= 500) return ReplyFailure.server;
+    if (error.reason.startsWith('network') || error.reason == 'timeout') return ReplyFailure.offline;
+    return null;
   }
 
   /// Stops the reply that is streaming (Stop, or the user left the chat).

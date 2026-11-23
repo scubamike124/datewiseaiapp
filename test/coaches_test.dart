@@ -89,7 +89,7 @@ void main() {
       for (final c in [Coaches.sofia, Coaches.diego]) {
         final p = c.systemPrompt;
         expect(p, startsWith('You are ${c.name}'));
-        expect(p, contains('By default reply in natural, warm Latin-American Spanish'));
+        expect(p, contains('By default reply in natural, warm, neutral Latin-American Spanish, always using "tú"'));
         expect(p, contains("If the user writes to you in another language, reply in the user's language instead."));
       }
     });

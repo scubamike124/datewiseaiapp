@@ -182,13 +182,35 @@ void main() {
       await tester.enterText(find.byKey(const ValueKey('composer')), 'Hi');
       await tester.tap(find.byKey(const ValueKey('send')));
       await tester.pumpAndSettle();
-      expect(find.text("I couldn't reach your coach. Check your connection and try again. Your message is saved."), findsOneWidget);
+      // A 502 (server down) shows the specific notice (AI QA D3).
+      expect(find.text('Coaching is temporarily unavailable. Try again in a few minutes. Your message is saved.'), findsOneWidget);
       expect(find.text('Hi'), findsOneWidget, reason: 'the message stays on screen');
       await tester.tap(find.byKey(const ValueKey('retry')));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('reply-failed')), findsNothing);
       expect(app.state.activeThread!.messages.last.text, 'All good now.');
     });
+
+    for (final (error, text) in [
+      (const CoachUnavailableException('http', statusCode: 429), 'Your coach is getting a lot of messages right now. Try again in a moment. Your message is saved.'),
+      (const CoachUnavailableException('network: SocketException'), 'You seem to be offline. Check your connection and try again. Your message is saved.'),
+      (const CoachUnavailableException('truncated'), "Couldn't reach your coach. Check your connection and try again. Your message is saved."),
+    ]) {
+      testWidgets('a failed reply ($error) shows its specific notice', (tester) async {
+        final ai = ScriptedAI([() => Stream<String>.error(error)]);
+        setSurface(tester, const Size(390, 844), 1);
+        SharedPreferences.setMockInitialValues(onboardedPrefs());
+        final storage = await StorageService.create();
+        final store = FakeStoreService(entitled: true);
+        final app = TestApp(AppState(storage: storage, ai: ai, store: store), store, storage);
+        await tester.pumpWidget(wrap(app, const DateWiseApp(initialTab: AppTab.chat)));
+        await tester.pump();
+        await tester.enterText(find.byKey(const ValueKey('composer')), 'Hi');
+        await tester.tap(find.byKey(const ValueKey('send')));
+        await tester.pumpAndSettle();
+        expect(find.text(text), findsOneWidget);
+      });
+    }
   });
 
   group('Coach memory in the request', () {

@@ -5,6 +5,19 @@ enum MessageRole { user, coach }
 /// a "Try again" button and is never sent back to the model as history.
 enum MessageStatus { ok, failed, stopped }
 
+/// Why a reply [MessageStatus.failed], when the app can tell. It picks the
+/// notice shown under the reply; null shows the generic one.
+enum ReplyFailure {
+  /// HTTP 429: too many requests right now.
+  busy,
+
+  /// No connection (network error or timeout).
+  offline,
+
+  /// The coach backend is down (HTTP 5xx).
+  server,
+}
+
 /// A single message within a coaching thread.
 class ChatMessage {
   ChatMessage({
@@ -15,6 +28,8 @@ class ChatMessage {
     this.hadPhoto = false,
     this.isStreaming = false,
     this.status = MessageStatus.ok,
+    this.failedStatus,
+    this.failure,
   });
 
   final String id;
@@ -33,6 +48,12 @@ class ChatMessage {
   /// See [MessageStatus]. Persisted, so a failed reply can be retried after a
   /// restart.
   MessageStatus status;
+
+  /// The HTTP status of a failed reply, when there was one. Persisted.
+  int? failedStatus;
+
+  /// See [ReplyFailure]. Persisted.
+  ReplyFailure? failure;
 
   bool get isUser => role == MessageRole.user;
 
@@ -54,6 +75,8 @@ class ChatMessage {
       'createdAt': createdAt.toIso8601String(),
       if (hadPhoto) 'hadPhoto': true,
       if (saved != MessageStatus.ok) 'status': saved.name,
+      if (saved == MessageStatus.failed && failedStatus != null) 'failedStatus': failedStatus,
+      if (saved == MessageStatus.failed && failure != null) 'failure': failure!.name,
     };
   }
 
@@ -78,5 +101,7 @@ class ChatMessage {
                 (s) => s.name == json['status'],
                 orElse: () => MessageStatus.ok,
               ),
+        failedStatus: json['failedStatus'] is int ? json['failedStatus'] as int : null,
+        failure: ReplyFailure.values.where((f) => f.name == json['failure']).firstOrNull,
       );
 }

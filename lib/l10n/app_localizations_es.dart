@@ -442,7 +442,19 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get chatErrorUnavailable =>
-      'No pude conectar con tu coach. Revisa tu conexión e inténtalo de nuevo. Tu mensaje está guardado.';
+      'No se pudo conectar con tu coach. Revisa tu conexión e inténtalo de nuevo. Tu mensaje está guardado.';
+
+  @override
+  String get chatErrorBusy =>
+      'Tu coach está recibiendo muchos mensajes en este momento. Inténtalo de nuevo en un momento. Tu mensaje está guardado.';
+
+  @override
+  String get chatErrorOffline =>
+      'Parece que no tienes conexión. Revisa tu conexión e inténtalo de nuevo. Tu mensaje está guardado.';
+
+  @override
+  String get chatErrorServer =>
+      'El coaching no está disponible por ahora. Inténtalo de nuevo en unos minutos. Tu mensaje está guardado.';
 
   @override
   String get chatErrorStopped =>

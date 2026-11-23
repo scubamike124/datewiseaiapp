@@ -815,8 +815,26 @@ abstract class AppLocalizations {
   /// No description provided for @chatErrorUnavailable.
   ///
   /// In en, this message translates to:
-  /// **'I couldn\'t reach your coach. Check your connection and try again. Your message is saved.'**
+  /// **'Couldn\'t reach your coach. Check your connection and try again. Your message is saved.'**
   String get chatErrorUnavailable;
+
+  /// No description provided for @chatErrorBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'Your coach is getting a lot of messages right now. Try again in a moment. Your message is saved.'**
+  String get chatErrorBusy;
+
+  /// No description provided for @chatErrorOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'You seem to be offline. Check your connection and try again. Your message is saved.'**
+  String get chatErrorOffline;
+
+  /// No description provided for @chatErrorServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Coaching is temporarily unavailable. Try again in a few minutes. Your message is saved.'**
+  String get chatErrorServer;
 
   /// No description provided for @chatErrorStopped.
   ///

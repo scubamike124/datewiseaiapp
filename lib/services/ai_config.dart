@@ -20,6 +20,11 @@ class AIConfig {
     defaultValue: String.fromEnvironment('PHOTO_COACH_URL', defaultValue: productionUrl),
   );
 
-  /// Only an HTTPS URL is used; anything else falls back to the offline coach.
-  static bool get hasCoachBackend => Uri.tryParse(coachBackendUrl.trim())?.scheme == 'https';
+  /// Only an HTTPS URL is used. Otherwise a debug build falls back to the
+  /// offline demo coach and a release build fails every reply (see
+  /// AIServiceFactory).
+  static bool get hasCoachBackend => isUsableUrl(coachBackendUrl);
+
+  /// Whether [url] can be used as the coach backend (HTTPS only).
+  static bool isUsableUrl(String url) => Uri.tryParse(url.trim())?.scheme == 'https';
 }
