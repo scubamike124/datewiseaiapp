@@ -824,3 +824,21 @@ test('a request with a StoreKit token always gets the server prompt, even withou
   assert.ok(![...env.USAGE_GUARD.objects.keys()].some((k) => k.startsWith('anon:')));
 });
 
+
+test('every coach prompt carries the 18+, consent and professional-limits safety rules, mirrored in persona.dart', async () => {
+  const { coachSystemPrompt } = await import('./coach_prompts.js');
+  const dart = readFileSync(new URL('../lib/services/persona.dart', import.meta.url), 'utf8');
+  const rules = [
+    'Never claim to be human',
+    'DateWise is only for adults 18+.',
+    'Respect consent and boundaries',
+    'never help with repeated contact after a no',
+    'You are not a doctor, therapist or lawyer',
+    'urge them to contact local emergency services or a crisis line',
+  ];
+  for (const id of Object.keys(COACHES)) {
+    const p = coachSystemPrompt(id, {});
+    for (const r of rules) assert.ok(p.includes(r), `${id}: ${r}`);
+  }
+  for (const r of rules) assert.ok(dart.includes(r), `persona.dart: ${r}`);
+});
