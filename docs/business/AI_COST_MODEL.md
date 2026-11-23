@@ -15,9 +15,10 @@ Prices were checked on **2026-11-22**. The tables are produced by `docs/business
 
 | Item | Finding | Label |
 |---|---|---|
-| Chat model (deployed chat-v6, commit `f5b0401`, `backend/worker.js`) | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` (`CHAT_MODEL = TEXT_MODEL`), streamed, `max_tokens: 800` | MEASURED (code) |
+| Chat model (chat-v6 code, commit `f5b0401`, `backend/worker.js`; **not deployed**, see the next rows) | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` (`CHAT_MODEL = TEXT_MODEL`), streamed, `max_tokens: 800` | MEASURED (code) |
 | Photo coach (same Worker) | `@cf/meta/llama-3.2-11b-vision-instruct`, plus Llama 3.3 as a JSON converter fallback. The v2 app sends no photos: `lib/` on `claude/datewise-v2-app` has no `imageBase64` sender, and `storage_service.dart` only purges v1 photo data. **The live App Store build does use it.** That is v1 1.0.2 on `main`, whose `lib/services/backend_ai_service.dart` posts `imageBase64` (single photo) and `images` (rank and compare) with `tier`/`mode`. Its chat sends `messages` with its own system prompt and no `coachId`. The photo coach keeps costing money for as long as 1.0.2 is installed. chat-v7 keeps both v1 paths while `LEGACY_CLIENTS=1`. 1.0.2 never sends a StoreKit token, so its requests are counted per network (IPv4 address or IPv6 /64) and draw on the anonymous budget slice (section 9, "v1 capacity") | MEASURED (code) |
-| Branch `claude/datewise-v2-app` (base of this work) | Still holds the older chat-v5 worker with `@cf/meta/llama-3.1-8b-instruct-fp8`, which Workers AI retired on 2026-11-20 (HTTP 410). The deployed code is `f5b0401` (chat-v6). | MEASURED (code) |
+| Branch `claude/datewise-v2-app` (base of this work) | Still holds the older chat-v5 worker with `@cf/meta/llama-3.1-8b-instruct-fp8`, which Workers AI retired on 2026-11-20 (HTTP 410). | MEASURED (code) |
+| **Production Worker (as of 2026-11-23)** | Still **chat-v5**: it calls the retired `@cf/meta/llama-3.1-8b-instruct-fp8`, so every chat request fails with **502** (Workers AI 410). chat-v6 (`f5b0401`) was approved for deploy but is **not live**; neither is chat-v7. The costs below describe the chat-v6/v7 code once deployed, not today's production | MEASURED (infrastructure check, 2026-11-23) |
 | Chat input caps (chat-v6) | 24 turns, 24,000 characters of history (newest kept), each message cut to 6,000 characters, plus the system message. The worst case is about 30,000 characters of input | MEASURED (code) |
 | System prompt size | 1,921 to 2,004 characters per coach (measured by running `CoachPersona.systemPrompt` for all four coaches), plus about 200 to 400 for the profile line | MEASURED (code run) |
 | Branch `origin/claude/worker-model-fallback` (chat-v8, not deployed) | Ordered `CHAT_MODELS` list. The default is Llama 3.3 70B, then `@cf/google/gemma-4-26b-a4b-it`. It also knows `@cf/qwen/qwen3.8-27b` and `@cf/deepseek-ai/deepseek-v4.1-flash-1017`, which is `paidOnly`. All four are **Workers AI** models on the same `env.AI` binding | MEASURED (code) |
@@ -114,7 +115,7 @@ must approve first (MEASURED prices; usage is an ASSUMPTION).
 ## 5. Price-point scenarios
 
 Evaluation only. $9.99 stays the configured price, and StoreKit, the paywall and entitlements are unchanged.
-Model: Llama 3.3 70B fp8-fast (the deployed chat model, MEASURED). Every row is derived from MEASURED prices and
+Model: Llama 3.3 70B fp8-fast (the chat-v6/v7 chat model, MEASURED; production still runs chat-v5, which fails with 502). Every row is derived from MEASURED prices and
 ASSUMPTION usage and refunds. "Infra" is Workers Paid $5 (needed in **every** row below, because even 100 light
 subscribers use about 25,000 neurons a day, above the free 10,000) plus Worker and Durable Object overage. Profit also
 subtracts the Apple Developer Program fee ($8.25 a month).
@@ -228,7 +229,7 @@ Notes:
 - capped request (6k in, 800 out): $0.00356/msg; 1 req/5 s for 30 days = $1845.71; at the account's Workers AI rate limit (300 req/min) = $46142.78/month.
 - With guard defaults (150/day, 1,500/month): one subscriber at worst-case capped size = $5.34/month.
 
-- **Today (chat-v6):** the Worker has no per-user limit and no budget. On Workers Free the platform's 10,000 neurons a day is the
+- **chat-v6 (approved, not yet deployed; production is chat-v5 and returns 502):** the Worker has no per-user limit and no budget. On Workers Free the platform's 10,000 neurons a day is the
   only ceiling: $0 is spent, and the service stops for everyone once it is used up, after about 87 typical messages a day.
   On Workers Paid, one script with any valid request shape can spend thousands of dollars a month (rows above). MEASURED (code + price).
 - **With the chat-v7 guard:** spending is capped at `DAILY_NEURON_BUDGET` for the whole service ($0 extra at the
@@ -264,7 +265,10 @@ change both together.
 | `ANON_DAILY_LIMIT` | 60 a day per IPv4 address or IPv6 /64 (hashed) | Only for the v1 App Store build (no coachId, no token) while `REQUIRE_SUBSCRIPTION=0`. A v2 request (coachId or token) without a valid token always gets 403 `SUBSCRIPTION_REQUIRED` | ASSUMPTION |
 | `ANON_NEURON_BUDGET` | 20% of the daily budget (2,000) | Token-less traffic shares only this slice, so it cannot use up the subscribers' budget | ASSUMPTION |
 | `SANDBOX_DAILY_LIMIT` | 20 a day | For TestFlight and App Review Sandbox transactions. A missing or `Xcode` environment is refused | ASSUMPTION |
-| `LEGACY_CLIENTS` | 1 | Keeps the v1 chat and photo paths. Set it to 0 when 1.0.2 is retired, so those requests get 426 `APP_UPDATE_REQUIRED` | n/a |
+| `LEGACY_CLIENTS` | 1 | Keeps the v1 chat and photo paths. Set it to 0 60 to 90 days after v2 ships: v1 chat then gets an in-chat "please update" reply (HTTP 200 SSE, EN/ES, no model call), the v1 photo coach a 426 `APP_UPDATE_REQUIRED` | n/a |
+| `LEGACY_MAX_INPUT_TOKENS` / `LEGACY_MAX_OUTPUT_TOKENS` | 3,000 / 500 | Per-request caps on the token-less v1 chat only, so posing as v1 buys short prompts and replies | ASSUMPTION |
+| `SANDBOX_NEURON_BUDGET` | 10% of the daily budget (1,000) | TestFlight / App Review slice | ASSUMPTION |
+| `FAIL_OPEN_PER_SUBSCRIBER` / `FAIL_OPEN_PER_ISOLATE` / `FAIL_OPEN_MAX_MINUTES` | 0 / 0 (off: fail closed) / 15 | Opt-in: messages a verified Production subscriber may still send while a Durable Object call throws. If enabled, 3 / 10 recommended, with the required dedicated `FAILOPEN_LIMITER` binding (per Cloudflare location; no fallback to `RATE_LIMITER`) and the legacy per-request caps. Exposure math in SUBSCRIPTION_RESILIENCE.md §4 | ASSUMPTION |
 | `DAILY_NEURON_BUDGET` | **10,000** | The free allowance, so $0 of spending. Raise it only with the owner's approval and Workers Paid. Suggested once approved: about 1.5 x (subscribers x 10 msgs x 115 neurons), for example 175,000 for 100 subscribers, which is at most $1.82 a day above the free 10,000 | MEASURED (price); suggestion is an ASSUMPTION |
 | `MONTHLY_NEURON_BUDGET` | unset (off) | An optional second ceiling | n/a |
 
@@ -317,7 +321,10 @@ When real numbers exist (from the guard's count-only logs: messages, estimated n
   - **(a)** Keep the default and ship v2 quickly.
   - **(b)** Raise `ANON_NEURON_BUDGET`, up to the whole daily budget. That removes the subscribers' protection.
   - **(c)** Raise `DAILY_NEURON_BUDGET` on Workers Paid; the anonymous slice grows with it (20% of 175,000 is 35,000, about 300 v1 messages a day).
-  - **(d)** Set `LEGACY_CLIENTS=0` once v2 is out, so 1.0.2 shows an update notice.
+  - **(d)** Set `LEGACY_CLIENTS=0` **60 to 90 days after v2 ships** (recommended rollout). 1.0.2 then gets a normal
+    HTTP 200 streamed reply in its own format saying "DateWise has a new version. Please update the app in the App Store
+    to keep chatting with your coach." (Spanish when the request looks Spanish), which v1 displays in the chat; no model
+    call and no budget. A 426 would only show v1's generic outage text. See `docs/qa/SUBSCRIPTION_RESILIENCE.md` §2.
 
   Today, 1.0.2 already shares the whole free 10,000 neurons with no limit at all.
 - Refund replay while App Store Server Notifications are off: a refunded transaction's older signed copy keeps
@@ -329,7 +336,7 @@ When real numbers exist (from the guard's count-only logs: messages, estimated n
   used and the logs leave out `who`.
 - Every limit is a variable in `backend/wrangler.toml`.
 - Deploying chat-v7 needs a new pinned hash for `backend/worker.js` in Amber's redeploy tool and the owner's
-  approval. chat-v6 (`f5b0401`) stays the approved deploy.
+  approval. chat-v6 (`f5b0401`) stays the approved deploy (not yet live: production is still chat-v5 as of 2026-11-23).
 
 Once deployed, the count-only usage logs (`event: usage`) give measured messages per subscriber and neurons per
 message. Replace the ASSUMPTION rows in section 3 with them and re-run `ai_cost_model.mjs`.
