@@ -1,5 +1,6 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -788,6 +789,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String couldNotOpen(String url) {
     return 'Could not open $url';
   }
+
+  @override
+  String get findTable => 'Find a table';
+
+  @override
+  String get findTableSemantics => 'Find a table nearby. Opens Apple Maps.';
+
+  @override
+  String get findTableQuery => 'restaurants';
 
   @override
   String get settingsFootnote =>

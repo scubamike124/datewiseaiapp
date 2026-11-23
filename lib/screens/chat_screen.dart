@@ -19,6 +19,7 @@ import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/coach_text.dart';
 import '../widgets/dw.dart';
+import '../widgets/find_table_link.dart';
 import 'paywall_screen.dart';
 import 'shell.dart';
 import '../l10n/l10n.dart';
@@ -914,6 +915,8 @@ class _MessageList extends StatelessWidget {
     final messages = thread?.messages ??
         [ChatMessage(id: 'greeting', role: MessageRole.coach, text: coach.greeting, createdAt: DateTime(2026))];
     final hasUser = messages.any((m) => m.isUser);
+    // First-date plans: "Find a table" under the coach's latest reply.
+    final datePlan = FindTableLink.available && FindTableLink.isDatePlan(messages);
 
     final items = <Widget>[
       if (showIntro) _IntroCard(coach: coach),
@@ -923,6 +926,7 @@ class _MessageList extends StatelessWidget {
           message: messages[i],
           coach: coach,
           showOptions: i == messages.length - 1,
+          showFindTable: datePlan && i == messages.length - 1,
           onRetry: i == messages.length - 1 && state.canRetry ? state.retryLastReply : null,
         ),
       if (!hasUser) _Starters(coach: coach, onTap: onStarter),
@@ -986,10 +990,18 @@ class _IntroCard extends StatelessWidget {
 }
 
 class _Bubble extends StatelessWidget {
-  const _Bubble({super.key, required this.message, required this.coach, required this.showOptions, this.onRetry});
+  const _Bubble({
+    super.key,
+    required this.message,
+    required this.coach,
+    required this.showOptions,
+    this.showFindTable = false,
+    this.onRetry,
+  });
   final ChatMessage message;
   final Coach coach;
   final bool showOptions;
+  final bool showFindTable;
   final VoidCallback? onRetry;
 
   @override
@@ -1075,6 +1087,11 @@ class _Bubble extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(left: 38, top: 8),
               child: _ReplyOptions(options: parsed.options),
+            ),
+          if (showFindTable && !message.isStreaming && !failed && !message.isPhotoOnly && parsed.body.isNotEmpty)
+            const Padding(
+              padding: EdgeInsets.only(left: 38, top: 8),
+              child: FindTableLink(),
             ),
         ],
       ),

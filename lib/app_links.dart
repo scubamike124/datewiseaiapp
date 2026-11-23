@@ -28,4 +28,11 @@ class AppLinks {
   /// Play "manage subscriptions" page.
   static const String manageSubscriptionsUrl =
       'https://play.google.com/store/account/subscriptions';
+
+  /// "Find a table" on first-date plans: an Apple Maps search, opened only
+  /// when the user taps it. [query] is a generic search ("restaurants"), never
+  /// chat content. Apple Maps searches near the phone with its own location
+  /// setting, so DateWise asks for no location permission.
+  static Uri findTableUri(String query) =>
+      Uri.parse('https://maps.apple.com/?q=${Uri.encodeComponent(query.trim())}');
 }

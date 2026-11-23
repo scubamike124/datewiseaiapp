@@ -7,6 +7,10 @@ TestFlight builds are 101 and up, see Details step 19). Minimum iOS 15.
 
 ## Release checklist (single source of truth)
 
+The short, ordered owner path to submission, with every App Store Connect
+answer filled in, is [SUBMISSION_READY.md](SUBMISSION_READY.md). This list
+keeps the full detail.
+
 Status 2026-11-23: nothing is deployed, no build has been uploaded and nothing
 has been submitted. Work through the groups in order (A, B and C can run in
 parallel; D needs A and B; E needs D and a TestFlight build; F needs E).
@@ -97,7 +101,7 @@ Where two docs disagree, this list names the one that wins. Docs marked
 | # | Item | Who | Why | Detail |
 |---|---|---|---|---|
 | B21 | **Confirm ownership of `datewiseai.com`**: GoDaddy DNS and Microsoft 365 mail. Decide the API host: option A (new workers.dev URL, default for 2.0) or B (move DNS to Cloudflare and use `api.datewiseai.com`, copying every MX, autodiscover, SPF, DMARC and DKIM record first) | Owner-only | A stable host avoids an app update at the next move; a DNS move done wrong breaks support mail | [cfsep] §3.2 |
-| B22 | **Legal and support URLs live**: legal approval of the v2 Privacy Policy and Terms, published at `https://datewiseai.com/privacy-policy` and `/terms-of-service` (via `web/_redirects` or `web/.htaccess`); a Support URL; `support@datewiseai.com` receives mail | Owner-only | The app opens these URLs, and Apple requires working privacy, EULA and support links for subscriptions | Details steps 6–9 |
+| B22 | **Legal and support URLs live**: legal approval of the v2 Privacy Policy and Terms, published at `https://datewiseai.com/privacy-policy` and `/terms-of-service` (via `web/.htaccess` on the `datewiseai.com` host or `web/_redirects` on Netlify; the GitHub Pages workflow cannot serve these clean URLs, see [meta] §1); a Support URL; `support@datewiseai.com` receives mail | Owner-only | The app opens these URLs, and Apple requires working privacy, EULA and support links for subscriptions | Details steps 6–9 |
 
 ### C. Assets
 
@@ -160,7 +164,7 @@ only the staging Worker (D8) and a Sandbox token from a debug build.
 | F1 | **Metadata** EN + ES (name, subtitle, promotional text, keywords, description with the Terms link), category Lifestyle, age rating 18+ | Owner-only | Must match the build and the subscription | [meta] §1–2, Details steps 24–25 |
 | F2 | **Screenshots** per language: iPhone 6.9" (6.5" optional) and **iPad 13"** (from C5); the subscription review screenshot of the paywall with the real price | Owner-only | The iPad set is required; the IAP needs its own screenshot | [meta] §5, §7 |
 | F3 | **App Privacy answers** exactly as in [meta] §3 (including the ASSN renewal/grace state) and matching the published privacy policy | Owner-only | A mismatch is a rejection reason | [meta] §3 |
-| F4 | **Review notes** from [meta] §4: no sign-in, test with a Sandbox Apple Account; fair use **150 replies a day, 1,500 a month, 12 a minute, 2 at a time; Sandbox 20 a day**; contact details. Update them if A1 or the limits change | Owner-only | The reviewer needs to reach chat, and the limits must be disclosed | [meta] §4, `backend/wrangler.toml` |
+| F4 | **Review notes** from [SUBMISSION_READY.md](SUBMISSION_READY.md) step 14: no sign-in, test with a Sandbox Apple Account; fair use **150 replies a day, 1,500 a month, 12 a minute, 2 at a time; Sandbox 20 a day**; contact details. Update them if A1 or the limits change | Owner-only | The reviewer needs to reach chat, and the limits must be disclosed | [meta] §4, `backend/wrangler.toml` |
 | F5 | **What's New** (EN + ES) asking users to update to keep using the coach | Owner-only | v1 users are moved to v2 | [meta] §1, [v1] |
 | F6 | **Select the build, attach `datewise_premium_monthly`, manual release with a 7-day phased release, Submit for Review** | Owner-only | The subscription is submitted together with 2.0.0 | Details steps 26–28 |
 | F7 | **After approval**: release, a real production purchase, 1.0.2 users update cleanly; check App Analytics at R+30 | Owner-only | Confirms production before the phased release widens | Details step 29, [v1] |
