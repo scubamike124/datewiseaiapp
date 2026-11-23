@@ -66,7 +66,7 @@ class DwButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onPressed != null && !busy;
-    final (Gradient? gradient, Color fg, Color? bg, List<BoxShadow> shadow, Border? border) = switch (style) {
+    var (Gradient? gradient, Color fg, Color? bg, List<BoxShadow> shadow, Border? border) = switch (style) {
       DwButtonStyle.gold => (
           AppColors.goldGradient,
           AppColors.goldInk,
@@ -89,6 +89,15 @@ class DwButton extends StatelessWidget {
           Border.all(color: AppColors.line2),
         ),
     };
+    // A disabled gold button is a quiet gold outline with readable text,
+    // instead of the gold gradient at half opacity (which reads as muddy).
+    final quietGold = !enabled && !busy && style == DwButtonStyle.gold;
+    if (quietGold) {
+      gradient = null;
+      bg = const Color(0x1FDDB67F);
+      border = Border.all(color: const Color(0x59DDB67F));
+      fg = const Color(0xB3F0D3A3);
+    }
     final text = Text(
       label,
       textAlign: TextAlign.center,
@@ -114,7 +123,7 @@ class DwButton extends StatelessWidget {
       button: true,
       enabled: enabled,
       child: Opacity(
-        opacity: enabled || busy ? 1 : 0.5,
+        opacity: enabled || busy || quietGold ? 1 : 0.5,
         child: Container(
           constraints: BoxConstraints(minHeight: height),
           decoration: BoxDecoration(

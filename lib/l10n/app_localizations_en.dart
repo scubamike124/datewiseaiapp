@@ -72,7 +72,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Confidence coach. Direct, supportive, focused on results.';
 
   @override
-  String get coachDescEthan => 'Strategy coach. Practical, modern, laid-back.';
+  String get coachDescEthan => 'Strategy coach. Practical, modern, laid‑back.';
 
   @override
   String get coachDescSofia => 'Confidence coach. Warm and motivating.';
@@ -143,7 +143,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get welcomeFootnote =>
-      'AI coaches · For adults 18+ · English · Español';
+      'AI coaches · For adults 18+ · English · Español';
 
   @override
   String stepOf(int step, int total) {
@@ -206,10 +206,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get coachesEyebrow => 'AI dating coaches';
-
-  @override
-  String get coachesFootnote =>
-      'English coaches: Ava and Ethan · Spanish coaches: Sofía and Diego';
 
   @override
   String get greetingMorning => 'Good morning.';
@@ -546,6 +542,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get privacyPolicy => 'Privacy Policy';
 
   @override
+  String get privacyShort => 'Privacy';
+
+  @override
   String get progressTitle => 'Progress';
 
   @override
@@ -573,6 +572,20 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String statDaysUsed(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'days with a coach',
+      one: 'day with a coach',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get statPlanDone => 'plan steps done this week';
 
   @override
   String noDaysYet(String name) {

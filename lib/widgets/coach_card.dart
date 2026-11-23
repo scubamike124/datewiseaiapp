@@ -58,7 +58,9 @@ class CoachCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
-                      l.languageName(coach.language),
+                      // Each language in its own name ("English" / "Español"),
+                      // whatever the UI language.
+                      coach.language.label,
                       style: const TextStyle(fontFamily: AppFonts.sans, fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF2A1A1F)),
                     ),
                   ),

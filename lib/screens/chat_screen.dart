@@ -397,12 +397,25 @@ class _ChatScreenState extends State<ChatScreen> {
       builder: (context, speaking, _) {
         return Column(
           children: [
-            SizedBox(height: top),
-            ContentWidth(
-              child: _Header(
-                coach: coach,
-                speaking: speaking,
-                onMenu: entitled ? _openMenu : null,
+            // Opaque espresso header with a hairline: the thread scrolls
+            // cleanly beneath it instead of showing through.
+            DecoratedBox(
+              key: const ValueKey('chat-header'),
+              decoration: const BoxDecoration(
+                color: AppColors.background,
+                border: Border(bottom: BorderSide(color: AppColors.line)),
+              ),
+              child: Column(
+                children: [
+                  SizedBox(height: top),
+                  ContentWidth(
+                    child: _Header(
+                      coach: coach,
+                      speaking: speaking,
+                      onMenu: entitled ? _openMenu : null,
+                    ),
+                  ),
+                ],
               ),
             ),
             if (_voiceMode)
@@ -641,13 +654,19 @@ class _MessageList extends StatelessWidget {
       if (!hasUser) _Starters(coach: coach, onTap: onStarter),
     ];
 
+    // Newest at the bottom (reversed list), but a short conversation starts
+    // right under the header instead of leaving a gap above it.
     return ContentWidth(
-      child: ListView.builder(
-        key: ValueKey('messages-${coach.id}'),
-        reverse: true,
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-        itemCount: items.length,
-        itemBuilder: (_, i) => items[items.length - 1 - i],
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ListView.builder(
+          key: ValueKey('messages-${coach.id}'),
+          reverse: true,
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          itemCount: items.length,
+          itemBuilder: (_, i) => items[items.length - 1 - i],
+        ),
       ),
     );
   }

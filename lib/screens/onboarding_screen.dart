@@ -220,24 +220,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> with VoicePreview {
                 selected: _adult,
                 onTap: () => setState(() => _adult = !_adult),
               ),
-              const SizedBox(height: 4),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton(
-                  key: const ValueKey('age-under'),
-                  style: TextButton.styleFrom(minimumSize: const Size(44, 44), foregroundColor: AppColors.textMuted),
-                  onPressed: _underage,
-                  child: Text(l.ageUnder),
-                ),
+              const SizedBox(height: 24),
+              // Kept with the question (not pinned to the bottom of an empty
+              // screen): Continue, then the under-18 answer as a secondary button.
+              DwButton(
+                key: const ValueKey('onboarding-continue'),
+                label: l.continueAction,
+                expand: true,
+                onPressed: _adult ? _next : null,
+              ),
+              const SizedBox(height: 12),
+              DwButton(
+                key: const ValueKey('age-under'),
+                label: l.ageUnder,
+                style: DwButtonStyle.ghost,
+                expand: true,
+                height: 50,
+                fontSize: 15,
+                onPressed: _underage,
               ),
             ],
           ),
-          DwButton(
-            key: const ValueKey('onboarding-continue'),
-            label: l.continueAction,
-            expand: true,
-            onPressed: _adult ? _next : null,
-          ),
+          null,
         );
       default:
         return (

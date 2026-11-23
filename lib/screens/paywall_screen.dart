@@ -140,7 +140,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                padding: EdgeInsets.fromLTRB(24, 0, 24, 24 + MediaQuery.paddingOf(context).bottom),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -226,22 +226,22 @@ class _PaywallScreenState extends State<PaywallScreen> {
                       const SizedBox(height: 10),
                       Text(l.reviewBuildNote, textAlign: TextAlign.center, style: AppText.small),
                     ],
-                    const SizedBox(height: 16),
-                    Text(
-                      price != null ? l.paywallDisclosure(l.pricePerMonth(price), price) : l.paywallDisclosureNoPrice,
-                      key: const ValueKey('paywall-disclosure'),
-                      textAlign: TextAlign.center,
-                      style: AppText.small.copyWith(height: 1.45),
-                    ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 6),
                     Wrap(
                       alignment: WrapAlignment.center,
                       children: [
                         if (!unsupported)
                           _LinkButton(key: const ValueKey('paywall-restore'), label: l.restorePurchases, onTap: () => _restore(store)),
                         _LinkButton(key: const ValueKey('paywall-terms'), label: l.termsOfUse, onTap: () => _openLegal(LegalDoc.terms)),
-                        _LinkButton(key: const ValueKey('paywall-privacy'), label: l.privacyPolicy, onTap: () => _openLegal(LegalDoc.privacy)),
+                        _LinkButton(key: const ValueKey('paywall-privacy'), label: l.privacyShort, onTap: () => _openLegal(LegalDoc.privacy)),
                       ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      price != null ? l.paywallDisclosure(l.pricePerMonth(price), price) : l.paywallDisclosureNoPrice,
+                      key: const ValueKey('paywall-disclosure'),
+                      textAlign: TextAlign.center,
+                      style: AppText.small.copyWith(height: 1.45),
                     ),
                   ],
                 ),
@@ -289,8 +289,13 @@ class _LinkButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextButton(
       onPressed: onTap,
-      style: TextButton.styleFrom(minimumSize: const Size(44, 44), foregroundColor: AppColors.textMuted),
-      child: Text(label, style: const TextStyle(fontSize: 13.5, decoration: TextDecoration.underline, decorationColor: AppColors.faint)),
+      // Compact, so Restore, Terms and Privacy fit on one row above the fold.
+      style: TextButton.styleFrom(
+        minimumSize: const Size(44, 44),
+        padding: const EdgeInsets.symmetric(horizontal: 5),
+        foregroundColor: AppColors.textMuted,
+      ),
+      child: Text(label, style: const TextStyle(fontSize: 12.5, decoration: TextDecoration.underline, decorationColor: AppColors.faint)),
     );
   }
 }

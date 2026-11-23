@@ -144,7 +144,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get welcomeFootnote =>
-      'Coaches con IA · Solo para mayores de 18 · English · Español';
+      'Coaches con IA · Solo para mayores de 18 · English · Español';
 
   @override
   String stepOf(int step, int total) {
@@ -207,10 +207,6 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get coachesEyebrow => 'Coaches de citas con IA';
-
-  @override
-  String get coachesFootnote =>
-      'Coaches en inglés: Ava y Ethan · Coaches en español: Sofía y Diego';
 
   @override
   String get greetingMorning => 'Buenos días.';
@@ -563,6 +559,9 @@ class AppLocalizationsEs extends AppLocalizations {
   String get privacyPolicy => 'Política de privacidad';
 
   @override
+  String get privacyShort => 'Privacidad';
+
+  @override
   String get progressTitle => 'Progreso';
 
   @override
@@ -590,6 +589,20 @@ class AppLocalizationsEs extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String statDaysUsed(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'días con un coach',
+      one: 'día con un coach',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get statPlanDone => 'pasos del plan hechos esta semana';
 
   @override
   String noDaysYet(String name) {

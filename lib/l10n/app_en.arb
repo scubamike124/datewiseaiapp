@@ -49,7 +49,7 @@
     }
   },
   "coachDescAva": "Confidence coach. Direct, supportive, focused on results.",
-  "coachDescEthan": "Strategy coach. Practical, modern, laid-back.",
+  "coachDescEthan": "Strategy coach. Practical, modern, laid‑back.",
   "coachDescSofia": "Confidence coach. Warm and motivating.",
   "coachDescDiego": "Relationship coach. Practical and honest.",
   "chatWith": "Chat with {name}",
@@ -91,7 +91,7 @@
   "valueConversations": "Better conversations",
   "valueProfile": "Profile help",
   "valueDates": "First-date plans",
-  "welcomeFootnote": "AI coaches · For adults 18+ · English · Español",
+  "welcomeFootnote": "AI coaches · For adults 18+ · English · Español",
   "stepOf": "Step {step} of {total}",
   "@stepOf": {
     "placeholders": {
@@ -121,7 +121,6 @@
   "chooseCoachTitle": "Choose your dating coach",
   "chooseCoachSubtitle": "All four are AI coaches. Pick a style; switch any time.",
   "coachesEyebrow": "AI dating coaches",
-  "coachesFootnote": "English coaches: Ava and Ethan · Spanish coaches: Sofía and Diego",
   "greetingMorning": "Good morning.",
   "greetingAfternoon": "Good afternoon.",
   "greetingEvening": "Good evening.",
@@ -381,6 +380,7 @@
   "restorePurchases": "Restore Purchases",
   "termsOfUse": "Terms of Use",
   "privacyPolicy": "Privacy Policy",
+  "privacyShort": "Privacy",
   "progressTitle": "Progress",
   "progressSubtitle": "Counted on this device from what you actually did.",
   "statConversations": "{count, plural, =1{conversation} other{conversations}}",
@@ -399,6 +399,15 @@
       }
     }
   },
+  "statDaysUsed": "{count, plural, =1{day with a coach} other{days with a coach}}",
+  "@statDaysUsed": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "statPlanDone": "plan steps done this week",
   "noDaysYet": "No coaching days yet. Send {name} a message to start your streak.",
   "@noDaysYet": {
     "placeholders": {

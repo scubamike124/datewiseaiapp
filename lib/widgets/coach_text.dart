@@ -9,6 +9,26 @@ import '../../theme/app_theme.dart';
 class CoachText extends StatelessWidget {
   const CoachText(this.text, {super.key, this.color});
 
+  /// Typographic quotes, matching the suggestion chips: "a" → “a”, it's →
+  /// it’s. A double quote opens at the start or after a space or opening
+  /// punctuation, and closes otherwise. Bold markers (**) are left alone.
+  static String smartQuotes(String s) {
+    final out = StringBuffer();
+    for (var i = 0; i < s.length; i++) {
+      final c = s[i];
+      final prev = i == 0 ? '' : s[i - 1];
+      final opens = prev.isEmpty || RegExp(r'[\s(\[{¿¡*—–-]').hasMatch(prev);
+      if (c == '"') {
+        out.write(opens ? '\u201C' : '\u201D');
+      } else if (c == "'") {
+        out.write(opens ? '\u2018' : '\u2019');
+      } else {
+        out.write(c);
+      }
+    }
+    return out.toString();
+  }
+
   final String text;
   final Color? color;
 
@@ -19,7 +39,7 @@ class CoachText extends StatelessWidget {
           fontSize: 15,
           height: 1.45,
         );
-    final lines = text.split('\n');
+    final lines = smartQuotes(text).split('\n');
     final blocks = <Widget>[];
 
     for (final line in lines) {

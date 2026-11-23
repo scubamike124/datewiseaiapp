@@ -253,7 +253,7 @@ class _PlanRow extends StatelessWidget {
                   child: Text(title,
                       style: TextStyle(fontFamily: AppFonts.sans, fontSize: 15, height: 1.3, color: done ? AppColors.textMuted : AppColors.text)),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 16),
                 Text(done ? context.l10n.planDone : (isNext ? context.l10n.planNext : ''), style: const TextStyle(fontSize: 13, color: AppColors.faint)),
               ],
             ),

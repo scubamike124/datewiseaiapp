@@ -68,7 +68,7 @@ void main() {
     expect(disclosure, contains('Apple ID'));
     expect(find.text('Restaurar compras'), findsOneWidget);
     expect(find.text('Términos de uso'), findsOneWidget);
-    expect(find.text('Política de privacidad'), findsOneWidget);
+    expect(find.text('Privacidad'), findsOneWidget);
     expect(find.text(r'Suscribirme por $9.99/mes'), findsOneWidget);
     expect(find.textContaining('prueba'), findsNothing);
     expect(find.textContaining('gratis', findRichText: true), findsNothing);

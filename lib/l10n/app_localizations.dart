@@ -209,7 +209,7 @@ abstract class AppLocalizations {
   /// No description provided for @coachDescEthan.
   ///
   /// In en, this message translates to:
-  /// **'Strategy coach. Practical, modern, laid-back.'**
+  /// **'Strategy coach. Practical, modern, laid‑back.'**
   String get coachDescEthan;
 
   /// No description provided for @coachDescSofia.
@@ -335,7 +335,7 @@ abstract class AppLocalizations {
   /// No description provided for @welcomeFootnote.
   ///
   /// In en, this message translates to:
-  /// **'AI coaches · For adults 18+ · English · Español'**
+  /// **'AI coaches · For adults 18+ · English · Español'**
   String get welcomeFootnote;
 
   /// No description provided for @stepOf.
@@ -451,12 +451,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'AI dating coaches'**
   String get coachesEyebrow;
-
-  /// No description provided for @coachesFootnote.
-  ///
-  /// In en, this message translates to:
-  /// **'English coaches: Ava and Ethan · Spanish coaches: Sofía and Diego'**
-  String get coachesFootnote;
 
   /// No description provided for @greetingMorning.
   ///
@@ -1004,6 +998,12 @@ abstract class AppLocalizations {
   /// **'Privacy Policy'**
   String get privacyPolicy;
 
+  /// No description provided for @privacyShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy'**
+  String get privacyShort;
+
   /// No description provided for @progressTitle.
   ///
   /// In en, this message translates to:
@@ -1027,6 +1027,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count, plural, =1{day in a row} other{days in a row}}'**
   String statStreak(int count);
+
+  /// No description provided for @statDaysUsed.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{day with a coach} other{days with a coach}}'**
+  String statDaysUsed(int count);
+
+  /// No description provided for @statPlanDone.
+  ///
+  /// In en, this message translates to:
+  /// **'plan steps done this week'**
+  String get statPlanDone;
 
   /// No description provided for @noDaysYet.
   ///

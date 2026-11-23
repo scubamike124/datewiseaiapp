@@ -31,45 +31,45 @@ class ProgressScreen extends StatelessWidget {
               child: LargeTitle(title: l.progressTitle, subtitle: l.progressSubtitle),
             ),
             const SizedBox(height: 18),
-            IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: _Stat(
-                      key: const ValueKey('stat-conversations'),
-                      value: '${state.conversationCount}',
-                      label: l.statConversations(state.conversationCount),
-                      icon: Icons.chat_bubble_outline_rounded,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _Stat(
-                      key: const ValueKey('stat-streak'),
-                      value: '$streak',
-                      label: l.statStreak(streak),
-                      icon: Icons.local_fire_department_outlined,
-                    ),
-                  ),
-                ],
+            // Four distinct counts, each from something the user did.
+            _StatRow(children: [
+              _Stat(
+                key: const ValueKey('stat-conversations'),
+                value: '${state.conversationCount}',
+                label: l.statConversations(state.conversationCount),
+                icon: Icons.chat_bubble_outline_rounded,
               ),
-            ),
+              _Stat(
+                key: const ValueKey('stat-streak'),
+                value: '$streak',
+                label: l.statStreak(streak),
+                icon: Icons.local_fire_department_outlined,
+              ),
+            ]),
             const SizedBox(height: 10),
-            DwCard(
-              child: Row(
-                children: [
-                  const Icon(Icons.calendar_month_outlined, color: AppColors.gold, size: 22),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      state.daysUsed == 0 ? l.noDaysYet(coach.name) : l.daysTotal(state.daysUsed),
-                      style: const TextStyle(fontSize: 14.5, height: 1.4, color: AppColors.text),
-                    ),
-                  ),
-                ],
+            _StatRow(children: [
+              _Stat(
+                key: const ValueKey('stat-days'),
+                value: '${state.daysUsed}',
+                label: l.statDaysUsed(state.daysUsed),
+                icon: Icons.calendar_month_outlined,
               ),
-            ),
+              _Stat(
+                key: const ValueKey('stat-plan'),
+                value: plan == null ? '0' : '${plan.doneCount}/${plan.items.length}',
+                label: l.statPlanDone,
+                icon: Icons.task_alt_rounded,
+              ),
+            ]),
+            if (state.daysUsed == 0) ...[
+              const SizedBox(height: 10),
+              DwCard(
+                child: Text(
+                  l.noDaysYet(coach.name),
+                  style: const TextStyle(fontSize: 14.5, height: 1.4, color: AppColors.text),
+                ),
+              ),
+            ],
             const SizedBox(height: 14),
             if (plan != null)
               DwCard(
@@ -106,7 +106,7 @@ class ProgressScreen extends StatelessWidget {
                               child: Text(l.planItemTitle(plan.items[i].goal, coach),
                                   style: TextStyle(fontSize: 15, height: 1.3, color: plan.items[i].done ? AppColors.textMuted : AppColors.text)),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 16),
                             Text(plan.items[i].done ? l.planDone : l.planNotYet, style: const TextStyle(fontSize: 13, color: AppColors.faint)),
                           ],
                         ),
@@ -126,6 +126,24 @@ class ProgressScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+class _StatRow extends StatelessWidget {
+  const _StatRow({required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < children.length; i++) ...[
+              if (i > 0) const SizedBox(width: 10),
+              Expanded(child: children[i]),
+            ],
+          ],
+        ),
+      );
 }
 
 class _Stat extends StatelessWidget {

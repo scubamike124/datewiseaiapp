@@ -57,13 +57,18 @@ async function send(page, text) {
   await page.getByRole('textbox').first().click();
   await page.keyboard.type(text, { delay: 5 });
   await page.keyboard.press('Enter');
-  await page.waitForTimeout(4500); // demo coach streams its reply
+  await waitForReply(page);
 }
-const sofiaChat = async (page) => {
-  await open(page, 'coaches');
-  await tap(page, /Chatear con Sofía/);
-  await send(page, '¿Qué le escribo primero? Le gusta el senderismo');
-};
+// The demo coach streams its reply; wait until the composer is idle again
+// (the Stop button has turned back into Send), so no shot shows a reply
+// mid-stream or the loading icon.
+async function waitForReply(page) {
+  const idle = page.getByRole('button', { name: /^(Send|Enviar)$/ });
+  const busy = page.getByRole('button', { name: /^(Stop reply|Detener respuesta)$/ });
+  await busy.first().waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+  await idle.first().waitFor({ state: 'visible', timeout: 60000 });
+  await page.waitForTimeout(900); // let the last frame settle
+}
 
 // --- Shot list (five per locale) --------------------------------------------
 
@@ -77,14 +82,11 @@ const SHOTS = {
   ],
   es: [
     { name: '01-coaches', headline: 'Elige tu coach de citas con IA', sub: 'Cuatro coaches, en inglés y en español', run: (p) => open(p, 'coaches') },
-    { name: '02-home', headline: 'Un plan sencillo para tu semana', sub: 'Perfil, conversaciones y primeras citas', run: async (p) => { await sofiaChat(p); await tap(p, /Pestaña Inicio/); } },
-    { name: '03-chat', headline: 'Sabrás qué escribir', sub: 'Primeros mensajes y respuestas a tu medida', run: sofiaChat },
+    { name: '02-home', headline: 'Un plan sencillo para tu semana', sub: 'Perfil, conversaciones y primeras citas', run: (p) => open(p, 'home') },
+    // One finished exchange with Sofía (review mode seeds it with ?lang=es).
+    { name: '03-chat', headline: 'Sabrás qué escribir', sub: 'Primeros mensajes y respuestas a tu medida', run: (p) => open(p, 'chat') },
     { name: '04-coach', headline: 'Coaches en español', sub: 'Sofía y Diego te ayudan en tu idioma', run: async (p) => { await open(p, 'coaches'); await tap(p, /Chatear con Diego/); } },
-    { name: '05-privacy', headline: 'Tus datos, tu control', sub: 'La memoria del coach está apagada salvo que la actives', run: async (p) => {
-      // The UI is already in Spanish (?lang=es), so the You tab is shown directly.
-      await sofiaChat(p);
-      await tap(p, /Pestaña Tú/);
-    } },
+    { name: '05-privacy', headline: 'Tus datos, tu control', sub: 'La memoria del coach está apagada salvo que la actives', run: (p) => open(p, 'you') },
   ],
 };
 
@@ -105,7 +107,8 @@ function frameHtml({ w, h }, shot, png) {
   body{background:radial-gradient(120% 70% at 50% 0%,#3a1d27 0%,#1d1015 55%,#120a0d 100%);color:#F7EFE7;font-family:Inter,sans-serif;position:relative}
   header{position:absolute;top:0;left:24px;right:24px;height:${top}px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:${Math.round(h*0.012)}px}
   .brand{font:600 11px Inter;letter-spacing:2.6px;color:#DDB67F}
-  h1{margin:0;font:500 ${w > 600 ? 52 : 33}px/1.1 Newsreader,serif;letter-spacing:-0.3px}
+  h1{margin:0;font:500 ${w > 600 ? 52 : 33}px/1.1 Newsreader,serif;letter-spacing:-0.3px;text-wrap:balance}
+  .sub{text-wrap:balance}
   .sub{font:500 14px/1.3 Inter;color:#C2B2A8}
   .card{position:absolute;left:${(w - cardW) / 2}px;top:${top}px;width:${cardW}px;height:${cardH}px;border-radius:30px;overflow:hidden;
     box-shadow:0 0 0 1.5px rgba(221,182,127,.55),0 24px 60px rgba(0,0,0,.55),0 0 80px rgba(196,88,122,.18)}

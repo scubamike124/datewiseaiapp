@@ -361,7 +361,9 @@ class AppStoreService extends StoreService {
 /// The store for this build: fake when the review flag is set, none on web,
 /// otherwise the real App Store / Google Play.
 StoreService createStoreService() {
-  if (StoreConfig.useFakeStore) return FakeStoreService();
+  // Never in a release app build: even if the flag were passed by mistake, a
+  // release iOS/Android build always uses the real store.
+  if (StoreConfig.useFakeStore && (kIsWeb || kDebugMode)) return FakeStoreService();
   if (kIsWeb) return UnsupportedStoreService();
   return AppStoreService();
 }

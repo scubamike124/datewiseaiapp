@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../models/coach.dart';
 import '../services/voice_service.dart';
 import '../state/app_state.dart';
-import '../theme/app_theme.dart';
 import '../widgets/coach_card.dart';
 import '../widgets/dw.dart';
 import 'shell.dart';
@@ -77,7 +76,8 @@ class _CoachesScreenState extends State<CoachesScreen> with VoicePreview {
         ),
       ),
       child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(14, top + 16, 14, 24),
+        // The last line clears the tab bar and the home indicator.
+        padding: EdgeInsets.fromLTRB(14, top + 16, 14, 24 + MediaQuery.paddingOf(context).bottom),
         child: ContentWidth(
           child: Column(
             children: [
@@ -99,12 +99,9 @@ class _CoachesScreenState extends State<CoachesScreen> with VoicePreview {
                   if (context.mounted) context.read<ShellController>().openChat();
                 },
               ),
-              const SizedBox(height: 14),
-              Text(
-                l.coachesFootnote,
-                textAlign: TextAlign.center,
-                style: AppText.small,
-              ),
+              // No footnote under the grid: each card's badge already says
+              // English or Español, and a last line here was cut off by the
+              // tab bar on smaller iPhones.
             ],
           ),
         ),
