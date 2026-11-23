@@ -148,7 +148,9 @@ async function waitForReply(page) {
 
 const SHOTS = {
   en: [
-    { name: '01-coaches', headline: 'Choose your AI dating coach', sub: 'Four coaches, in English and Spanish', run: async (p) => { await open(p, 'coaches'); await withoutCutRows(p); } },
+    // English fits at the top (with the "AI dating coaches" label); Spanish
+    // scrolls a little so no button sits under the tab bar.
+    { name: '01-coaches', headline: 'Choose your AI dating coach', sub: 'Four coaches, in English and Spanish', run: (p) => open(p, 'coaches') },
     { name: '02-home', headline: 'A simple plan for your week', sub: 'Profile, conversations and first dates', run: (p) => open(p, 'home') },
     { name: '03-chat', headline: 'Know what to say next', sub: 'Example chat: openers and replies you can adapt', run: (p) => open(p, 'chat') },
     { name: '04-coach', headline: 'Honest, practical advice', sub: 'From an AI dating coach, not a person', run: (p) => open(p, 'welcome') },

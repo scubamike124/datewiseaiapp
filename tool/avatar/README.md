@@ -103,6 +103,14 @@ Every frame must pass, or it is not written:
   and flagged unchanged eye pixels. The gaze frame, which moves the irises,
   is sampled at its own points.
 
+The gate checks the patch as it ships: the JPEG patch pasted on the
+portrait (a check before JPEG encoding once passed a Diego glance that
+failed by 0.1 from the committed file). To re-check the committed frames:
+
+```bash
+AVATAR_TOOLS=... python tool/avatar/regate.py   # exits 1 on any failure
+```
+
 No face restoration (GFPGAN, CodeFormer) is used anywhere.
 
 ## Licences of the tools

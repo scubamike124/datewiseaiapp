@@ -71,8 +71,10 @@ COACH_SHAPES = {
 COACH_A = {"ava": 0.44, "ethan": 0.4, "diego": 0.44}
 # Per-coach eye-frame overrides. Diego's full glance moved the iris far
 # enough that the gate's iris sample caught the lid (chroma 5.1 > 5); a
-# slightly smaller glance reads the same and keeps the gate unchanged.
-COACH_EYES = {"diego": {"gaze": dict(gaze_x=7, gaze_y=10)}}
+# slightly smaller glance reads the same and keeps the gate unchanged. With
+# the round-5 portrait the committed JPEG of the 7/10 glance read 5.1 again,
+# so it is 6/9 (the gate now checks the JPEG that ships).
+COACH_EYES = {"diego": {"gaze": dict(gaze_x=6, gaze_y=9)}}
 
 # Eye patches: two blink stages and the thinking glance (eyes up and aside).
 # Head motion (nods, tilts) is a whole-image transform in the app, not a
@@ -403,7 +405,14 @@ def main():
                 full = teeth_tone(full, rgb, mask, lips)
             comp = blend(rgb, full, mask)
             comp_bgr = cv2.cvtColor(comp, cv2.COLOR_RGB2BGR)
-            res = verify.check_frame(comp_bgr, coach, refs, master, eyes_closed=name.startswith("blink"),
+            x0, y0, x1, y1 = box
+            # Gate what ships: the JPEG patch pasted on the portrait (the same
+            # check as tool/avatar/regate.py on the committed files).
+            ok_enc, enc = cv2.imencode(".jpg", comp_bgr[y0:y1, x0:x1],
+                                       [cv2.IMWRITE_JPEG_QUALITY, args.quality, cv2.IMWRITE_JPEG_OPTIMIZE, 1])
+            shipped = bgr.copy()
+            shipped[y0:y1, x0:x1] = cv2.imdecode(enc, cv2.IMREAD_COLOR)
+            res = verify.check_frame(shipped, coach, refs, master, eyes_closed=name.startswith("blink"),
                                      eyes_moved=name == "gaze")
             res["frame"] = name
             if not res["ok"]:
@@ -413,9 +422,8 @@ def main():
                     os.makedirs(os.path.join(args.review, coach), exist_ok=True)
                     cv2.imwrite(os.path.join(args.review, coach, f"REJECTED-{name}.jpg"), comp_bgr)
                 continue
-            x0, y0, x1, y1 = box
-            cv2.imwrite(os.path.join(out_dir, f"{name}.jpg"), comp_bgr[y0:y1, x0:x1],
-                        [cv2.IMWRITE_JPEG_QUALITY, args.quality, cv2.IMWRITE_JPEG_OPTIMIZE, 1])
+            with open(os.path.join(out_dir, f"{name}.jpg"), "wb") as fh:
+                fh.write(enc.tobytes())
             manifest["frames"][name] = {"region": region, "rect": [x0, y0, x1 - x0, y1 - y0],
                                         "identity": res["identity"], "master": res["master"]}
             review[name] = comp_bgr

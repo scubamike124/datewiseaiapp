@@ -246,8 +246,17 @@ Known limits, for the owner's review:
   (19 per coach, 76 in all; no whole-head frames). They were regenerated from
   the candidate heroes with `tool/avatar/regenerate.sh`, working on each hero
   scaled to 1080 px wide (the app decodes the hero at that size on the voice
-  stage, at 15–16 MB per coach, under the 20 MB budget). All 76 passed the
-  identity and iris gate. They were made with LivePortrait (MIT code and
+  stage, at 15–16 MB per coach, under the 20 MB budget). Correction: at
+  `bf63feb` the committed Diego `gaze` patch failed the gate when re-checked
+  from the committed JPEG (eye chroma shift 5.1 > 5.0), although the
+  generator had passed it before JPEG encoding; the statement "all 76
+  passed" was wrong for that commit. The glance was made slightly smaller
+  (6/9 instead of 7/10), the generator now gates the JPEG patch it writes,
+  and `tool/avatar/regate.py` re-checks the committed files: 76/76 pass.
+  Worst values per coach (eye chroma / lightness shift, limits 5 / 15;
+  lowest identity, limit 0.45; lowest similarity to the master, limit
+  0.75): Ava 2.1 / 3.9, 0.64, 0.82; Ethan 3.1 / 1.8, 0.82, 0.90; Sofía
+  0.1 / 0.9, 0.54, 0.80; Diego 4.4 / 8.5 (his `gaze`), 0.76, 0.87. They were made with LivePortrait (MIT code and
   weights; InsightFace replaced by YuNet, MIT), with sharpness and grain
   matched to the portrait (no face restoration). Outside each patch's mask
   the pixels are the portrait's own. They are derivatives of the portraits
