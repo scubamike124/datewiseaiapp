@@ -655,7 +655,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get memoryOff =>
-      'Desactivada: los coaches solo ven la conversación actual.';
+      'Desactivada: tu nota se borra y los coaches solo ven la conversación actual.';
 
   @override
   String get writeNote => 'Escribe tu nota';

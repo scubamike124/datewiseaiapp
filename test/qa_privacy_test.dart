@@ -2,8 +2,8 @@
 // the privacy disclosures (in-app policy, PrivacyInfo.xcprivacy, App Store
 // privacy answers) with what the app and the backend actually do.
 //
-// Tests marked `skip: 'DEFECT ...'` describe the expected behavior and are
-// listed in docs/qa/SUBSCRIPTION_PRIVACY_REPORT.md with a fix.
+// Defects are listed in docs/qa/SUBSCRIPTION_PRIVACY_REPORT.md; the D5 test
+// (memory OFF deletes the note) now runs unskipped.
 
 import 'dart:convert';
 import 'dart:io';
@@ -194,7 +194,7 @@ void main() {
       await state.setMemoryEnabled(false);
       expect(state.memoryText, isEmpty);
       expect((await SharedPreferences.getInstance()).getString('dw_memory_text'), anyOf(isNull, isEmpty));
-    }, skip: 'DEFECT D5: turning memory off keeps the note on the device (it is only not sent)');
+    });
 
     test('requests carry no identifiers: only tier, coachId, profile and messages', () async {
       final (state, ai, _) = await _make(onboardedPrefs());

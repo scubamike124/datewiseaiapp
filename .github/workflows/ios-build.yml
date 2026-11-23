@@ -1,8 +1,8 @@
 name: iOS build
 
 # Unsigned iOS release build on a macOS runner, to prove the app compiles for
-# iOS (no Mac needed locally). Uses the repository's free GitHub Actions
-# minutes; macOS minutes count 10x against that allowance, so this runs only
+# iOS (no Mac needed locally). GitHub-hosted runners, macOS included, are
+# free on this public repository; to keep CI quick this still runs only
 # when iOS-relevant files change, or by hand. No secrets are used by the
 # default job, and nothing is signed, uploaded or submitted.
 #
@@ -49,6 +49,12 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 45
     steps:
+      - name: upload_testflight needs signed_build
+        if: github.event_name == 'workflow_dispatch' && inputs.upload_testflight && !inputs.signed_build
+        run: |
+          echo "::error::upload_testflight was ticked without signed_build. Tick signed_build too; nothing would be uploaded."
+          exit 1
+
       - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
@@ -151,8 +157,10 @@ jobs:
             if [ -z "${!v}" ]; then missing="$missing $v"; fi
           done
           if [ -n "$missing" ]; then
-            echo "::notice::Signing secrets missing:$missing. Nothing was built or uploaded. See docs/appstore/checklist.md."
+            echo "::error::Signing secrets missing:$missing. Nothing was built or uploaded. See docs/appstore/checklist.md."
             echo "ready=false" >> "$GITHUB_OUTPUT"
+            # A signed build was requested: fail visibly instead of ending green.
+            exit 1
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
@@ -219,7 +227,13 @@ jobs:
         if: steps.secrets.outputs.ready == 'true'
         run: |
           flutter pub get
-          flutter build ipa --release --export-options-plist="$RUNNER_TEMP/ExportOptions.plist"
+          # App Store Connect rejects a second upload with the same
+          # CFBundleVersion: derive the build number from the run (the +100
+          # offset keeps it above pubspec's +N and any earlier uploads).
+          BUILD_NUMBER=$((100 + GITHUB_RUN_NUMBER))
+          echo "Build number: $BUILD_NUMBER" >> "$GITHUB_STEP_SUMMARY"
+          flutter build ipa --release --build-number="$BUILD_NUMBER" \
+            --export-options-plist="$RUNNER_TEMP/ExportOptions.plist"
           ls -lh build/ios/ipa
 
       - uses: actions/upload-artifact@v5

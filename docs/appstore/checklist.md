@@ -88,14 +88,16 @@ exist (GitHub › Settings › Secrets and variables › Actions):
 
 Then: Actions › iOS build › Run workflow › tick **signed_build** (and
 **upload_testflight** to upload). Note: "Run workflow" only appears once
-`ios-build.yml` is on the default branch. macOS runner minutes come from the
-repository's free GitHub Actions allowance (they count at 10x); no paid
-service is used.
+`ios-build.yml` is on the default branch. GitHub-hosted runners, macOS
+included, are free on this public repository; no paid service is used. The
+job fails visibly if a signing secret is missing, and sets the build number
+to 100 + the run number so each upload is unique.
 
 ## 7. Build and upload (pick one)
 
-19. Raise the build number in `pubspec.yaml` (`version: 2.0.0+N`, currently
-    `2.0.0+4`) for every new upload (4, 5, 6 ...).
+19. The CI TestFlight job sets the build number to 100 + the run number, so
+    each upload is unique. For a local or manual upload, raise the build
+    number in `pubspec.yaml` (`version: 2.0.0+N`, currently `2.0.0+4`) instead.
 20. **On a Mac:** `flutter pub get && flutter build ipa --release`, then
     upload `build/ios/ipa/*.ipa` with Transporter or Xcode Organizer.
     **Or CI:** run the signed-testflight job (step 6).

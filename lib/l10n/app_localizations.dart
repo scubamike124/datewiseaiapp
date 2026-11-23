@@ -1109,13 +1109,13 @@ abstract class AppLocalizations {
   /// No description provided for @memoryOn.
   ///
   /// In en, this message translates to:
-  /// **'On: your note below is sent with each message.'**
+  /// **'On: your note is sent with each message.'**
   String get memoryOn;
 
   /// No description provided for @memoryOff.
   ///
   /// In en, this message translates to:
-  /// **'Off: coaches only see the current conversation.'**
+  /// **'Off: your note is deleted and coaches only see the current conversation.'**
   String get memoryOff;
 
   /// No description provided for @writeNote.

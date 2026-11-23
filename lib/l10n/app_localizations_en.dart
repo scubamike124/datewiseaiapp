@@ -634,10 +634,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get memoryTitle => 'Coach memory';
 
   @override
-  String get memoryOn => 'On: your note below is sent with each message.';
+  String get memoryOn => 'On: your note is sent with each message.';
 
   @override
-  String get memoryOff => 'Off: coaches only see the current conversation.';
+  String get memoryOff =>
+      'Off: your note is deleted and coaches only see the current conversation.';
 
   @override
   String get writeNote => 'Write your note';

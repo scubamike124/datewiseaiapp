@@ -133,9 +133,11 @@ class AppState extends ChangeNotifier {
   String _memoryText = '';
   String get memoryText => _memoryText;
 
+  /// Turning memory OFF also deletes the note from the device.
   Future<void> setMemoryEnabled(bool on) async {
     _memoryEnabled = on;
     await _storage.setMemoryEnabled(on);
+    if (!on && _memoryText.isNotEmpty) await clearMemory();
     notifyListeners();
   }
 

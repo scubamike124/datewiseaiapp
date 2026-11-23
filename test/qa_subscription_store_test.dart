@@ -2,9 +2,8 @@
 // and the chat gate in AppState, driven by a scripted InAppPurchase and, for
 // the iOS path, a fake StoreKit 2 host API (Transaction.currentEntitlements).
 //
-// Tests marked `skip: 'DEFECT ...'` describe the behavior the app should
-// have; they are skipped because the current code does not do it yet. Each
-// one is listed in docs/qa/SUBSCRIPTION_PRIVACY_REPORT.md with a fix.
+// The defects listed in docs/qa/SUBSCRIPTION_PRIVACY_REPORT.md (D1, D2, D3,
+// D10) are fixed; their tests now run unskipped.
 
 // The StoreKit 2 host API can only be replaced through the plugin's
 // @visibleForTesting hook, which lives in src/.
@@ -245,6 +244,8 @@ void main() {
       iap.emit([_details(PurchaseStatus.purchased, productId: 'datewise_premium_yearly')]);
       await _settle();
       expect(store.isEntitled, isFalse);
+      // D10: the stray transaction is still finished, so it is not redelivered.
+      expect(iap.completed.map((p) => p.productID), ['datewise_premium_yearly']);
     });
 
     test('restore with a prior purchase: entitled', () async {
@@ -272,7 +273,7 @@ void main() {
       final store = AppStoreService(iap: iap);
       await store.init();
       expect(await store.restore(), isTrue, reason: 'the paywall would say "no subscription found"');
-    }, skip: 'DEFECT D3: on Android restore() returns before Play re-delivers the purchase');
+    });
 
     test('a lapsed subscription locks chat again after refresh (Google Play)', () async {
       final iap = _ScriptedIap(owned: true);
@@ -284,7 +285,7 @@ void main() {
       await store.refresh();
       await _settle();
       expect(store.isEntitled, isFalse);
-    }, skip: 'DEFECT D2: on Android nothing ever sets the entitlement back to false');
+    });
   });
 
   group('StoreKit 2 entitlement (iOS path)', () {
@@ -386,7 +387,7 @@ void main() {
       iap.emit([_details(PurchaseStatus.purchased)]);
       await _settle();
       expect(store.isEntitled, isFalse);
-    }, skip: 'DEFECT D1: any "purchased"/"restored" event sets the entitlement to true on iOS');
+    });
   });
 
   group('entitlement is not cached on the device (cannot be spoofed via SharedPreferences)', () {

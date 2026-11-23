@@ -9,8 +9,9 @@
     should remember" note, goals and language) are sent to the DateWise coach
     backend to generate the reply. Not linked to identity (no account, no
     user id), not used for tracking.
-  - Purchase History: the subscription is bought through Apple (StoreKit);
-    the app sends only the resulting tier with each chat request.
+  - Purchase History: the subscription is bought through Apple (StoreKit).
+    Declared ahead of time: the app will send the StoreKit transaction for
+    server-side verification (today it sends only a fixed tier value).
   Not collected: contact info, identifiers, location, health, usage data,
   diagnostics, audio (speech is recognised on the device; only the text you
   send leaves it).

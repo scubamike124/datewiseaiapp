@@ -169,7 +169,7 @@
   "sectionMemory": "Memoria del coach",
   "memoryTitle": "Memoria del coach",
   "memoryOn": "Activada: tu nota se envía con cada mensaje.",
-  "memoryOff": "Desactivada: los coaches solo ven la conversación actual.",
+  "memoryOff": "Desactivada: tu nota se borra y los coaches solo ven la conversación actual.",
   "writeNote": "Escribe tu nota",
   "yourNote": "Tu nota",
   "clearMemory": "Borrar memoria",

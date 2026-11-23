@@ -159,9 +159,19 @@ class FakeStoreService extends StoreService {
 /// on iOS). The entitlement is read from StoreKit's current entitlements on
 /// launch, so a canceled or expired subscription stops unlocking chat.
 class AppStoreService extends StoreService {
-  AppStoreService({InAppPurchase? iap}) : _iap = iap ?? InAppPurchase.instance;
+  AppStoreService({InAppPurchase? iap, this.restoreSettle = const Duration(seconds: 2)})
+      : _iap = iap ?? InAppPurchase.instance;
 
   final InAppPurchase _iap;
+
+  /// Google Play re-delivers active purchases asynchronously after
+  /// `restorePurchases()`. This is how long a refresh waits for them before
+  /// it concludes there is no active subscription.
+  final Duration restoreSettle;
+
+  /// Set while an Android refresh waits for Play to re-deliver purchases.
+  Completer<void>? _restoreWait;
+  bool _restoreSeen = false;
   StreamSubscription<List<PurchaseDetails>>? _sub;
   ProductDetails? _product;
   bool _available = false;
@@ -248,19 +258,52 @@ class AppStoreService extends StoreService {
       _entitled = current.any((t) => t.productId == StoreConfig.productId);
     } else {
       // Google Play re-delivers active purchases through purchaseStream.
-      await _iap.restorePurchases();
+      // Wait for that batch (or [restoreSettle]) and take the result as the
+      // entitlement, so a lapsed subscription locks chat again. The last
+      // known state is kept while waiting, so chat does not flicker.
+      final wait = Completer<void>();
+      _restoreWait = wait;
+      _restoreSeen = false;
+      try {
+        await _iap.restorePurchases();
+        await wait.future.timeout(restoreSettle, onTimeout: () {});
+        _entitled = _restoreSeen;
+      } finally {
+        if (identical(_restoreWait, wait)) _restoreWait = null;
+      }
     }
   }
 
   Future<void> _onPurchases(List<PurchaseDetails> list) async {
     for (final p in list) {
-      if (p.productID != StoreConfig.productId) continue;
+      if (p.productID != StoreConfig.productId) {
+        // Finish stray transactions (e.g. a removed sandbox product) so the
+        // store stops re-delivering them on every launch.
+        if (p.pendingCompletePurchase) await _iap.completePurchase(p);
+        continue;
+      }
       switch (p.status) {
         case PurchaseStatus.purchased:
         case PurchaseStatus.restored:
-          _entitled = true;
+          if (_isIOS) {
+            // Transaction.updates also delivers renewals for a period that
+            // has ended and refunded or revoked transactions, all reported
+            // as "purchased". Ask StoreKit for the current entitlement.
+            try {
+              await _refreshEntitlement();
+            } catch (_) {
+              _entitled = true;
+            }
+          } else {
+            _entitled = true;
+            final wait = _restoreWait;
+            if (wait != null) {
+              _restoreSeen = true;
+              if (!wait.isCompleted) wait.complete();
+            }
+          }
           _error = null;
-          _finishPending(PurchaseResult.purchased);
+          _finishPending(_entitled ? PurchaseResult.purchased : PurchaseResult.failed);
         case PurchaseStatus.pending:
           _finishPending(PurchaseResult.pending);
         case PurchaseStatus.canceled:
@@ -311,7 +354,9 @@ class AppStoreService extends StoreService {
     _busy = true;
     notifyListeners();
     try {
-      await _iap.restorePurchases();
+      // iOS: AppStore.sync, then read currentEntitlements. Android: the
+      // refresh itself asks Play to re-deliver and waits for the result.
+      if (_isIOS) await _iap.restorePurchases();
       await _refreshEntitlement();
     } catch (_) {
       _error = StoreError.restoreFailed;

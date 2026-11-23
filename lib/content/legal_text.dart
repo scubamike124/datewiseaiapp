@@ -31,8 +31,8 @@ DateWise AI ("DateWise AI", "we", "us") provides an AI dating-coaching app with 
 - We do not sell your personal information, do not use your messages to train AI models, and the app contains no advertising, analytics, or tracking.
 
 # Voice
-- Voice mode uses your device's built-in speech recognition to turn what you say into text while you hold the talk button; only the resulting text is sent to your coach. Replies are read aloud with your device's built-in voices.
-- The microphone is used only while you hold the talk button. Voice features need your permission and can be turned off in your device settings.
+- Voice mode uses your device's built-in speech recognition to turn what you say into text while you hold the talk button (or, with VoiceOver, from when you tap it until you tap it again); only the resulting text is sent to your coach. Replies are read aloud with your device's built-in voices.
+- The microphone is used only while you hold the talk button (or, with VoiceOver, from when you tap it until you tap it again). Voice features need your permission and can be turned off in your device settings.
 
 # How your messages are handled
 - Messages are transmitted securely to our AI processing provider, processed to generate a reply, and the reply is returned to your device. They are processed transiently and are not stored on our servers.
@@ -123,8 +123,8 @@ DateWise AI ("DateWise AI", "nosotros") ofrece una app de coaching de citas con 
 - No vendemos tu información personal, no usamos tus mensajes para entrenar modelos de IA y la app no contiene publicidad, analítica ni rastreo.
 
 # Voz
-- El modo de voz usa el reconocimiento de voz integrado de tu dispositivo para convertir en texto lo que dices mientras mantienes presionado el botón para hablar; solo el texto resultante se envía a tu coach. Las respuestas se leen en voz alta con las voces integradas de tu dispositivo.
-- El micrófono solo se usa mientras mantienes presionado el botón para hablar. Las funciones de voz necesitan tu permiso y puedes desactivarlas en la configuración de tu dispositivo.
+- El modo de voz usa el reconocimiento de voz integrado de tu dispositivo para convertir en texto lo que dices mientras mantienes presionado el botón para hablar (o, con VoiceOver, desde que lo tocas hasta que lo vuelves a tocar); solo el texto resultante se envía a tu coach. Las respuestas se leen en voz alta con las voces integradas de tu dispositivo.
+- El micrófono solo se usa mientras mantienes presionado el botón para hablar (o, con VoiceOver, desde que lo tocas hasta que lo vuelves a tocar). Las funciones de voz necesitan tu permiso y puedes desactivarlas en la configuración de tu dispositivo.
 
 # Cómo se manejan tus mensajes
 - Los mensajes se transmiten de forma segura a nuestro proveedor de procesamiento de IA, se procesan para generar una respuesta y la respuesta vuelve a tu dispositivo. Se procesan de forma transitoria y no se guardan en nuestros servidores.
