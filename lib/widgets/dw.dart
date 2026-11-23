@@ -1,0 +1,579 @@
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+
+import '../l10n/l10n.dart';
+import '../models/coach.dart';
+import '../theme/app_theme.dart';
+
+/// Whether the user asked for less motion (iOS Reduce Motion, Android
+/// "remove animations"). Animated glows and transitions then jump instead.
+bool reduceMotion(BuildContext context) =>
+    MediaQuery.maybeDisableAnimationsOf(context) == true ||
+    WidgetsBinding.instance.platformDispatcher.accessibilityFeatures.reduceMotion;
+
+/// [d], or zero when [reduceMotion] is on.
+Duration motion(BuildContext context, Duration d) => reduceMotion(context) ? Duration.zero : d;
+
+/// Above this text scale, side-by-side tiles stack (or go to one column),
+/// as two or three narrow tiles would break words mid-way.
+const double kStackAboveTextScale = 1.3;
+
+/// Whether the text scale is above [kStackAboveTextScale].
+bool isLargeText(BuildContext context) => MediaQuery.textScalerOf(context).scale(1) > kStackAboveTextScale;
+
+/// A [Text] that never breaks inside a word: when its longest word (words
+/// are split at breaking spaces; a non-breaking space joins two) is wider
+/// than the width available, the text is scaled down just enough for that
+/// word to fit. Otherwise it is a plain [Text] at the system text size.
+/// Pass [maxWidth] where the width is known and a LayoutBuilder cannot be
+/// used (inside IntrinsicHeight).
+class WholeWordsText extends StatelessWidget {
+  const WholeWordsText(this.data, {super.key, this.style, this.textAlign, this.maxWidth});
+  final String data;
+  final TextStyle? style;
+  final TextAlign? textAlign;
+  final double? maxWidth;
+
+  /// The text scaler for [text] in [style] so its longest word fits [width].
+  static TextScaler fit(BuildContext context, String text, TextStyle? style, double width) {
+    final scaler = MediaQuery.textScalerOf(context);
+    if (!width.isFinite || width <= 0) return scaler;
+    final effective = DefaultTextStyle.of(context).style.merge(style);
+    var widest = 0.0;
+    for (final word in text.split(RegExp(r'[ \t\n]+'))) {
+      if (word.isEmpty) continue;
+      final tp = TextPainter(
+        text: TextSpan(text: word, style: effective),
+        textDirection: Directionality.maybeOf(context) ?? TextDirection.ltr,
+        textScaler: scaler,
+      )..layout();
+      if (tp.width > widest) widest = tp.width;
+      tp.dispose();
+    }
+    if (widest <= width) return scaler;
+    final size = effective.fontSize ?? 14;
+    // A little under the exact fit, so rounding never pushes a letter over.
+    return TextScaler.linear(scaler.scale(size) / size * width / widest * 0.98);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Widget text(double width) =>
+        Text(data, style: style, textAlign: textAlign, textScaler: fit(context, data, style, width));
+    final w = maxWidth;
+    return w != null ? text(w) : LayoutBuilder(builder: (context, c) => text(c.maxWidth));
+  }
+}
+
+/// Max content width, so phone layouts stay readable on iPad / desktop:
+/// about 75 characters of body text. Phones (at most 440 points wide) never
+/// reach it.
+const double kContentMaxWidth = 640;
+
+/// Wider column for the picture-led screens (Coaches, Home) on iPad, so
+/// their cards fill the screen instead of floating in a phone-sized strip.
+const double kWideContentMaxWidth = 760;
+
+/// iPad-sized window (shortest side at least 600 points): every iPad in
+/// either orientation, and a desktop browser window. Never an iPhone.
+bool isTabletLayout(BuildContext context) => MediaQuery.sizeOf(context).shortestSide >= 600;
+
+/// Centers [child] and caps its width at [kContentMaxWidth].
+class ContentWidth extends StatelessWidget {
+  const ContentWidth({super.key, required this.child, this.maxWidth = kContentMaxWidth});
+  final Widget child;
+  final double maxWidth;
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          child: child,
+        ),
+      );
+}
+
+/// Pill-shaped primary (gold) or secondary (rose / ghost) button, >= 44pt.
+enum DwButtonStyle { gold, rose, ghost }
+
+class DwButton extends StatelessWidget {
+  const DwButton({
+    super.key,
+    required this.label,
+    required this.onPressed,
+    this.style = DwButtonStyle.gold,
+    this.trailing,
+    this.leading,
+    this.expand = false,
+    this.height = 54,
+    this.fontSize = 16,
+    this.padding = 26,
+    this.busy = false,
+    this.fitLabel = false,
+  });
+
+  /// Keep the label on one line, shrinking it to fit (narrow cards).
+  final bool fitLabel;
+
+  final String label;
+  final VoidCallback? onPressed;
+  final DwButtonStyle style;
+  final IconData? trailing;
+  final IconData? leading;
+  final bool expand;
+  final double height;
+  final double fontSize;
+  final double padding;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null && !busy;
+    var (Gradient? gradient, Color fg, Color? bg, List<BoxShadow> shadow, Border? border) = switch (style) {
+      DwButtonStyle.gold => (
+          AppColors.goldGradient,
+          AppColors.goldInk,
+          null,
+          const [BoxShadow(color: Color(0x2EDDB67F), blurRadius: 30, offset: Offset(0, 10))],
+          null,
+        ),
+      DwButtonStyle.rose => (
+          AppColors.roseGradient,
+          AppColors.roseInk,
+          null,
+          const [BoxShadow(color: Color(0x59A23E5F), blurRadius: 22, offset: Offset(0, 8))],
+          null,
+        ),
+      DwButtonStyle.ghost => (
+          null,
+          AppColors.text,
+          const Color(0x0AFFFFFF),
+          const <BoxShadow>[],
+          Border.all(color: AppColors.line2),
+        ),
+    };
+    // A disabled gold button is a quiet gold outline with readable text,
+    // instead of the gold gradient at half opacity (which reads as muddy).
+    final quietGold = !enabled && !busy && style == DwButtonStyle.gold;
+    if (quietGold) {
+      gradient = null;
+      bg = const Color(0x1FDDB67F);
+      border = Border.all(color: const Color(0x59DDB67F));
+      fg = const Color(0xB3F0D3A3);
+    }
+    final text = Text(
+      label,
+      textAlign: TextAlign.center,
+      style: TextStyle(fontFamily: AppFonts.sans, fontSize: fontSize, fontWeight: FontWeight.w600, color: fg, height: 1.2),
+    );
+    final content = Row(
+      mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        if (busy)
+          Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: fg)),
+          )
+        else if (leading != null)
+          Padding(padding: const EdgeInsets.only(right: 8), child: Icon(leading, size: fontSize + 2, color: fg)),
+        Flexible(child: fitLabel ? FittedBox(fit: BoxFit.scaleDown, child: text) : text),
+        if (trailing != null)
+          Padding(padding: const EdgeInsets.only(left: 6), child: Icon(trailing, size: fontSize + 2, color: fg)),
+      ],
+    );
+    // Its own semantics node (container): next to a text, as in a failed
+    // reply's notice + "Try again", the text is not merged into the button.
+    return Semantics(
+      container: true,
+      button: true,
+      enabled: enabled,
+      child: Opacity(
+        opacity: enabled || busy || quietGold ? 1 : 0.5,
+        child: Container(
+          constraints: BoxConstraints(minHeight: height),
+          decoration: BoxDecoration(
+            gradient: gradient,
+            color: bg,
+            border: border,
+            borderRadius: BorderRadius.circular(999),
+            boxShadow: enabled ? shadow : const [],
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(999),
+              onTap: enabled ? onPressed : null,
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: padding, vertical: 8),
+                child: Center(widthFactor: expand ? null : 1, child: content),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 44pt circular icon button with a hairline border.
+class CircleIconButton extends StatelessWidget {
+  const CircleIconButton({
+    super.key,
+    required this.icon,
+    required this.onPressed,
+    required this.tooltip,
+    this.size = 44,
+    this.iconSize = 20,
+    this.filled = false,
+    this.color,
+  });
+
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final String tooltip;
+  final double size;
+  final double iconSize;
+  final bool filled;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      excludeFromSemantics: true,
+      child: Semantics(
+        button: true,
+        label: tooltip,
+        child: Material(
+          color: filled ? const Color(0x8C120C0E) : const Color(0x0DFFFFFF),
+          shape: CircleBorder(side: BorderSide(color: filled ? AppColors.line2 : AppColors.line)),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onPressed,
+            child: SizedBox(
+              width: size,
+              height: size,
+              child: Icon(icon, size: iconSize, color: color ?? AppColors.text),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The DateWise wordmark: gradient heart outline + "DateWise AI".
+class BrandMark extends StatelessWidget {
+  const BrandMark({super.key, this.size = 22});
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'DateWise AI',
+      excludeSemantics: true,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(width: size * 1.36, height: size * 1.27, child: CustomPaint(painter: _HeartPainter())),
+          SizedBox(width: size * 0.45),
+          Text('DateWise',
+              // The wordmark is a logo: it keeps its size at any text size.
+              textScaler: TextScaler.noScaling,
+              style: TextStyle(fontFamily: AppFonts.serif, fontSize: size, fontWeight: FontWeight.w500, color: AppColors.text, height: 1)),
+          Padding(
+            padding: EdgeInsets.only(left: size * 0.27, bottom: size * 0.3),
+            child: Text('AI',
+                textScaler: TextScaler.noScaling,
+                style: TextStyle(
+                    fontFamily: AppFonts.sans, fontSize: size * 0.62, fontWeight: FontWeight.w600, letterSpacing: size * 0.1, color: AppColors.gold)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeartPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final sx = size.width / 30, sy = size.height / 28;
+    final p = Path()
+      ..moveTo(15, 25.5)
+      ..cubicTo(9, 21.4, 2.5, 16.6, 2.5, 9.6)
+      ..cubicTo(2.5, 5.6, 5.5, 2.5, 9.3, 2.5)
+      ..cubicTo(11.7, 2.5, 13.7, 3.7, 15, 5.6)
+      ..cubicTo(16.3, 3.7, 18.3, 2.5, 20.7, 2.5)
+      ..cubicTo(24.5, 2.5, 27.5, 5.6, 27.5, 9.6)
+      ..cubicTo(27.5, 13.9, 25.1, 17.4, 21.9, 20.4)
+      ..lineTo(23.8, 25.3)
+      ..lineTo(18.4, 22.9)
+      ..cubicTo(17.3, 23.8, 16.1, 24.7, 15, 25.5)
+      ..close();
+    canvas.scale(sx, sy);
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.2
+      ..strokeJoin = StrokeJoin.round
+      ..shader = AppColors.brandGradient.createShader(const Rect.fromLTWH(0, 0, 30, 28));
+    canvas.drawPath(p, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// A coach portrait from `assets/coaches/{id}-hero.jpg` or `-avatar.jpg`,
+/// cover-cropped around the coach's focal point.
+class CoachImage extends StatelessWidget {
+  const CoachImage(
+      {super.key, required this.coach, this.avatar = false, this.semanticLabel, this.displaySize, this.alignment});
+  final Coach coach;
+
+  /// Overrides the coach's focus point (the voice stage places the mouth).
+  final Alignment? alignment;
+  final bool avatar;
+  final String? semanticLabel;
+
+  /// The logical size the image is shown at (small avatars). When set, the
+  /// file is decoded at that size instead of full resolution.
+  final double? displaySize;
+
+  /// Decode box for an image shown cover-cropped in a [size] square: the
+  /// image is scaled to fit a box twice that size (aspect ratio kept, never
+  /// upscaled), so its shorter side still covers the square for any photo
+  /// up to 2:1, whatever file the owner drops in.
+  @visibleForTesting
+  static int decodeExtent(double size, double devicePixelRatio) => (size * devicePixelRatio * 2).ceil();
+
+  /// Decode width for an image shown cover-cropped in a [box]: the larger
+  /// side of the box in device pixels. That covers the box for any portrait
+  /// or square file (the decoded height is at least the width), at a
+  /// fraction of the memory of the full-size file (the candidate heroes are
+  /// about 1800x2400, 17 MB decoded). Never upscaled.
+  @visibleForTesting
+  static int coverDecodeWidth(Size box, double devicePixelRatio) =>
+      (math.max(box.width, box.height) * devicePixelRatio).ceil();
+
+  @override
+  Widget build(BuildContext context) {
+    if (displaySize != null) return _image(context, null);
+    return LayoutBuilder(builder: (context, box) {
+      final bounded = box.hasBoundedWidth && box.hasBoundedHeight;
+      return _image(context, bounded ? box.biggest : null);
+    });
+  }
+
+  Widget _image(BuildContext context, Size? box) {
+    final asset = avatar ? coach.avatarAsset : coach.heroAsset;
+    final size = displaySize;
+    final ImageProvider provider = size == null
+        ? (box == null || box.isEmpty
+            ? AssetImage(asset)
+            : ResizeImage(AssetImage(asset),
+                width: coverDecodeWidth(box, MediaQuery.devicePixelRatioOf(context)), allowUpscaling: false))
+        : ResizeImage(
+            AssetImage(asset),
+            width: decodeExtent(size, MediaQuery.devicePixelRatioOf(context)),
+            height: decodeExtent(size, MediaQuery.devicePixelRatioOf(context)),
+            policy: ResizeImagePolicy.fit,
+            allowUpscaling: false,
+          );
+    return Image(
+      image: provider,
+      fit: BoxFit.cover,
+      alignment: alignment ?? (avatar ? coach.avatarFocus : coach.heroFocus),
+      semanticLabel: semanticLabel,
+      excludeFromSemantics: semanticLabel == null,
+      gaplessPlayback: true,
+      errorBuilder: (_, _, _) => Container(
+        color: AppColors.surface2,
+        alignment: Alignment.center,
+        child: Text(coach.initial, style: AppText.name.copyWith(color: AppColors.gold)),
+      ),
+    );
+  }
+}
+
+/// Round coach avatar with an optional soft "speaking" glow (TTS playing).
+/// [semanticLabel] is the portrait's alt text; leave it null only where the
+/// avatar sits next to text that already names the coach.
+class CoachAvatar extends StatelessWidget {
+  const CoachAvatar({super.key, required this.coach, this.size = 30, this.speaking = false, this.semanticLabel});
+  final Coach coach;
+  final double size;
+  final bool speaking;
+  final String? semanticLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: motion(context, const Duration(milliseconds: 300)),
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: speaking ? AppColors.gold : AppColors.line2, width: speaking ? 1.5 : 1),
+        boxShadow: speaking ? const [BoxShadow(color: Color(0x66DDB67F), blurRadius: 14, spreadRadius: 1)] : const [],
+      ),
+      child: ClipOval(child: CoachImage(coach: coach, avatar: true, semanticLabel: semanticLabel, displaySize: size)),
+    );
+  }
+}
+
+/// Small translucent pill used over photos ("Ava · AI coach · English").
+class GlassChip extends StatelessWidget {
+  const GlassChip({super.key, required this.label, this.dot = true});
+  final String label;
+  final bool dot;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 26),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0x9E120C0E),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.line2),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (dot) ...[
+            Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.gold, shape: BoxShape.circle)),
+            const SizedBox(width: 6),
+          ],
+          Flexible(
+            child: Text(label,
+                style: const TextStyle(fontFamily: AppFonts.sans, fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.text)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Rounded surface card with a hairline border.
+class DwCard extends StatelessWidget {
+  const DwCard({super.key, required this.child, this.padding = const EdgeInsets.all(16), this.gradient});
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final Gradient? gradient;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: gradient == null ? AppColors.surface : null,
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: child,
+    );
+  }
+}
+
+/// Large serif page title with an optional eyebrow and subtitle (iOS-style
+/// large title at the top of a tab).
+class LargeTitle extends StatelessWidget {
+  const LargeTitle({super.key, required this.title, this.eyebrow, this.subtitle, this.center = false});
+  final String title;
+  final String? eyebrow;
+  final String? subtitle;
+  final bool center;
+
+  @override
+  Widget build(BuildContext context) {
+    final align = center ? CrossAxisAlignment.center : CrossAxisAlignment.start;
+    final textAlign = center ? TextAlign.center : TextAlign.start;
+    return Column(
+      crossAxisAlignment: align,
+      children: [
+        if (eyebrow != null) ...[
+          Text(eyebrow!.toUpperCase(), style: AppText.eyebrow, textAlign: textAlign),
+          const SizedBox(height: 8),
+        ],
+        Semantics(header: true, child: Text(title, style: AppText.title, textAlign: textAlign)),
+        if (subtitle != null) ...[
+          const SizedBox(height: 8),
+          Text(subtitle!, style: AppText.body.copyWith(fontSize: 14.5, height: 1.45), textAlign: textAlign),
+        ],
+      ],
+    );
+  }
+}
+
+/// A gradient fading from transparent to the page background, for photos.
+class FadeToBackground extends StatelessWidget {
+  const FadeToBackground({super.key, this.stops = const [0.45, 1], this.from = 0, this.color = AppColors.background});
+  final List<double> stops;
+  final double from;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [color.withValues(alpha: from), color],
+            stops: stops,
+          ),
+        ),
+      );
+}
+
+/// Above this text scale a confirmation dialog stacks its buttons.
+const double kDialogStackAboveScale = 1.5;
+
+/// A confirmation dialog whose body scrolls, so long text at large sizes is
+/// never clipped. True when the user chose [action].
+Future<bool> showConfirmDialog(BuildContext context, String title, String body, String action,
+    {Color actionColor = AppColors.danger}) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) {
+      final cancel = TextButton(
+          key: const ValueKey('confirm-cancel'),
+          onPressed: () => Navigator.pop(ctx, false),
+          child: Text(ctx.l10n.cancel, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.text)));
+      final confirm = TextButton(
+        key: const ValueKey('confirm-action'),
+        onPressed: () => Navigator.pop(ctx, true),
+        child: Text(action,
+            textAlign: TextAlign.center, style: TextStyle(color: actionColor, fontWeight: FontWeight.w600)),
+      );
+      // At large text the two buttons stack, full width, action first (as
+      // iOS does), and the dialog uses more of the screen width, so a label
+      // such as "Desactivar y borrar" stays on one line.
+      final stacked = MediaQuery.textScalerOf(ctx).scale(1) > kDialogStackAboveScale;
+      return AlertDialog(
+        scrollable: true,
+        insetPadding: stacked ? const EdgeInsets.symmetric(horizontal: 16, vertical: 24) : null,
+        title: Text(title),
+        content: Text(body),
+        actions: stacked
+            ? [
+                Column(
+                  key: const ValueKey('confirm-actions-stacked'),
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [confirm, cancel],
+                ),
+              ]
+            : [cancel, confirm],
+        // When the two do not fit on one row (a long label such as "Sí,
+        // tengo menos de 18"), they stack with the action on top, like the
+        // large-text layout.
+        actionsOverflowDirection: VerticalDirection.up,
+        actionsOverflowAlignment: OverflowBarAlignment.center,
+      );
+    },
+  );
+  return ok ?? false;
+}

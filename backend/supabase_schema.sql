@@ -1,4 +1,12 @@
 -- ============================================================================
+-- SUPERSEDED BY DATEWISE V2 (ONE $19.99/MONTH PLAN). Do not run.
+-- DateWise v2 has a single auto-renewable subscription
+-- (datewise_premium_monthly), no free tier, no free trial and no accounts;
+-- the App Store is the only source of entitlement. This schema (accounts,
+-- plans, admin view) is kept for history only.
+-- ============================================================================
+
+-- ============================================================================
 -- DateWise AI — Supabase schema (accounts + subscriptions + admin)
 -- ----------------------------------------------------------------------------
 -- Run this ONCE in your Supabase project: Dashboard → SQL Editor → New query →

@@ -2,26 +2,20 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
-import '../models/batch_photo_analysis.dart';
 import '../models/chat_message.dart';
 import '../models/coach.dart';
-import '../models/photo_analysis.dart';
 import '../models/tier.dart';
 import '../models/user_profile.dart';
 import 'ai_service.dart';
 
 /// Offline, deterministic coach that lets DateWise AI run end-to-end with no
 /// API key. It keys off intent in the user's latest message and answers in
-/// DateWise AI's voice, respecting tier capabilities (PRD section 8 + tier matrix).
+/// the coach's language.
 ///
 /// Replies are streamed word-by-word to mimic the real-time streaming UX.
 class MockAIService implements AIService {
   @override
   String get providerLabel => 'DateWise AI (offline demo)';
-
-  // Pseudo-randomness without dart:math global state surprises — varies by
-  // message length so repeated identical asks don't read identically.
-  int _seedFrom(String s) => s.codeUnits.fold(7, (a, c) => (a * 31 + c) & 0xffff);
 
   @override
   Stream<String> streamReply({
@@ -39,9 +33,10 @@ class MockAIService implements AIService {
         createdAt: DateTime(2026),
       ),
     );
-    final reply = coach?.language == CoachLanguage.es
-        ? spanishReply(lastUser.text, coach!)
-        : _composeReply(lastUser, tier, history);
+    final c = coach ?? Coaches.fallback;
+    final reply = c.language == CoachLanguage.es
+        ? spanishReply(lastUser.text, c)
+        : englishReply(lastUser.text, c);
 
     // Stream word-by-word with a small delay for a live-typing feel.
     final words = reply.split(' ');
@@ -51,7 +46,7 @@ class MockAIService implements AIService {
     }
   }
 
-  /// The offline coach's Spanish answers (Isabella, Mateo): the same intents as
+  /// The offline coach's Spanish answers (Sofía, Diego): the same intents as
   /// the English coach, written in Spanish, so the demo build shows Spanish
   /// coaching end to end without a network.
   @visibleForTesting
@@ -88,366 +83,47 @@ class MockAIService implements AIService {
         '**y qué te gustaría conseguir?** Así te doy un consejo concreto.';
   }
 
-  String _composeReply(
-    ChatMessage userMsg,
-    SubscriptionTier tier,
-    List<ChatMessage> history,
-  ) {
-    final info = TierInfo.of(tier);
-    final text = userMsg.text.toLowerCase();
-
-    // Photo sent but not on Magnet → gate it.
-    if (userMsg.imageBase64 != null && !info.can(Capability.photoCoach)) {
-      return _upsell(
-        'photo coaching',
-        tier,
-        teaser:
-            "I can see you want eyes on a photo — that's my **AI Photo Coach**, "
-            "and it lives on **Magnet**. Quick freebie though: the strongest "
-            "main photo is a **clear, well-lit shot of just you, smiling, eyes "
-            "to camera**. No sunglasses, no group, no hat.",
-      );
+  /// The offline coach's English answers (Ava, Ethan), by intent. Like the
+  /// Spanish ones, they never mention features the app does not have.
+  @visibleForTesting
+  static String englishReply(String userText, Coach coach) {
+    final t = userText.toLowerCase();
+    bool has(List<String> words) => words.any(t.contains);
+    if (has(['ghost', 'stalled', 'stopped replying', 'left me on read', 'went quiet'])) {
+      return "It happens more than you think, and it doesn't always mean they lost interest. "
+          "Send **one light message**, no guilt: \"Hey! Saw this and thought of you. How's your week going?\" "
+          "If there's no reply, let it rest and put your energy elsewhere. **How long has it been?**";
     }
-
-    if (_matches(text, ['bio', 'about me', 'rewrite my profile', 'prompt'])) {
-      return _bioRewrite(tier);
+    if (has(['bio', 'profile', 'about me'])) {
+      return "Let's make your profile sound like you. Tell me three things first: "
+          "**what you love doing on a free weekend, what you're looking for** (something serious or meeting people) "
+          "**and the tone you want**, playful or sincere. Then I'll write a bio you can paste in tonight.";
     }
-    if (_matches(text, [
-      'opener',
-      'opening line',
-      'first message',
-      'what do i say',
-      'how to start',
-    ])) {
-      return _openers(tier);
+    if (has(['opener', 'opening line', 'first message', 'how to start', 'what do i say'])) {
+      return "Skip \"hey\". A strong opener mentions **one specific thing from their profile** and is easy to answer. "
+          "For example: \"That hiking photo looks unreal. What's the best trail you've done?\" "
+          "**What's on their profile?** I'll tailor it.\n"
+          "OPTIONS: Playful | \"Be honest: is your dog screening my messages?\" || "
+          "Specific | \"That ramen photo is dangerous. Broth first or noodles first?\"";
     }
-    if (_matches(text, ['ghost', 'stopped replying', 'left me on read'])) {
-      return info.can(Capability.conversationScripts)
-          ? _ghosting()
-          : _upsell('ghosting recovery scripts', tier);
+    if (has(['date', 'ask them out', 'ask her out', 'ask him out'])) {
+      return "Keep a first date simple and in **a public place**: coffee or a one-hour walk. "
+          "Tell a friend where you'll be and get there on your own. "
+          "**What do you both enjoy?** I'll suggest a concrete plan.";
     }
-    if (_matches(text, ['date', 'where should we go', 'plan a date'])) {
-      return info.can(Capability.datePlanning)
-          ? _datePlan(text)
-          : _upsell('date planning', tier);
+    if (has(['nervous', 'confident', 'anxious'])) {
+      return "Nerves just mean you care. Before the date, **plan your first two questions** and take three slow breaths on the way in. "
+          "You don't need to be perfect, just present. **What part worries you most?**";
     }
-    if (_matches(text, ['photo', 'picture', 'pics', 'headshot', 'selfie'])) {
-      return info.can(Capability.photoCoach)
-          ? _photoInvite()
-          : _upsell('photo coaching', tier);
+    if (has(['reply', 'respond', 'what should i send', 'what do i send'])) {
+      return "Paste their last message and a line of context, and I'll give you **two replies**: one safe, one playful. "
+          "**What did they say?**";
     }
-    if (_matches(text, ['review', 'is this message ok', 'should i send'])) {
-      return info.can(Capability.messageReviews)
-          ? _messageReview()
-          : _upsell('message reviews', tier);
+    if (has(['practice', 'role', 'play my match'])) {
+      return "Let's do it. I'll be your match. **\"Hey! Your profile made me laugh. What's the story behind the karaoke photo?\"** "
+          "Your turn: how do you reply?";
     }
-    if (_matches(text, ['audit', 'roast', 'feedback on my profile', 'rate my profile'])) {
-      return _audit(tier);
-    }
-    if (_matches(text, ['tip', 'advice', 'daily'])) {
-      return _dailyTip();
-    }
-
-    // First contact / unknown → orient + one sharp question.
-    if (history.where((m) => m.isUser).length <= 1) {
-      return _onboard(userMsg, tier);
-    }
-    return _general(userMsg, tier);
-  }
-
-  bool _matches(String text, List<String> needles) =>
-      needles.any(text.contains);
-
-  String _onboard(ChatMessage userMsg, SubscriptionTier tier) {
-    final t = userMsg.text.trim();
-    final app = _detectApp(t);
-    final appLine = app != null
-        ? "**$app** — great, that changes the playbook. "
-        : "";
-    return "${appLine}Love it, let's get to work. 💫\n\n"
-        "To make my advice land, tell me three fast things:\n"
-        "• **Your goal** — serious, casual, or just more matches?\n"
-        "• **Your vibe** in real life (funny / sincere / adventurous / chill)?\n"
-        "• **One thing** about your current profile you already suspect is weak.\n\n"
-        "Answer those and I'll come back with something you can paste in tonight.";
-  }
-
-  String? _detectApp(String text) {
-    final t = text.toLowerCase();
-    if (t.contains('hinge')) return 'Hinge';
-    if (t.contains('tinder')) return 'Tinder';
-    if (t.contains('bumble')) return 'Bumble';
-    if (t.contains('raya')) return 'Raya';
-    return null;
-  }
-
-  String _bioRewrite(SubscriptionTier tier) {
-    return "Here's a full rewrite — punchy, specific, and built to earn a reply. "
-        "Paste this as your bio:\n\n"
-        "> Probably over-researching our first coffee spot as we speak. "
-        "Weekends are trail runs, a stubborn sourdough starter named Kevin, and "
-        "finding the city's best taco. **Tell me your hill to die on — pineapple "
-        "on pizza counts.**\n\n"
-        "Why it works:\n"
-        "• **Concrete details** (Kevin, tacos) > adjectives like \"fun\" or \"easygoing.\"\n"
-        "• Ends on a **playful prompt** so matches have an obvious way in.\n"
-        "• Reads warm, a little witty, never try-hard.\n\n"
-        "Want me to spin a **second version** in a more sincere tone, or tailor "
-        "this to a specific app?";
-  }
-
-  String _openers(SubscriptionTier tier) {
-    return "Skip \"hey\" — here are three copy-paste openers, ranked. "
-        "Pick the one that matches their energy:\n\n"
-        "1. **Playful:** \"Be honest — is your dog the one screening my messages?\"\n"
-        "2. **Specific:** \"That ramen photo is dangerous. Settle a debate: "
-        "broth-first or noodles-first?\"\n"
-        "3. **Direct & warm:** \"You seem genuinely interesting and I'd kick "
-        "myself for a boring opener — what's been the best part of your week?\"\n\n"
-        "Rule of thumb: **reference one specific thing** from their profile in "
-        "the first line. Who are you messaging — want me to tailor these to their photos or prompts?";
-  }
-
-  String _ghosting() {
-    return "Ghosted? Don't spiral — one clean re-engage, then you move on. 🔥\n\n"
-        "Send this **once**:\n"
-        "> \"Taking your silence as a sign you got swept into something good. "
-        "If not — I still owe you that taco debate. 🌮\"\n\n"
-        "• **Light, zero guilt-trip**, gives them an easy on-ramp back.\n"
-        "• If no reply in a few days, **close the tab and reinvest** that energy.\n\n"
-        "Want a slightly warmer version, or one with a touch more edge?";
-  }
-
-  String _datePlan(String text) {
-    return "Let's design a date that does the work for you. ✨\n\n"
-        "**The formula:** low-pressure + a built-in conversation engine + an "
-        "easy exit *or* extend.\n\n"
-        "• **Plan A:** A walkable specialty coffee spot, then a nearby bookshop "
-        "or market. Movement = natural pauses, no awkward staring across a table.\n"
-        "• **Plan B (if it's clicking):** Pivot to a wine bar with small plates.\n\n"
-        "Text to lock it in:\n"
-        "> \"There's a tiny coffee place I've been wanting to try Saturday — "
-        "good people-watching and an easy escape if I turn out to be boring. You in?\"\n\n"
-        "**What city are you in?** I'll name specific spots.";
-  }
-
-  String _photoInvite() {
-    return "Yes — let's get your photos *working* for you. 📸\n\n"
-        "Tap the **photo icon** below (or drag one in) and I'll score it "
-        "**1-10**, give you a **KEEP / RESHOOT / DELETE** verdict, and break "
-        "down lighting, expression, outfit, framing, and overall vibe — plus "
-        "the match-rate lift if you fix it.\n\n"
-        "**Start with your main profile photo** — that's the one doing 80% of "
-        "the work.";
-  }
-
-  String _messageReview() {
-    return "Drop the message and I'll give you a verdict + a tightened version. "
-        "Here's how I'll score it:\n\n"
-        "• **Spark** — does it invite a reply or dead-end?\n"
-        "• **Length** — under ~3 sentences early on.\n"
-        "• **Subtext** — confident, not needy.\n\n"
-        "Paste exactly what you were about to send (and a line of context), and "
-        "I'll tell you **send / tweak / scrap** with the fix.";
-  }
-
-  String _audit(SubscriptionTier tier) {
-    final extra = TierInfo.of(tier).can(Capability.photoCoach)
-        ? "\n\nAnd since you're on **Magnet** — upload your main photo and I'll "
-            "score it 1-10 with a KEEP / RESHOOT / DELETE call."
-        : "";
-    return "Profile audit time — here's my checklist. Tell me how each one lands "
-        "and we'll fix the weakest first:\n\n"
-        "1. **Lead photo** — clear face, real smile, you alone? (This is 80% of it.)\n"
-        "2. **Photo set** — one full-body, one \"in your element,\" one social proof. No 4 selfies.\n"
-        "3. **Bio** — specific and a little funny, ends with a hook.\n"
-        "4. **Prompts** — story or opinion, never \"just ask 😊.\"\n\n"
-        "**Which one feels weakest to you right now?** That's where we start.$extra";
-  }
-
-  String _dailyTip() {
-    return "**Today's tip:** Your second photo is doing more work than you think. 📸\n\n"
-        "Make it a **full-body shot in motion** — walking, laughing, mid-activity. "
-        "It answers the silent question every match asks after your face: "
-        "*\"what's their actual vibe?\"*\n\n"
-        "Swap it tonight and watch your reply rate. Want tomorrow's tip queued up too?";
-  }
-
-  String _general(ChatMessage userMsg, SubscriptionTier tier) {
-    return "Got it. Here's my read, no hedging:\n\n"
-        "The move is to make your profile **specific and a little brave** — "
-        "generic is the only real mistake out here. Give me the concrete detail "
-        "(the app, who you're after, the moment that stalled) and I'll hand you "
-        "**exact words** to use.\n\n"
-        "So — **what's the one situation you want to crack first?**";
-  }
-
-  String _upsell(String feature, SubscriptionTier tier, {String? teaser}) {
-    final next = tier == SubscriptionTier.spark
-        ? TierInfo.flame
-        : TierInfo.magnet;
-    final body = teaser ??
-        "That's **$feature** — it unlocks on **${next.name}** "
-            "(${next.priceLabel}/wk).";
-    return "$body\n\n"
-        "Here's what I *can* do for you right now, and it's plenty: tighten your "
-        "bio, hand you opener lines, and audit your profile. Want to start there — "
-        "or jump to **${next.name}** for the full toolkit?";
-  }
-
-  @override
-  Future<PhotoAnalysis> analyzePhoto({
-    required String imageBase64,
-    required SubscriptionTier tier,
-    String? userNote,
-    AnalysisMode mode = AnalysisMode.deep,
-  }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 900));
-
-    // Deterministic-but-varied score derived from the image payload so the
-    // same photo always scores the same, but different photos differ.
-    final seed = _seedFrom(imageBase64.length.toString() + imageBase64.substring(0, imageBase64.length.clamp(0, 24)));
-    final overall = 5 + (seed % 5); // 5..9
-    final verdict = PhotoVerdict.fromScore(overall);
-
-    // Quick mode mirrors the lean backend response: no dimension breakdown and
-    // a single tip.
-    if (mode == AnalysisMode.quick) {
-      return PhotoAnalysis(
-        overallScore: overall,
-        verdict: verdict,
-        headline: _verdictHeadline(verdict, overall),
-        matchRateDelta: 8 + (seed % 18),
-        dimensions: const [],
-        tips: [_verdictTips(verdict).first],
-      );
-    }
-
-    return PhotoAnalysis(
-      overallScore: overall,
-      verdict: verdict,
-      headline: _verdictHeadline(verdict, overall),
-      matchRateDelta: 8 + (seed % 18), // +8..+25
-      dimensions: [
-        PhotoDimension(
-          name: 'Lighting',
-          score: (overall - 1).clamp(1, 10),
-          note: overall >= 8
-              ? 'Soft, flattering, front-lit. Keep it.'
-              : 'A touch flat — shoot near a window in soft daylight for more depth.',
-        ),
-        PhotoDimension(
-          name: 'Expression',
-          score: overall.clamp(1, 10),
-          note: overall >= 7
-              ? 'Genuine, approachable smile that reaches the eyes.'
-              : 'Reads a little guarded — try laughing at something off-camera.',
-        ),
-        PhotoDimension(
-          name: 'Outfit',
-          score: (overall - 2).clamp(1, 10),
-          note: 'Fit is fine; one pop of color would make you stand out in the grid.',
-        ),
-        PhotoDimension(
-          name: 'Framing',
-          score: (seed % 4) + 5,
-          note: overall >= 8
-              ? 'Clean composition, uncluttered background.'
-              : 'Crop tighter to the chest-up and lose the busy background.',
-        ),
-        PhotoDimension(
-          name: 'Overall vibe',
-          score: overall.clamp(1, 10),
-          note: 'Signals warmth; we can push it from "nice" to "magnetic."',
-        ),
-      ],
-      tips: _verdictTips(verdict),
-    );
-  }
-
-  @override
-  Future<BatchPhotoAnalysis> analyzePhotos({
-    required List<String> imageBase64s,
-    required SubscriptionTier tier,
-    String? userNote,
-    AnalysisMode mode = AnalysisMode.deep,
-  }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 1200));
-
-    // Deterministic score per photo, then rank by score (highest = rank 1).
-    final scored = <({int index, int score})>[];
-    for (var i = 0; i < imageBase64s.length; i++) {
-      final b64 = imageBase64s[i];
-      final seed = _seedFrom(
-          '$i${b64.length}${b64.substring(0, b64.length.clamp(0, 24))}');
-      scored.add((index: i, score: 4 + (seed % 6))); // 4..9
-    }
-    final order = [...scored]..sort((a, b) => b.score.compareTo(a.score));
-
-    final photos = <RankedPhoto>[];
-    for (var rank = 0; rank < order.length; rank++) {
-      final s = order[rank];
-      final verdict = PhotoVerdict.fromScore(s.score);
-      photos.add(RankedPhoto(
-        imageIndex: s.index,
-        rank: rank + 1,
-        overallScore: s.score,
-        verdict: verdict,
-        headline: _verdictHeadline(verdict, s.score),
-        why: rank == 0
-            ? 'Best lighting and clearest read of your face — lead with this.'
-            : verdict == PhotoVerdict.delete
-                ? 'Weakest of the set; swap it for something brighter.'
-                : 'Solid backup, but not your strongest opener.',
-      ));
-    }
-
-    final best = order.first.index;
-    final worst = order.last;
-    final rec = order.length > 1
-        ? 'Lead with photo #${best + 1}.'
-            '${worst.score < 5 ? ' Consider dropping #${worst.index + 1}.' : ''}'
-        : 'Lead with photo #${best + 1}.';
-
-    return BatchPhotoAnalysis(
-      photos: photos,
-      bestIndex: best,
-      recommendation: rec,
-      thumbnails: imageBase64s,
-    );
-  }
-
-  String _verdictHeadline(PhotoVerdict verdict, int score) {
-    switch (verdict) {
-      case PhotoVerdict.keep:
-        return 'Strong main-photo material — this earns the right swipe.';
-      case PhotoVerdict.reshoot:
-        return 'Good bones, but a quick reshoot turns this from skippable to scroll-stopping.';
-      case PhotoVerdict.delete:
-        return 'This one\'s working against you — cut it and we\'ll replace it.';
-    }
-  }
-
-  List<String> _verdictTips(PhotoVerdict verdict) {
-    switch (verdict) {
-      case PhotoVerdict.keep:
-        return [
-          'Make this your **lead photo** if it isn\'t already.',
-          'Pair it with a full-body action shot in slot two.',
-          'Don\'t over-edit — the authenticity is the asset.',
-        ];
-      case PhotoVerdict.reshoot:
-        return [
-          'Reshoot in **soft daylight** near a window or in open shade.',
-          'Crop **chest-up** with eyes to camera.',
-          'Add one warm color and a real, off-camera laugh.',
-        ];
-      case PhotoVerdict.delete:
-        return [
-          'Replace with a **clear solo shot** — no group, hat, or sunglasses.',
-          'Prioritise a genuine smile over a posed one.',
-          'Keep the background simple so *you* are the subject.',
-        ];
-    }
+    return "Tell me a bit more: **where are you at** (profile, a conversation, a first date or a relationship) "
+        "**and what would you like to happen?** Then I'll give you something concrete. I'm ${coach.name}, your AI coach.";
   }
 }

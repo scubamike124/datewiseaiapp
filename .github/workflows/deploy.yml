@@ -1,11 +1,11 @@
 name: Deploy to GitHub Pages
 
-# Builds the Flutter web app and publishes it to GitHub Pages on every push to
-# main. No manual steps after the first setup.
+# Builds the Flutter web app and publishes it to GitHub Pages. Manual only
+# (owner, 2026-11-23): merging to main no longer republishes the website, so the
+# app, the Worker and the website can each be released on their own decision.
+# To publish: Actions, "Deploy to GitHub Pages", Run workflow, branch main.
 on:
-  push:
-    branches: [main]
-  workflow_dispatch: # lets you trigger a deploy manually from the Actions tab
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -17,17 +17,24 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
+env:
+  FLUTTER_VERSION: '3.47.9'
+
 jobs:
   build:
+    # Only main is ever published, whichever branch the run is started from.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           channel: stable
+          # Same Flutter as ios-build.yml and local development.
+          flutter-version: ${{ env.FLUTTER_VERSION }}
 
       - run: flutter --version
       - run: flutter pub get
@@ -39,7 +46,7 @@ jobs:
         run: flutter build web --release --base-href "/${GITHUB_REPOSITORY#*/}/"
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: build/web
 
@@ -52,4 +59,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

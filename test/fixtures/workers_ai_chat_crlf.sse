@@ -1,0 +1,8 @@
+data: {"response":"¡Hola"}
+
+: keep-alive
+
+data: {"response":", soy Sofía."}
+
+data: [DONE]
+

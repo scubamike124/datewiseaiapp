@@ -1,4 +1,5 @@
 import 'chat_message.dart';
+import 'coach.dart';
 
 /// A named conversation session with the AI coach (PRD section 5.4).
 class ChatThread {
@@ -7,12 +8,13 @@ class ChatThread {
     required this.title,
     required this.createdAt,
     required this.updatedAt,
-    this.coachId = 'emily',
+    this.coachId = 'ava',
     List<ChatMessage>? messages,
   }) : messages = messages ?? [];
 
   /// The coach this conversation is with (see Coaches). Conversations saved
-  /// before coaches existed load as Emily, the original English voice.
+  /// with an old roster id migrate (emily→ava, james→ethan, isabella→sofia,
+  /// mateo→diego); conversations saved before coaches existed load as Ava.
   final String coachId;
 
   final String id;
@@ -23,12 +25,15 @@ class ChatThread {
 
   ChatMessage? get lastMessage => messages.isEmpty ? null : messages.last;
 
+  /// The newest message with something to show (an empty failed or
+  /// interrupted reply is skipped), as one line of plain text.
   String get preview {
-    final last = lastMessage;
-    if (last == null) return 'New conversation';
-    if (last.imageBase64 != null && last.text.isEmpty) return '📷 Photo';
-    final text = last.text.replaceAll('\n', ' ').trim();
-    return text.isEmpty ? 'New conversation' : text;
+    for (final m in messages.reversed) {
+      if (m.isPhotoOnly) return 'Photo';
+      final text = m.text.trim();
+      if (text.isNotEmpty) return text;
+    }
+    return 'New conversation';
   }
 
   Map<String, dynamic> toJson() => {
@@ -47,7 +52,7 @@ class ChatThread {
         DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime(2026),
     updatedAt:
         DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime(2026),
-    coachId: json['coachId'] as String? ?? 'emily',
+    coachId: Coaches.byId(json['coachId'] as String?).id,
     messages: (json['messages'] as List? ?? [])
         .map((m) => ChatMessage.fromJson(m as Map<String, dynamic>))
         .toList(),

@@ -9,7 +9,19 @@
  *   - mode: "quick" (fast, cheap: score + headline + 1 tip, no dimensions)
  *           "deep"  (default: full 5-dimension breakdown + 3 tips)
  * Response (JSON): a PhotoAnalysis object matching the Flutter model.
+ *
+ * chat-v7 (cost guard): every AI call passes cost_guard.js first (per-subscriber
+ * caps, global neuron budget, StoreKit 2 JWS check), the coach system prompt is
+ * built on the server (coach_prompts.js) for requests with a coachId, and those
+ * (v2) requests are served only with a valid StoreKit token (403
+ * SUBSCRIPTION_REQUIRED without one). Requests
+ * without a coachId and without a StoreKit token come from the v1 App Store build
+ * (1.0.2): its chat and photo coach keep their chat-v6 behaviour, in the
+ * anonymous caps and their budget slice, while LEGACY_CLIENTS=1. See docs/business/AI_COST_MODEL.md.
  */
+import { admit, estimateTokens, fitToInputBudget, guardConfig, guardError, handleAppleNotification, meterStream, meteredAi, neuronsFor, GUARD_VERSION } from './cost_guard.js';
+import { coachMessages, resolveCoachId } from './coach_prompts.js';
+export { UsageGuard } from './cost_guard.js';
 
 const MODEL = '@cf/meta/llama-3.2-11b-vision-instruct';
 // Allow the production apex and the verified Cloudflare Pages builds.
@@ -23,21 +35,24 @@ function isAllowedOrigin(origin) {
   if (!origin) return false;
   if (ALLOWED_ORIGINS.has(origin)) return true;
   try {
-    const host = new URL(origin).hostname;
-    return host.endsWith('.datewiseai.pages.dev');
+    const u = new URL(origin);
+    return u.protocol === 'https:' && u.hostname.endsWith('.datewiseai.pages.dev');
   } catch {
     return false;
   }
 }
 
-// Set per-request in fetch(); default is the apex.
-let ACTIVE_CORS_ORIGIN = 'https://datewiseai.com';
+// The default allowed origin. fetch() replaces it on each response with the
+// request's own allowed origin. (It used to be a module variable set per
+// request, which a concurrent request in the same isolate could overwrite
+// between two awaits, so a response could carry another request's origin.)
+const DEFAULT_ORIGIN = 'https://datewiseai.com';
 
 function corsHeaders() {
   return {
-    'Access-Control-Allow-Origin': ACTIVE_CORS_ORIGIN,
+    'Access-Control-Allow-Origin': DEFAULT_ORIGIN,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, X-DateWise-Entitlement',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
@@ -79,8 +94,11 @@ Be brief. Give: an overall score from 1 to 10; a verdict (KEEP, RESHOOT, or DELE
 a one-sentence headline; the predicted change in match rate as a percentage; and ONE actionable tip.`;
 
 // Second-pass text model (supports JSON mode / structured outputs).
-// llama-3.1-8b-instruct was deprecated 2026-05-30 — use fp8 / fast variants.
-const TEXT_MODEL = '@cf/meta/llama-3.1-8b-instruct-fp8';
+// llama-3.1-8b-instruct was deprecated 2026-05-30, and llama-3.1-8b-instruct-fp8
+// on 2026-11-20 (Workers AI now answers it with HTTP 410, error 5028). Llama 3.3
+// 70B fp8-fast stays active, is on the JSON Mode list, and returns the same
+// `response` shape (and the same SSE stream) the photo coach and the app read.
+const TEXT_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 
 // --- Chat (AI coach replies) ----------------------------------------------
 // The same free text model powers the coaching chat. Replies stream back
@@ -516,8 +534,8 @@ function sanitizeMessages(messages) {
 
 // Runs the chat model in streaming mode, accepting the one-time Meta Llama
 // license (AiError 5016) on first use, then retrying — same as runModel.
-async function runChatStream(env, messages) {
-  const input = { messages, max_tokens: MAX_CHAT_TOKENS, stream: true };
+async function runChatStream(env, messages, maxTokens = MAX_CHAT_TOKENS) {
+  const input = { messages, max_tokens: maxTokens, stream: true };
   try {
     return await env.AI.run(CHAT_MODEL, input);
   } catch (e) {
@@ -530,50 +548,166 @@ async function runChatStream(env, messages) {
   }
 }
 
-// Handles a coaching chat request: streams the model's reply straight back to
-// the client as Server-Sent Events. The client builds the system prompt (the
-// DateWise persona + the user's dating profile), so this stays generic.
-async function handleChat(env, messages) {
-  const safe = sanitizeMessages(messages);
-  if (!safe) {
-    return json({ error: 'Provide a non-empty "messages" array.' }, 400);
-  }
-  let stream;
-  try {
-    stream = await runChatStream(env, safe);
-  } catch (e) {
-    return json({ error: 'Workers AI error', detail: String(e) }, 502);
-  }
-  // Workers AI returns an SSE ReadableStream ("data: {\"response\":\"…\"}\n\n"
-  // … "data: [DONE]"); forward it verbatim with CORS so the app can stream it.
-  return new Response(stream, {
+// Handles a coaching chat request (chat-v7). With a coachId or a StoreKit
+// token (the v2 app) the server builds the coach's system prompt (the default
+// coach when no coachId is given) and drops client system messages, and the
+// request needs a valid subscription token (403 SUBSCRIPTION_REQUIRED). Only a
+// request with neither (the v1 build, 1.0.2, which never sends the token)
+// keeps the chat-v6 behaviour, while LEGACY_CLIENTS=1, in the anonymous caps. Either way the history is trimmed to the input-token cap,
+// the request is admitted by the cost guard, and the model's reply streams
+// back unchanged as Server-Sent Events while it is metered.
+// What the v1 build (1.0.2) shows once LEGACY_CLIENTS=0. v1 has no
+// forced-update mechanism and shows only a fixed "unavailable" text for any
+// non-200 response, so the notice is sent as a normal one-message reply (SSE,
+// HTTP 200) that v1 displays in the chat. No model runs and no budget is used.
+export const LEGACY_UPDATE_NOTICE = {
+  en: 'DateWise has a new version. Please update the app in the App Store to keep chatting with your coach.',
+  es: 'DateWise tiene una nueva versión. Actualiza la app en el App Store para seguir chateando con tu coach.',
+};
+
+/**
+ * v1 sends no language field, so the hints are, in order: an explicit
+ * language/locale in the body or profile (if a build ever sends one), the
+ * Accept-Language header, then the user's last message (Spanish marks or
+ * common Spanish words). English otherwise.
+ */
+export function legacyLanguage(request, body) {
+  const explicit = [body?.language, body?.locale, body?.profile?.language, body?.profile?.locale].find((v) => typeof v === 'string');
+  if (explicit) return /^es\b/i.test(explicit) ? 'es' : 'en';
+  const accept = request.headers.get('Accept-Language') || '';
+  if (accept) return /^\s*es\b/i.test(accept) ? 'es' : 'en';
+  const msgs = Array.isArray(body?.messages) ? body.messages : [];
+  const lastUser = [...msgs].reverse().find((m) => m && m.role === 'user' && typeof m.content === 'string');
+  const text = (lastUser?.content || '').toLowerCase().slice(0, 2000);
+  if (/[ñ¿¡]/.test(text)) return 'es';
+  const words = text.match(/[a-záéíóúü]+/g) || [];
+  const es = new Set(['hola', 'que', 'qué', 'como', 'cómo', 'para', 'por', 'una', 'con', 'mi', 'quiero', 'cita', 'chica', 'chico', 'gracias', 'pero', 'es', 'el', 'la', 'los', 'las', 'tengo', 'puedo', 'ayuda', 'novia', 'novio', 'mensaje']);
+  const hits = words.filter((w) => es.has(w)).length;
+  return words.length && hits >= Math.max(1, Math.ceil(words.length * 0.2)) ? 'es' : 'en';
+}
+
+function legacyUpdateNotice(request, body) {
+  const lang = legacyLanguage(request, body);
+  const sse = `data: ${JSON.stringify({ response: LEGACY_UPDATE_NOTICE[lang] })}\n\ndata: [DONE]\n\n`;
+  return new Response(sse, {
     headers: {
       'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
+      'Cache-Control': 'no-store',
+      'Content-Language': lang,
+      'X-DateWise-Code': 'APP_UPDATE_REQUIRED',
+      'Access-Control-Expose-Headers': 'X-DateWise-Code',
       ...corsHeaders(),
     },
   });
 }
 
-export default {
-  async fetch(request, env) {
-    const origin = request.headers.get('Origin') || '';
-    ACTIVE_CORS_ORIGIN = isAllowedOrigin(origin) ? origin : 'https://datewiseai.com';
+async function handleChat(request, env, ctx, body) {
+  const cfg = guardConfig(env);
+  const legacy =
+    (body.coachId === undefined || body.coachId === null) && !request.headers.get('X-DateWise-Entitlement');
+  let safe;
+  if (legacy) {
+    if (!cfg.LEGACY_CLIENTS) return legacyUpdateNotice(request, body);
+    safe = sanitizeMessages(body.messages);
+  } else {
+    const coachId = resolveCoachId(body.coachId);
+    if (!coachId) return json({ error: 'Unknown coachId.', code: 'UNKNOWN_COACH' }, 400);
+    const built = coachMessages(coachId, body.profile, body.messages);
+    safe = built && sanitizeMessages(built);
+  }
+  if (!safe) {
+    return json({ error: 'Provide at least one user message.' }, 400);
+  }
+  // The token-less v1 path is anonymous, so it also gets the smaller legacy
+  // per-request caps: posing as v1 buys only short prompts and short replies.
+  const maxOut =
+    Math.min(MAX_CHAT_TOKENS, cfg.MAX_OUTPUT_TOKENS, legacy ? cfg.LEGACY_MAX_OUTPUT_TOKENS : Infinity) || MAX_CHAT_TOKENS;
+  const fitted = fitToInputBudget(safe, legacy ? Math.min(cfg.MAX_INPUT_TOKENS, cfg.LEGACY_MAX_INPUT_TOKENS) : cfg.MAX_INPUT_TOKENS);
+  const inTokens = estimateTokens(fitted);
+  const gate = await admit(request, env, corsHeaders(), {
+    kind: legacy ? 'legacy-chat' : 'chat',
+    // A v2 request (coachId or token) is served only with a valid StoreKit
+    // token: 403 SUBSCRIPTION_REQUIRED otherwise, whatever REQUIRE_SUBSCRIPTION says.
+    requireToken: !legacy,
+    model: CHAT_MODEL,
+    inTokens,
+    outTokens: maxOut,
+  });
+  if (gate.response) return gate.response;
+  const { ticket } = gate;
+  // Degraded (opt-in fail-open while the counters are down): the smaller
+  // legacy per-request caps apply, so the outage allowance stays cheap.
+  const modelMessages = ticket.degraded ? fitToInputBudget(fitted, ticket.maxInputTokens) : fitted;
+  const modelMaxOut = ticket.degraded ? Math.min(maxOut, ticket.maxOutputTokens) : maxOut;
+  let stream;
+  try {
+    stream = await runChatStream(env, modelMessages, modelMaxOut);
+  } catch (e) {
+    ctx?.waitUntil?.(ticket.finish(0, { refund: true }));
+    return json({ error: 'Workers AI error', detail: String(e) }, 502);
+  }
+  const metered = meterStream(stream, (m) => {
+    const actual = neuronsFor(CHAT_MODEL, m.inTokens || estimateTokens(modelMessages), m.outTokens);
+    // A server-side failure (the model stream broke, or ended with no reply)
+    // gives the message back; a client that hangs up still uses it.
+    const refund = m.outcome === 'error' || (m.outcome === 'done' && !m.produced);
+    const done = ticket.finish(actual, { refund });
+    if (ctx?.waitUntil) ctx.waitUntil(done);
+  });
+  // Workers AI returns an SSE ReadableStream ("data: {\"response\":\"…\"}\n\n"
+  // … "data: [DONE]"); forward it verbatim with CORS so the app can stream it.
+  return new Response(metered, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      ...corsHeaders(),
+      ...ticket.headers,
+    },
+  });
+}
 
+// Worst-case neurons for one photo request: one vision call per photo (about
+// 1,600 image tokens + the prompt, up to 800 out) plus up to two 70B converter
+// passes (JSON mode, then plain JSON) of up to 900 tokens out.
+function photoReserve(count) {
+  return count * neuronsFor(MODEL, 2000, 800) + 2 * neuronsFor(TEXT_MODEL, 1500, 900);
+}
+
+export default {
+  async fetch(request, env, ctx) {
+    const origin = request.headers.get('Origin') || '';
+    const res = await route(request, env, ctx);
+    // Per request, after every await: the response carries this request's origin.
+    if (isAllowedOrigin(origin) && origin !== DEFAULT_ORIGIN) {
+      try {
+        res.headers.set('Access-Control-Allow-Origin', origin);
+      } catch {
+        /* immutable headers: keep the default origin */
+      }
+    }
+    return res;
+  },
+};
+
+async function route(request, env, ctx) {
+  {
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders() });
     }
 
-    // One-time Llama license acceptance. Open <worker-url>/?agree=1 once in a
-    // browser; Cloudflare registers acceptance for the whole account. We try a
-    // few input shapes because some gated models validate inputs differently.
+    // One-time Llama license acceptance. It runs the model with no subscription
+    // check, so it is off unless the Worker has ALLOW_AGREE = "1" (set it only
+    // for the first deploy on a new Cloudflare account, open
+    // <worker-url>/?agree=1 once, then remove it). Cloudflare registers
+    // acceptance for the whole account. We try a few input shapes because some
+    // gated models validate inputs differently.
     if (request.method === 'GET') {
       const url = new URL(request.url);
       // Quick deploy check: open <worker-url>/?version to confirm this code is live.
       if (url.searchParams.has('version')) {
-        return json({ version: 'chat-v5', note: 'streaming coach chat + single + batch parsing' });
+        return json({ version: GUARD_VERSION, note: 'chat-v6 + cost guard (fair-use caps, neuron budget, StoreKit 2 JWS), server-side coach prompts; text model llama-3.3-70b-instruct-fp8-fast' });
       }
-      if (url.searchParams.get('agree') === '1') {
+      if (url.searchParams.get('agree') === '1' && env.ALLOW_AGREE === '1') {
         if (!env.AI) return json({ error: 'AI binding "AI" missing' }, 500);
         const attempts = [
           { prompt: 'agree' },
@@ -596,6 +730,10 @@ export default {
     if (request.method !== 'POST') {
       return json({ error: 'Method not allowed' }, 405);
     }
+    // Optional App Store Server Notifications v2 (refunds/revocations); off by default.
+    if (new URL(request.url).pathname === '/apple/notifications') {
+      return await handleAppleNotification(request, env);
+    }
     if (!env.AI) {
       return json(
         { error: 'Workers AI binding "AI" is not configured on this Worker.' },
@@ -612,11 +750,42 @@ export default {
 
     const { imageBase64, images, tier, mode, userNote, messages } = body || {};
 
-    // Coaching chat path (all tiers) — streams a text reply. Checked before the
-    // Magnet gate below, which only guards the photo coach.
+    // Coaching chat path — streams a text reply. Checked before the photo
+    // coach below.
     if (Array.isArray(messages) && messages.length > 0) {
-      return await handleChat(env, messages);
+      return await handleChat(request, env, ctx, body);
     }
+
+    // The photo coach: only the v1 build (1.0.2) uses it (the v2 app sends no
+    // photos). Kept while LEGACY_CLIENTS=1, inside the same caps and budget,
+    // reserved at its worst case and settled with the measured usage.
+    if (!guardConfig(env).LEGACY_CLIENTS) {
+      // v1 shows "Photo coach backend error (426): <body>", so the body says what to do.
+      return guardError('APP_UPDATE_REQUIRED', corsHeaders(), { message: 'Please update DateWise from the App Store.' });
+    }
+    if (tier !== 'magnet') {
+      return json({ error: 'The AI Photo Coach is a Magnet-tier feature.' }, 403);
+    }
+    const photoCount = Array.isArray(images) && images.length > 0 ? Math.min(images.length, MAX_BATCH) : 1;
+    const photoGate = await admit(request, env, corsHeaders(), { kind: 'photo', neurons: photoReserve(photoCount) });
+    if (photoGate.response) return photoGate.response;
+    const meter = meteredAi(env.AI);
+    let photoResponse;
+    try {
+      photoResponse = await handlePhoto({ ...env, AI: meter.ai }, { imageBase64, images, tier, mode, userNote });
+    } catch (e) {
+      photoResponse = json({ error: 'Workers AI error', detail: String(e) }, 502);
+    }
+    const spent = meter.neurons();
+    // Refund the message only when the server failed or no model ran (a bad image).
+    ctx?.waitUntil?.(photoGate.ticket.finish(spent, { refund: photoResponse.status >= 500 || spent === 0 }));
+    for (const [k, v] of Object.entries(photoGate.ticket.headers)) photoResponse.headers.set(k, v);
+    return photoResponse;
+  }
+}
+
+// The v1 photo coach, unchanged from chat-v6 (only moved into a function).
+async function handlePhoto(env, { imageBase64, images, tier, mode, userNote }) {
 
     // Soft tier gate (client-sent; for real paywalls verify a session/payment).
     if (tier !== 'magnet') {
@@ -742,5 +911,4 @@ export default {
       return json({ error: 'Could not format analysis as JSON', raw: critique }, 502);
     }
     return json(normalize(analysis), 200);
-  },
-};
+}

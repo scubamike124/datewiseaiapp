@@ -1,3 +1,5 @@
+> **Superseded by DateWise v2 (one $19.99/month plan).** DateWise v2 has a single auto-renewable subscription, `datewise_premium_monthly`, with no free tier and no free trial. Plans, prices, tiers or free-launch notes below are historical; see `docs/appstore/metadata.md` for the current offer.
+
 # DateWise launch-readiness checklist
 
 Last checked 2026-11-22 for #20. Each line says what was verified and how. "Owner" means it waits on an owner action or decision. Do not start advertising or spend money until every **Required** item is ✅ and the owner approves.
@@ -8,7 +10,7 @@ Last checked 2026-11-22 for #20. Each line says what was verified and how. "Owne
 | Item | Status | Evidence / next step |
 |---|---|---|
 | Live coach backend answers | ❌ **DOWN** | Live probe on 2026-11-22: `?version` returns `chat-v5`. A chat request returns **HTTP 502** "@cf/meta/llama-3.1-8b-instruct-fp8 was deprecated on 2026-11-20". App users get "trouble reaching the coach". |
-| Fix for the retired model | 🟡 #17 | Replaces it with `llama-3.3-70b-instruct-fp8-fast`, with offline tests. **Owner:** merge #17 and deploy `backend/worker.js` (dashboard paste or `wrangler deploy`). Then `?version` must return `chat-v6` or later. |
+| Fix for the retired model | 🟡 #17 | Replaces it with `llama-3.3-70b-instruct-fp8-fast`, with offline tests. **Owner:** merge #17 and deploy chat-v6 (`f5b0401`) by a path in `docs/launch/WORKER_DEPLOY_RUNBOOK.md` §7 (release checklist D0). Then `?version` must return `chat-v6` or later. |
 | Four coaches, EN/ES, in the app | 🟡 #21 | 35 tests, iPhone and iPad layouts, independent review APPROVE, CI green. |
 | Server-side coach prompts and abuse limits | 🟡 #23 | chat-v7: server-built coach prompts, a per-IP limit (binding off until enabled), and the `REQUIRE_COACH_ID` switch for old apps. 18 tests. |
 | Live English and Spanish conversations verified | ❌ | Possible only once #17 or #23 is deployed. Then run the live checks in section 6. |
@@ -19,7 +21,7 @@ Last checked 2026-11-22 for #20. Each line says what was verified and how. "Owne
 |---|---|---|
 | Premium dark-purple redesign (web, onboarding, picker, chat, account) | 🔨 | Branch `claude/datewise-premium-redesign`, with screenshots per screen. |
 | Phone, tablet and desktop layouts without overflow | 🟡 | Coach flow tested at 320–1280 px wide, including 1.3× text (#21). Re-run for the redesign. |
-| Website live | 🟡 | `main` deploys to GitHub Pages on push (deploy.yml). The custom domain `datewiseai.com` is referenced in code but not verified here. |
+| Website live | 🟡 | GitHub Pages is published only by a manual run of deploy.yml from `main` (no deploy on push since 2026-11-23). The custom domain `datewiseai.com` is referenced in code but not verified here. |
 
 ## 3. Signup and onboarding (Required)
 | Item | Status | Evidence / next step |
@@ -48,7 +50,7 @@ To run after deployment:
 2. Each coach, Emily, James, Isabella and Mateo, answers two real questions. Isabella and Mateo must answer in Spanish even when the user writes in English, and Emily and James must answer in English.
 3. A photo analysis (single photo, and a batch of 2–4).
 4. Onboarding to first reply on iPhone SE and Pro Max sizes, on web.
-5. The error path: Worker down → a friendly, localised message.
+5. The error path: Worker down → a friendly, localized message.
 6. Abuse checks: a request without `coachId` gets a 426 once the switch is on; a burst of requests gets a 429 once the limiter is on.
 
 ## 7. Customer support and error handling

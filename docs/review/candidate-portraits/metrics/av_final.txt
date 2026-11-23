@@ -1,0 +1,9 @@
+ava-en     diff-from-master r(0)=+0.74 best   +0ms r=+0.74 | openness r(0)=+0.54 best   +0ms r=+0.54 | frozen 0 ms, rest-while-audible 0 ms
+ava-es     diff-from-master r(0)=+0.73 best  +10ms r=+0.73 | openness r(0)=+0.48 best  +40ms r=+0.51 | frozen 33 ms, rest-while-audible 33 ms
+diego-en   diff-from-master r(0)=+0.79 best  -10ms r=+0.79 | openness r(0)=+0.66 best  -20ms r=+0.67 | frozen 0 ms, rest-while-audible 0 ms
+diego-es   diff-from-master r(0)=+0.78 best   +0ms r=+0.78 | openness r(0)=+0.58 best  +20ms r=+0.59 | frozen 0 ms, rest-while-audible 0 ms
+ethan-en   diff-from-master r(0)=+0.74 best  -10ms r=+0.74 | openness r(0)=+0.48 best  -20ms r=+0.50 | frozen 33 ms, rest-while-audible 0 ms
+ethan-es   diff-from-master r(0)=+0.82 best   +0ms r=+0.82 | openness r(0)=+0.59 best  +10ms r=+0.59 | frozen 0 ms, rest-while-audible 0 ms
+sofia-en   diff-from-master r(0)=+0.65 best  -20ms r=+0.66 | openness r(0)=+0.41 best  -30ms r=+0.43 | frozen 0 ms, rest-while-audible 0 ms
+sofia-es   diff-from-master r(0)=+0.71 best  +20ms r=+0.71 | openness r(0)=+0.47 best  +40ms r=+0.52 | frozen 33 ms, rest-while-audible 0 ms
+MEAN       diff-from-master r(0)=+0.74 best -1ms r=+0.75 | openness r(0)=+0.53 best +5ms r=+0.54 | frozen max 33 ms, rest-while-audible max 33 ms
