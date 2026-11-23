@@ -218,10 +218,11 @@ job passes **and** you approve.
      up to about 3 minutes.
    - **chat-v7:** `POST /` with `{"coachId":"ava","messages":[…]}` and **no
      StoreKit token** must return **403 `SUBSCRIPTION_REQUIRED`**. That shows
-     the server-side subscription check is on, the `USAGE_GUARD` binding is
-     present (a missing binding gives 503 `GUARD_UNAVAILABLE`), and the IP rate
-     limit answered. It does **not** prove the Durable Object itself works: the
-     first real v2 chat does that (section 5).
+     the server-side subscription check is on and the IP rate limit answered.
+     It does **not** prove the `USAGE_GUARD` binding exists, because the token
+     check runs before the guard is used. The binding is proven before the
+     deploy, by the dry-run binding check (section 3, step 6). The Durable
+     Object itself is first exercised by a real v2 chat (section 5).
    - **chat-v6:** `GET /` must return 405.
 
    On failure, the job fails and the summary prints the rollback command.

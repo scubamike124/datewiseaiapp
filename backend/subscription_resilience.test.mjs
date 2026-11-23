@@ -150,6 +150,21 @@ test('expired transaction: refused after the leeway, accepted within it (boundar
   assert.equal((await send(env, { jws: await sign({ originalTransactionId: otid(), expiresDate: 'soon' }) })).code(), 'SUBSCRIPTION_EXPIRED');
 });
 
+test('deploy health check: the token-less 403 does not prove USAGE_GUARD; the dry-run binding check does', async () => {
+  // The post-deploy POST gets 403 SUBSCRIPTION_REQUIRED even with no guard binding,
+  // because the token check runs first. So the binding must be proven elsewhere.
+  const env = makeEnv();
+  delete env.USAGE_GUARD;
+  assert.equal((await send(env, { body: { coachId: 'ava', messages: [{ role: 'user', content: 'deploy health check' }] } })).code(), 'SUBSCRIPTION_REQUIRED');
+  const wf = readFileSync(new URL('../.github/workflows/deploy-worker.yml', import.meta.url), 'utf8');
+  assert.match(wf, /need 'env\\\.USAGE_GUARD \\\(UsageGuard\\\)\.\*Durable Object'/, 'the pre-deploy dry-run binding check is still there');
+  const runbook = readFileSync(new URL('../docs/launch/WORKER_DEPLOY_RUNBOOK.md', import.meta.url), 'utf8');
+  for (const text of [wf, runbook]) {
+    assert.doesNotMatch(text, /USAGE_GUARD binding is present \(else 503|`USAGE_GUARD` binding is\s+present/, 'no claim that the 403 proves the binding');
+    assert.match(text, /dry-run binding[\s#]+check/);
+  }
+});
+
 test('sandbox token in production: refused with ALLOW_SANDBOX=0; otherwise its own counter, cap and budget slice', async () => {
   const jws = await sign({ originalTransactionId: otid(), environment: 'Sandbox' });
   const strict = makeEnv({ ALLOW_SANDBOX: '0' });
