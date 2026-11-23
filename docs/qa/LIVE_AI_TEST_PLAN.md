@@ -1,7 +1,10 @@
 # Live AI test plan (chat-v7, four coaches, English and Spanish)
 
-**Status: ready to run, BLOCKED until chat-v7 is deployed.** Production runs chat-v5 (it answers v2 requests with 502).
-The kit checks the deployed version first and stops before any chat request when it is not `chat-v7-cost-guard`.
+**Status: ready to run, BLOCKED until the staging Worker is deployed** (section 1, owner steps). The live run targets the
+isolated **staging Worker** `datewise-coach-staging` (`[env.staging]` in `backend/wrangler.toml`), **never production**:
+no production variable is changed and there is nothing to restore. Production runs chat-v5 (it answers v2 requests with 502).
+The kit checks the deployed version first and stops before any chat request when it is not `chat-v7-cost-guard`, and it
+refuses the production Worker as `--base-url` (unless `--allow-production-worker` is passed on purpose).
 
 The kit is `tool/live/live_chat_test.mjs`. One set of scenarios runs in two modes, and each report is labelled with
 exactly one of them:
@@ -9,7 +12,7 @@ exactly one of them:
 | Mode | What runs | Cost | Report header |
 |---|---|---|---|
 | `--mode local` (default) | The real chat-v7 Worker code (`backend/worker.js`, `cost_guard.js`, `coach_prompts.js`) in-process, with the backend test fakes (`backend/test/helpers.mjs`: in-memory Durable Object, throwaway Apple-shaped PKI) and a scripted model | $0, offline | `SIMULATED`: proves the plumbing, limits and report. **Not AI evidence** |
-| `--mode live` | The deployed Worker (`--base-url`), with a real StoreKit Sandbox token from `DW_TEST_JWS` | Workers AI neurons (section 3) | `LIVE`: real Llama 3.3 replies |
+| `--mode live` | The staging Worker (`--base-url`), with a real StoreKit Sandbox token from `DW_TEST_JWS` | Workers AI neurons (section 3), inside the free allowance | `LIVE`: real Llama 3.3 replies |
 
 A sample SIMULATED report is in [`LIVE_AI_TEST_SIMULATED_SAMPLE.md`](LIVE_AI_TEST_SIMULATED_SAMPLE.md). CI runs the kit in
 local mode on every pull request (`tool/live/live_chat_test.test.mjs`, in `.github/workflows/backend-test.yml`).
@@ -22,28 +25,48 @@ test-PKI token cannot pass there. A run against `wrangler dev` is therefore a LI
 `err-apple-sample` request sends it as the entitlement and expects `403 SUBSCRIPTION_INVALID` (in local mode its root is
 trusted, so the signature verifies and the app/product check refuses it; in live mode the untrusted root refuses it).
 
-## 1. Prerequisites (LIVE)
+## 1. Prerequisites (LIVE): the staging Worker
 
-1. **chat-v7 deployed through the protected workflow.** Actions → *Deploy coach Worker* → target `chat-v7-cost-guard`,
-   `dry_run` unticked, owner approves the `production-worker` environment (runbook: `docs/launch/WORKER_DEPLOY_RUNBOOK.md`).
-   Check: `curl -s https://datewise-photo-coach.scubamike124.workers.dev/?version` returns `"version":"chat-v7-cost-guard"`.
-2. **`ALLOW_SANDBOX="1"`** (the default in `backend/wrangler.toml`). Without it every Sandbox token is `SUBSCRIPTION_INVALID`.
-3. **Test-day limits.** Cloudflare dashboard → Workers → `datewise-photo-coach` → Settings → Variables, for the test day only:
+The staging Worker is a separate Worker on the same Cloudflare account, with its own name, its own Durable Object
+(counters and budget separate from production), its own rate-limit namespace (`740221`) and its own random
+`ID_HASH_SALT`. It has the **same security settings as production**: every v2 chat needs a valid StoreKit token, verified
+offline against Apple Root CA - G3 (a live run still needs a real Apple Sandbox JWS); `ALLOW_SANDBOX = "1"`;
+`LEGACY_CLIENTS = "0"` and `REQUIRE_SUBSCRIPTION = "1"` (no v1 path); ASSN off; fail-open off. Only the limits are
+test-sized:
 
-   | Variable | Production value | Test day | Why |
-   |---|---|---|---|
-   | `SANDBOX_DAILY_LIMIT` | 20 | **40** | The full plan has 30 admitted requests per Sandbox subscriber (each counts, also the cancelled ones) |
-   | `SANDBOX_NEURON_BUDGET` | 1000 | **3000** | Expected spend plus two in-flight reservations is about 2,200 neurons (section 3) |
+| Variable | Production (`[vars]`, unchanged) | Staging (`[env.staging.vars]`) | Why |
+|---|---|---|---|
+| `SANDBOX_DAILY_LIMIT` | 20 | **40** | The full plan has 30 admitted requests per Sandbox subscriber (each counts, also the cancelled ones) |
+| `SANDBOX_NEURON_BUDGET` | 1000 | **3000** | Expected spend plus two in-flight reservations is about 2,200 neurons (section 3) |
+| `DAILY_NEURON_BUDGET` | 10000 | **4000** | The staging Worker's own breaker, well inside the account's free 10,000 a day |
+| `ANON_NEURON_BUDGET` | 2000 | 0 | No v1 traffic on staging |
 
-   Both stay inside `DAILY_NEURON_BUDGET` (10,000 = the free daily allowance), so the test cannot make the account spend
-   money. Set them back afterwards (the next workflow deploy also restores `wrangler.toml`). Never raise the Production limits.
-   **Without changing anything:** run with `--skip concurrency,burst` (18 admitted, fits 20), and run
-   `--skip errors,coaches,memory,safety` on another UTC day (12 admitted). With the production limit the full plan stops at
-   `DAILY_LIMIT`, and the report says so (CI checks this).
+The per-subscriber and per-request caps the plan measures (`PER_MINUTE_LIMIT` 12, `MAX_CONCURRENT` 2, token caps) are
+production's. `backend/staging_env.test.mjs` checks all of this, and that the production config is unchanged.
+
+**Owner steps** (once chat-v7 and this staging config are merged to `main`; runbook section 9):
+
+1. **Confirm the rate-limit namespace.** `740221` must not be used by any other Worker on the account (Cloudflare
+   dashboard: each Worker → Settings → Bindings). If it is, change it in a reviewed PR to `main`.
+2. **Deploy the staging Worker** through the protected workflow: Actions → *Deploy coach Worker* → Run workflow from
+   `main` → target **`chat-v7-staging`**, `dry_run` unticked → approve the `production-worker` environment. It runs
+   `wrangler deploy --env staging` (Worker `datewise-coach-staging` only), and checks `?version`, 403
+   `SUBSCRIPTION_REQUIRED` without a token, 403 `SUBSCRIPTION_INVALID` with a malformed one, and the no-model v1 notice.
+   No new GitHub environment or secret is needed.
+3. **Note the staging URL** from the run summary: `https://datewise-coach-staging.<subdomain>.workers.dev` (on the
+   current account `<subdomain>` is `scubamike124`). Check:
+   `curl -s https://datewise-coach-staging.<subdomain>.workers.dev/?version` returns `"version":"chat-v7-cost-guard"`.
 4. **A fresh Sandbox token** in `DW_TEST_JWS` (section 2). A Sandbox monthly plan renews every few minutes, so each token's
    `expiresDate` is close; the Worker accepts it for 60 minutes after that (`EXPIRY_LEEWAY_MINUTES`). Export it right before
    the run. The kit refuses an expired token and a Production token (unless `--allow-production`).
-5. Optional: `wrangler tail --format=pretty` (owner) for the count-only `event: usage` lines.
+5. Run the test (section 3). Optional: `cd backend && npx wrangler@4.158.0 tail --env staging --format=pretty` for the
+   count-only `event: usage` lines.
+6. **Tear down** after the report is reviewed (section 6): `cd backend && npx wrangler@4.158.0 delete --env staging`.
+
+Nothing in production changes, so there is nothing to restore. **Without a staging Worker** the plan can still be split
+to fit production's limits, but that sends test traffic to production, so it is not recommended: `--skip
+concurrency,burst` (18 admitted, fits 20), and `--skip errors,coaches,memory,safety` on another UTC day (12 admitted).
+With the production limit the full plan stops at `DAILY_LIMIT`, and the report says so (CI checks this).
 
 ## 2. Getting a Sandbox token (`DW_TEST_JWS`)
 
@@ -94,19 +117,24 @@ Estimate first (sends nothing):
 node tool/live/live_chat_test.mjs --dry-run
 ```
 
-Then the live run (Node 22, from the repository root):
+Then the live run against the **staging** Worker (Node 22, from the repository root):
 
 ```bash
 node tool/live/live_chat_test.mjs --mode live --confirm-live \
-  --base-url https://datewise-photo-coach.scubamike124.workers.dev --budget 40
+  --base-url https://datewise-coach-staging.<subdomain>.workers.dev --budget 40
 ```
+
+The kit refuses `https://datewise-photo-coach.…` (production) unless `--allow-production-worker` is passed.
 
 The kit reads the token only from `DW_TEST_JWS` and refuses `--jws` on the command line. It prints and stores only
 `sha256:<12 hex>…`. Exit code 0 = no failing check, 1 = a failing check or an early stop, 2 = refused to start.
 
-**Expected cost of the full plan: 36 HTTP requests, 30 admitted, about 1,839 neurons** (worst case 5,604). That is
-about 18% of the free 10,000-neuron daily allowance, so $0 on an account that is not over the allowance that day, and
-about $0.02 at the paid rate ($0.011 per 1,000 neurons, `docs/business/AI_COST_MODEL.md`). How it is estimated
+**Expected cost of the full plan: 36 HTTP requests, 30 admitted, about 1,839 neurons** (worst case 5,604, but the staging
+Worker stops it at `SANDBOX_NEURON_BUDGET` 3,000). That is about 18% of the free 10,000-neuron daily allowance, so **$0**:
+on Workers Free, AI calls past the allowance fail rather than bill (about $0.02 at the paid rate, $0.011 per 1,000
+neurons, `docs/business/AI_COST_MODEL.md`). The allowance is per account, so staging and production share it on the test
+day: run on a quiet day, or after the account separation (`CLOUDFLARE_ACCOUNT_SEPARATION_PLAN.md`). The staging Worker
+itself (Workers Free, SQLite Durable Object, rate-limit binding) costs nothing, and its deploy checks use no neurons. How it is estimated
 (`estimatePlan` in the kit, with `neuronsFor` and `estimateTokens` from `backend/cost_guard.js`):
 
 - Input per request: the Worker's own estimate of the server-built coach prompt plus the turns (about 800 to 950
@@ -114,8 +142,9 @@ about $0.02 at the paid rate ($0.011 per 1,000 neurons, `docs/business/AI_COST_M
 - Output: 300 tokens per full reply (18 replies, about 84 to 87 neurons each), 20 tokens per request the kit cancels
   after the first token or the headers (2 concurrency + 10 burst, about 26 each). Refused requests cost 0.
 - Worst case: every admitted request at the 800-token output cap. The guard reserves that much per request in flight
-  (about 190 neurons, at most 2 at once), so with `SANDBOX_NEURON_BUDGET=3000` an unexpectedly long run is stopped by
-  `SERVICE_BUDGET_EXHAUSTED` before it can pass 3,000 neurons.
+  (about 190 neurons, at most 2 at once), so with the staging `SANDBOX_NEURON_BUDGET=3000` an unexpectedly long run is
+  stopped by `SERVICE_BUDGET_EXHAUSTED` before it can pass 3,000 neurons (and `DAILY_NEURON_BUDGET=4000` bounds the
+  staging Worker as a whole).
 - Split runs: `--skip concurrency,burst` is 22 requests, 18 admitted, about 1,527 neurons; the limits part alone is
   15 requests, 12 admitted, about 312 neurons.
 
@@ -163,3 +192,18 @@ The report is written to `build/live_ai/live_chat_<LIVE|SIMULATED>_<time>.md` (o
 The checks are heuristics that point a reviewer at replies to read; a person still reads every LIVE reply before the
 report is used as evidence. Keep LIVE reports out of the repository if they contain anything personal (they should not:
 the prompts are fixed test text).
+
+## 6. Teardown
+
+After the LIVE report has been read and kept (outside the repository if it holds anything personal):
+
+```bash
+cd backend && npx wrangler@4.158.0 delete --env staging   # deletes Worker datewise-coach-staging only
+curl -s https://datewise-coach-staging.<subdomain>.workers.dev/?version   # no longer chat-v7-cost-guard once gone
+```
+
+`--env staging` resolves to `datewise-coach-staging` (`[env.staging] name`), never `datewise-photo-coach`. It needs Wrangler
+signed in to the account (`npx wrangler@4.158.0 login`, or a `CLOUDFLARE_API_TOKEN` with Workers Scripts Edit in the
+shell). Wrangler asks for confirmation; check that the name it prints is `datewise-coach-staging`. Deleting it removes its Durable Object data (the staging counters) and its
+staging-only salt; production is not affected. The Cloudflare dashboard (Workers → `datewise-coach-staging` → Settings →
+Delete) does the same. The staging Worker can be deployed again any time with the workflow (section 1, step 2).
