@@ -206,7 +206,7 @@ class DeviceSpeechService implements SpeechService {
 
   /// Cancels the recognizer whatever `isListening` says: a session that is
   /// still starting, or one that failed half-way, can report not listening
-  /// while it still holds the microphone. Cancelling an idle recognizer is
+  /// while it still holds the microphone. Canceling an idle recognizer is
   /// harmless.
   Future<void> _cancelRecognizer() async {
     _onUnsupported = null;
