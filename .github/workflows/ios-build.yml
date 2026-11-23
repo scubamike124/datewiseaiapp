@@ -71,7 +71,7 @@ concurrency:
   # Runs with different build inputs never cancel each other (a staging
   # TestFlight run must not cancel a production one); a re-run of the same
   # kind still replaces the older run.
-  group: ios-build-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.signed_build && 'signed' || 'unsigned' }}-${{ inputs.coach_backend || 'production' }}
+  group: ios-build-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.signed_build && 'signed' || 'unsigned' }}-${{ inputs.coach_backend || 'production' }}-${{ inputs.signing || 'manual' }}-${{ inputs.avatar_audio_path && 'audio' || 'tts' }}
   cancel-in-progress: true
 
 env:
@@ -266,6 +266,10 @@ jobs:
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          # The team id goes into sed and a plist: accept only its real form.
+          if ! [[ "$APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]; then
+            echo "::error::APPLE_TEAM_ID must be the 10-character Team ID."; exit 1
+          fi
           # Only the Runner target's configurations end in exactly "datewiseAi;"
           # (RunnerTests is ...datewiseAi.RunnerTests), so plugin targets keep
           # their own signing settings.
