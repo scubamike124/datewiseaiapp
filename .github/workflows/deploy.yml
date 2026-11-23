@@ -1,11 +1,11 @@
 name: Deploy to GitHub Pages
 
-# Builds the Flutter web app and publishes it to GitHub Pages on every push to
-# main. No manual steps after the first setup.
+# Builds the Flutter web app and publishes it to GitHub Pages. Manual only
+# (owner, 2026-11-23): merging to main no longer republishes the website, so the
+# app, the Worker and the website can each be released on their own decision.
+# To publish: Actions, "Deploy to GitHub Pages", Run workflow, branch main.
 on:
-  push:
-    branches: [main]
-  workflow_dispatch: # lets you trigger a deploy manually from the Actions tab
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -22,6 +22,8 @@ env:
 
 jobs:
   build:
+    # Only main is ever published, whichever branch the run is started from.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

@@ -54,8 +54,10 @@ namespace_id = "740219"
 # needs Workers Paid and the owner's approval.
 DAILY_NEURON_BUDGET = "10000"
 # The share of that budget requests without a StoreKit token may use (the v1
-# App Store build). Unset or "-1" = 20% of DAILY_NEURON_BUDGET.
-ANON_NEURON_BUDGET = "2000"
+# App Store build). Unset or "-1" = 20% of DAILY_NEURON_BUDGET. "0": none. The
+# owner chose full enforcement on 2026-11-23: no model call without a valid
+# StoreKit token, so v1 (token-less) traffic gets no share.
+ANON_NEURON_BUDGET = "0"
 # Optional monthly ceiling in neurons ("0" = off).
 MONTHLY_NEURON_BUDGET = "0"
 # Per subscriber (keyed by a salted hash of the App Store originalTransactionId).
@@ -75,17 +77,18 @@ IP_PER_MINUTE_LIMIT = "60"
 # this says. REQUIRE_SUBSCRIPTION applies only to token-less v1 (legacy) requests:
 # "1" refuses them with 403 SUBSCRIPTION_REQUIRED; "0" lets them share a per-IP
 # bucket (below) while LEGACY_CLIENTS = "1".
-REQUIRE_SUBSCRIPTION = "0"
+REQUIRE_SUBSCRIPTION = "1"
 # Per IPv4 address / IPv6 /64 (token-less v1 requests only).
-ANON_DAILY_LIMIT = "60"
-ANON_MONTHLY_LIMIT = "600"
+ANON_DAILY_LIMIT = "0"
+ANON_MONTHLY_LIMIT = "0"
 # v1 App Store build (1.0.2: no coachId, no token): chat with its own prompt and the
 # photo coach, counted per network and on ANON_NEURON_BUDGET. Anyone can pose as v1
 # (drop coachId and the token), so this path is the anonymous allowance: see
 # docs/qa/SUBSCRIPTION_RESILIENCE.md, section 2. Set "0" the day v2 is live in the
 # App Store: v1 chat then shows an "update the app" reply (no model call) and the
-# v1 photo coach gets 426 APP_UPDATE_REQUIRED.
-LEGACY_CLIENTS = "1"
+# v1 photo coach gets 426 APP_UPDATE_REQUIRED. "0" since 2026-11-23 (owner: full
+# enforcement; the live chat-v5 Worker had no subscription check at all).
+LEGACY_CLIENTS = "0"
 # Per-request caps for that v1 path only (v2 subscribers keep MAX_INPUT_TOKENS /
 # MAX_OUTPUT_TOKENS), so posing as v1 buys only short prompts and short replies.
 LEGACY_MAX_INPUT_TOKENS = "3000"
