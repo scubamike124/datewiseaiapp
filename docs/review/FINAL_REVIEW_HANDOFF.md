@@ -1,6 +1,6 @@
 # DateWise AI v2: handoff for independent review
 
-Status as of 2026-11-23. Read this before reviewing PR #27.
+Status as of 2026-11-23. Read this before reviewing PR #27. Where this handoff and the release checklist at the top of `docs/appstore/checklist.md` differ, the checklist wins.
 
 Only PASS results that were actually run are reported as PASS. Anything that needs a physical iPhone, Apple credentials, a signed build or the live backend is marked **BLOCKED**, because it has not been tested.
 
@@ -88,7 +88,7 @@ Only PASS results that were actually run are reported as PASS. Anything that nee
 | EN/ES UI, at text scale 1.0 and 2.0 | PASS: widget tests plus 112 captured screens (web review build) |
 | Coach personas, prompt sync between server and app | PASS (unit tests) |
 | Chat client: streaming, retry, timeout, truncation, error and limit codes | PASS: real socket against a local fake server; **no live AI** |
-| Live AI replies for Ava, Ethan, Sofía and Diego (EN, ES, language switching) | **BLOCKED.** Production is still chat-v5, whose model was retired on 2026-11-20 (HTTP 502). chat-v6 is approved, but deploying it waits on the Amber HQ Verify step. |
+| Live AI replies for Ava, Ethan, Sofía and Diego (EN, ES, language switching) | **BLOCKED.** Production is still chat-v5, whose model was retired on 2026-11-20 (HTTP 502). chat-v6 (`f5b0401`) is approved but not yet deployed (release checklist D0). |
 | Voice: mapping, locale fallback, permission states | PASS (unit tests) |
 | Voice on a real device: sound, recognition, permission prompts | **BLOCKED** (needs a physical iPhone) |
 | StoreKit logic: purchase, restore, expiry, refund, no-spoof | PASS (fakes injected through the plugin's test API) |
@@ -118,7 +118,7 @@ Only PASS results that were actually run are reported as PASS. Anything that nee
 - **Small large-text cosmetic issues:** the support email wraps at the dot, and the chat header subtitle wraps onto two lines.
 
 ## 8. Owner-only actions
-1. **Amber HQ:** press Verify again, then approve the chat-v6 deploy. That fixes the production HTTP 502. Then rerun the live coach tests.
+1. **v1 stop-gap:** deploy chat-v6 (`f5b0401`) to the old Worker, with an owner-internal redeploy tool outside this repo or with `.github/workflows/deploy-worker.yml` (target `chat-v6`), per `docs/launch/WORKER_DEPLOY_RUNBOOK.md` §7 (release checklist D0). That fixes the production HTTP 502. Then rerun the live coach tests.
 2. **Model comparison:** add the repo secrets `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_AI_TOKEN` (your existing token, which needs Workers AI Read and Edit). Then approve the model and the `DAILY_NEURON_BUDGET`, and Workers Paid if you want it.
 3. **Pricing:** decide the final price; the default is $9.99. Set Mexico and Spain prices by hand, and join the Apple Small Business Program for 15% commission.
 4. **App Store Connect:**
@@ -131,7 +131,7 @@ Only PASS results that were actually run are reported as PASS. Anything that nee
 5. **Assets:** the 8 final portraits, and the date and account the reference images were generated with; then regenerate all screenshots (iPhone and iPad 13").
 6. **Hosting:** confirm you control datewiseai.com, the legal and support URLs, and support@datewiseai.com.
 7. **Cost-guard deploy (later, needs approval):**
-   - set a new pinned hash in Amber;
+   - deploy chat-v7 **only** through the reviewed workflow `.github/workflows/deploy-worker.yml`, approved in the `production-worker` environment (`docs/launch/WORKER_DEPLOY_RUNBOOK.md`; release checklist D1–D4). An owner-internal redeploy tool outside this repo cannot deploy it;
    - set the `ID_HASH_SALT` secret;
    - check that the rate-limit namespace is unique;
    - decide on the capacity of the legacy 1.0.2 client.
