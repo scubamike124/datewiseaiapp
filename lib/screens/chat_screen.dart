@@ -834,6 +834,7 @@ class _Bubble extends StatelessWidget {
                               failure: message.failure,
                               code: message.failedCode,
                               onRetry: onRetry,
+                              showPaywallAction: showOptions,
                             )
                           : message.isPhotoOnly
                               ? Text(l.photoNoLongerAvailable,
@@ -1200,9 +1201,17 @@ class _Locked extends StatelessWidget {
 }
 
 /// A reply that could not be delivered: the friendly notice (localized), any
-/// text that arrived before the failure, and "Try again".
+/// text that arrived before the failure, "Try again", and for a subscription
+/// refusal (see [CoachLimitCode.paywallAction]) a button that opens the
+/// paywall with Subscribe and Restore purchases.
 class _FailedReply extends StatelessWidget {
-  const _FailedReply({required this.partial, required this.stopped, required this.onRetry, this.failure, this.code});
+  const _FailedReply(
+      {required this.partial,
+      required this.stopped,
+      required this.onRetry,
+      this.failure,
+      this.code,
+      this.showPaywallAction = false});
   final String partial;
   final bool stopped;
   final ReplyFailure? failure;
@@ -1211,9 +1220,13 @@ class _FailedReply extends StatelessWidget {
   final String? code;
   final VoidCallback? onRetry;
 
+  /// Only on the newest reply, like "Try again".
+  final bool showPaywallAction;
+
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
+    final paywall = showPaywallAction && !stopped && CoachLimitCode.paywallAction.contains(code);
     return Column(
       key: const ValueKey('reply-failed'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1248,17 +1261,37 @@ class _FailedReply extends StatelessWidget {
             ),
           ],
         ),
-        if (onRetry != null) ...[
+        if (onRetry != null || paywall) ...[
           const SizedBox(height: 8),
-          DwButton(
-            key: const ValueKey('retry'),
-            label: l.retry,
-            leading: Icons.refresh_rounded,
-            onPressed: onRetry,
-            style: DwButtonStyle.ghost,
-            height: 44,
-            fontSize: 14,
-            padding: 16,
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (paywall)
+                DwButton(
+                  key: const ValueKey('reply-paywall'),
+                  // "Restore purchases" where the notice says to tap it;
+                  // otherwise the paywall (Subscribe, Restore purchases).
+                  label: code == CoachLimitCode.subscriptionInvalid ? l.restorePurchases : l.seePremium,
+                  leading: Icons.workspace_premium_outlined,
+                  onPressed: () => showPaywall(context),
+                  style: DwButtonStyle.ghost,
+                  height: 44,
+                  fontSize: 14,
+                  padding: 16,
+                ),
+              if (onRetry != null)
+                DwButton(
+                  key: const ValueKey('retry'),
+                  label: l.retry,
+                  leading: Icons.refresh_rounded,
+                  onPressed: onRetry,
+                  style: DwButtonStyle.ghost,
+                  height: 44,
+                  fontSize: 14,
+                  padding: 16,
+                ),
+            ],
           ),
         ],
       ],

@@ -1,7 +1,7 @@
 // The chat-v7 limit UI: a refused reply shows its localized limit notice (EN
-// and ES), "Try again" only where an instant retry can help, the reason is
-// saved with the message, and the soft fair-use notice sits above the
-// composer. No copy says "unlimited".
+// and ES), "Try again" only where an instant retry can help, a paywall button
+// for subscription refusals, the reason is saved with the message, and the
+// soft fair-use notice sits above the composer. No copy says "unlimited".
 
 import 'dart:convert';
 import 'dart:io';
@@ -97,6 +97,43 @@ void main() {
       expect(app.state.canRetry, retry);
       expect(_notice(tester).toLowerCase(), isNot(contains('unlimited')));
       expect(_notice(tester).toLowerCase(), isNot(contains('ilimitad')));
+    });
+  }
+
+  // Subscription refusals offer the paywall (Subscribe, Restore purchases) in the bubble itself.
+  for (final (lang, prefs, code, label) in [
+    ('en', onboardedPrefs(), CoachLimitCode.subscriptionRevoked, 'See DateWise Premium'),
+    ('es', spanishPrefs(), CoachLimitCode.subscriptionRevoked, 'Ver DateWise Premium'),
+    ('en', onboardedPrefs(), CoachLimitCode.subscriptionExpired, 'See DateWise Premium'),
+    ('es', spanishPrefs(), CoachLimitCode.subscriptionExpired, 'Ver DateWise Premium'),
+    ('en', onboardedPrefs(), CoachLimitCode.subscriptionRequired, 'See DateWise Premium'),
+    ('es', spanishPrefs(), CoachLimitCode.subscriptionRequired, 'Ver DateWise Premium'),
+    ('en', onboardedPrefs(), CoachLimitCode.subscriptionInvalid, 'Restore purchases'),
+    ('es', spanishPrefs(), CoachLimitCode.subscriptionInvalid, 'Restaurar compras'),
+  ]) {
+    testWidgets('[$lang] $code offers "$label", which opens the paywall with Restore purchases', (tester) async {
+      await _pumpChat(tester, _RefusingAI(403, code), prefs);
+      await _send(tester, 'Hi');
+      final button = find.byKey(const ValueKey('reply-paywall'));
+      expect(button, findsOneWidget);
+      expect(find.descendant(of: button, matching: find.text(label)), findsOneWidget);
+      // Revoked: no instant retry, so the paywall is the only action. The others keep "Try again".
+      expect(find.byKey(const ValueKey('retry')),
+          code == CoachLimitCode.subscriptionRevoked ? findsNothing : findsOneWidget);
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('paywall')), findsOneWidget);
+      expect(find.byKey(const ValueKey('paywall-restore')), findsOneWidget);
+      expect(find.byKey(const ValueKey('paywall-subscribe')), findsOneWidget);
+    });
+  }
+
+  for (final code in [CoachLimitCode.dailyLimit, CoachLimitCode.guardUnavailable, CoachLimitCode.appUpdateRequired, 'SOMETHING_NEW']) {
+    testWidgets('$code does not offer the paywall', (tester) async {
+      await _pumpChat(tester, _RefusingAI(429, code), onboardedPrefs());
+      await _send(tester, 'Hi');
+      expect(find.byKey(const ValueKey('reply-failed-notice')), findsOneWidget);
+      expect(find.byKey(const ValueKey('reply-paywall')), findsNothing);
     });
   }
 

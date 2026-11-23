@@ -132,10 +132,10 @@ Recommendation: leave it off until the count-only logs show that Durable Object 
 **Always an action, never a dead end.** Paywall: Subscribe, **Restore purchases**, Close, and a message for each store error.
 Chat refusals: `SUBSCRIPTION_EXPIRED`/`REQUIRED` say "isn't active", and `SUBSCRIPTION_INVALID` says "Tap Restore purchases", both
 with **Try again**. `GUARD_UNAVAILABLE`/`SERVICE_BUDGET_EXHAUSTED` say "busy" with Try again. `RATE_LIMITED` says "slow down" with Try again.
-`DAILY_LIMIT`/`MONTHLY_LIMIT` give the reset time and no instant retry. Two notices have no button in the chat bubble itself, and that is
-a screen change for the UI owner, not done here: `SUBSCRIPTION_REVOKED` ("refunded or revoked") and the expired notice would be clearer with
-a **Restore purchases / Subscribe** button that opens the paywall (`showPaywall`). The paywall is reachable from Settings
-› Subscription today.
+`DAILY_LIMIT`/`MONTHLY_LIMIT` give the reset time and no instant retry. The subscription notices also open the paywall (Subscribe,
+**Restore purchases**) from the chat bubble itself: `SUBSCRIPTION_REVOKED`, `SUBSCRIPTION_EXPIRED` and `SUBSCRIPTION_REQUIRED` show
+**See DateWise Premium**, and `SUBSCRIPTION_INVALID` shows **Restore purchases** (`CoachLimitCode.paywallAction`; tests in
+`test/coach_limit_ui_test.dart`, EN and ES). The paywall is also reachable from Settings › Subscription.
 
 ## 5. Existing subscriptions (v1)
 
