@@ -262,7 +262,7 @@ async function ipAllowed(env, cfg, netHash, now) {
  * graceUntil, hashed renewedTx): it is deleted this long after the later of
  * the paid-up end (renewal or billing grace) and the last notification's
  * signedDate. The signedDate floor keeps an expiry on record long enough that
- * a late, older renewal notification (Apple retries for about 3 days) cannot
+ * a late, older renewal notification (Apple retries ASSN v2 deliveries for about 6.5 days: 1, 12, 24, 48 and 72 hours) cannot
  * resurrect it. Stated in the privacy policy (lib/content/legal_text.dart).
  */
 export const ASSN_RETENTION_DAYS = 35;

@@ -353,7 +353,7 @@ class AppState extends ChangeNotifier {
       // the app must not stay "responding" (the composer would stay locked).
       _isResponding = false;
       notifyListeners();
-      debugPrint('sendMessage: could not start a conversation: $e');
+      if (kDebugMode) debugPrint('sendMessage: could not start a conversation: $e');
       return false;
     }
     final now = _clock();
@@ -410,7 +410,7 @@ class AppState extends ChangeNotifier {
       await _recordActiveDay();
       saved = true;
     } catch (e) {
-      debugPrint('reply: could not save before the request: $e');
+      if (kDebugMode) debugPrint('reply: could not save before the request: $e');
     } finally {
       if (!saved) {
         // Storage failed: no request is made. The reply shows as failed with
