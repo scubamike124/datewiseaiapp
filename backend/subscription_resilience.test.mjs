@@ -61,7 +61,7 @@ async function notify(env, body) {
 const subObject = (env, prefix = 'sub:') => [...env.USAGE_GUARD.objects.entries()].filter(([k]) => k.startsWith(prefix)).map(([, v]) => v.data.get('u'));
 
 // ============================================================================
-// 1. The only plan is $9.99/month: one product id everywhere.
+// 1. The only plan is $19.99/month: one product id everywhere.
 // ============================================================================
 test('one product: DateWise.storekit, wrangler.toml, the guard default and the app all name datewise_premium_monthly only', () => {
   const sk = JSON.parse(readFileSync(new URL('../ios/Runner/DateWise.storekit', import.meta.url), 'utf8'));
@@ -72,7 +72,7 @@ test('one product: DateWise.storekit, wrangler.toml, the guard default and the a
   assert.equal(subs.length, 1);
   const [p] = subs;
   assert.equal(p.productID, 'datewise_premium_monthly');
-  assert.equal(p.displayPrice, '9.99');
+  assert.equal(p.displayPrice, '19.99');
   assert.equal(p.recurringSubscriptionPeriod, 'P1M');
   assert.equal(p.introductoryOffer, null);
   assert.equal(p.familyShareable, false);

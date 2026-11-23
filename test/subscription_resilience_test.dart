@@ -48,7 +48,7 @@ class _Iap implements InAppPurchase {
   @override
   Future<ProductDetailsResponse> queryProductDetails(Set<String> identifiers) async => ProductDetailsResponse(
         productDetails: [
-          ProductDetails(id: StoreConfig.productId, title: 'DateWise Premium Monthly', description: '', price: r'$9.99', rawPrice: 9.99, currencyCode: 'USD'),
+          ProductDetails(id: StoreConfig.productId, title: 'DateWise Premium Monthly', description: '', price: r'$19.99', rawPrice: 19.99, currencyCode: 'USD'),
         ],
         notFoundIDs: const [],
       );
@@ -153,7 +153,7 @@ void main() {
       final store = _store(_Iap());
       await store.init();
       expect(store.isEntitled, isTrue);
-      expect(store.storePrice, r'$9.99');
+      expect(store.storePrice, r'$19.99');
     });
 
     test('both reads fail: the paywall can say "Could not reach the App Store" and Restore works later', () async {
@@ -450,7 +450,7 @@ void main() {
     sk2.fail = true;
     final store = _store(_Iap());
     await store.init();
-    expect(store.storePrice, r'$9.99');
+    expect(store.storePrice, r'$19.99');
     expect(store.lastError, StoreError.storeUnreachable);
   });
 

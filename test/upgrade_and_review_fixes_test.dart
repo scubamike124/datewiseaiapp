@@ -143,8 +143,8 @@ class _FlakyIap implements InAppPurchase {
           id: StoreConfig.productId,
           title: 'DateWise Premium',
           description: 'Monthly',
-          price: r'$9.99',
-          rawPrice: 9.99,
+          price: r'$19.99',
+          rawPrice: 19.99,
           currencyCode: 'USD',
         ),
       ],
@@ -464,7 +464,7 @@ void main() {
       await store.refresh();
       expect(iap.queries, 2);
       expect(store.canPurchase, isTrue);
-      expect(store.storePrice, r'$9.99');
+      expect(store.storePrice, r'$19.99');
     });
 
     testWidgets('without a StoreKit price: no hard-coded price, Subscribe disabled', (tester) async {
@@ -474,7 +474,7 @@ void main() {
       expect(d, isNot(contains(r'$')));
       expect(d, contains('price shown by the App Store'));
       expect(d, contains('Settings › [your name] › Subscriptions'));
-      expect(find.textContaining('9.99'), findsNothing);
+      expect(find.textContaining(RegExp(r'\d[.,]\d\d(?!\d)')), findsNothing, reason: 'no hard-coded price of any kind');
       expect(find.text('Price shown by the App Store'), findsOneWidget);
       final button = tester.widget<DwButton>(find.byKey(const ValueKey('paywall-subscribe')));
       expect(button.onPressed, isNull);
@@ -485,7 +485,7 @@ void main() {
       await pumpApp(tester, prefs: spanishPrefs(), store: FakeStoreService(price: null));
       final d = tester.widget<Text>(find.byKey(const ValueKey('paywall-disclosure'))).data!;
       expect(d, contains('precio indicado por el App Store'));
-      expect(find.textContaining('9.99'), findsNothing);
+      expect(find.textContaining(RegExp(r'\d[.,]\d\d(?!\d)')), findsNothing, reason: 'no hard-coded price of any kind');
     });
   });
 

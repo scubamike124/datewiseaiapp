@@ -379,17 +379,45 @@ void main() {
     expect(speech.starts, 0);
   });
 
-  testWidgets('paywall shows the StoreKit-localized price as is (e.g. 9,99 €), never \$9.99', (tester) async {
-    await pumpApp(tester, prefs: onboardedPrefs(), store: FakeStoreService(price: '9,99 €'));
+  testWidgets('paywall shows the StoreKit-localized price as is (e.g. 19,99 €), never \$19.99', (tester) async {
+    await pumpApp(tester, prefs: onboardedPrefs(), store: FakeStoreService(price: '19,99 €'));
     expect(find.byKey(const ValueKey('paywall')), findsOneWidget);
     final price = tester.widget<Text>(find.byKey(const ValueKey('paywall-price'))).data;
-    expect(price, '9,99 €');
-    expect(find.text('Subscribe for 9,99 €/month'), findsOneWidget);
+    expect(price, '19,99 €');
+    expect(find.text('Subscribe for 19,99 €/month'), findsOneWidget);
     final d = tester.widget<Text>(find.byKey(const ValueKey('paywall-disclosure'))).data!;
-    expect(d, contains('renews automatically every month at 9,99 €'));
+    expect(d, contains('renews automatically every month at 19,99 €'));
     expect(d, isNot(contains(r'$')));
     for (final k in ['paywall-restore', 'paywall-terms', 'paywall-privacy']) {
       expect(find.byKey(ValueKey(k)), findsOneWidget, reason: k);
     }
+  });
+
+  testWidgets('Spanish paywall shows the StoreKit string verbatim (US\$19.99); no other price renders', (tester) async {
+    await pumpApp(tester, prefs: spanishPrefs(), store: FakeStoreService(price: 'US\$19.99'));
+    expect(find.byKey(const ValueKey('paywall')), findsOneWidget);
+    final price = tester.widget<Text>(find.byKey(const ValueKey('paywall-price'))).data;
+    expect(price, 'US\$19.99');
+    expect(find.text('Suscribirme por US\$19.99/mes'), findsOneWidget);
+    final d = tester.widget<Text>(find.byKey(const ValueKey('paywall-disclosure'))).data!;
+    expect(d, startsWith('US\$19.99/mes.'));
+    expect(d, contains('cada mes por US\$19.99'));
+    // Every price-like string on screen is exactly StoreKit's string.
+    final priceLike = RegExp(r'\d+[.,]\d\d(?!\d)');
+    for (final w in tester.widgetList<Text>(find.byType(Text))) {
+      final t = w.data ?? w.textSpan?.toPlainText() ?? '';
+      for (final m in priceLike.allMatches(t)) {
+        expect(m.group(0), '19.99', reason: t);
+        expect(t.substring(0, m.start), endsWith('US\$'), reason: 'currency comes from StoreKit: $t');
+      }
+    }
+  });
+
+  testWidgets('a StoreKit price different from the fake default is shown instead of it (nothing hard-coded wins)', (tester) async {
+    await pumpApp(tester, prefs: onboardedPrefs(), store: FakeStoreService(price: '£18.99'));
+    expect(tester.widget<Text>(find.byKey(const ValueKey('paywall-price'))).data, '£18.99');
+    expect(find.text('Subscribe for £18.99/month'), findsOneWidget);
+    expect(find.textContaining('19.99'), findsNothing);
+    expect(find.textContaining(r'$'), findsNothing);
   });
 }

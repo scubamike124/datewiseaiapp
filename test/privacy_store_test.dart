@@ -204,12 +204,12 @@ void main() {
     testWidgets('paywall disclosures (English)', (tester) async {
       await pumpApp(tester, prefs: onboardedPrefs(), entitled: false);
       final d = tester.widget<Text>(find.byKey(const ValueKey('paywall-disclosure'))).data!;
-      expect(d, startsWith(r'$9.99/month.'));
+      expect(d, startsWith(r'$19.99/month.'));
       expect(d, contains('charged to your Apple Account at confirmation of purchase'));
-      expect(d, contains('renews automatically every month at \$9.99 unless you cancel it'));
+      expect(d, contains('renews automatically every month at \$19.99 unless you cancel it'));
       expect(d, contains('at least 24 hours before the end of the current period'));
       expect(d, contains('Settings › [your name] › Subscriptions'));
-      expect(find.text(r'Subscribe for $9.99/month'), findsOneWidget);
+      expect(find.text(r'Subscribe for $19.99/month'), findsOneWidget);
       expect(find.text('DateWise Premium'), findsOneWidget);
       expect(find.byKey(const ValueKey('paywall-terms')), findsOneWidget);
       expect(find.byKey(const ValueKey('paywall-privacy')), findsOneWidget);
