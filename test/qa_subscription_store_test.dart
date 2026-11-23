@@ -25,6 +25,7 @@ import 'package:datewise_ai/models/coach.dart';
 import 'package:datewise_ai/models/tier.dart';
 import 'package:datewise_ai/models/user_profile.dart';
 import 'package:datewise_ai/services/ai_service.dart';
+import 'package:datewise_ai/services/coach_usage.dart';
 import 'package:datewise_ai/services/storage_service.dart';
 import 'package:datewise_ai/services/store_service.dart';
 import 'package:datewise_ai/state/app_state.dart';
@@ -387,6 +388,52 @@ void main() {
       iap.emit([_details(PurchaseStatus.purchased)]);
       await _settle();
       expect(store.isEntitled, isFalse);
+    });
+  });
+
+  group('StoreKit 2 re-read fails on a Transaction.updates event', () {
+    late _FakeSK2 sk2;
+    setUp(() {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      sk2 = _FakeSK2();
+      setInAppPurchaseHostApis(api2: sk2);
+    });
+    tearDown(() {
+      debugDefaultTargetPlatformOverride = null;
+      EntitlementToken.update(null);
+    });
+
+    PurchaseDetails withJws(String jws) => PurchaseDetails(
+          purchaseID: 'tx-update',
+          productID: StoreConfig.productId,
+          verificationData: PurchaseVerificationData(localVerificationData: jws, serverVerificationData: jws, source: 'app_store'),
+          transactionDate: '0',
+          status: PurchaseStatus.purchased,
+        )..pendingCompletePurchase = true;
+
+    test('not entitled before: stays locked; only the token is updated', () async {
+      final iap = _ScriptedIap();
+      final store = AppStoreService(iap: iap);
+      await store.init();
+      expect(store.isEntitled, isFalse);
+      sk2.fail = true;
+      iap.emit([withJws('aaa.bbb.ccc')]);
+      await _settle();
+      expect(store.isEntitled, isFalse, reason: 'the event alone does not unlock chat');
+      expect(EntitlementToken.current, 'aaa.bbb.ccc');
+    });
+
+    test('entitled before: stays entitled; the token is updated', () async {
+      sk2.entitled = [StoreConfig.productId];
+      final iap = _ScriptedIap();
+      final store = AppStoreService(iap: iap);
+      await store.init();
+      expect(store.isEntitled, isTrue);
+      sk2.fail = true;
+      iap.emit([withJws('new.jws.token')]);
+      await _settle();
+      expect(store.isEntitled, isTrue);
+      expect(EntitlementToken.current, 'new.jws.token');
     });
   });
 

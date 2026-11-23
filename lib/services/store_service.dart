@@ -302,8 +302,11 @@ class AppStoreService extends StoreService {
             try {
               await _refreshEntitlement();
             } catch (_) {
-              _entitled = true;
-              // StoreKit could not be re-read: fall back to the delivered JWS.
+              // StoreKit could not be re-read: the event alone proves nothing
+              // (it may be an ended renewal or a refund), so the last known
+              // entitlement stands. Only the token is updated from the
+              // delivered JWS; the backend verifies it with Apple's
+              // certificates and refuses an expired or revoked one.
               EntitlementToken.updateIfJws(p.verificationData.serverVerificationData);
             }
           } else {
