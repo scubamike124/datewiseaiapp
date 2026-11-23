@@ -77,7 +77,7 @@ Only PASS results that were actually run are reported as PASS. Anything that nee
   - coach replies follow the system text size.
 
 ## 4. Screenshots
-- **After (current):** `docs/appstore/screenshots/{en,es}/{6.9,6.5}/01-coaches … 05-privacy.png`. All 20 were regenerated at `84d5e1e` and checked by the design reviewer. Sizes are 1320×2868 (6.9") and 1284×2778 (6.5").
+- **After (current):** `docs/appstore/screenshots/{en,es}/{6.9,6.5,ipad-13}/01-coaches … 05-privacy.png`. The 20 iPhone shots were regenerated at `84d5e1e` and checked by the design reviewer; the 10 iPad 13" shots and the new chat and 04 captions ("Example chat", "From an AI dating coach, not a person") were added in the release polish. Sizes are 1320×2868 (6.9"), 1284×2778 (6.5") and 2064×2752 (iPad 13").
 - **Before:** the same paths at commit `7c3306c`, which predates the design fixes, viewable with `git show 7c3306c:docs/appstore/screenshots/...`.
 - **The chats in the screenshots are examples from the review build** (`DW_MOCK_AI`, which works only in web and debug builds). They are not live AI output.
 
@@ -128,7 +128,7 @@ Only PASS results that were actually run are reported as PASS. Anything that nee
    - set the App Store Server Notifications URL (optional);
    - add the 7 signing secrets;
    - review Users and Access.
-5. **Assets:** the 8 final portraits, and the date and account the reference images were generated with; iPad 13" screenshots.
+5. **Assets:** the 8 final portraits, and the date and account the reference images were generated with; then regenerate all screenshots (iPhone and iPad 13").
 6. **Hosting:** confirm you control datewiseai.com, the legal and support URLs, and support@datewiseai.com.
 7. **Cost-guard deploy (later, needs approval):**
    - set a new pinned hash in Amber;

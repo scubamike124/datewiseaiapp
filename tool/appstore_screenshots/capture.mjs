@@ -4,12 +4,17 @@
 //
 // Normally run through ./generate.sh, which builds and serves the web app.
 //   node capture.mjs --url http://127.0.0.1:8791 --web-root ../../build/web \
-//        --out ../../docs/appstore/screenshots [--locales en,es] [--sizes 6.9,6.5]
+//        --out ../../docs/appstore/screenshots [--locales en,es] [--sizes 6.9,6.5,ipad-13]
 //
 // Output: <out>/<locale>/<size>/NN-name.png
 //   6.9" = 1320x2868 (440x956 @3x), 6.5" = 1284x2778 (428x926 @3x)
+//   ipad-13 = iPad 13" 2064x2752 (1032x1376 @2x): the app's own iPad layout
+// Sizes per Apple's "Screenshot specifications" (App Store Connect Help).
 //
 // Headlines describe what is on screen; no statistics, ratings or claims.
+// The chats are example conversations from the review build (offline demo
+// coach); the chat caption says so. Nothing shows voice mode, video or
+// animation: the coaches are still portraits.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,12 +33,12 @@ const baseUrl = arg('url', 'http://127.0.0.1:8791');
 const webRoot = path.resolve(arg('web-root', path.join(repo, 'build/web')));
 const outDir = path.resolve(arg('out', path.join(repo, 'docs/appstore/screenshots')));
 const locales = arg('locales', 'en,es').split(',');
-const sizeIds = arg('sizes', '6.9,6.5').split(',');
+const sizeIds = arg('sizes', '6.9,6.5,ipad-13').split(',');
 
 const SIZES = {
   '6.9': { w: 440, h: 956 },  // iPhone 6.9" display: 1320x2868
   '6.5': { w: 428, h: 926 },  // iPhone 6.5" display: 1284x2778
-  '13': { w: 1032, h: 1376, scale: 2 }, // iPad 13" (2064x2752), optional
+  'ipad-13': { w: 1032, h: 1376, scale: 2 }, // iPad 13" display: 2064x2752 (required: the app runs on iPad)
 };
 const SCALE = 3;
 
@@ -143,15 +148,15 @@ const SHOTS = {
   en: [
     { name: '01-coaches', headline: 'Choose your AI dating coach', sub: 'Four coaches, in English and Spanish', run: (p) => open(p, 'coaches') },
     { name: '02-home', headline: 'A simple plan for your week', sub: 'Profile, conversations and first dates', run: (p) => open(p, 'home') },
-    { name: '03-chat', headline: 'Know what to say next', sub: 'Openers and replies you can adapt', run: (p) => open(p, 'chat') },
-    { name: '04-coach', headline: 'A coach who listens', sub: 'Honest, practical dating advice from AI', run: (p) => open(p, 'welcome') },
+    { name: '03-chat', headline: 'Know what to say next', sub: 'Example chat: openers and replies you can adapt', run: (p) => open(p, 'chat') },
+    { name: '04-coach', headline: 'Honest, practical advice', sub: 'From an AI dating coach, not a person', run: (p) => open(p, 'welcome') },
     { name: '05-privacy', headline: 'Your data, your controls', sub: 'Coach memory is off unless you turn it on', run: async (p) => { await open(p, 'you'); await withoutCutRows(p); } },
   ],
   es: [
     { name: '01-coaches', headline: 'Elige tu coach de citas con IA', sub: 'Cuatro coaches, en inglés y en español', run: (p) => open(p, 'coaches') },
     { name: '02-home', headline: 'Un plan sencillo para tu semana', sub: 'Perfil, conversaciones y primeras citas', run: (p) => open(p, 'home') },
     // One finished exchange with Sofía (review mode seeds it with ?lang=es).
-    { name: '03-chat', headline: 'Sabrás qué escribir', sub: 'Primeros mensajes y respuestas a tu medida', run: (p) => open(p, 'chat') },
+    { name: '03-chat', headline: 'Sabrás qué escribir', sub: 'Chat de ejemplo: primeros mensajes y respuestas a tu medida', run: (p) => open(p, 'chat') },
     { name: '04-coach', headline: 'Coaches en español', sub: 'Sofía y Diego te ayudan en tu idioma', run: async (p) => { await open(p, 'coaches'); await tap(p, /Chatear con Diego/); } },
     { name: '05-privacy', headline: 'Tus datos, tu control', sub: 'La memoria del coach está apagada salvo que la actives', run: async (p) => { await open(p, 'you'); await withoutCutRows(p); } },
   ],
@@ -166,6 +171,8 @@ const FONTS = `
 @font-face { font-family: Inter; src: url(${font('Inter-SemiBold.ttf')}); font-weight: 600; }`;
 
 function frameHtml({ w, h }, shot, png) {
+  // iPad frames are wider: larger type and corners, same layout.
+  const k = w > 600 ? 1.45 : 1;
   const cardW = Math.round(w * 0.75);
   const cardH = Math.round(cardW * h / w);
   const top = h - cardH - Math.round(h * 0.028);
@@ -173,11 +180,11 @@ function frameHtml({ w, h }, shot, png) {
   html,body{margin:0;width:${w}px;height:${h}px;overflow:hidden}
   body{background:radial-gradient(120% 70% at 50% 0%,#3a1d27 0%,#1d1015 55%,#120a0d 100%);color:#F7EFE7;font-family:Inter,sans-serif;position:relative}
   header{position:absolute;top:0;left:24px;right:24px;height:${top}px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:${Math.round(h*0.012)}px}
-  .brand{font:600 11px Inter;letter-spacing:2.6px;color:#DDB67F}
+  .brand{font:600 ${Math.round(11 * k)}px Inter;letter-spacing:${(2.6 * k).toFixed(1)}px;color:#DDB67F}
   h1{margin:0;font:500 ${w > 600 ? 52 : 33}px/1.1 Newsreader,serif;letter-spacing:-0.3px;text-wrap:balance}
   .sub{text-wrap:balance}
-  .sub{font:500 14px/1.3 Inter;color:#C2B2A8}
-  .card{position:absolute;left:${(w - cardW) / 2}px;top:${top}px;width:${cardW}px;height:${cardH}px;border-radius:30px;overflow:hidden;
+  .sub{font:500 ${Math.round(14 * k)}px/1.3 Inter;color:#C2B2A8}
+  .card{position:absolute;left:${(w - cardW) / 2}px;top:${top}px;width:${cardW}px;height:${cardH}px;border-radius:${Math.round(30 * k)}px;overflow:hidden;
     box-shadow:0 0 0 1.5px rgba(221,182,127,.55),0 24px 60px rgba(0,0,0,.55),0 0 80px rgba(196,88,122,.18)}
   .card img{width:100%;height:100%;display:block}
   </style></head><body>
@@ -189,6 +196,18 @@ function frameHtml({ w, h }, shot, png) {
 }
 
 // --- Main ------------------------------------------------------------------
+
+// Chromium occasionally fails one capture of a large page ("Unable to capture
+// screenshot"); try again once before giving up.
+async function screenshot(page, options = {}) {
+  try {
+    return await page.screenshot(options);
+  } catch (e) {
+    console.warn(`screenshot failed (${e.message.split('\n')[0]}), retrying`);
+    await page.waitForTimeout(1500);
+    return page.screenshot(options);
+  }
+}
 
 const browser = await chromium.launch();
 try {
@@ -213,7 +232,7 @@ try {
         });
         await page.route(/fonts\.gstatic\.com/, (route) => route.abort());
         await shot.run(page);
-        const png = await page.screenshot();
+        const png = await screenshot(page);
         await ctx.close();
 
         const fctx = await browser.newContext({ viewport: { width: size.w, height: size.h }, deviceScaleFactor: scale });
@@ -221,7 +240,7 @@ try {
         await fpage.setContent(frameHtml(size, shot, png), { waitUntil: 'load' });
         await fpage.evaluate(() => document.fonts.ready);
         const file = path.join(dir, `${shot.name}.png`);
-        await fpage.screenshot({ path: file });
+        await screenshot(fpage, { path: file });
         await fctx.close();
         console.log(`wrote ${path.relative(repo, file)} (${size.w * scale}x${size.h * scale})`);
       }
