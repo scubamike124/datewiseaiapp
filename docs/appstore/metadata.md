@@ -230,6 +230,9 @@ Notes for the owner:
 > FAIR USE
 > DateWise Premium has fair-use limits, disclosed on the paywall, in the description and in the Terms of Use: up to 150 coach replies a day and 1,500 a month, at most 12 a minute and 2 at a time. Sandbox purchases (App Review and TestFlight) have a smaller limit of 20 replies a day. A notice appears near the limit.
 >
+> FIND A TABLE
+> Find a table opens Apple Maps; no in-app booking.
+>
 > OTHER
 > No ads, no analytics, no tracking. Encryption: HTTPS only (exempt).
 

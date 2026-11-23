@@ -543,6 +543,15 @@
       }
     }
   },
+  "findTable": "Find a table",
+  "@findTable": {
+    "description": "Compact link-out button under the coach's reply on first-date plans. Opens Apple Maps; no in-app booking."
+  },
+  "findTableSemantics": "Find a table nearby. Opens Apple Maps.",
+  "findTableQuery": "restaurants",
+  "@findTableQuery": {
+    "description": "The Apple Maps search term the Find a table button opens (searched near the phone)."
+  },
   "settingsFootnote": "Your coaches are AI. Conversations are stored on this device.",
   "appVersion": "DateWise AI {version}",
   "@appVersion": {
