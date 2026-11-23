@@ -118,6 +118,9 @@ void main() {
       for (final c in Coaches.all) {
         expect(c.systemPrompt, contains('Never claim to be human'));
         expect(c.systemPrompt, contains('public place'));
+        expect(c.systemPrompt, contains('only for adults 18+'));
+        expect(c.systemPrompt, contains('Respect consent and boundaries'));
+        expect(c.systemPrompt, contains('not a doctor, therapist or lawyer'));
       }
     });
 
