@@ -1,8 +1,8 @@
 """Reviewer-style A/V measurement of a demo MP4.
 
 Mouth activity = mean absolute difference of the mouth region from the first
-(idle) frame, after aligning each frame to it by phase correlation (removes
-the breathing/sway motion). Loudness = audio RMS per video frame.
+(idle) frame, after aligning each frame to it by phase correlation on the
+upper face (removes the breathing, sway and nods). Loudness = audio RMS per video frame.
 Both are resampled to 100 Hz; Pearson r is computed for lags in +-300 ms.
 Positive lag = the mouth trails the audio.
 Also reports the longest stretch where audio is active (RMS > 15% of max)
@@ -53,11 +53,20 @@ def main():
         mw = abs(f[12] - f[10])
         x0, x1 = int(mx - 0.9 * mw), int(mx + 0.9 * mw)
         y0, y1 = int(my - 0.45 * mw), int(my + 0.75 * mw)
-        win = cv2.createHanningWindow((w, h), cv2.CV_32F)
+        # Align on the upper face (eyes and nose), which the mouth never
+        # changes, to cancel the head motion (sway, nods, tilts).
+        bx0, bx1 = int(max(0, f[0])), int(min(w, f[0] + f[2]))
+        eye_y = (f[5] + f[7]) / 2
+        by0, by1 = int(max(0, eye_y - 0.2 * f[3])), int(min(h, f[9]))  # brows to nose, no hair
+        bx1 -= (bx1 - bx0) % 2
+        by1 -= (by1 - by0) % 2
+        win = cv2.createHanningWindow((bx1 - bx0, by1 - by0), cv2.CV_32F)
         diff, opn = [], []
         for im in fr:
             g = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY).astype(np.float32)
-            (dx, dy), _ = cv2.phaseCorrelate(g0, g, win)
+            (dx, dy), _ = cv2.phaseCorrelate(g0[by0:by1, bx0:bx1], g[by0:by1, bx0:bx1], win)
+            if abs(dx) > 8 or abs(dy) > 8:  # the head never moves that far: a failed match
+                dx = dy = 0.0
             M = np.float32([[1, 0, -dx], [0, 1, -dy]])
             ga = cv2.warpAffine(g, M, (w, h), borderMode=cv2.BORDER_REPLICATE)
             diff.append(np.abs(ga[y0:y1, x0:x1] - g0[y0:y1, x0:x1]).mean())

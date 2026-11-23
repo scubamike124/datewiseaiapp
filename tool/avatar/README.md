@@ -33,9 +33,15 @@ regenerate.
 | Group | Frames | Region blended |
 |---|---|---|
 | Mouth shapes | `mbp` (M B P), `a`/`a2`, `e`/`e2`, `i`/`i2`, `o`/`o2`, `u`/`u2` (full and half opening), `fv`, `l`, `th`, `cons` (T D N S K G R...), `sh` (SH CH J) | lips, chin and jaw, clipped at the jaw line |
-| Eyes | `blink_half`, `blink_closed`, `gaze` (thinking: eyes up and aside) | eyes and lids |
+| Eyes | `blink_half` (both eyes equally half closed), `blink_closed`, `gaze` (thinking: eyes up and aside) | eyes and lids |
 
-`rest` is the approved portrait itself. Head motion (listening nods, tilts at
+`rest` is the approved portrait itself. `blink_half` is assembled per eye:
+one eye-ratio setting closes the two eyes unevenly on a tilted or smiling
+face (it read as a wink), so each eye takes the render whose opening (eye
+outline area / width, from LivePortrait's landmarks) is closest to 45% of
+its open size. `manifest.json` also records the lips' center and width,
+which the app uses for the jaw drop (a mesh warp of the lower lip and chin,
+zero at the patch border). Head motion (listening nods, tilts at
 phrase starts, emphasis) is a small whole-image transform in the app, so no
 frame warps the hair, a hand or the background.
 
@@ -90,7 +96,10 @@ reproduces the review videos and the numbers in the PR:
 ```sh
 # 1. Audio + word timings (Piper TTS in its own venv; voices from rhasspy/piper-voices)
 PIPER_PYTHON=<venv>/bin/python python3 tool/avatar/eval/make_jobs.py <demo>/jobs
-# 2. Frames with the app's code
+# 2. Frames with the app's code (LipSyncDriver on a simulated clock).
+#    AVATAR_DEMO_MODE: audio (default; native audio path, loudness only, iOS 15/16),
+#    markers (+ iOS 17 word markers), words (flutter_tts fallback, word events only).
+#    AVATAR_DEMO_NO_PNG=1 records only the shown shapes, for measurement.
 AVATAR_DEMO_STATES=1 AVATAR_DEMO_JOBS=<demo>/jobs AVATAR_DEMO_OUT=<demo>/render \
   flutter test tool/avatar/render_demo_test.dart
 # 3. MP4s, then the measurements

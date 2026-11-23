@@ -11,16 +11,21 @@ import json, os, re, subprocess, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOLS = os.environ.get("AVATAR_TOOLS", os.path.expanduser("~/.cache/datewise-avatar-tools"))
 PY = os.environ.get("PIPER_PYTHON", os.path.join(TOOLS, "ttsenv", "bin", "python"))
-# A distinct voice for every coach in every language (dataset licence):
+# Every coach's voice in every language: (Piper voice, speaker id, pitch shift
+# in semitones). Spanish: only two Mexican voices exist in Piper (claude,
+# female; ald, male), and the app speaks es-MX, so Ava and Ethan in Spanish
+# use them too with a formant-preserving pitch shift. That is also what the
+# app does on an iPhone with one voice per language and gender: the coaches
+# differ by pitch and rate.
 VOICES = {
-    ("ava", "en"): "en_US-ljspeech-medium",     # female, public domain
-    ("ethan", "en"): "en_US-john-medium",       # male, public domain
-    ("sofia", "en"): "en_US-kathleen-low",      # female, CC0 (low quality, 16 kHz)
-    ("diego", "en"): "en_US-norman-medium",     # male, public domain
-    ("sofia", "es"): "es_MX-claude-high",       # female, Apache-2.0
-    ("diego", "es"): "es_MX-ald-medium",        # male, Unlicense
-    ("ava", "es"): "es_AR-daniela-high",        # female, CC BY-SA 4.0 (no 3rd es-MX female voice exists)
-    ("ethan", "es"): "es_ES-davefx-medium",     # male, CC0 (no 3rd es-MX male voice exists)
+    ("ava", "en"): ("en_US-ljspeech-medium", None, 0),      # female, public domain
+    ("ethan", "en"): ("en_US-john-medium", None, 0),        # male, public domain
+    ("sofia", "en"): ("en_US-libritts_r-medium", 4, 0),     # female speaker, CC BY 4.0
+    ("diego", "en"): ("en_US-norman-medium", None, 0),      # male, public domain
+    ("sofia", "es"): ("es_MX-claude-high", None, 0),        # female, Apache-2.0
+    ("diego", "es"): ("es_MX-ald-medium", None, 0),         # male, Unlicense
+    ("ava", "es"): ("es_MX-claude-high", None, -2.0),       # same es-MX voice, lower
+    ("ethan", "es"): ("es_MX-ald-medium", None, +1.5),      # same es-MX voice, higher
 }
 # Pace roughly like the app's per-coach rate (0.46-0.50).
 PACE = {"ava": 1.0, "ethan": 1.05, "sofia": 1.0, "diego": 1.06}
@@ -55,14 +60,33 @@ def words_from_phonemes(phones):
     return out
 
 
+def rms_levels(path, hop=0.01):
+    import wave
+    import numpy as np
+    w = wave.open(path)
+    sr = w.getframerate()
+    x = np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(float) / 32768
+    n = int(sr * hop)
+    return [round(float(np.sqrt((x[i:i + n] ** 2).mean())), 5) for i in range(0, len(x) - n + 1, n)]
+
+
 def main():
     out = sys.argv[1]
     os.makedirs(out, exist_ok=True)
     for (coach, lang), text in TEXT.items():
-        voice = VOICES[(coach, lang)]
+        voice, speaker, semitones = VOICES[(coach, lang)]
         base = os.path.join(out, f"{coach}-{lang}")
-        subprocess.run([PY, "-I", os.path.join(HERE, "tts_align.py"), os.path.join(TOOLS, "voices", voice + ".onnx"),
-                        text, base + ".wav", base + ".ph.json", str(PACE[coach])], check=True, capture_output=True)
+        cmd = [PY, "-I", os.path.join(HERE, "tts_align.py"), os.path.join(TOOLS, "voices", voice + ".onnx"),
+               text, base + ".wav", base + ".ph.json", str(PACE[coach])]
+        if speaker is not None:
+            cmd.append(str(speaker))
+        subprocess.run(cmd, check=True, capture_output=True)
+        if semitones:
+            # Pitch only (timing and formants kept), so the alignments stay exact.
+            subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", base + ".wav", "-af",
+                            f"rubberband=pitch={2 ** (semitones / 12):.4f}:formant=preserved", base + ".p.wav"], check=True)
+            os.replace(base + ".p.wav", base + ".wav")
+        levels = rms_levels(base + ".wav")
         ph = json.load(open(base + ".ph.json"))
         pw = words_from_phonemes(ph["phonemes"])
         tw = [(m.start(), m.end(), m.group(0)) for m in WORD.finditer(text)]
@@ -71,8 +95,10 @@ def main():
         n = min(len(pw), len(tw))
         words = [{"text": tw[i][2], "charStart": tw[i][0], "charEnd": tw[i][1], "start": pw[i][0], "end": pw[i][1],
                   "phonemes": [{"p": p["p"], "start": p["start"], "end": p["end"]} for p in pw[i][2]]} for i in range(n)]
-        job = {"coach": coach, "language": lang, "voice": voice, "text": text, "duration": ph["duration"],
-               "wav": base + ".wav", "words": words}
+        job = {"coach": coach, "language": lang, "voice": voice, "speaker": speaker, "pitch_semitones": semitones,
+               "text": text, "duration": ph["duration"], "wav": base + ".wav", "words": words,
+               # What the native audio path streams: RMS per 10 ms.
+               "levels_hop": 0.01, "levels": levels}
         json.dump(job, open(base + ".json", "w"), ensure_ascii=False, indent=1)
         os.remove(base + ".ph.json")
         print(f"{coach}-{lang}: {ph['duration']:.2f}s, {len(tw)} words / {len(pw)} phoneme words ({voice})")

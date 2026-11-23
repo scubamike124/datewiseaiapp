@@ -29,7 +29,8 @@ Added in commit `0037076` (2026-11-22).
   are illustrations of the coach characters").
 - **No stock photography.** The former stock photo (`images/hero.jpg`) was
   removed from the app in `b36b0eb`; a test checks that only the coach
-  portraits, the icon and the fonts are bundled.
+  portraits, the avatar patches derived from them (`assets/avatar/`, see
+  below), the icon and the fonts are bundled.
 - **OWNER to record:** the generation date(s) and the account used, and keep
   the original reference files.
 
@@ -41,8 +42,10 @@ Added in commit `0037076` (2026-11-22).
    model-loading library. Run locally; no image was sent to any service.
 3. Saved as JPEG. Hero and avatar are currently the same file per coach.
 
-No face swap, retouching of identity, or generative editing was applied after
-the upscale.
+No face swap, retouching of identity, or generative editing was applied to
+the portraits after the upscale. The only generated derivatives are the
+avatar patches (mouth shapes, blinks, a glance; "Animated frames" below),
+which are separate files: the portraits themselves are unchanged.
 
 ## Identity check
 

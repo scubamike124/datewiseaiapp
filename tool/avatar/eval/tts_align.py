@@ -1,12 +1,13 @@
 """Piper TTS (demo only) with phoneme alignments -> wav + JSON timings.
-Usage: tts_align.py <voice.onnx> <text> <out.wav> <out.json> [length_scale]"""
+Usage: tts_align.py <voice.onnx> <text> <out.wav> <out.json> [length_scale] [speaker_id]"""
 import sys, json, wave, numpy as np
 from piper import PiperVoice, SynthesisConfig
 voice_path, text, out_wav, out_json = sys.argv[1:5]
 ls = float(sys.argv[5]) if len(sys.argv) > 5 else 1.0
+spk = int(sys.argv[6]) if len(sys.argv) > 6 else None
 v = PiperVoice.load(voice_path, include_alignments=True)
 sr = v.config.sample_rate
-cfg = SynthesisConfig(length_scale=ls)
+cfg = SynthesisConfig(length_scale=ls, speaker_id=spk)
 audio, phones, t = [], [], 0
 for ch in v.synthesize(text, cfg, include_alignments=True):
     audio.append(ch.audio_int16_array)

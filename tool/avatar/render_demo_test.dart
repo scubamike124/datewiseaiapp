@@ -21,6 +21,7 @@ import 'package:datewise_ai/avatar/avatar_frames.dart';
 import 'package:datewise_ai/avatar/lip_sync.dart';
 import 'package:datewise_ai/avatar/talking_avatar.dart';
 import 'package:datewise_ai/models/coach.dart';
+import 'package:datewise_ai/services/voice_service.dart';
 
 void main() {
   final jobsDir = Platform.environment['AVATAR_DEMO_JOBS'];
@@ -57,28 +58,73 @@ void main() {
         final total = ((lead + duration + tail) * fps).ceil();
         final sw = Stopwatch()..start();
         var paintMicros = 0;
+        // The app's own LipSyncDriver on a simulated clock, fed like the app:
+        //  audio   = the native audio path on iOS 15/16 (loudness only),
+        //  markers = the native audio path on iOS 17 (loudness + word markers),
+        //  words   = the flutter_tts fallback (word-start events, no loudness).
+        final mode = Platform.environment['AVATAR_DEMO_MODE'] ?? 'audio';
+        // Measurement runs only need the shown shapes, not the images.
+        final noPng = Platform.environment['AVATAR_DEMO_NO_PNG'] != null;
+        var clock = Duration.zero;
+        final driver = LipSyncDriver(clock: () => clock);
+        final profile = CoachVoiceProfile.of(coach);
+        driver.begin(text, lang, rate: profile.rate);
+        var started = false;
+        var nextWord = 0;
+        final shown = <List<Object>>[]; // [audio time, shape, jaw] per frame
         for (var f = 0; f < total; f++) {
           final t = f / fps;
           final st = t - lead;
-          final speaking = st >= -VisemeTimeline.lead && st < duration;
+          clock = Duration(microseconds: (st * 1e6).round());
+          if (!started && st >= 0) {
+            driver.started();
+            started = true;
+            if (mode != 'words') {
+              final levels = [for (final v in job['levels'] as List) (v as num).toDouble()];
+              driver.addLevels(0, (job['levels_hop'] as num).toDouble(), levels);
+              // Synthesis is faster than playback: all levels are in before
+              // the first word is heard.
+              driver.audioComplete();
+            }
+            if (mode == 'markers') {
+              for (final (cs, _, ws, _) in words) {
+                driver.addMarker(cs, ws);
+              }
+            }
+          }
+          if (mode == 'words') {
+            while (started && nextWord < words.length && words[nextWord].$3 <= st) {
+              driver.word(words[nextWord].$1, words[nextWord].$2);
+              nextWord++;
+            }
+          }
+          if (started && st >= duration) driver.end();
+          final speaking = driver.active;
           final mood = speaking ? AvatarMood.speaking : AvatarMood.idle;
-          // Exactly what LipSyncDriver.sample does: the mouth runs
-          // VisemeTimeline.lead ahead of the word timing. No other offset:
-          // frame f is shown at f / fps and the audio starts at `lead` s.
-          pose.value = animator.frame(t, mood, speaking ? timeline.sample(st + VisemeTimeline.lead) : VisemeSample.rest,
-              available: frames.images.keys.toSet());
+          // No offset of its own: frame f is shown at f / fps and the audio
+          // starts at `lead` s; the driver applies VisemeTimeline.lead.
+          final mouth = speaking ? driver.sample() : VisemeSample.rest;
+          final jaw = speaking ? driver.jaw() : 0.0;
+          shown.add([st, mouth.viseme.name, jaw]);
+          pose.value = animator.frame(t, mood, mouth, available: frames.images.keys.toSet(), jaw: jaw);
           final rec = ui.PictureRecorder();
           final p0 = sw.elapsedMicroseconds;
           painter.paint(Canvas(rec), const Size(w * 1.0, h * 1.0));
           paintMicros += sw.elapsedMicroseconds - p0;
+          if (noPng) {
+            rec.endRecording().dispose();
+            continue;
+          }
           final img = await rec.endRecording().toImage(w, h);
           final png = await img.toByteData(format: ui.ImageByteFormat.png);
           File('${dir.path}/f${f.toString().padLeft(5, '0')}.png').writeAsBytesSync(png!.buffer.asUint8List());
           img.dispose();
         }
-        File('$outDir/$name.cues.json').writeAsStringSync(jsonEncode({
+        File('$outDir/$name${noPng ? '.$mode' : ''}.cues.json').writeAsStringSync(jsonEncode({
           'lead': lead,
           'lead_visemes': VisemeTimeline.lead,
+          'mode': mode,
+          'shown': shown,
           'anchored': [for (final c in timeline.cues) [c.viseme.name, c.start, c.end]],
           'planned': [for (final c in planned.cues) [c.viseme.name, c.start, c.end]],
         }));

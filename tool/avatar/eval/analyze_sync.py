@@ -87,7 +87,17 @@ def main():
         rms = wav_rms(job["wav"], t)
         audible = rms > 0.15 * rms.max()
         for kind in ("anchored", "planned"):
-            pr = cue_series(cues[kind], t, lead if kind == "anchored" else 0.0)
+            if kind == "anchored" and "shown" in cues:
+                # What the rendered frames actually showed (the app's driver,
+                # lead included), held from frame to frame.
+                sh = cues["shown"]
+                # LEAD_REMOVED=1 shifts the shown shapes back by the lead,
+                # to judge the alignment itself rather than the lead.
+                st = np.array([x[0] for x in sh]) + (lead if os.environ.get("LEAD_REMOVED") else 0.0)
+                idx = np.clip(np.searchsorted(st, t, side="right") - 1, 0, len(sh) - 1)
+                pr = np.array([sh[i][1] for i in idx], dtype=object)
+            else:
+                pr = cue_series(cues[kind], t, lead if kind == "anchored" else 0.0)
             go = np.array([OPEN[v] for v in gt]); po = np.array([OPEN[v] for v in pr])
             cls = np.array([FULL.get(v, v) for v in pr])
             r[kind + "_exact"] = float((cls[speech] == gt[speech]).mean())
