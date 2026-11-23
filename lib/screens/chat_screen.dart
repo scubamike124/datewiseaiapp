@@ -375,14 +375,22 @@ class _ChatScreenState extends State<ChatScreen> {
                         ListTile(
                           minTileHeight: 56,
                           title: Text(AppState.isDefaultTitle(t.title) ? l.newConversation : t.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppText.label),
-                          subtitle: Text(parseReply(t.preview).body,
+                          // Plain text: no markdown markers or OPTIONS line,
+                          // on screen or in what VoiceOver reads.
+                          subtitle: Text(plainPreview(t.preview),
+                              key: ValueKey('history-preview-${t.id}'),
                               maxLines: 1, overflow: TextOverflow.ellipsis, style: AppText.small),
                           trailing: IconButton(
+                            key: ValueKey('history-delete-${t.id}'),
                             tooltip: l.deleteConversation,
+                            // 48x48 on every platform (desktop/web density
+                            // would shrink it to 40x40).
+                            visualDensity: VisualDensity.standard,
+                            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
                             icon: const Icon(Icons.delete_outline_rounded, color: AppColors.faint),
                             onPressed: () {
-                              _state.deleteThread(t.id);
                               Navigator.pop(ctx);
+                              _deleteWithUndo(t.id);
                             },
                           ),
                           onTap: () {
@@ -396,6 +404,27 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       },
     );
+  }
+
+  /// Deletes a conversation from Past conversations at once, with Undo in a
+  /// SnackBar (Undo saves it back).
+  Future<void> _deleteWithUndo(String id) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final l = context.l10n;
+    final wasOpen = _state.activeThread?.id == id;
+    final removed = await _state.deleteThread(id);
+    if (removed == null) return;
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        key: const ValueKey('conversation-deleted'),
+        content: Text(l.conversationDeleted),
+        action: SnackBarAction(
+          key: const ValueKey('undo-delete'),
+          label: l.undo,
+          onPressed: () => _state.restoreThread(removed, reopen: wasOpen),
+        ),
+      ));
   }
 
   @override

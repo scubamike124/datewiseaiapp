@@ -34,6 +34,18 @@ ParsedReply parseReply(String text) {
   return ParsedReply(body, options.take(3).toList());
 }
 
+/// [text] as one line of plain text, for previews and accessibility labels:
+/// the OPTIONS line is dropped, and markdown markers (`**bold**`, `__`,
+/// backticks, `#` headings, `>` quotes, `-`/`*` list dashes) are removed.
+String plainPreview(String text) => parseReply(text)
+    .body
+    .split('\n')
+    .map((line) => line.replaceFirst(RegExp(r'^\s*(?:[#>]+\s*|[-*]\s+)'), ''))
+    .join(' ')
+    .replaceAll(RegExp(r'\*\*|__|`'), '')
+    .replaceAll(RegExp(r'\s+'), ' ')
+    .trim();
+
 String _unquote(String s) {
   var t = s.trim();
   const quotes = ['"', '“', '”', "'", '«', '»'];

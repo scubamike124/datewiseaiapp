@@ -302,10 +302,27 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> deleteThread(String id) async {
+  /// Deletes a conversation (from the device too) and returns it, so the
+  /// caller can offer Undo ([restoreThread]); null when there was none.
+  Future<ChatThread?> deleteThread(String id) async {
     if (_isResponding && _activeThreadId == id) await cancelReply();
-    _threads.removeWhere((t) => t.id == id);
+    final i = _threads.indexWhere((t) => t.id == id);
+    if (i < 0) return null;
+    final removed = _threads.removeAt(i);
     if (_activeThreadId == id) _activeThreadId = latestThreadFor(selectedCoach)?.id;
+    await _persist();
+    notifyListeners();
+    return removed;
+  }
+
+  /// Undo for [deleteThread]: puts the conversation back (saved again) in
+  /// its place by date; [reopen] opens it again when it was the open one.
+  Future<void> restoreThread(ChatThread thread, {bool reopen = false}) async {
+    if (_threads.any((t) => t.id == thread.id)) return;
+    _threads
+      ..add(thread)
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    if (reopen && thread.coachId == selectedCoach.id) _activeThreadId = thread.id;
     await _persist();
     notifyListeners();
   }
