@@ -5,8 +5,9 @@ on an iPhone yet.
 
 **iPhone only: no Mac needed.** Every step below is done on the iPhone: Safari for github.com, appstoreconnect.apple.com
 and dash.cloudflare.com, plus the TestFlight app. The signed build is made by GitHub Actions on GitHub's own macOS
-runner. Steps that truly need a computer are marked **[COMPUTER]**; none of them is needed if the signing secrets
-already exist.
+runner, signed with **cloud-managed signing** (`signing: cloud`): only an App Store Connect API key is needed, made and
+stored from Safari. Steps that truly need a computer are marked **[COMPUTER]**; none of them is on the cloud-signing
+path.
 
 Tip: if a page in Safari hides a menu, tap **aA** in the address bar, then **Request Desktop Website**.
 
@@ -97,26 +98,83 @@ Anything else (KV, D1, R2, a service binding, a queue, a tail consumer) is a FAI
 
 ## 2. Prerequisites (owner, once)
 
-### 2.1 GitHub signing secrets (github.com in Safari)
+### 2.1 Signing: cloud-managed, iPhone only (App Store Connect and github.com in Safari)
 
-The `iOS build` workflow's `signed-testflight` job needs seven repository secrets. Skip this step if they already
-exist. To check: repo **Settings**, then **Secrets and variables**, then **Actions**, then the **Secrets** tab, under
-**Repository secrets**.
+The `iOS build` workflow has two signing modes, chosen with its **`signing`** input:
 
-To add one: on that page tap **New repository secret**, enter the **Name**, paste the value into **Secret**, then
-tap **Add secret**.
+- **`cloud`** (use this from an iPhone): the archive is built without codesigning, then `xcodebuild -exportArchive`
+  signs it with automatic signing (`-allowProvisioningUpdates` with the App Store Connect API key). Xcode uses the
+  team's **cloud-managed Apple Distribution certificate** and creates the App Store profile for
+  `com.datewise.datewiseAi` itself. No `.p12`, no profile file, no computer. It needs **four** secrets.
+- `manual` (the default): the distribution certificate and profile from secrets, as before. Making those needs a
+  computer; see the end of this section.
+
+**Status: the cloud path is UNTESTED** until you run it (section 3): it can only run on GitHub's macOS runner with your
+secrets. If the export step fails, the run log names Apple's reason; nothing is uploaded in that case.
+
+#### a. Create the API key (appstoreconnect.apple.com in Safari)
+
+You must be the **Account Holder** or an **Admin** of the team to make a team key.
+
+1. Sign in, then tap **Users and Access**.
+2. Tap **Integrations** (top tabs), then **App Store Connect API** in the sidebar, then the **Team Keys** tab. The
+   first time, tap **Request Access** and accept the terms.
+3. Tap **Generate API Key** (or **+**). **Name:** `GitHub cloud signing`. **Access:** **Admin**. Tap **Generate**.
+   Admin is required: Xcode refuses cloud-managed distribution signing with a Developer or App Manager key
+   ("Cloud signing permission error").
+4. On the new row, note the **Key ID** (10 characters). Above the table, tap **Copy** next to the **Issuer ID** (a long
+   id with dashes).
+5. Tap **Download** on the new row. **The .p8 can be downloaded only once.** Safari asks to download
+   `AuthKey_<Key ID>.p8`: tap **Download**. It is saved to **Files**, **Downloads** (Safari's download arrow, top right,
+   shows it).
+6. Team ID: developer.apple.com, **Account**, **Membership details**, **Team ID** (10 characters).
+
+**Risk: an Admin API key is powerful.** Anyone who has the `.p8` can act as an admin of your App Store Connect team
+(users, apps, builds, certificates) until the key is revoked. So:
+
+- store it **only** as a GitHub secret (below). Do not email it, paste it into notes or chats, or keep it in iCloud
+  Drive after the step;
+- after the secret is saved, delete the `.p8` from Files (**Downloads**, long-press it, **Delete**, then empty
+  **Recently Deleted** in Files);
+- **Revoke** it after the demo if you like: Users and Access, Integrations, Team Keys, tap the key, **Revoke API Key**.
+  A revoked key cannot be restored; make a new one for the next build and update the three secrets.
+
+The workflow only writes the `.p8` to the runner's temporary folder, readable by the job's user only, never prints it,
+and deletes it in a step that always runs.
+
+#### b. Copy the .p8 text on the iPhone
+
+1. Open the **Files** app, then **Downloads** (or **Recents**), then tap `AuthKey_<Key ID>.p8`. Quick Look shows it as
+   text. If Quick Look shows only an icon: long-press the file, tap **Rename**, add `.txt` to the end
+   (`AuthKey_<Key ID>.p8.txt`), tap **Done**, then open it.
+2. Long-press the text, tap **Select All**, then **Copy**. It must include the `-----BEGIN PRIVATE KEY-----` and
+   `-----END PRIVATE KEY-----` lines (the job checks this).
+
+#### c. Add the four GitHub secrets (github.com in Safari)
+
+Repo **Settings** (tap **aA**, **Request Desktop Website** if the tab is hidden), then **Secrets and variables**, then
+**Actions**, then the **Secrets** tab, under **Repository secrets**. For each row: **New repository secret**, enter the
+**Name**, paste the value into **Secret**, then **Add secret**.
+
+| Secret | Value |
+|---|---|
+| `APPLE_TEAM_ID` | the Team ID (step a6) |
+| `APP_STORE_CONNECT_API_KEY_ID` | the Key ID (step a4) |
+| `APP_STORE_CONNECT_ISSUER_ID` | the Issuer ID (step a4) |
+| `APP_STORE_CONNECT_API_KEY_P8` | paste the copied `.p8` text (step b), BEGIN/END lines included |
+
+Then delete the `.p8` from Files (see the risk note above). With `signing: cloud` the job fails visibly with "Signing
+secrets missing" if any of the four is absent. Nothing is built or uploaded in that case.
+
+#### Manual signing (optional, needs a computer)
+
+`signing: manual` needs all seven secrets: the four above (an App Manager key is enough for manual signing) plus:
 
 | Secret | Where the value comes from | Computer? |
 |---|---|---|
-| `APPLE_TEAM_ID` | developer.apple.com, **Account**, **Membership details**, **Team ID** | no |
-| `APP_STORE_CONNECT_API_KEY_ID` | appstoreconnect.apple.com, **Users and Access**, **Integrations**, **App Store Connect API**, **Team Keys**, **+** (Generate API Key), access **App Manager**. The **Key ID** column | no |
-| `APP_STORE_CONNECT_ISSUER_ID` | the same page, **Issuer ID** (tap **Copy**) | no |
-| `APP_STORE_CONNECT_API_KEY_P8` | the same row, **Download** (only once). The file opens in Safari or saves to Files. Paste its **full text**, including the `BEGIN`/`END` lines | no (open the `.p8` in the Files app, select all, copy) |
 | `IOS_PROVISIONING_PROFILE_BASE64` | developer.apple.com, **Certificates, Identifiers & Profiles**, **Profiles**, the App Store profile for `com.datewise.datewiseAi`, **Download**, then base64 of the file | **[COMPUTER]** to base64-encode it (`base64 -i profile.mobileprovision`). Any computer works, Mac not required |
 | `IOS_DIST_CERT_P12_BASE64` | an **Apple Distribution** certificate **with its private key** exported as `.p12`, then base64 | **[COMPUTER]**. The private key is created on the computer that made the certificate request (Keychain Access on a Mac, or `openssl` on any computer) |
 | `IOS_DIST_CERT_PASSWORD` | the password chosen when exporting the `.p12` | with the above |
-
-The job fails visibly with "Signing secrets missing" if any is absent. Nothing is built or uploaded in that case.
 
 ### 2.2 App Store Connect (appstoreconnect.apple.com in Safari)
 
@@ -138,7 +196,11 @@ The job fails visibly with "Signing secrets missing" if any is absent. Nothing i
 The staging deploy only deploys commits on `main`, and **Run workflow** only shows the inputs that `ios-build.yml` has
 on the branch you run from.
 
-1. Merge chat-v7, the staging config (PR #34) and this PR (the `coach_backend` input) into `main` through reviewed PRs.
+**Merging to `main` and every deploy are the owner's decision alone.** No agent or workflow merges or deploys on its
+own; nothing in this runbook happens until you do it.
+
+1. Merge chat-v7, the staging config (PR #34), the `coach_backend` input (PR #37) and the `signing: cloud` input into
+   `main` through reviewed PRs.
 2. To merge a PR: **Pull requests**, open the PR, then **Merge pull request**, then **Confirm merge**.
 
 ### 2.4 Deploy the staging Worker (github.com in Safari)
@@ -167,14 +229,24 @@ These are runbook section 9, owner steps 2 to 4.
 
 - iOS 15 or later (iOS 18+ recommended for the Sandbox sign-in flow below).
 - Install **TestFlight** from the App Store.
-- **Sandbox account:** **Settings**, then **App Store**, then scroll to **Sandbox Account** (under Developer or near
-  the bottom), then sign in with the tester from 2.2 step 3. On iOS 18 and later this section may only appear, or ask
+- **Sandbox account:** **Settings**, then **Apps**, then **App Store** (iOS 18 and later; on iOS 17 and earlier
+  **Settings**, then **App Store**), then scroll to **Sandbox Account** (under Developer or near the bottom), then sign in with the tester from 2.2 step 3. On iOS 18 and later this section may only appear, or ask
   for the sign-in, at the first purchase in a test build. Then sign in there when the purchase sheet asks. Never sign
   in to the Sandbox account under **Settings, [your name]** (that is your real Apple Account).
 - Recommended: a Premium or Enhanced voice: **Settings**, then **Accessibility**, then **Spoken Content**, then
   **Voices**, then English (and Spanish), then download one marked Premium or Enhanced.
 - Screen recording in Control Center: **Settings**, then **Control Center**. Add **Screen Recording** if it is not
   already there (iOS 18 and later: open Control Center, tap **+**, then **Add a Control**, then **Screen Recording**).
+
+### 2.6 Version and build numbers (decide before the first staging build)
+
+App Store Connect can reject a lower build number after a higher one of the same version. A staging build is 50000+,
+so once one is uploaded for a version, that version's App Store build (100 + run number) may be refused. Before you
+run section 3, do one of these:
+
+- upload the App Store build of a version before any 50000+ build of that version; or
+- give the demo its own version (for example 2.0.1). The version comes from `version:` in `pubspec.yaml`, so this
+  needs a `pubspec.yaml` change merged to `main` through a reviewed PR first (the workflow runs from `main`).
 
 ## 3. Build the TestFlight staging build (github.com in Safari)
 
@@ -186,13 +258,15 @@ These are runbook section 9, owner steps 2 to 4.
    | `signed_build` | ticked |
    | `upload_testflight` | ticked |
    | `coach_backend` | **`staging`** |
+   | `signing` | **`cloud`** (section 2.1) |
    | `avatar_audio_path` | unticked for the first run (flutter_tts word-anchored mouth driver, the App Store default). Optional second run ticked, see section 6 |
    | `run_tests` | optional |
 
    Tap the green **Run workflow** button. The run takes about 20 to 40 minutes.
 2. Open the run, then the job **Signed IPA / TestFlight**. The summary must show
-   **"STAGING COACH BUILD ... do NOT submit for App Store review"**, the build number, `Coach backend: staging` and
-   `Coach host check passed (staging)`.
+   **"STAGING COACH BUILD ... do NOT submit for App Store review"**, the build number, `Coach backend: staging`,
+   `Coach host check passed (staging)`, `Signing: cloud` and `Cloud-managed signing: Apple Distribution, build <N>`.
+   If the export step fails with a cloud signing permission error, check the key's access is **Admin** (2.1 a3).
 3. App Store Connect: **Apps**, then **DateWise AI**, then **TestFlight**. Wait until the new build (50000+) finishes
    **Processing**, usually 5 to 30 minutes. Then open **Internal Testing**, then **iPhone demo**, then **Builds**, then
    **+**, select the 50000+ build and tap **Add**. Export compliance should not be asked (the Info.plist declares it).
@@ -215,16 +289,13 @@ What `coach_backend: staging` does:
 
   The ranges stay apart while run numbers are below about 4,900 (the same limit the audio-path range already has).
 - **Labels and checks.** The run summary carries the STAGING warning and the IPA artifact is named
-  `datewise-ios-ipa-signed-STAGING`. The job fails if the compiled app lacks the staging host, or if a production
-  build contains it.
-- **Unsigned job.** It refuses `coach_backend: staging` without `signed_build`.
+  `datewise-ios-ipa-signed-STAGING`. The job fails if the compiled staging app lacks the staging host, or if a
+  production build lacks the production host or contains the staging host.
+- **Unsigned job.** It refuses `coach_backend: staging` or `signing: cloud` without `signed_build`.
 
 **Never submit a 50000+ build for App Store review.** The workflow has no App Store submission flag (it only uploads
-to TestFlight). Submission is a manual choice in App Store Connect, so this rule is yours to keep. App Store Connect
-can reject a lower build number after a higher one of the same version, so do one of these:
-
-- upload the App Store build of a version before any 50000+ build of that version; or
-- give the demo its own version (for example 2.0.1).
+to TestFlight). Submission is a manual choice in App Store Connect, so this rule is yours to keep. Decide the version
+question in section 2.6 before the first staging build.
 
 ## 4. Install, subscribe, allow voice (on the iPhone)
 
@@ -239,7 +310,8 @@ can reject a lower build number after a higher one of the same version, so do on
    happens). The paywall closes and the coaches unlock.
 5. **Permissions.** Open a coach, switch to **Voice mode** ("Talk to <name>"), then press **Hold to talk**. Tap
    **Allow** on the **microphone** prompt and **OK** on the **speech recognition** prompt. If you denied one, the app
-   offers **Open Settings**: under **Settings, DateWise AI**, turn on **Microphone** and **Speech Recognition**.
+   offers **Open Settings**: under **Settings**, then **Apps**, then **DateWise AI** (iOS 18 and later; on iOS 17 and
+   earlier **Settings**, then **DateWise AI**), turn on **Microphone** and **Speech Recognition**.
 
 ## 5. The demo
 
