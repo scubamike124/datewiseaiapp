@@ -2,10 +2,12 @@
 // animator's states, Reduce Motion fallback, accessibility labels, the
 // voice-stage hook, and a painter frame-time benchmark.
 
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -84,6 +86,20 @@ void main() {
     }
   });
 
+  group('portrait size check', () {
+    test('frames are not used when the portrait file is not the one they were made from', () async {
+      final coach = Coaches.all.first;
+      final real = await rootBundle.loadString('${AvatarManifest.dir(coach.id)}/manifest.json');
+      final m = jsonDecode(real) as Map<String, dynamic>;
+      expect(m['source_width'], isNotNull, reason: 'the generator records the file size');
+      m['source_width'] = (m['source_width'] as int) + 1; // a replaced portrait of another size
+      final bundle = _ManifestOverride(jsonEncode(m));
+      expect(await AvatarFrames.load(coach, bundle: bundle), isNull);
+      // The real manifest loads (control).
+      expect(await AvatarFrames.load(coach, bundle: _ManifestOverride(real)), isNotNull);
+    });
+  });
+
   group('animator', () {
     test('blinks switch frames (never fade) and last 150 ms', () {
       expect(AvatarAnimator.blinkFrame(-0.01), isNull);
@@ -157,6 +173,24 @@ void main() {
         maxDy = math.max(maxDy, a.frame(t, AvatarMood.speaking, const VisemeSample(Viseme.e, Viseme.e, 1)).dy);
       }
       expect(maxDy, greaterThan(2));
+    });
+
+    test('a stressed open vowel gets an emphasis nod of up to 2.8 px with a slight tilt, within the limits', () {
+      final a = AvatarAnimator(seed: 3);
+      // Speaking already (no phrase-start nod), then a stressed A.
+      for (var t = 0.0; t < 2; t += 1 / 60) {
+        a.frame(t, AvatarMood.speaking, const VisemeSample(Viseme.e2, Viseme.e2, 1));
+      }
+      var maxDy = 0.0, maxRot = 0.0;
+      for (var t = 2.0; t < 2.4; t += 1 / 60) {
+        final p = a.frame(t, AvatarMood.speaking, const VisemeSample(Viseme.e2, Viseme.a, 1));
+        maxDy = math.max(maxDy, p.dy);
+        maxRot = math.max(maxRot, p.rotation.abs());
+        expect(p.dy.abs(), lessThanOrEqualTo(AvatarPose.maxDy));
+        expect(p.rotation.abs(), lessThanOrEqualTo(AvatarPose.maxRotation));
+      }
+      expect(maxDy, greaterThan(2.2), reason: 'a visible emphasis nod (2.8 px plus breathing)');
+      expect(maxRot, greaterThan(0.004), reason: 'with a slight tilt');
     });
 
     test('the first blink comes at a random moment between 1.5 and 4 s', () {
@@ -432,4 +466,16 @@ void main() {
     // ignore: avoid_print
     print('Avatar painter (host CPU; raster = software toImage, upper bound): ${results.join(', ')}');
   });
+}
+
+
+/// The app's assets, with the manifest of every coach replaced by [manifest].
+class _ManifestOverride extends CachingAssetBundle {
+  _ManifestOverride(this.manifest);
+  final String manifest;
+  @override
+  Future<ByteData> load(String key) => rootBundle.load(key);
+  @override
+  Future<String> loadString(String key, {bool cache = true}) async =>
+      key.endsWith('manifest.json') ? manifest : rootBundle.loadString(key, cache: cache);
 }
