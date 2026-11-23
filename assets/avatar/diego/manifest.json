@@ -9,153 +9,153 @@
   "mbp": {
    "region": "mouth",
    "rect": [
-    383,
+    387,
     320,
-    416,
-    304
+    411,
+    295
    ],
-   "identity": 0.907,
-   "master": 0.947
+   "identity": 0.904,
+   "master": 0.948
   },
   "a": {
    "region": "mouth",
    "rect": [
-    383,
+    387,
     320,
-    416,
-    304
+    411,
+    295
    ],
-   "identity": 0.837,
-   "master": 0.885
+   "identity": 0.845,
+   "master": 0.898
   },
   "a2": {
    "region": "mouth",
    "rect": [
-    383,
+    387,
     320,
-    416,
-    304
+    411,
+    295
    ],
-   "identity": 0.856,
-   "master": 0.935
+   "identity": 0.857,
+   "master": 0.936
   },
   "e": {
    "region": "mouth",
    "rect": [
-    383,
+    387,
     320,
-    416,
-    304
+    411,
+    295
    ],
    "identity": 0.894,
-   "master": 0.926
+   "master": 0.927
   },
   "e2": {
    "region": "mouth",
    "rect": [
-    383,
+    387,
     320,
-    416,
-    304
+    411,
+    295
    ],
-   "identity": 0.9,
+   "identity": 0.899,
    "master": 0.95
   },
   "i": {
    "region": "mouth",
    "rect": [
-    383,
+    387,
     320,
-    416,
-    304
+    411,
+    295
    ],
-   "identity": 0.895,
+   "identity": 0.894,
    "master": 0.943
   },
   "i2": {
    "region": "mouth",
    "rect": [
-    383,
+    387,
     320,
-    416,
-    304
+    411,
+    295
    ],
-   "identity": 0.895,
+   "identity": 0.893,
    "master": 0.958
   },
   "o": {
    "region": "mouth",
    "rect": [
-    383,
+    387,
     320,
-    416,
-    304
+    411,
+    295
    ],
-   "identity": 0.802,
-   "master": 0.869
+   "identity": 0.809,
+   "master": 0.888
   },
   "o2": {
    "region": "mouth",
    "rect": [
-    383,
+    387,
     320,
-    416,
-    304
+    411,
+    295
    ],
    "identity": 0.83,
-   "master": 0.916
+   "master": 0.917
   },
   "u": {
    "region": "mouth",
    "rect": [
-    383,
+    387,
     320,
-    416,
-    304
+    411,
+    295
    ],
-   "identity": 0.857,
-   "master": 0.942
+   "identity": 0.855,
+   "master": 0.945
   },
   "u2": {
    "region": "mouth",
    "rect": [
-    383,
+    387,
     320,
-    416,
-    304
+    411,
+    295
    ],
-   "identity": 0.867,
-   "master": 0.939
+   "identity": 0.866,
+   "master": 0.943
   },
   "fv": {
    "region": "mouth",
    "rect": [
-    383,
+    387,
     320,
-    416,
-    304
+    411,
+    295
    ],
    "identity": 0.91,
-   "master": 0.938
+   "master": 0.939
   },
   "l": {
    "region": "mouth",
    "rect": [
-    383,
+    387,
     320,
-    416,
-    304
+    411,
+    295
    ],
    "identity": 0.845,
-   "master": 0.925
+   "master": 0.926
   },
   "th": {
    "region": "mouth",
    "rect": [
-    383,
+    387,
     320,
-    416,
-    304
+    411,
+    295
    ],
    "identity": 0.882,
    "master": 0.956
@@ -163,23 +163,23 @@
   "cons": {
    "region": "mouth",
    "rect": [
-    383,
+    387,
     320,
-    416,
-    304
+    411,
+    295
    ],
-   "identity": 0.896,
-   "master": 0.955
+   "identity": 0.895,
+   "master": 0.954
   },
   "sh": {
    "region": "mouth",
    "rect": [
-    383,
+    387,
     320,
-    416,
-    304
+    411,
+    295
    ],
-   "identity": 0.869,
+   "identity": 0.868,
    "master": 0.958
   },
   "blink_half": {

@@ -9,178 +9,178 @@
   "mbp": {
    "region": "mouth",
    "rect": [
-    416,
+    421,
     358,
-    396,
-    274
+    386,
+    266
    ],
-   "identity": 0.91,
+   "identity": 0.911,
    "master": 0.981
   },
   "a": {
    "region": "mouth",
    "rect": [
-    416,
+    421,
     358,
-    396,
-    274
+    386,
+    266
    ],
-   "identity": 0.834,
-   "master": 0.881
+   "identity": 0.857,
+   "master": 0.914
   },
   "a2": {
    "region": "mouth",
    "rect": [
-    416,
+    421,
     358,
-    396,
-    274
+    386,
+    266
    ],
-   "identity": 0.878,
-   "master": 0.921
+   "identity": 0.88,
+   "master": 0.922
   },
   "e": {
    "region": "mouth",
    "rect": [
-    416,
+    421,
     358,
-    396,
-    274
+    386,
+    266
    ],
-   "identity": 0.848,
+   "identity": 0.849,
    "master": 0.911
   },
   "e2": {
    "region": "mouth",
    "rect": [
-    416,
+    421,
     358,
-    396,
-    274
+    386,
+    266
    ],
    "identity": 0.878,
-   "master": 0.925
+   "master": 0.926
   },
   "i": {
    "region": "mouth",
    "rect": [
-    416,
+    421,
     358,
-    396,
-    274
+    386,
+    266
    ],
-   "identity": 0.887,
-   "master": 0.92
+   "identity": 0.886,
+   "master": 0.919
   },
   "i2": {
    "region": "mouth",
    "rect": [
-    416,
+    421,
     358,
-    396,
-    274
+    386,
+    266
    ],
-   "identity": 0.899,
-   "master": 0.93
+   "identity": 0.897,
+   "master": 0.929
   },
   "o": {
    "region": "mouth",
    "rect": [
-    416,
+    421,
     358,
-    396,
-    274
+    386,
+    266
    ],
-   "identity": 0.822,
-   "master": 0.883
+   "identity": 0.82,
+   "master": 0.873
   },
   "o2": {
    "region": "mouth",
    "rect": [
-    416,
+    421,
     358,
-    396,
-    274
+    386,
+    266
    ],
-   "identity": 0.854,
-   "master": 0.906
+   "identity": 0.857,
+   "master": 0.908
   },
   "u": {
    "region": "mouth",
    "rect": [
-    416,
+    421,
     358,
-    396,
-    274
+    386,
+    266
    ],
-   "identity": 0.849,
-   "master": 0.884
+   "identity": 0.852,
+   "master": 0.893
   },
   "u2": {
    "region": "mouth",
    "rect": [
-    416,
+    421,
     358,
-    396,
-    274
+    386,
+    266
    ],
-   "identity": 0.844,
-   "master": 0.88
+   "identity": 0.849,
+   "master": 0.894
   },
   "fv": {
    "region": "mouth",
    "rect": [
-    416,
+    421,
     358,
-    396,
-    274
+    386,
+    266
    ],
-   "identity": 0.899,
+   "identity": 0.898,
    "master": 0.959
   },
   "l": {
    "region": "mouth",
    "rect": [
-    416,
+    421,
     358,
-    396,
-    274
+    386,
+    266
    ],
-   "identity": 0.871,
-   "master": 0.914
+   "identity": 0.872,
+   "master": 0.916
   },
   "th": {
    "region": "mouth",
    "rect": [
-    416,
+    421,
     358,
-    396,
-    274
+    386,
+    266
    ],
-   "identity": 0.908,
+   "identity": 0.909,
    "master": 0.952
   },
   "cons": {
    "region": "mouth",
    "rect": [
-    416,
+    421,
     358,
-    396,
-    274
+    386,
+    266
    ],
-   "identity": 0.89,
-   "master": 0.93
+   "identity": 0.891,
+   "master": 0.931
   },
   "sh": {
    "region": "mouth",
    "rect": [
-    416,
+    421,
     358,
-    396,
-    274
+    386,
+    266
    ],
-   "identity": 0.897,
-   "master": 0.951
+   "identity": 0.88,
+   "master": 0.931
   },
   "blink_half": {
    "region": "eyes",

@@ -32,13 +32,13 @@ COACHES = ["ava", "ethan", "sofia", "diego"]
 # (stressed) and a half (unstressed) opening.
 VISEMES = {
     "mbp": dict(lip=0.0, smile=-0.1),               # M, B, P: lips pressed
-    "a": dict(lip=0.6),                             # A (father, casa), stressed
+    "a": dict(lip=0.48),                            # A (father, casa), stressed; open, not a shout
     "a2": dict(lip=0.34),                           # A, unstressed / half open
     "e": dict(lip=0.3, grin=8),                     # E (bed, mesa)
     "e2": dict(lip=0.17, grin=6),
     "i": dict(lip=0.15, grin=10),                   # I (see, sí)
     "i2": dict(lip=0.07, grin=8),
-    "o": dict(lip=0.45, smile=-0.3, purse=10),      # O (go, oso)
+    "o": dict(lip=0.32, smile=-0.45, purse=14),     # O (go, oso): rounded, not a toothy grimace
     "o2": dict(lip=0.27, smile=-0.3, purse=8),
     "u": dict(lip=0.12, smile=-0.3, purse=15),      # U / W (you, luna)
     "u2": dict(lip=0.05, smile=-0.3, purse=18),
@@ -131,8 +131,10 @@ def regions(face, shape, lmk203=None):
         # Close the contour over the forehead so only the jaw line clips.
         top = np.array([[pts[-1][0], int(eye_c[1] - iod)], [pts[0][0], int(eye_c[1] - iod)]], np.int32)
         cv2.fillPoly(face_poly, [np.vstack([pts, top])], 1)
-        # Keep a thin band inside the jaw line for the feather.
-        er = max(1, int(0.04 * iod))
+        # Pull the mask in from the jaw line by the feather's reach, so the
+        # feathered edge fades out inside the face: a patch whose jaw moved
+        # never blends a second, offset jaw outline over the original one.
+        er = max(1, int(0.12 * iod))
         face_poly = cv2.erode(face_poly, np.ones((er, er), np.uint8))
         mouth = mouth * face_poly.astype(np.float32)
     mouth = feather(mouth, 0.3 * iod)
