@@ -1357,6 +1357,24 @@ abstract class AppLocalizations {
   /// **'Could not open {url}'**
   String couldNotOpen(String url);
 
+  /// Compact link-out button under the coach's reply on first-date plans. Opens Apple Maps; no in-app booking.
+  ///
+  /// In en, this message translates to:
+  /// **'Find a table'**
+  String get findTable;
+
+  /// No description provided for @findTableSemantics.
+  ///
+  /// In en, this message translates to:
+  /// **'Find a table nearby. Opens Apple Maps.'**
+  String get findTableSemantics;
+
+  /// The Apple Maps search term the Find a table button opens (searched near the phone).
+  ///
+  /// In en, this message translates to:
+  /// **'restaurants'**
+  String get findTableQuery;
+
   /// No description provided for @settingsFootnote.
   ///
   /// In en, this message translates to:
