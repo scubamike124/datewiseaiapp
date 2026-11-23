@@ -11,6 +11,18 @@ name: iOS build
 # secrets check is skipped unless all the signing secrets exist. See
 # docs/appstore/checklist.md, section "6. Optional: CI signing secrets", for
 # the exact secrets.
+#
+# Two signing modes (input `signing`):
+#   manual (default): the distribution certificate (.p12) and App Store
+#     provisioning profile from secrets, as before. Making those needs a
+#     computer.
+#   cloud: no certificate or profile secrets. The archive is built without
+#     codesigning, then `xcodebuild -exportArchive` signs it with Xcode's
+#     automatic signing, using a cloud-managed distribution certificate and an
+#     App Store profile it creates itself, authenticated only by the App
+#     Store Connect API key (-allowProvisioningUpdates -authenticationKey*).
+#     The key needs the Admin role. Everything is done from an iPhone; see
+#     docs/qa/IPHONE_E2E_DEMO.md section 2.1.
 on:
   pull_request:
     paths:
@@ -44,12 +56,22 @@ on:
           - production
           - staging
         default: production
+      signing:
+        description: 'Signing of a signed build. "manual" = certificate + profile secrets (needs a computer to make). "cloud" = Xcode cloud-managed signing with only the App Store Connect API key (Admin role); iPhone-only. Needs signed_build.'
+        type: choice
+        options:
+          - manual
+          - cloud
+        default: manual
 
 permissions:
   contents: read
 
 concurrency:
-  group: ios-build-${{ github.ref }}
+  # Runs with different build inputs never cancel each other (a staging
+  # TestFlight run must not cancel a production one); a re-run of the same
+  # kind still replaces the older run.
+  group: ios-build-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.signed_build && 'signed' || 'unsigned' }}-${{ inputs.coach_backend || 'production' }}
   cancel-in-progress: true
 
 env:
@@ -71,6 +93,12 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.coach_backend == 'staging' && !inputs.signed_build
         run: |
           echo "::error::coach_backend=staging only applies to the signed TestFlight build. Tick signed_build too; this unsigned build always targets production."
+          exit 1
+
+      - name: signing cloud needs signed_build
+        if: github.event_name == 'workflow_dispatch' && inputs.signing == 'cloud' && !inputs.signed_build
+        run: |
+          echo "::error::signing=cloud only applies to the signed TestFlight build. Tick signed_build too; this unsigned build is never signed."
           exit 1
 
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -164,6 +192,7 @@ jobs:
       - name: Check signing secrets
         id: secrets
         env:
+          SIGNING: ${{ inputs.signing }}
           HAS_IOS_DIST_CERT_P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 != '' }}
           HAS_IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD != '' }}
           HAS_IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 != '' }}
@@ -172,8 +201,15 @@ jobs:
           HAS_APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID != '' }}
           HAS_APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 != '' }}
         run: |
+          case "$SIGNING" in
+            manual|"") needed="IOS_DIST_CERT_P12_BASE64 IOS_DIST_CERT_PASSWORD IOS_PROVISIONING_PROFILE_BASE64 APPLE_TEAM_ID APP_STORE_CONNECT_API_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_API_KEY_P8" ;;
+            # Cloud signing: only the App Store Connect API key and the team.
+            cloud) needed="APPLE_TEAM_ID APP_STORE_CONNECT_API_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_API_KEY_P8" ;;
+            *) echo "::error::Unknown signing mode"; exit 1 ;;
+          esac
+          echo "Signing: ${SIGNING:-manual}" >> "$GITHUB_STEP_SUMMARY"
           missing=""
-          for v in IOS_DIST_CERT_P12_BASE64 IOS_DIST_CERT_PASSWORD IOS_PROVISIONING_PROFILE_BASE64 APPLE_TEAM_ID APP_STORE_CONNECT_API_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_API_KEY_P8; do
+          for v in $needed; do
             h="HAS_$v"
             if [ "${!h}" != "true" ]; then missing="$missing $v"; fi
           done
@@ -197,7 +233,7 @@ jobs:
           cache: true
 
       - name: Install certificate and provisioning profile
-        if: steps.secrets.outputs.ready == 'true'
+        if: steps.secrets.outputs.ready == 'true' && inputs.signing != 'cloud'
         env:
           IOS_DIST_CERT_P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
           IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
@@ -226,7 +262,7 @@ jobs:
           echo "PROFILE_UUID=$UUID" >> "$GITHUB_ENV"
 
       - name: Manual signing for the Runner target (CI checkout only, not committed)
-        if: steps.secrets.outputs.ready == 'true'
+        if: steps.secrets.outputs.ready == 'true' && inputs.signing != 'cloud'
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
@@ -251,11 +287,44 @@ jobs:
           sed -i '' 's/^          //' "$RUNNER_TEMP/ExportOptions.plist"
           plutil -lint "$RUNNER_TEMP/ExportOptions.plist"
 
+      - name: Cloud signing for the Runner target (CI checkout only, not committed)
+        if: steps.secrets.outputs.ready == 'true' && inputs.signing == 'cloud'
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          # The team id goes into sed and a plist: accept only its real form.
+          if ! [[ "$APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]; then
+            echo "::error::APPLE_TEAM_ID must be the 10-character Team ID."; exit 1
+          fi
+          # Automatic signing with the team on the Runner target only (same
+          # anchor as the manual step). The project defaults stay unchanged.
+          sed -i '' "s/PRODUCT_BUNDLE_IDENTIFIER = com.datewise.datewiseAi;/PRODUCT_BUNDLE_IDENTIFIER = com.datewise.datewiseAi; CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = $APPLE_TEAM_ID;/" ios/Runner.xcodeproj/project.pbxproj
+          test "$(grep -c "DEVELOPMENT_TEAM = $APPLE_TEAM_ID;" ios/Runner.xcodeproj/project.pbxproj)" = "3"
+          # manageAppVersionAndBuildNumber false keeps the workflow's build
+          # number; destination export leaves the upload to altool below.
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>destination</key><string>export</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+            <key>uploadSymbols</key><true/>
+          </dict>
+          </plist>
+          PLIST
+          sed -i '' 's/^          //' "$RUNNER_TEMP/ExportOptions.plist"
+          plutil -lint "$RUNNER_TEMP/ExportOptions.plist"
+
       - name: flutter build ipa
         if: steps.secrets.outputs.ready == 'true'
         env:
           AVATAR_AUDIO_PATH: ${{ inputs.avatar_audio_path && 'true' || 'false' }}
           COACH_BACKEND: ${{ inputs.coach_backend }}
+          SIGNING: ${{ inputs.signing }}
         run: |
           flutter pub get
           # The coach backend is a fixed choice, never a free-form URL. The
@@ -295,21 +364,89 @@ jobs:
           # The avatar's native audio path stays off unless this run is a
           # TestFlight device test (docs/avatar/TALKING_AVATARS.md).
           echo "DW_AVATAR_AUDIO_PATH=$AVATAR_AUDIO_PATH" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$SIGNING" = "cloud" ]; then
+            # Cloud signing: build only the archive here (no development
+            # certificate, profile or registered device needed). The next
+            # step signs it while exporting.
+            SIGN_ARGS=(--no-codesign)
+          else
+            SIGN_ARGS=(--export-options-plist="$RUNNER_TEMP/ExportOptions.plist")
+          fi
           flutter build ipa --release --build-number="$BUILD_NUMBER" \
             "${DEFINES[@]}" \
-            --export-options-plist="$RUNNER_TEMP/ExportOptions.plist"
-          ls -lh build/ios/ipa
+            "${SIGN_ARGS[@]}"
+          if [ "$SIGNING" = "cloud" ]; then
+            test -d build/ios/archive/Runner.xcarchive
+          else
+            ls -lh build/ios/ipa
+          fi
           # Prove which coach host the compiled Dart code carries.
           APP_BIN=$(find build/ios/archive -path '*App.framework/App' -type f | head -n 1)
           test -n "$APP_BIN"
+          # Symmetric: each build must carry its own host and not the other's.
+          # (AIConfig.productionUrl is a compile-time constant, so a staging
+          # build with COACH_BACKEND_URL may still carry it; only its use
+          # matters there, which test/staging_device_demo_test.dart covers.)
           if [ "$COACH_BACKEND" = "staging" ]; then
             if ! grep -a -q "datewise-coach-staging.scubamike124.workers.dev" "$APP_BIN"; then
               echo "::error::The staging build does not contain the staging coach host."; exit 1
             fi
-          elif grep -a -q "datewise-coach-staging" "$APP_BIN"; then
-            echo "::error::A production build contains the staging coach host."; exit 1
+          else
+            if ! grep -a -q "datewise-photo-coach.scubamike124.workers.dev" "$APP_BIN"; then
+              echo "::error::A production build does not contain the production coach host."; exit 1
+            fi
+            if grep -a -q "datewise-coach-staging" "$APP_BIN"; then
+              echo "::error::A production build contains the staging coach host."; exit 1
+            fi
           fi
           echo "Coach host check passed ($COACH_BACKEND)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Export and sign the IPA with cloud-managed signing
+        if: steps.secrets.outputs.ready == 'true' && inputs.signing == 'cloud'
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+        run: |
+          # The key id becomes a file name: accept only its real form.
+          if ! [[ "$ASC_KEY_ID" =~ ^[A-Z0-9]{10}$ ]]; then
+            echo "::error::APP_STORE_CONNECT_API_KEY_ID must be the 10-character Key ID."; exit 1
+          fi
+          # The .p8 lives only in RUNNER_TEMP, readable by this user only, and
+          # is removed by the always() cleanup step. It is never printed.
+          (
+            umask 077
+            mkdir -p "$RUNNER_TEMP/asc"
+            printf '%s\n' "$ASC_KEY_P8" > "$RUNNER_TEMP/asc/AuthKey_${ASC_KEY_ID}.p8"
+          )
+          if ! grep -q -- '-----BEGIN PRIVATE KEY-----' "$RUNNER_TEMP/asc/AuthKey_${ASC_KEY_ID}.p8"; then
+            echo "::error::APP_STORE_CONNECT_API_KEY_P8 must be the full .p8 text, including the BEGIN/END lines."; exit 1
+          fi
+          # Automatic signing: Xcode uses (or creates) the team's
+          # cloud-managed Apple Distribution certificate and an App Store
+          # profile for com.datewise.datewiseAi. Needs an Admin-role key.
+          xcodebuild -exportArchive \
+            -archivePath build/ios/archive/Runner.xcarchive \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath build/ios/ipa \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/asc/AuthKey_${ASC_KEY_ID}.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+          rm -f "$RUNNER_TEMP/asc/AuthKey_${ASC_KEY_ID}.p8"
+          ls -lh build/ios/ipa
+          # Prove the IPA is distribution-signed and carries this run's build number.
+          IPA=$(ls build/ios/ipa/*.ipa | head -n 1)
+          rm -rf "$RUNNER_TEMP/ipa-check"
+          mkdir -p "$RUNNER_TEMP/ipa-check"
+          unzip -q "$IPA" -d "$RUNNER_TEMP/ipa-check"
+          APP=$(find "$RUNNER_TEMP/ipa-check/Payload" -maxdepth 1 -name '*.app' | head -n 1)
+          codesign --verify --deep --strict "$APP"
+          if ! codesign -dvv "$APP" 2>&1 | grep -q '^Authority=Apple Distribution'; then
+            echo "::error::The exported app is not signed with an Apple Distribution certificate."; exit 1
+          fi
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")" = "$BUILD_NUMBER"
+          echo "Cloud-managed signing: Apple Distribution, build $BUILD_NUMBER" >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: steps.secrets.outputs.ready == 'true'
@@ -330,6 +467,7 @@ jobs:
           # names `--upload-package` (App Store Connect API key auth) as its
           # replacement for uploading builds. altool finds the key in
           # ~/.appstoreconnect/private_keys/AuthKey_<key id>.p8.
+          umask 077
           mkdir -p "$HOME/.appstoreconnect/private_keys"
           printf '%s' "$ASC_KEY_P8" > "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
           IPA=$(ls build/ios/ipa/*.ipa | head -n 1)
@@ -345,7 +483,7 @@ jobs:
           security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
           rm -f "$RUNNER_TEMP/dist.p12" "$RUNNER_TEMP/profile.mobileprovision" "$RUNNER_TEMP/profile.plist" \
             "$RUNNER_TEMP/ExportOptions.plist"
-          rm -rf "$HOME/.appstoreconnect/private_keys"
+          rm -rf "$HOME/.appstoreconnect/private_keys" "$RUNNER_TEMP/asc" "$RUNNER_TEMP/ipa-check"
           if [ -n "${PROFILE_UUID:-}" ]; then
             rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision" \
               "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/$PROFILE_UUID.mobileprovision"

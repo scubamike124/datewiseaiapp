@@ -45,7 +45,8 @@ void main() {
     final beforeSteps = job.substring(0, job.indexOf('    steps:'));
     expect(beforeSteps, isNot(contains('secrets.')));
     // Each secret value is mapped only into the step(s) that use it.
-    expect(RegExp(r'secrets\.APP_STORE_CONNECT_API_KEY_P8 \}\}').allMatches(job).length, 1);
+    // The .p8: once for the cloud-signing export, once for the TestFlight upload.
+    expect(RegExp(r'secrets\.APP_STORE_CONNECT_API_KEY_P8 \}\}').allMatches(job).length, 2);
     expect(RegExp(r'secrets\.IOS_DIST_CERT_P12_BASE64 \}\}').allMatches(job).length, 1);
     final cleanup = job.substring(job.indexOf('- name: Clean up signing material'));
     expect(cleanup, contains('if: always()'));
@@ -118,8 +119,34 @@ void main() {
     test('the built binary is checked for the right coach host', () {
       expect(build, contains("find build/ios/archive -path '*App.framework/App'"));
       expect(build, contains('grep -a -q "datewise-coach-staging.scubamike124.workers.dev" "\$APP_BIN"'));
-      expect(build, contains('elif grep -a -q "datewise-coach-staging" "\$APP_BIN"; then'));
+      expect(build, contains('            if grep -a -q "datewise-coach-staging" "\$APP_BIN"; then'));
       expect(RegExp(r'^\s*! ', multiLine: true).hasMatch(build), isFalse, reason: 'a bare negated command does not trip bash -e');
+    });
+
+    test('the host check is symmetric: production must carry the production host', () {
+      final appUrl = RegExp(r"productionUrl = '([^']+)'").firstMatch(File('lib/services/ai_config.dart').readAsStringSync())![1]!;
+      expect(appUrl, 'https://datewise-photo-coach.scubamike124.workers.dev');
+      expect(build, contains('if ! grep -a -q "${Uri.parse(appUrl).host}" "\$APP_BIN"; then'));
+      expect(build, contains('A production build does not contain the production coach host.'));
+      expect(build, contains('if grep -a -q "datewise-coach-staging" "\$APP_BIN"; then'));
+    });
+
+    test('concurrency: staging, production and unsigned runs never cancel each other', () {
+      final group = RegExp(r'^  group: (.*)$', multiLine: true).firstMatch(s)![1]!;
+      expect(group, contains(r'${{ github.ref }}'));
+      expect(group, contains("inputs.signed_build && 'signed' || 'unsigned'"));
+      expect(group, contains("inputs.coach_backend || 'production'"));
+    });
+
+    test('runbook: version decision before the build, iOS 18 paths, owner-only merge and deploy', () {
+      final runbook = File('docs/qa/IPHONE_E2E_DEMO.md').readAsStringSync();
+      final warning = runbook.indexOf('upload the App Store build of a version before any 50000+ build of that version');
+      expect(warning, greaterThan(-1));
+      expect(warning, lessThan(runbook.indexOf('## 3. Build the TestFlight staging build')));
+      expect(runbook, contains('needs a `pubspec.yaml` change merged to `main`'));
+      expect(runbook, contains('**Settings**, then **Apps**, then **App Store** (iOS 18 and later'));
+      expect(runbook, contains('**Settings**, then **Apps**, then **DateWise AI** (iOS 18 and later'));
+      expect(runbook, contains("**Merging to `main` and every deploy are the owner's decision alone.**"));
     });
 
     test('staging without signed_build fails; the unsigned build stays production', () {
@@ -146,6 +173,103 @@ void main() {
       expect(RegExp(r'^script_name', multiLine: true).hasMatch(staging), isFalse);
       expect(File('docs/appstore/checklist.md').readAsStringSync(), contains('IPHONE_E2E_DEMO.md'));
       expect(File('docs/qa/LIVE_AI_TEST_PLAN.md').readAsStringSync(), contains('IPHONE_E2E_DEMO.md'));
+    });
+  });
+
+  group('ios-build.yml: Mac-free cloud-managed signing', () {
+    final s = File('.github/workflows/ios-build.yml').readAsStringSync();
+    final unsigned = s.substring(s.indexOf('  unsigned:'), s.indexOf('  signed-testflight:'));
+    final job = s.substring(s.indexOf('  signed-testflight:'));
+    String step(String name) {
+      final start = job.indexOf('- name: $name');
+      expect(start, greaterThan(-1), reason: name);
+      final next = job.indexOf(RegExp(r'\n      - (name|uses):'), start + 1);
+      return job.substring(start, next < 0 ? job.length : next);
+    }
+
+    test('signing is a choice input, manual by default', () {
+      expect(s, contains('      signing:\n'));
+      expect(s, contains('        type: choice\n        options:\n          - manual\n          - cloud\n        default: manual\n'));
+    });
+
+    test('cloud without signed_build fails in the unsigned job; the unsigned build is unchanged', () {
+      expect(unsigned, contains("if: github.event_name == 'workflow_dispatch' && inputs.signing == 'cloud' && !inputs.signed_build"));
+      expect(unsigned, contains('run: flutter build ios --release --no-codesign\n'));
+      expect(unsigned, isNot(contains('secrets.')));
+      expect(unsigned, isNot(contains('authenticationKey')));
+    });
+
+    test('the secrets check needs only the API key and team for cloud', () {
+      final check = step('Check signing secrets');
+      expect(check, contains(r'SIGNING: ${{ inputs.signing }}'));
+      expect(check, contains('cloud) needed="APPLE_TEAM_ID APP_STORE_CONNECT_API_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_API_KEY_P8" ;;'));
+      expect(check, contains('manual|"") needed="IOS_DIST_CERT_P12_BASE64 IOS_DIST_CERT_PASSWORD IOS_PROVISIONING_PROFILE_BASE64 APPLE_TEAM_ID'));
+      expect(check, contains('*) echo "::error::Unknown signing mode"; exit 1 ;;'));
+    });
+
+    test('manual steps are skipped for cloud; cloud steps run only for cloud', () {
+      for (final name in ['Install certificate and provisioning profile', 'Manual signing for the Runner target']) {
+        expect(step(name), contains("if: steps.secrets.outputs.ready == 'true' && inputs.signing != 'cloud'\n"), reason: name);
+      }
+      for (final name in ['Cloud signing for the Runner target', 'Export and sign the IPA with cloud-managed signing']) {
+        expect(step(name), contains("if: steps.secrets.outputs.ready == 'true' && inputs.signing == 'cloud'\n"), reason: name);
+      }
+      expect(step('Cloud signing for the Runner target'), isNot(contains('IOS_')));
+      expect(step('Export and sign the IPA with cloud-managed signing'), isNot(contains('IOS_')));
+    });
+
+    test('cloud: automatic signing at build time, app-store-connect export, build number kept', () {
+      final cloud = step('Cloud signing for the Runner target');
+      expect(cloud, contains(r'APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}'));
+      expect(cloud, contains(r'[[ "$APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]'));
+      expect(cloud, contains(r'PRODUCT_BUNDLE_IDENTIFIER = com.datewise.datewiseAi; CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = $APPLE_TEAM_ID;/'));
+      expect(cloud, contains('<key>method</key><string>app-store-connect</string>'));
+      expect(cloud, contains('<key>signingStyle</key><string>automatic</string>'));
+      expect(cloud, contains('<key>manageAppVersionAndBuildNumber</key><false/>'));
+      expect(cloud, isNot(contains('provisioningProfiles')));
+      // The project file in the repository keeps its defaults.
+      expect(File('ios/Runner.xcodeproj/project.pbxproj').readAsStringSync(), isNot(contains('DEVELOPMENT_TEAM')));
+      final build = step('flutter build ipa');
+      expect(build, contains(r'SIGNING: ${{ inputs.signing }}'));
+      expect(build, contains('SIGN_ARGS=(--no-codesign)'));
+      expect(build, contains(r'SIGN_ARGS=(--export-options-plist="$RUNNER_TEMP/ExportOptions.plist")'));
+      expect(build, contains(r'"${SIGN_ARGS[@]}"'));
+    });
+
+    test('cloud export: API key flags, .p8 in RUNNER_TEMP with umask 077, never printed, signature checked', () {
+      final export = step('Export and sign the IPA with cloud-managed signing');
+      for (final flag in ['-allowProvisioningUpdates', r'-authenticationKeyPath "$RUNNER_TEMP/asc/AuthKey_${ASC_KEY_ID}.p8"', r'-authenticationKeyID "$ASC_KEY_ID"', r'-authenticationKeyIssuerID "$ASC_ISSUER_ID"', '-archivePath build/ios/archive/Runner.xcarchive', '-exportPath build/ios/ipa']) {
+        expect(export, contains(flag));
+      }
+      expect(export, contains('xcodebuild -exportArchive'));
+      expect(export, contains('umask 077'));
+      expect(export.indexOf('umask 077'), lessThan(export.indexOf(r'> "$RUNNER_TEMP/asc/AuthKey_')));
+      expect(export, contains(r'[[ "$ASC_KEY_ID" =~ ^[A-Z0-9]{10}$ ]]'));
+      for (final line in export.split('\n').where((l) => l.contains('ASC_KEY_P8'))) {
+        final t = line.trim();
+        expect(t.startsWith('ASC_KEY_P8: \${{ secrets.') || t.startsWith(r"printf '%s\n' " '"\$ASC_KEY_P8" >'), isTrue, reason: line);
+      }
+      expect(export, isNot(contains('cat ')));
+      expect(export, contains("grep -q '^Authority=Apple Distribution'"));
+      expect(export, contains(r'= "$BUILD_NUMBER"'));
+      // Removed by the always() cleanup too.
+      final cleanup = job.substring(job.indexOf('- name: Clean up signing material'));
+      expect(cleanup, contains(r'"$RUNNER_TEMP/asc"'));
+      expect(job.indexOf('- name: Clean up signing material'), greaterThan(job.indexOf('- name: Export and sign the IPA')));
+    });
+
+    test('the export runs after the binary host check and before the artifact and upload', () {
+      final i = job.indexOf('- name: Export and sign the IPA');
+      expect(i, greaterThan(job.indexOf('Coach host check passed')));
+      expect(i, lessThan(job.indexOf('- uses: actions/upload-artifact')));
+      expect(i, lessThan(job.indexOf('- name: Upload to App Store Connect (TestFlight)')));
+    });
+
+    test('the runbook documents the iPhone-only cloud path and the Admin key risk', () {
+      final runbook = File('docs/qa/IPHONE_E2E_DEMO.md').readAsStringSync();
+      for (final t in ['`signing`', '**`cloud`**', 'Admin', 'Team Keys', 'Generate API Key', 'only once', 'Files', 'Secrets and variables', 'Revoke']) {
+        expect(runbook, contains(t), reason: t);
+      }
     });
   });
 

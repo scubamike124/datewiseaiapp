@@ -274,6 +274,13 @@ exist (GitHub › Settings › Secrets and variables › Actions):
 | `APP_STORE_CONNECT_ISSUER_ID` | Issuer ID shown on the same page |
 | `APP_STORE_CONNECT_API_KEY_P8` | Full text of the downloaded `AuthKey_XXXX.p8` file |
 
+**No computer? Use `signing: cloud`.** With the workflow's `signing` input
+set to `cloud`, only the last four secrets are needed (`APPLE_TEAM_ID` and the
+three `APP_STORE_CONNECT_*`), and the API key must have the **Admin** role.
+Xcode then signs with a cloud-managed distribution certificate; no `.p12` or
+profile is made. iPhone-only steps: docs/qa/IPHONE_E2E_DEMO.md section 2.1.
+`manual` (the default) still needs all seven.
+
 Then: Actions › iOS build › Run workflow › tick **signed_build** (and
 **upload_testflight** to upload). Note: "Run workflow" only appears once
 `ios-build.yml` is on the default branch. GitHub-hosted runners, macOS
