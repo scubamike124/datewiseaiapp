@@ -175,7 +175,7 @@ namespace_id = "740221"
 [env.staging.vars]
 # Test-sized budgets. DAILY_NEURON_BUDGET stays well under the account's free
 # 10,000-neuron daily allowance (at most 4000 here), so a run cannot spend money
-# on Workers Free. The full live plan needs about 1,839 neurons (worst case
+# on Workers Free. The full live plan needs about 2,019 neurons (worst case
 # stopped by SANDBOX_NEURON_BUDGET at 3,000).
 DAILY_NEURON_BUDGET = "4000"
 # No v1 traffic on staging: no anonymous slice.
