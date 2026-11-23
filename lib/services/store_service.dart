@@ -161,7 +161,11 @@ class FakeStoreService extends StoreService {
 /// on iOS). The entitlement is read from StoreKit's current entitlements on
 /// launch, so a canceled or expired subscription stops unlocking chat.
 class AppStoreService extends StoreService {
-  AppStoreService({InAppPurchase? iap, this.restoreSettle = const Duration(seconds: 2)})
+  AppStoreService({
+    InAppPurchase? iap,
+    this.restoreSettle = const Duration(seconds: 2),
+    this.purchaseRereadDelay = const Duration(seconds: 1),
+  })
       : _iap = iap ?? InAppPurchase.instance {
     EntitlementToken.refresher = refresh;
   }
@@ -172,6 +176,10 @@ class AppStoreService extends StoreService {
   /// `restorePurchases()`. This is how long a refresh waits for them before
   /// it concludes there is no active subscription.
   final Duration restoreSettle;
+
+  /// Pause before the second StoreKit re-read after a purchase the user
+  /// started, when the first re-read failed.
+  final Duration purchaseRereadDelay;
 
   /// Set while an Android refresh waits for Play to re-deliver purchases.
   Completer<void>? _restoreWait;
@@ -292,6 +300,7 @@ class AppStoreService extends StoreService {
       switch (p.status) {
         case PurchaseStatus.purchased:
         case PurchaseStatus.restored:
+          var rereadFailed = false;
           if (_isIOS) {
             // Transaction.updates also delivers renewals for a period that
             // has ended and refunded or revoked transactions, all reported
@@ -302,12 +311,25 @@ class AppStoreService extends StoreService {
             try {
               await _refreshEntitlement();
             } catch (_) {
-              // StoreKit could not be re-read: the event alone proves nothing
-              // (it may be an ended renewal or a refund), so the last known
-              // entitlement stands. Only the token is updated from the
-              // delivered JWS; the backend verifies it with Apple's
-              // certificates and refuses an expired or revoked one.
-              EntitlementToken.updateIfJws(p.verificationData.serverVerificationData);
+              // For a purchase the user just made, try the re-read once more
+              // after a short pause before giving up on it.
+              var ok = false;
+              if (_pending != null) {
+                await Future<void>.delayed(purchaseRereadDelay);
+                try {
+                  await _refreshEntitlement();
+                  ok = true;
+                } catch (_) {}
+              }
+              if (!ok) {
+                // StoreKit could not be re-read: the event alone proves nothing
+                // (it may be an ended renewal or a refund), so the last known
+                // entitlement stands. Only the token is updated from the
+                // delivered JWS; the backend verifies it with Apple's
+                // certificates and refuses an expired or revoked one.
+                rereadFailed = true;
+                EntitlementToken.updateIfJws(p.verificationData.serverVerificationData);
+              }
             }
           } else {
             _entitled = true;
@@ -318,7 +340,13 @@ class AppStoreService extends StoreService {
             }
           }
           _error = null;
-          _finishPending(_entitled ? PurchaseResult.purchased : PurchaseResult.failed);
+          // If StoreKit could not confirm a purchase the user just paid for,
+          // report it as pending ("chat unlocks when approved") rather than
+          // failed, so they are not prompted to buy again. The next resume or
+          // Restore re-reads the entitlement.
+          _finishPending(_entitled
+              ? PurchaseResult.purchased
+              : (rereadFailed ? PurchaseResult.pending : PurchaseResult.failed));
         case PurchaseStatus.pending:
           _finishPending(PurchaseResult.pending);
         case PurchaseStatus.canceled:

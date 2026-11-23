@@ -127,12 +127,19 @@ class _ScriptedIap implements InAppPurchase {
 class _FakeSK2 implements InAppPurchase2API {
   List<String> entitled = [];
   bool fail = false;
+
+  /// Fail only the next [failTimes] reads.
+  int failTimes = 0;
   int calls = 0;
 
   @override
   Future<List<SK2TransactionMessage>> currentEntitlements() async {
     calls++;
     if (fail) throw StateError('App Store unreachable');
+    if (failTimes > 0) {
+      failTimes--;
+      throw StateError('App Store unreachable');
+    }
     return [
       for (final id in entitled)
         SK2TransactionMessage(id: 1, originalId: 1, productId: id, status: SK2PurchaseStatusMessage.purchased),
@@ -434,6 +441,28 @@ void main() {
       await _settle();
       expect(store.isEntitled, isTrue);
       expect(EntitlementToken.current, 'new.jws.token');
+    });
+
+    test('a purchase the user made: one delayed re-read, then entitled', () async {
+      final iap = _ScriptedIap();
+      final store = AppStoreService(iap: iap, purchaseRereadDelay: const Duration(milliseconds: 10));
+      await store.init();
+      sk2.entitled = [StoreConfig.productId];
+      sk2.failTimes = 1;
+      final before = sk2.calls;
+      expect(await store.buy(), PurchaseResult.purchased);
+      expect(sk2.calls - before, 2, reason: 'first re-read failed, the delayed one succeeded');
+      expect(store.isEntitled, isTrue);
+    });
+
+    test('a purchase the user made: both re-reads fail, reported pending (not failed)', () async {
+      final iap = _ScriptedIap();
+      final store = AppStoreService(iap: iap, purchaseRereadDelay: const Duration(milliseconds: 10));
+      await store.init();
+      sk2.fail = true;
+      expect(await store.buy(), PurchaseResult.pending,
+          reason: 'the user paid; say it unlocks when confirmed instead of prompting a second purchase');
+      expect(store.isEntitled, isFalse);
     });
   });
 

@@ -29,7 +29,6 @@ class PaywallScreen extends StatefulWidget {
   State<PaywallScreen> createState() => _PaywallScreenState();
 }
 
-/// The paywall's localized message for a store error.
 /// The paywall's fair-use line, with the limits the backend enforces
 /// ([FairUse], checked against backend/wrangler.toml by a test).
 String fairUseLine(AppLocalizations l) => l.paywallFairUse(
@@ -39,6 +38,7 @@ String fairUseLine(AppLocalizations l) => l.paywallFairUse(
       FairUse.format(FairUse.concurrent, l.localeName),
     );
 
+/// The paywall's localized message for a store error.
 String storeErrorText(AppLocalizations l, StoreError e) => switch (e) {
       StoreError.storeUnavailable => l.storeUnavailable,
       StoreError.storeUnreachable => l.storeUnreachable,
