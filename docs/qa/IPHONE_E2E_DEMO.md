@@ -50,6 +50,11 @@ no offline coach.
 
 ## 1. Pre-live isolation check
 
+**Shared deploy credential.** The staging deploy runs in the same `production-worker` GitHub environment with the
+same `CLOUDFLARE_API_TOKEN`, which can also deploy production. Staging stays off production because the workflow
+hardcodes the Worker name `datewise-coach-staging` for the `chat-v7-staging` target and checks the deployed URL, not
+because the credentials are separate. The running Worker itself has no access to that token.
+
 **What was verified statically** (main session, branch `claude/datewise-v2-app` at `310e94e`; no Cloudflare call):
 
 - **Bindings.** `[env.staging]` in `backend/wrangler.toml` declares exactly three:
@@ -83,10 +88,10 @@ read-only and works in Safari on the iPhone:
 3. For **each** Worker in the list except `datewise-coach-staging`:
    1. Tap its name, then **Settings**, then **Bindings**.
    2. Look at any **Rate Limiting** binding and its **namespace ID**.
-4. **PASS** if no Worker other than `datewise-coach-staging` shows `740221`. If one does, stop: change staging's
-   namespace in a reviewed PR to `main` first.
+4. **PASS** if no Worker other than `datewise-coach-staging` shows `740221`. If one does, stop: staging's
+   namespace must change in a reviewed PR first (ask an agent to open it).
 
-**After the staging deploy** (section 2, step 6), open **Workers & Pages**, then **`datewise-coach-staging`**, then
+**After the staging deploy** (section 2.5, step 6), open **Workers & Pages**, then **`datewise-coach-staging`**, then
 **Settings**, then **Bindings**. **PASS** only if it lists exactly these three:
 
 - **Workers AI** `AI`;
@@ -191,22 +196,46 @@ secrets missing" if any of the four is absent. Nothing is built or uploaded in t
    **+** (Create Group). Name it `iPhone demo` and add yourself as a tester (you must be a user on the team). The
    build is added to it in section 3.
 
-### 2.3 Merge to `main` (github.com in Safari)
+### 2.3 Version and build numbers (decide before the merge)
 
-The staging deploy only deploys commits on `main`, and **Run workflow** only shows the inputs that `ios-build.yml` has
-on the branch you run from.
+App Store Connect can reject a lower build number after a higher one of the same version. A staging build is 50000+,
+so once one is uploaded for a version, that version's App Store build (100 + run number) may be refused. Decide this before
+the merge in 2.4, because `pubspec.yaml` on the v2 branch is `2.0.0+100`. Do one of these:
+
+- upload the App Store build of a version before any 50000+ build of that version; or
+- give the demo its own version (for example 2.0.1). The version comes from `version:` in `pubspec.yaml`, so this
+  needs a `pubspec.yaml` change in a reviewed PR before the merge (ask an agent to open it).
+
+### 2.4 Merge to `main` (github.com in Safari)
+
+**Blocked until you decide to merge.** Today `main` has only the "Deploy to GitHub Pages" workflow. GitHub offers a
+**Run workflow** button only for a workflow that is on the default branch, so **iOS build** and **Deploy coach
+Worker** cannot be started until the v2 branch is merged (iOS build may be listed from earlier PR runs, without the
+button), and the staging deploy only deploys commits on `main`. Sections 2.5 and 3 onward wait for this merge.
+
+You can do these now: section 1 (namespace check), 2.1, 2.2, 2.3, 2.6, and
+docs/launch/WORKER_DEPLOY_RUNBOOK.md sections 1b to 1f. Do 1f (**Protect `main`**, mandatory) **before** the merge
+below: without it the deploy's "on `main`" check means nothing.
 
 **Merging to `main` and every deploy are the owner's decision alone.** No agent or workflow merges or deploys on its
 own; nothing in this runbook happens until you do it.
 
-1. Merge chat-v7, the staging config (PR #34), the `coach_backend` input (PR #37) and the `signing: cloud` input into
-   `main` through reviewed PRs.
-2. To merge a PR: **Pull requests**, open the PR, then **Merge pull request**, then **Confirm merge**.
+1. Merge `claude/datewise-v2-app` (which contains chat-v7 and PRs #34, #37, #38 and #39) into `main` through a
+   reviewed PR (ask an agent to open it).
+2. **Side effect:** every push to `main` runs **Deploy to GitHub Pages**, which publishes the v2 web app to the
+   project's GitHub Pages site. The web build has no purchases (it shows
+   "Subscribe in the app on your iPhone or iPad. Purchases are not available on the web.").
+3. To merge a PR: **Pull requests**, open the PR, then **Merge pull request**, then **Confirm merge**.
 
-### 2.4 Deploy the staging Worker (github.com in Safari)
+### 2.5 Deploy the staging Worker (github.com in Safari)
 
 These are runbook section 9, owner steps 2 to 4.
 
+0. If not done yet: docs/launch/WORKER_DEPLOY_RUNBOOK.md sections 1b to 1f (a Cloudflare API token; the
+   `production-worker` environment with you as required reviewer and deployment branches and tags `main` and
+   `worker-v*`; its secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`; the `worker-v*` tag ruleset; and the
+   `main` branch ruleset). These must be **environment** secrets: the run fails on purpose
+   if `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` or `ID_HASH_SALT` is a repository secret.
 1. Run the **rate-limit namespace check** in section 1. It must PASS.
 2. Repo **Actions** tab, then **Deploy coach Worker** in the workflow list, then **Run workflow**. Fill in the form:
    - **Use workflow from:** `main`;
@@ -216,16 +245,17 @@ These are runbook section 9, owner steps 2 to 4.
    Tap the green **Run workflow** button.
 3. Open the run when it finishes. The summary must say **STAGING** and show the commit.
 4. Run it again with **dry_run unticked**. The deploy job waits for you: tap **Review deployments**, tick
-   **production-worker**, then tap **Approve and deploy**. The GitHub mobile app can also approve it from the
-   notification.
+   **production-worker**, then tap **Approve and deploy**. The gate is named `production-worker`, but this run deploys
+   only `datewise-coach-staging`: check the job title says
+   `chat-v7-staging` before approving. The GitHub mobile app can also approve it from the notification.
 5. When the run is green, open
    **https://datewise-coach-staging.scubamike124.workers.dev/?version** in Safari. It must show
    `"version":"chat-v7-cost-guard"`. If the run summary shows a workers.dev subdomain other than `scubamike124`, stop:
-   the build below has that host fixed and would not reach it. Change the constant in `ios-build.yml` in a reviewed
-   PR first.
+   the build below has that host fixed and would not reach it. The constant in `ios-build.yml` must change in a reviewed
+   PR first (ask an agent to open it).
 6. Run the **post-deploy bindings check** in section 1. It must PASS.
 
-### 2.5 The iPhone
+### 2.6 The iPhone
 
 - iOS 15 or later (iOS 18+ recommended for the Sandbox sign-in flow below).
 - Install **TestFlight** from the App Store.
@@ -237,16 +267,6 @@ These are runbook section 9, owner steps 2 to 4.
   **Voices**, then English (and Spanish), then download one marked Premium or Enhanced.
 - Screen recording in Control Center: **Settings**, then **Control Center**. Add **Screen Recording** if it is not
   already there (iOS 18 and later: open Control Center, tap **+**, then **Add a Control**, then **Screen Recording**).
-
-### 2.6 Version and build numbers (decide before the first staging build)
-
-App Store Connect can reject a lower build number after a higher one of the same version. A staging build is 50000+,
-so once one is uploaded for a version, that version's App Store build (100 + run number) may be refused. Before you
-run section 3, do one of these:
-
-- upload the App Store build of a version before any 50000+ build of that version; or
-- give the demo its own version (for example 2.0.1). The version comes from `version:` in `pubspec.yaml`, so this
-  needs a `pubspec.yaml` change merged to `main` through a reviewed PR first (the workflow runs from `main`).
 
 ## 3. Build the TestFlight staging build (github.com in Safari)
 
@@ -262,8 +282,10 @@ run section 3, do one of these:
    | `avatar_audio_path` | unticked for the first run (flutter_tts word-anchored mouth driver, the App Store default). Optional second run ticked, see section 6 |
    | `run_tests` | optional |
 
+   `signing` defaults to `manual`. If you leave it there, the run fails with "Signing secrets missing"; pick `cloud`.
    Tap the green **Run workflow** button. The run takes about 20 to 40 minutes.
-2. Open the run, then the job **Signed IPA / TestFlight**. The summary must show
+2. Open the run, then the job **Signed IPA / TestFlight (manual, needs secrets)**. ("manual" in that name means the
+   job only runs when you start it by hand; it is not the `signing: manual` choice.) The summary must show
    **"STAGING COACH BUILD ... do NOT submit for App Store review"**, the build number, `Coach backend: staging`,
    `Coach host check passed (staging)`, `Signing: cloud` and `Cloud-managed signing: Apple Distribution, build <N>`.
    If the export step fails with a cloud signing permission error, check the key's access is **Admin** (2.1 a3).
@@ -295,7 +317,7 @@ What `coach_backend: staging` does:
 
 **Never submit a 50000+ build for App Store review.** The workflow has no App Store submission flag (it only uploads
 to TestFlight). Submission is a manual choice in App Store Connect, so this rule is yours to keep. Decide the version
-question in section 2.6 before the first staging build.
+question in section 2.3 before the first staging build.
 
 ## 4. Install, subscribe, allow voice (on the iPhone)
 

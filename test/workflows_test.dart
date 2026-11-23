@@ -156,7 +156,18 @@ void main() {
       final warning = runbook.indexOf('upload the App Store build of a version before any 50000+ build of that version');
       expect(warning, greaterThan(-1));
       expect(warning, lessThan(runbook.indexOf('## 3. Build the TestFlight staging build')));
-      expect(runbook, contains('needs a `pubspec.yaml` change merged to `main`'));
+      // The version is decided before the merge, and the merge is the gate for everything after it.
+      expect(warning, lessThan(runbook.indexOf('### 2.4 Merge to `main`')));
+      expect(runbook, contains('needs a `pubspec.yaml` change in a reviewed PR before the merge'));
+      expect(runbook, contains('**Blocked until you decide to merge.**'));
+      // The deploy prerequisites include the mandatory main ruleset, done before the merge.
+      expect(runbook, contains('WORKER_DEPLOY_RUNBOOK.md sections 1b to 1f'));
+      final protectMain = runbook.indexOf('Do 1f (**Protect `main`**, mandatory) **before** the merge');
+      expect(protectMain, greaterThan(-1));
+      expect(protectMain, lessThan(runbook.indexOf('1. Merge `claude/datewise-v2-app`')));
+      expect(runbook, contains('every push to `main` runs **Deploy to GitHub Pages**'));
+      expect(runbook, contains('`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` or `ID_HASH_SALT` is a repository secret'));
+      expect(runbook, contains('**Signed IPA / TestFlight (manual, needs secrets)**'));
       expect(runbook, contains('**Settings**, then **Apps**, then **App Store** (iOS 18 and later'));
       expect(runbook, contains('**Settings**, then **Apps**, then **DateWise AI** (iOS 18 and later'));
       expect(runbook, contains("**Merging to `main` and every deploy are the owner's decision alone.**"));
