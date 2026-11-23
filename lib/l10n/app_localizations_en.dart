@@ -876,4 +876,37 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get voiceKeptInComposer =>
       'Your coach is still replying. What you said is in the message box.';
+
+  @override
+  String avatarAnimated(String name) {
+    return '$name, animated AI coach';
+  }
+
+  @override
+  String avatarSpeaking(String name) {
+    return '$name, animated AI coach, speaking';
+  }
+
+  @override
+  String avatarListening(String name) {
+    return '$name, animated AI coach, listening';
+  }
+
+  @override
+  String avatarThinking(String name) {
+    return '$name, animated AI coach, thinking';
+  }
+
+  @override
+  String get voiceQualityRow => 'More natural coach voices';
+
+  @override
+  String get voiceQualityTitle => 'Get more natural voices';
+
+  @override
+  String get voiceQualityBody =>
+      'Coaches speak with your iPhone\'s own voices, on your device. For the most natural sound, download one of Apple\'s Premium or Enhanced voices:\n\n1. Open the Settings app › Accessibility › Spoken Content › Voices.\n2. Choose English or Spanish.\n3. Download a voice marked Premium or Enhanced (for example Ava or Zoe, Evan or Nathan, Paulina or Juan).\n\nDateWise uses it automatically the next time a coach speaks. Each coach keeps a distinct voice when several are installed.';
+
+  @override
+  String get voiceQualityDone => 'Got it';
 }

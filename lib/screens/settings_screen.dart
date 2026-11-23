@@ -12,6 +12,7 @@ import '../widgets/dw.dart';
 import 'legal_screen.dart';
 import 'paywall_screen.dart';
 import 'shell.dart';
+import '../avatar/premium_voice_tip.dart';
 import '../l10n/l10n.dart';
 
 /// The "You" tab: language, coach, Coach memory, subscription, data, legal.
@@ -234,6 +235,12 @@ class SettingsScreen extends StatelessWidget {
                 subtitle: AppLinks.supportEmail,
                 subtitleOneLine: true,
                 onTap: () => _open(context, 'mailto:${AppLinks.supportEmail}'),
+              ),
+              _Row(
+                key: const ValueKey('row-voice-quality'),
+                icon: Icons.record_voice_over_outlined,
+                title: l.voiceQualityRow,
+                onTap: () => showPremiumVoiceTip(context),
               ),
             ]),
             const SizedBox(height: 18),

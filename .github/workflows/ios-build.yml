@@ -33,6 +33,10 @@ on:
         description: 'After a signed build, upload the IPA to App Store Connect / TestFlight'
         type: boolean
         default: false
+      avatar_audio_path:
+        description: 'TestFlight device test of the talking avatar''s native audio path (DW_AVATAR_AUDIO_PATH). Leave off for a build meant for App Store review.'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -236,15 +240,28 @@ jobs:
 
       - name: flutter build ipa
         if: steps.secrets.outputs.ready == 'true'
+        env:
+          AVATAR_AUDIO_PATH: ${{ inputs.avatar_audio_path && 'true' || 'false' }}
         run: |
           flutter pub get
           # App Store Connect rejects a second upload with the same
           # CFBundleVersion: derive the build number from the run (the +100
           # offset keeps it above pubspec's +N and any earlier uploads).
           BUILD_NUMBER=$((100 + GITHUB_RUN_NUMBER))
+          if [ "$AVATAR_AUDIO_PATH" = "true" ]; then
+            # A device-test build of the avatar's native audio path: its own
+            # build-number range (+5000) so it is never mistaken for, or
+            # promoted as, an App Store candidate.
+            BUILD_NUMBER=$((5000 + BUILD_NUMBER))
+            echo "### ⚠️ AVATAR AUDIO-PATH TEST BUILD (DW_AVATAR_AUDIO_PATH=true): TestFlight device test only, do NOT submit for App Store review" >> "$GITHUB_STEP_SUMMARY"
+          fi
           echo "Build number: $BUILD_NUMBER" >> "$GITHUB_STEP_SUMMARY"
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
+          # The avatar's native audio path stays off unless this run is a
+          # TestFlight device test (docs/avatar/TALKING_AVATARS.md).
+          echo "DW_AVATAR_AUDIO_PATH=$AVATAR_AUDIO_PATH" >> "$GITHUB_STEP_SUMMARY"
           flutter build ipa --release --build-number="$BUILD_NUMBER" \
+            --dart-define=DW_AVATAR_AUDIO_PATH="$AVATAR_AUDIO_PATH" \
             --export-options-plist="$RUNNER_TEMP/ExportOptions.plist"
           ls -lh build/ios/ipa
 

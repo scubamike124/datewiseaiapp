@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../avatar/coach_stage_avatar.dart';
+import '../avatar/lip_sync.dart';
 import '../models/chat_message.dart';
 import '../models/coach.dart';
 import '../models/reply_options.dart';
@@ -563,6 +565,9 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: _Stage(
                       coach: coach,
                       speaking: speaking,
+                      mood: CoachStageAvatar.moodFor(
+                          speaking: speaking, listening: _listening, responding: state.isResponding),
+                      lipSync: _voice is LipSyncSource ? (_voice as LipSyncSource).lipSync : null,
                       elapsed: _elapsed,
                       captions: _captions,
                       caption: _currentCaption(state),
@@ -699,12 +704,16 @@ class _Header extends StatelessWidget {
   }
 }
 
-/// Voice-mode stage: the coach's still portrait (a soft glow while speaking;
-/// no video, no lip-sync), the session timer and the live captions.
+/// Voice-mode stage: the coach as an animated portrait (lib/avatar/:
+/// on-device frame compositing with lip-sync to the device's speech; the
+/// still portrait under Reduce Motion), a soft glow while speaking, the
+/// session timer and the live captions. Not video.
 class _Stage extends StatelessWidget {
   const _Stage({
     required this.coach,
     required this.speaking,
+    required this.mood,
+    required this.lipSync,
     required this.elapsed,
     required this.captions,
     required this.caption,
@@ -713,6 +722,8 @@ class _Stage extends StatelessWidget {
 
   final Coach coach;
   final bool speaking;
+  final AvatarMood mood;
+  final LipSyncDriver? lipSync;
   final String elapsed;
   final bool captions;
   final String caption;
@@ -741,7 +752,7 @@ class _Stage extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                CoachImage(coach: coach, semanticLabel: l.coachPortraitStill(coach.name)),
+                CoachStageAvatar(coach: coach, mood: mood, lipSync: lipSync),
                 const FadeToBackground(stops: [0.6, 1], color: AppColors.surface),
                 Positioned(top: 12, left: 12, child: GlassChip(key: const ValueKey('voice-timer'), label: l.voiceSession(elapsed))),
                 Positioned(

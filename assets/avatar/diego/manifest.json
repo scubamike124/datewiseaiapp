@@ -1,0 +1,229 @@
+{
+ "coach": "diego",
+ "source": "diego-hero.jpg",
+ "width": 1228,
+ "height": 658,
+ "generator": "LivePortrait (MIT) + YuNet (MIT); tool/avatar/gen_frames.py",
+ "crop_scale": 1.9,
+ "frames": {
+  "mbp": {
+   "region": "mouth",
+   "rect": [
+    383,
+    320,
+    416,
+    304
+   ],
+   "identity": 0.907,
+   "master": 0.947
+  },
+  "a": {
+   "region": "mouth",
+   "rect": [
+    383,
+    320,
+    416,
+    304
+   ],
+   "identity": 0.837,
+   "master": 0.885
+  },
+  "a2": {
+   "region": "mouth",
+   "rect": [
+    383,
+    320,
+    416,
+    304
+   ],
+   "identity": 0.856,
+   "master": 0.935
+  },
+  "e": {
+   "region": "mouth",
+   "rect": [
+    383,
+    320,
+    416,
+    304
+   ],
+   "identity": 0.894,
+   "master": 0.926
+  },
+  "e2": {
+   "region": "mouth",
+   "rect": [
+    383,
+    320,
+    416,
+    304
+   ],
+   "identity": 0.9,
+   "master": 0.95
+  },
+  "i": {
+   "region": "mouth",
+   "rect": [
+    383,
+    320,
+    416,
+    304
+   ],
+   "identity": 0.895,
+   "master": 0.943
+  },
+  "i2": {
+   "region": "mouth",
+   "rect": [
+    383,
+    320,
+    416,
+    304
+   ],
+   "identity": 0.895,
+   "master": 0.958
+  },
+  "o": {
+   "region": "mouth",
+   "rect": [
+    383,
+    320,
+    416,
+    304
+   ],
+   "identity": 0.802,
+   "master": 0.869
+  },
+  "o2": {
+   "region": "mouth",
+   "rect": [
+    383,
+    320,
+    416,
+    304
+   ],
+   "identity": 0.83,
+   "master": 0.916
+  },
+  "u": {
+   "region": "mouth",
+   "rect": [
+    383,
+    320,
+    416,
+    304
+   ],
+   "identity": 0.857,
+   "master": 0.942
+  },
+  "u2": {
+   "region": "mouth",
+   "rect": [
+    383,
+    320,
+    416,
+    304
+   ],
+   "identity": 0.867,
+   "master": 0.939
+  },
+  "fv": {
+   "region": "mouth",
+   "rect": [
+    383,
+    320,
+    416,
+    304
+   ],
+   "identity": 0.91,
+   "master": 0.938
+  },
+  "l": {
+   "region": "mouth",
+   "rect": [
+    383,
+    320,
+    416,
+    304
+   ],
+   "identity": 0.845,
+   "master": 0.925
+  },
+  "th": {
+   "region": "mouth",
+   "rect": [
+    383,
+    320,
+    416,
+    304
+   ],
+   "identity": 0.882,
+   "master": 0.956
+  },
+  "cons": {
+   "region": "mouth",
+   "rect": [
+    383,
+    320,
+    416,
+    304
+   ],
+   "identity": 0.896,
+   "master": 0.955
+  },
+  "sh": {
+   "region": "mouth",
+   "rect": [
+    383,
+    320,
+    416,
+    304
+   ],
+   "identity": 0.869,
+   "master": 0.958
+  },
+  "blink_half": {
+   "region": "eyes",
+   "rect": [
+    434,
+    150,
+    437,
+    201
+   ],
+   "identity": 0.891,
+   "master": 0.933
+  },
+  "blink_closed": {
+   "region": "eyes",
+   "rect": [
+    434,
+    150,
+    437,
+    201
+   ],
+   "identity": 0.863,
+   "master": 0.908
+  },
+  "gaze": {
+   "region": "eyes",
+   "rect": [
+    434,
+    150,
+    437,
+    201
+   ],
+   "identity": 0.876,
+   "master": 0.894
+  }
+ },
+ "mouth": [
+  610.6,
+  447.4
+ ],
+ "mouth_width": 220.3,
+ "chin": 598.3,
+ "blink_half_openings": [
+  0.47,
+  0.53
+ ]
+}

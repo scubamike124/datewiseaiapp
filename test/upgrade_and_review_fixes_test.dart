@@ -490,17 +490,22 @@ void main() {
   });
 
   group('bundled assets', () {
-    testWidgets('only coach portraits, the app icon and fonts are bundled (no stock photos)', (tester) async {
+    testWidgets('only coach portraits, their generated avatar patches, the app icon and fonts are bundled (no stock photos)', (tester) async {
       final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
       final assets = manifest.listAssets();
       expect(assets.where((a) => a.startsWith('assets/coaches/')), hasLength(8));
+      // Patches generated from the portraits above by tool/avatar/ (one
+      // folder per coach): mouth shapes, blinks and a glance, plus a manifest.
+      final avatarPatch = RegExp(r'^assets/avatar/(ava|ethan|sofia|diego)/[a-z0-9_]+\.(jpg|json)$');
       final images = assets.where((a) => RegExp(r'\.(jpe?g|png|webp|gif|heic)$', caseSensitive: false).hasMatch(a));
       for (final a in images) {
-        expect(a.startsWith('assets/coaches/') || a.startsWith('assets/icon/'), isTrue, reason: a);
+        expect(a.startsWith('assets/coaches/') || avatarPatch.hasMatch(a) || a.startsWith('assets/icon/'),
+            isTrue, reason: a);
       }
       for (final a in assets) {
         expect(
           a.startsWith('assets/coaches/') ||
+              avatarPatch.hasMatch(a) ||
               a.startsWith('assets/fonts/') ||
               a.startsWith('assets/icon/') ||
               a.startsWith('packages/') ||

@@ -231,5 +231,13 @@
   "voicePermissionDeniedNote": "El acceso al micrófono o al reconocimiento de voz está desactivado para DateWise. Permítelo en Configuración para hablar con {name}, o escríbele.",
   "openSettings": "Abrir Configuración",
   "voiceNoSpeech": "No te escuché. Mantén presionado el botón e inténtalo de nuevo.",
-  "voiceKeptInComposer": "Tu coach todavía está respondiendo. Lo que dijiste está en el cuadro de mensaje."
+  "voiceKeptInComposer": "Tu coach todavía está respondiendo. Lo que dijiste está en el cuadro de mensaje.",
+  "avatarAnimated": "Retrato animado de {name}, coach con IA",
+  "avatarSpeaking": "Retrato animado de {name}, coach con IA, hablando",
+  "avatarListening": "Retrato animado de {name}, coach con IA, escuchando",
+  "avatarThinking": "Retrato animado de {name}, coach con IA, pensando",
+  "voiceQualityRow": "Voces más naturales para tu coach",
+  "voiceQualityTitle": "Consigue voces más naturales",
+  "voiceQualityBody": "Los coaches hablan con las voces de tu iPhone, en tu dispositivo. Para un sonido más natural, descarga una voz Premium o Mejorada de Apple:\n\n1. Abre la app Configuración › Accesibilidad › Contenido leído › Voces.\n2. Elige Español o Inglés.\n3. Descarga una voz marcada como Premium o Mejorada (por ejemplo Paulina o Juan, Ava o Evan).\n\nDateWise la usa automáticamente la próxima vez que hable tu coach. Cada coach conserva una voz distinta si tienes varias instaladas.",
+  "voiceQualityDone": "Entendido"
 }

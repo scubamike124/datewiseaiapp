@@ -1,0 +1,229 @@
+{
+ "coach": "sofia",
+ "source": "sofia-hero.jpg",
+ "width": 1212,
+ "height": 658,
+ "generator": "LivePortrait (MIT) + YuNet (MIT); tool/avatar/gen_frames.py",
+ "crop_scale": 1.9,
+ "frames": {
+  "mbp": {
+   "region": "mouth",
+   "rect": [
+    396,
+    296,
+    428,
+    304
+   ],
+   "identity": 0.821,
+   "master": 0.927
+  },
+  "a": {
+   "region": "mouth",
+   "rect": [
+    396,
+    296,
+    428,
+    304
+   ],
+   "identity": 0.751,
+   "master": 0.818
+  },
+  "a2": {
+   "region": "mouth",
+   "rect": [
+    396,
+    296,
+    428,
+    304
+   ],
+   "identity": 0.769,
+   "master": 0.867
+  },
+  "e": {
+   "region": "mouth",
+   "rect": [
+    396,
+    296,
+    428,
+    304
+   ],
+   "identity": 0.786,
+   "master": 0.866
+  },
+  "e2": {
+   "region": "mouth",
+   "rect": [
+    396,
+    296,
+    428,
+    304
+   ],
+   "identity": 0.83,
+   "master": 0.912
+  },
+  "i": {
+   "region": "mouth",
+   "rect": [
+    396,
+    296,
+    428,
+    304
+   ],
+   "identity": 0.822,
+   "master": 0.889
+  },
+  "i2": {
+   "region": "mouth",
+   "rect": [
+    396,
+    296,
+    428,
+    304
+   ],
+   "identity": 0.81,
+   "master": 0.919
+  },
+  "o": {
+   "region": "mouth",
+   "rect": [
+    396,
+    296,
+    428,
+    304
+   ],
+   "identity": 0.657,
+   "master": 0.776
+  },
+  "o2": {
+   "region": "mouth",
+   "rect": [
+    396,
+    296,
+    428,
+    304
+   ],
+   "identity": 0.722,
+   "master": 0.851
+  },
+  "u": {
+   "region": "mouth",
+   "rect": [
+    396,
+    296,
+    428,
+    304
+   ],
+   "identity": 0.765,
+   "master": 0.884
+  },
+  "u2": {
+   "region": "mouth",
+   "rect": [
+    396,
+    296,
+    428,
+    304
+   ],
+   "identity": 0.804,
+   "master": 0.914
+  },
+  "fv": {
+   "region": "mouth",
+   "rect": [
+    396,
+    296,
+    428,
+    304
+   ],
+   "identity": 0.845,
+   "master": 0.941
+  },
+  "l": {
+   "region": "mouth",
+   "rect": [
+    396,
+    296,
+    428,
+    304
+   ],
+   "identity": 0.77,
+   "master": 0.868
+  },
+  "th": {
+   "region": "mouth",
+   "rect": [
+    396,
+    296,
+    428,
+    304
+   ],
+   "identity": 0.828,
+   "master": 0.936
+  },
+  "cons": {
+   "region": "mouth",
+   "rect": [
+    396,
+    296,
+    428,
+    304
+   ],
+   "identity": 0.831,
+   "master": 0.918
+  },
+  "sh": {
+   "region": "mouth",
+   "rect": [
+    396,
+    296,
+    428,
+    304
+   ],
+   "identity": 0.828,
+   "master": 0.939
+  },
+  "blink_half": {
+   "region": "eyes",
+   "rect": [
+    444,
+    110,
+    465,
+    219
+   ],
+   "identity": 0.84,
+   "master": 0.929
+  },
+  "blink_closed": {
+   "region": "eyes",
+   "rect": [
+    444,
+    110,
+    465,
+    219
+   ],
+   "identity": 0.793,
+   "master": 0.86
+  },
+  "gaze": {
+   "region": "eyes",
+   "rect": [
+    444,
+    110,
+    465,
+    219
+   ],
+   "identity": 0.87,
+   "master": 0.919
+  }
+ },
+ "mouth": [
+  618.9,
+  422.7
+ ],
+ "mouth_width": 209.4,
+ "chin": 573.1,
+ "blink_half_openings": [
+  0.47,
+  0.49
+ ]
+}

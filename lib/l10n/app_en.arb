@@ -609,5 +609,57 @@
   },
   "openSettings": "Open Settings",
   "voiceNoSpeech": "I didn't catch that. Hold the button and try again.",
-  "voiceKeptInComposer": "Your coach is still replying. What you said is in the message box."
+  "voiceKeptInComposer": "Your coach is still replying. What you said is in the message box.",
+  "avatarAnimated": "{name}, animated AI coach",
+  "@avatarAnimated": {
+    "description": "Voice stage: accessibility label of the moving coach portrait (idle). Approved wording.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "avatarSpeaking": "{name}, animated AI coach, speaking",
+  "@avatarSpeaking": {
+    "description": "Voice stage: moving coach portrait while the reply is read aloud. Approved wording.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "avatarListening": "{name}, animated AI coach, listening",
+  "@avatarListening": {
+    "description": "Voice stage: moving coach portrait while the user talks. Approved wording.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "avatarThinking": "{name}, animated AI coach, thinking",
+  "@avatarThinking": {
+    "description": "Voice stage: moving coach portrait while the reply is being written. Approved wording.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceQualityRow": "More natural coach voices",
+  "@voiceQualityRow": {
+    "description": "Settings row that opens the Premium-voice tip."
+  },
+  "voiceQualityTitle": "Get more natural voices",
+  "@voiceQualityTitle": {
+    "description": "Premium-voice tip: title."
+  },
+  "voiceQualityBody": "Coaches speak with your iPhone's own voices, on your device. For the most natural sound, download one of Apple's Premium or Enhanced voices:\n\n1. Open the Settings app › Accessibility › Spoken Content › Voices.\n2. Choose English or Spanish.\n3. Download a voice marked Premium or Enhanced (for example Ava or Zoe, Evan or Nathan, Paulina or Juan).\n\nDateWise uses it automatically the next time a coach speaks. Each coach keeps a distinct voice when several are installed.",
+  "@voiceQualityBody": {
+    "description": "Premium-voice tip: steps (iOS Settings path)."
+  },
+  "voiceQualityDone": "Got it",
+  "@voiceQualityDone": {
+    "description": "Premium-voice tip: close button."
+  }
 }
