@@ -19,7 +19,9 @@
     flutter build web --release
   """
 
-# SPA fallback so deep links resolve to the app shell.
+# SPA fallback so deep links resolve to the app shell. web/_redirects (copied
+# into build/web) is applied first and maps /privacy-policy and
+# /terms-of-service to the generated legal pages.
 [[redirects]]
   from = "/*"
   to = "/index.html"

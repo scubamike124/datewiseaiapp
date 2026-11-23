@@ -4,6 +4,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:datewise_ai/app_links.dart';
+
 import '../tool/legal_pages.dart';
 
 void main() {
@@ -39,6 +41,20 @@ void main() {
     for (final f in ['web/terms.html', 'web/terms-es.html']) {
       expect(File(f).readAsStringSync(), isNot(contains('ilustraciones')));
       expect(File(f).readAsStringSync(), isNot(contains('illustrations')));
+    }
+  });
+
+  test('the URLs in AppLinks serve the generated pages (Netlify and Apache rules)', () {
+    final redirects = File('web/_redirects').readAsStringSync();
+    final htaccess = File('web/.htaccess').readAsStringSync();
+    for (final (url, file) in [(AppLinks.privacyPolicyUrl, 'privacy.html'), (AppLinks.termsUrl, 'terms.html')]) {
+      final path = Uri.parse(url).path; // /privacy-policy, /terms-of-service
+      expect(url, startsWith('https://datewiseai.com/'));
+      expect(File('web/$file').existsSync(), isTrue);
+      expect(RegExp('^${RegExp.escape(path)}\\s+/${RegExp.escape(file)}\\s+200\$', multiLine: true).hasMatch(redirects), isTrue,
+          reason: '$path must map to /$file before the SPA fallback');
+      expect(redirects.indexOf(path), lessThan(redirects.indexOf('/*')));
+      expect(htaccess, contains('RewriteRule ^${path.substring(1)}/?\$ $file'));
     }
   });
 }

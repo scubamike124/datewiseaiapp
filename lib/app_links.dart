@@ -1,15 +1,16 @@
-/// External links and contact details surfaced in Settings.
-///
-/// Replace these placeholders with your real values before publishing.
+/// External links and contact details surfaced in Settings and on the legal
+/// screens. These are the live values for the published app.
 class AppLinks {
   AppLinks._();
 
   /// Support / contact email (used by "Contact support" → mail composer).
   static const String supportEmail = 'support@datewiseai.com';
 
-  /// Public Privacy Policy / Terms URLs (hosted on datewiseai.com; also bundled in
-  /// the web build as web/privacy.html + web/terms.html). When set, the in-app
-  /// legal screens also offer a "View online" link.
+  /// Public Privacy Policy / Terms URLs on datewiseai.com. They serve
+  /// web/privacy.html and web/terms.html (generated from
+  /// lib/content/legal_text.dart by tool/legal_pages.dart) through the clean-URL
+  /// rules in web/_redirects (Netlify) and web/.htaccess (Apache). The in-app
+  /// legal screens also offer a "View online" link to them.
   static const String privacyPolicyUrl = 'https://datewiseai.com/privacy-policy';
   static const String termsUrl = 'https://datewiseai.com/terms-of-service';
 
