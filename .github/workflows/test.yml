@@ -1,6 +1,6 @@
 name: Tests
 
-# Analyze and test every pull request. Builds and deploys nothing (deploys stay
+# Analyze, test and web-build every pull request. Deploys nothing (deploys stay
 # in deploy.yml, on main only).
 on:
   pull_request:
@@ -26,3 +26,7 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze --no-fatal-infos lib test
       - run: flutter test
+      # The same web build deploy.yml publishes from main (no dart-defines), so a
+      # web compile error shows up on the PR instead of on main.
+      - name: Build web (same command as deploy.yml)
+        run: flutter build web --release --base-href "/${GITHUB_REPOSITORY#*/}/"
