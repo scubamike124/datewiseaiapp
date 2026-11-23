@@ -523,6 +523,23 @@ void main() {
       expect(CoachImage.decodeExtent(30, 3), 180);
       expect(CoachImage.decodeExtent(40, 2), 160);
     });
+
+    testWidgets('large portraits decode near their layout size, not at full resolution', (tester) async {
+      // A hero card 360x480 logical px at 3x: decoded at most 1440 px wide
+      // (about 1440x1920, 11 MB), never the full file.
+      expect(CoachImage.coverDecodeWidth(const Size(360, 480), 3), 1440);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(MaterialApp(
+          home: Center(child: SizedBox(width: 120, height: 160, child: CoachImage(coach: Coaches.all.first)))));
+      final img = tester.widget<Image>(find.byType(Image));
+      expect(img.image, isA<ResizeImage>());
+      final r = img.image as ResizeImage;
+      expect(r.width, 480);
+      expect(r.allowUpscaling, isFalse);
+      // Decoded hero bound: width x (4/3 width for a 3:4 file) x 4 bytes.
+      expect(r.width! * r.width! * 4 / 3 * 4, lessThan(2 * 1024 * 1024));
+    });
   });
 
   group('hold to talk', () {

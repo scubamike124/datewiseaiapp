@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../l10n/l10n.dart';
@@ -346,12 +348,32 @@ class CoachImage extends StatelessWidget {
   @visibleForTesting
   static int decodeExtent(double size, double devicePixelRatio) => (size * devicePixelRatio * 2).ceil();
 
+  /// Decode width for an image shown cover-cropped in a [box]: the larger
+  /// side of the box in device pixels. That covers the box for any portrait
+  /// or square file (the decoded height is at least the width), at a
+  /// fraction of the memory of the full-size file (the candidate heroes are
+  /// about 1800x2400, 17 MB decoded). Never upscaled.
+  @visibleForTesting
+  static int coverDecodeWidth(Size box, double devicePixelRatio) =>
+      (math.max(box.width, box.height) * devicePixelRatio).ceil();
+
   @override
   Widget build(BuildContext context) {
+    if (displaySize != null) return _image(context, null);
+    return LayoutBuilder(builder: (context, box) {
+      final bounded = box.hasBoundedWidth && box.hasBoundedHeight;
+      return _image(context, bounded ? box.biggest : null);
+    });
+  }
+
+  Widget _image(BuildContext context, Size? box) {
     final asset = avatar ? coach.avatarAsset : coach.heroAsset;
     final size = displaySize;
     final ImageProvider provider = size == null
-        ? AssetImage(asset)
+        ? (box == null || box.isEmpty
+            ? AssetImage(asset)
+            : ResizeImage(AssetImage(asset),
+                width: coverDecodeWidth(box, MediaQuery.devicePixelRatioOf(context)), allowUpscaling: false))
         : ResizeImage(
             AssetImage(asset),
             width: decodeExtent(size, MediaQuery.devicePixelRatioOf(context)),

@@ -70,11 +70,19 @@ def main():
             M = np.float32([[1, 0, -dx], [0, 1, -dy]])
             ga = cv2.warpAffine(g, M, (w, h), borderMode=cv2.BORDER_REPLICATE)
             diff.append(np.abs(ga[y0:y1, x0:x1] - g0[y0:y1, x0:x1]).mean())
-            # Openness proxy: area of mouth cavity (very dark) + teeth (bright, unsaturated).
+            # Openness proxy: area of mouth cavity (very dark) + teeth (bright,
+            # low saturation), inside the inner lips only (central 50% of the
+            # mouth box width, 20-65% of its height), so a dark collar, beard
+            # or the edge of a nod never counts. Teeth: CIELAB L* > 65 with a
+            # low a* (< 12): warm-lit teeth (HSV S ~ 76) count, pale or nude
+            # lips (red, a* higher) do not. The earlier HSV S < 70 test missed
+            # warm teeth entirely.
             roi = cv2.warpAffine(im, M, (w, h), borderMode=cv2.BORDER_REPLICATE)[y0:y1, x0:x1]
-            hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
-            v, sat = hsv[..., 2].astype(int), hsv[..., 1].astype(int)
-            opn.append(float(((v < 55) | ((v > 170) & (sat < 70))).mean()))
+            rh, rw = roi.shape[:2]
+            roi = roi[int(0.2 * rh):int(0.65 * rh), int(0.25 * rw):int(0.75 * rw)]
+            lab = cv2.cvtColor(roi, cv2.COLOR_BGR2LAB).astype(np.float32)
+            L, a = lab[..., 0] * 100 / 255, lab[..., 1] - 128
+            opn.append(float(((L < 22) | ((L > 65) & (a < 12))).mean()))
         diff = np.array(diff)
         opn = np.array(opn)
         rms = audio_rms(path, fps, len(fr))

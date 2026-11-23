@@ -145,8 +145,10 @@ class AvatarAnimator {
       if (!rest && _wasRest && t - _restSince > 0.25) {
         _gesture(t, 0.45, 2.5, (_rng.nextBool() ? 1 : -1) * 0.011);
       } else if (!rest && mouth.to == Viseme.a && t - _lastEmphasis > 0.9 && t - _gestureStart > 0.6) {
-        // Emphasis on a stressed open vowel.
-        _gesture(t, 0.3, 2.0, 0);
+        // Emphasis on a stressed open vowel: a slightly deeper nod with a
+        // small tilt (about 0.3 degrees). With closed, relaxed lips at rest
+        // the open vowels read more clearly when the head moves with them.
+        _gesture(t, 0.34, 2.8, (_rng.nextBool() ? 1 : -1) * 0.005);
         _lastEmphasis = t;
       } else if (!rest && (mouth.to == Viseme.e || mouth.to == Viseme.o) && t - _gestureStart > 0.7) {
         // A small tilt on other stressed vowels (about 0.4 degrees).
