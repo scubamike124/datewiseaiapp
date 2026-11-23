@@ -85,7 +85,7 @@ Do not add competitor or other app names.)
 > DateWise AI is for adults 18+. The coaches are AI, not people, and they can make mistakes. Their advice is not professional, medical, legal or mental health advice. Always meet new people in public places and put your safety first.
 >
 > DATEWISE PREMIUM
-> Chatting with the coaches requires DateWise Premium, an auto-renewing monthly subscription ($9.99/month in the U.S.; local prices vary). Payment is charged to your Apple Account at confirmation of purchase. The subscription renews automatically unless canceled at least 24 hours before the end of the current period. Manage or cancel it in Settings › [your name] › Subscriptions.
+> Chatting with the coaches requires DateWise Premium, an auto-renewing monthly subscription ($19.99/month in the U.S.; local prices vary). Payment is charged to your Apple Account at confirmation of purchase. The subscription renews automatically unless canceled at least 24 hours before the end of the current period. Manage or cancel it in Settings › [your name] › Subscriptions.
 >
 > Fair use: DateWise Premium includes generous everyday coaching for personal use, up to 150 coach replies a day and 1,500 a month (at most 12 a minute and 2 at a time). Typed and spoken messages count the same. You will see a notice in the chat when you are close to a limit. When a limit is reached, chat pauses until the next day (00:00 UTC) or the next month.
 >
@@ -125,7 +125,7 @@ Do not add competitor or other app names.)
 > DateWise AI es para mayores de 18 años. Los coaches son IA, no personas, y pueden equivocarse. Sus consejos no son asesoría profesional, médica, legal ni de salud mental. Conoce a personas nuevas siempre en lugares públicos y prioriza tu seguridad.
 >
 > DATEWISE PREMIUM
-> Para chatear con los coaches necesitas DateWise Premium, una suscripción mensual con renovación automática (9.99 USD al mes en EE. UU.; el precio local puede variar). El pago se carga a tu Cuenta de Apple al confirmar la compra. La suscripción se renueva automáticamente salvo que la canceles al menos 24 horas antes de que termine el período actual. Adminístrala o cancélala en Configuración › [tu nombre] › Suscripciones.
+> Para chatear con los coaches necesitas DateWise Premium, una suscripción mensual con renovación automática (US$19.99 al mes en EE. UU.; el precio local puede variar). El pago se carga a tu Cuenta de Apple al confirmar la compra. La suscripción se renueva automáticamente salvo que la canceles al menos 24 horas antes de que termine el período actual. Adminístrala o cancélala en Configuración › [tu nombre] › Suscripciones.
 >
 > Uso justo: DateWise Premium incluye coaching diario generoso para uso personal, hasta 150 respuestas del coach al día y 1500 al mes (con un máximo de 12 por minuto y 2 a la vez). Los mensajes escritos y hablados cuentan igual. Verás un aviso en el chat cuando estés cerca de un límite. Al alcanzar un límite, el chat se pausa hasta el día siguiente (00:00 UTC) o el mes siguiente.
 >
@@ -249,7 +249,7 @@ Create in App Store Connect › Monetization › Subscriptions (must match
 | Product reference name | DateWise Premium Monthly |
 | Product ID | `datewise_premium_monthly` (cannot be changed or reused later) |
 | Duration | 1 month |
-| Price | USD 9.99 (Tier equivalent; let Apple set other storefronts or set manually) |
+| Price | USD 19.99 (Tier equivalent; let Apple set other storefronts or set manually) |
 | Introductory offer / free trial | None |
 | Family Sharing | Off |
 | Availability | All storefronts where the app is sold |

@@ -8,7 +8,7 @@ Nothing in this plan charges real money: TestFlight and Sandbox purchases are fr
 ## 0. Setup (once)
 
 1. **Sandbox tester:** App Store Connect → Users and Access → **Sandbox** → Test Accounts → **+**. Use a new email
-   address that is not an Apple Account. Region: United States (price $9.99). Make a second tester for the new-device and restore tests.
+   address that is not an Apple Account. Region: United States (price $19.99). Make a second tester for the new-device and restore tests.
 2. **iPhone:** Settings → App Store → scroll to **Sandbox Account** → sign in with the tester. Leave your real Apple Account signed in
    for everything else.
 3. **Renewal rate:** App Store Connect → Users and Access → Sandbox → select the tester → **Subscription Renewal Rate**
@@ -29,7 +29,7 @@ and `kind: assn` with `outcome: SUBSCRIBED | DID_RENEW | … | stale | ack | ign
 
 | ID | Test | Steps | Expected app | Expected server |
 |---|---|---|---|---|
-| P1 | Purchase | Fresh install → onboarding → paywall → **Subscribe** → confirm in the Sandbox sheet | The sheet shows **$9.99/month** and "[Environment: Sandbox]". The paywall closes and chat unlocks. Send a message and a reply streams | `assn SUBSCRIBED` (INITIAL_BUY); `chat ok` on an `sbx:` key; `X-DateWise-Remaining-Today: 19` |
+| P1 | Purchase | Fresh install → onboarding → paywall → **Subscribe** → confirm in the Sandbox sheet | The sheet shows **$19.99/month** and "[Environment: Sandbox]". The paywall closes and chat unlocks. Send a message and a reply streams | `assn SUBSCRIBED` (INITIAL_BUY); `chat ok` on an `sbx:` key; `X-DateWise-Remaining-Today: 19` |
 | P2 | Purchase cancelled | Paywall → Subscribe → **Cancel** in the sheet | Paywall stays, no error text, nothing charged | No `assn`; no chat request |
 | P3 | Ask to Buy / pending (optional, needs a Family child tester) | Subscribe as the child | "Purchase pending…" notice; unlocks after approval | `SUBSCRIBED` after approval |
 | R1 | Restore, same device | Delete the app → reinstall from TestFlight → paywall → **Restore purchases** | Paywall closes, chat works. Counters continue (not reset) | `chat ok` on the **same** `sbx:` key as before (the counter continues) |

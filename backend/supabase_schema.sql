@@ -1,5 +1,5 @@
 -- ============================================================================
--- SUPERSEDED BY DATEWISE V2 (ONE $9.99/MONTH PLAN). Do not run.
+-- SUPERSEDED BY DATEWISE V2 (ONE $19.99/MONTH PLAN). Do not run.
 -- DateWise v2 has a single auto-renewable subscription
 -- (datewise_premium_monthly), no free tier, no free trial and no accounts;
 -- the App Store is the only source of entitlement. This schema (accounts,
