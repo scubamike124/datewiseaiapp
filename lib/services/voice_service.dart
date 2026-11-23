@@ -107,6 +107,10 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
   final _speaking = ValueNotifier<bool>(false);
   final Map<String, Map<String, String>?> _chosen = {};
 
+  /// Bumped by every [speak] and [stop]: a speak whose awaits are overtaken
+  /// by a stop (or a newer speak) does not go on to start the audio.
+  int _generation = 0;
+
   static Future<VoiceService> create() async {
     if (kIsWeb ||
         !(defaultTargetPlatform == TargetPlatform.iOS ||
@@ -159,7 +163,21 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
   ValueListenable<bool> get speaking => _speaking;
 
   Map<String, String>? _voiceFor(Coach coach, CoachLanguage language) =>
-      _chosen.putIfAbsent('${coach.id}/${language.name}', () => pickVoice(_voices, coach, language: language));
+      _chosen.putIfAbsent('${coach.id}/${language.name}', () => pickVoiceDistinct(_voices, coach, language));
+
+  /// [pickVoice], but a coach speaking the other language avoids the voice
+  /// of that language's own same-gender coach when the device has another
+  /// fitting voice (Ava answering in Spanish does not borrow Sofía's voice).
+  /// With a single voice per language and gender they share it; pitch and
+  /// rate still tell them apart.
+  @visibleForTesting
+  static Map<String, String>? pickVoiceDistinct(List<Map<String, String>> voices, Coach coach, CoachLanguage language) {
+    if (language == coach.language) return pickVoice(voices, coach, language: language);
+    final natives = Coaches.forLanguage(language).where((c) => c.gender == coach.gender);
+    final taken = natives.isEmpty ? null : pickVoice(voices, natives.first, language: language);
+    String id(Map<String, String> v) => v['identifier'] ?? '${v['name']}|${v['locale']}';
+    return pickVoice(voices, coach, language: language, avoid: {if (taken != null) id(taken)});
+  }
 
   /// The best installed voice for [coach] among [voices] (flutter_tts
   /// `getVoices` maps: name, locale, and on iOS also quality, gender and
@@ -174,7 +192,8 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
   /// [language] (default: the coach's own) is the language of the text: a
   /// coach answering in the other language gets a same-gender voice of it.
   @visibleForTesting
-  static Map<String, String>? pickVoice(List<Map<String, String>> voices, Coach coach, {CoachLanguage? language}) {
+  static Map<String, String>? pickVoice(List<Map<String, String>> voices, Coach coach,
+      {CoachLanguage? language, Set<String> avoid = const {}}) {
     final profile = CoachVoiceProfile.forLanguage(coach, language ?? coach.language);
     final want = coach.gender == CoachGender.female ? 'female' : 'male';
 
@@ -226,7 +245,10 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
       return null;
     }
 
-    return best((v) => genderMatch(v) == true) ??
+    bool free(Map<String, String> v) => !avoid.contains(v['identifier'] ?? '${v['name']}|${v['locale']}');
+    return best((v) => genderMatch(v) == true && free(v)) ??
+        best((v) => genderMatch(v) == true) ??
+        best((v) => genderMatch(v) == null && free(v)) ??
         best((v) => genderMatch(v) == null) ??
         best((_) => true);
   }
@@ -238,8 +260,10 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
         .replaceAll(RegExp(r'^\s*[-•]\s+', multiLine: true), '')
         .trim();
     if (clean.isEmpty) return;
+    final gen = ++_generation;
     await _tts.stop();
     await _prepareAudioSession();
+    if (gen != _generation) return;
     // Coaches answer in the user's language, so the voice follows the
     // language of the text, not the coach's default.
     final language = ReplyLanguage.detect(clean, fallback: coach.language);
@@ -257,6 +281,7 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
     final profile = CoachVoiceProfile.of(coach);
     await _tts.setPitch(profile.pitch);
     await _tts.setSpeechRate(profile.rate);
+    if (gen != _generation) return;
     lipSync.begin(clean, language, rate: profile.rate);
     await _tts.speak(clean);
   }
@@ -286,6 +311,7 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
 
   @override
   Future<void> stop() async {
+    _generation++;
     await _tts.stop();
     _speaking.value = false;
     lipSync.end();

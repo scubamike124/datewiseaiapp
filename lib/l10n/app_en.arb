@@ -595,7 +595,7 @@
   },
   "avatarAnimated": "{name}, animated AI coach",
   "@avatarAnimated": {
-    "description": "Voice stage: accessibility label of the animated coach portrait (idle).",
+    "description": "Voice stage: accessibility label of the moving coach portrait (idle). Approved wording.",
     "placeholders": {
       "name": {
         "type": "String"
@@ -604,7 +604,7 @@
   },
   "avatarSpeaking": "{name}, animated AI coach, speaking",
   "@avatarSpeaking": {
-    "description": "Voice stage: animated coach while the reply is read aloud (lip-synced).",
+    "description": "Voice stage: moving coach portrait while the reply is read aloud. Approved wording.",
     "placeholders": {
       "name": {
         "type": "String"
@@ -613,7 +613,7 @@
   },
   "avatarListening": "{name}, animated AI coach, listening",
   "@avatarListening": {
-    "description": "Voice stage: animated coach while the user talks.",
+    "description": "Voice stage: moving coach portrait while the user talks. Approved wording.",
     "placeholders": {
       "name": {
         "type": "String"
@@ -622,7 +622,7 @@
   },
   "avatarThinking": "{name}, animated AI coach, thinking",
   "@avatarThinking": {
-    "description": "Voice stage: animated coach while the reply is being written.",
+    "description": "Voice stage: moving coach portrait while the reply is being written. Approved wording.",
     "placeholders": {
       "name": {
         "type": "String"

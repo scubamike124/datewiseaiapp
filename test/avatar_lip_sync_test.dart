@@ -13,45 +13,55 @@ List<Viseme> es(String w) => VisemeMapper.spanish.word(w).map((s) => s.viseme).t
 void main() {
   const V = Viseme.values;
   group('Spanish spelling to mouth shapes', () {
-    test('vowels and lip consonants', () {
-      expect(es('mamá'), [Viseme.mbp, Viseme.a, Viseme.mbp, Viseme.a]);
-      expect(es('oso'), [Viseme.o, Viseme.cons, Viseme.o]);
-      expect(es('luna'), [Viseme.l, Viseme.u, Viseme.cons, Viseme.a]);
+    test('vowels, lip consonants and the stressed syllable (full vs half opening)', () {
+      expect(es('mamá'), [Viseme.mbp, Viseme.a2, Viseme.mbp, Viseme.a], reason: 'written accent');
+      expect(es('oso'), [Viseme.o, Viseme.cons, Viseme.o2], reason: 'ends in a vowel: second-last');
+      expect(es('luna'), [Viseme.l, Viseme.u, Viseme.cons, Viseme.a2]);
+      expect(es('verdad'), [Viseme.mbp, Viseme.e2, Viseme.cons, Viseme.a, Viseme.th], reason: 'ends in d: last');
     });
     test('b and v are the same sound (lips together); f is lip-to-teeth', () {
       expect(es('vida').first, Viseme.mbp);
       expect(es('bien').first, Viseme.mbp);
       expect(es('foto').first, Viseme.fv);
     });
-    test('silent h and the u of que/gui; ll, rr and ch are one sound', () {
-      expect(es('hola'), [Viseme.o, Viseme.l, Viseme.a]);
-      expect(es('que'), [Viseme.cons, Viseme.e]);
-      expect(es('guitarra'), [Viseme.cons, Viseme.i, Viseme.cons, Viseme.a, Viseme.cons, Viseme.a]);
-      expect(es('calle'), [Viseme.cons, Viseme.a, Viseme.cons, Viseme.e]);
-      expect(es('chico'), [Viseme.cons, Viseme.i, Viseme.cons, Viseme.o]);
+    test('n before b, v, p, m closes the lips, inside a word and across words', () {
+      expect(es('envía'), [Viseme.e2, Viseme.mbp, Viseme.i, Viseme.a]);
+      expect(es('gran'), [Viseme.cons, Viseme.a, Viseme.cons]);
+      expect(VisemeMapper.spanish.word('gran', next: 'paso').map((s) => s.viseme).last, Viseme.mbp);
+      expect(VisemeMapper.spanish.word('un', next: 'beso').map((s) => s.viseme).last, Viseme.mbp);
+      expect(VisemeMapper.spanish.word('un', next: 'café').map((s) => s.viseme).last, Viseme.cons);
+    });
+    test('silent h and the u of que/gui; ll, rr are one sound; ch pushes the lips forward', () {
+      expect(es('hola'), [Viseme.o, Viseme.l, Viseme.a2]);
+      expect(es('que'), [Viseme.cons, Viseme.e2], reason: 'unstressed function word');
+      expect(es('guitarra'), [Viseme.cons, Viseme.i2, Viseme.cons, Viseme.a, Viseme.cons, Viseme.a2]);
+      expect(es('calle'), [Viseme.cons, Viseme.a, Viseme.cons, Viseme.e2]);
+      expect(es('chico'), [Viseme.sh, Viseme.i, Viseme.cons, Viseme.o2]);
     });
     test('accents fold, y alone is the vowel i, soft d between vowels', () {
-      expect(es('Sofía'), [Viseme.cons, Viseme.o, Viseme.fv, Viseme.i, Viseme.a]);
-      expect(es('y'), [Viseme.i]);
-      expect(es('nada'), [Viseme.cons, Viseme.a, Viseme.th, Viseme.a]);
-      expect(es('límites'), [Viseme.l, Viseme.i, Viseme.mbp, Viseme.i, Viseme.cons, Viseme.e, Viseme.cons]);
+      expect(es('Sofía'), [Viseme.cons, Viseme.o2, Viseme.fv, Viseme.i, Viseme.a]);
+      expect(es('y'), [Viseme.i2]);
+      expect(es('nada'), [Viseme.cons, Viseme.a, Viseme.th, Viseme.a2]);
+      expect(es('límites'), [Viseme.l, Viseme.i, Viseme.mbp, Viseme.i2, Viseme.cons, Viseme.e2, Viseme.cons]);
     });
   });
 
   group('English spelling to mouth shapes', () {
-    test('digraphs: th, sh, ph, oo, ee', () {
-      expect(en('the'), [Viseme.th, Viseme.e]);
+    test('digraphs: th, sh, ch, ph, oo, ee', () {
+      expect(en('the'), [Viseme.th, Viseme.e2]);
       expect(en('think').first, Viseme.th);
       expect(en('photo').first, Viseme.fv);
+      expect(en('shop').first, Viseme.sh);
       expect(en('mood'), [Viseme.mbp, Viseme.u, Viseme.cons]);
       expect(en('feel'), [Viseme.fv, Viseme.i, Viseme.l]);
     });
-    test('silent final e, collapsed doubles, common irregular words', () {
+    test('first-syllable stress, -tion stress, unstressed function words', () {
       expect(en('make'), [Viseme.mbp, Viseme.a, Viseme.cons]);
-      expect(en('happy'), [Viseme.cons, Viseme.a, Viseme.mbp, Viseme.i]);
-      expect(en('you'), [Viseme.i, Viseme.u]);
-      expect(en("I'm"), [Viseme.a, Viseme.i, Viseme.mbp]);
-      expect(en('I’m'), [Viseme.a, Viseme.i, Viseme.mbp], reason: 'curly apostrophe');
+      expect(en('happy'), [Viseme.cons, Viseme.a, Viseme.mbp, Viseme.i2]);
+      expect(en('nation'), [Viseme.cons, Viseme.a, Viseme.sh, Viseme.e2, Viseme.cons]);
+      expect(en('you'), [Viseme.i2, Viseme.u2]);
+      expect(en("I'm"), [Viseme.a2, Viseme.i2, Viseme.mbp]);
+      expect(en('I’m'), en("I'm"), reason: 'curly apostrophe');
     });
     test('punctuation is ignored and every word yields at least one shape', () {
       for (final w in ['Hi,', 'date.', 'okay!', 'x', 'rhythm', 'strengths']) {
@@ -61,26 +71,51 @@ void main() {
     });
   });
 
-  test('every mouth shape but rest has a patch name; openness is ordered sensibly', () {
+  test('16 mouth shapes plus rest; half and full variants pair up; openness is ordered', () {
+    expect(V.where((v) => v.asset != null), hasLength(16));
     for (final v in V) {
       expect(v.asset == null, v == Viseme.rest);
+      if (v.isVowel) {
+        expect(v.full.half, v.half);
+        expect(v.half.openness, lessThanOrEqualTo(v.full.openness));
+      }
     }
-    expect(Viseme.mbp.openness, lessThan(Viseme.i.openness));
+    expect(Viseme.mbp.openness, lessThan(Viseme.i2.openness));
     expect(Viseme.a.openness, greaterThan(Viseme.o.openness));
     expect(VisemeMapper.of(CoachLanguage.es), same(VisemeMapper.spanish));
     expect(VisemeMapper.of(CoachLanguage.en), same(VisemeMapper.english));
   });
 
   group('timeline', () {
-    test('cues are contiguous, start at 0 and end at rest', () {
-      final tl = VisemeTimeline.plan('Hola, soy Sofía. ¿Cómo estás?', CoachLanguage.es);
-      expect(tl.words.map((w) => w.text), ['Hola', 'soy', 'Sofía', 'Cómo', 'estás']);
-      expect(tl.cues.first.start, 0);
-      for (var i = 1; i < tl.cues.length; i++) {
-        expect(tl.cues[i].start, closeTo(tl.cues[i - 1].end, 1e-9));
-      }
-      expect(tl.cues.last.viseme, Viseme.rest);
-    });
+    const texts = {
+      CoachLanguage.en: "Hi, I'm Ava. Your profile already shows warmth. Change one thing: lead with a specific story.",
+      CoachLanguage.es: 'Hola, soy Sofía. Diste un gran paso al escribirle. Esta noche, envía un mensaje honesto.',
+    };
+
+    for (final e in texts.entries) {
+      test('${e.key.name}: contiguous cues, no shape held over 250 ms while speaking, no closed/open crossfade', () {
+        final tl = VisemeTimeline.plan(e.value, e.key, rate: 0.45);
+        expect(tl.cues.first.start, 0);
+        for (var i = 1; i < tl.cues.length; i++) {
+          final a = tl.cues[i - 1], b = tl.cues[i];
+          expect(b.start, closeTo(a.end, 1e-9));
+          // Crossfaded (open-to-open) transitions stay small; closed lips snap.
+          if (b.viseme != Viseme.rest && a.viseme != Viseme.rest && !a.viseme.closed && !b.viseme.closed && b.duration > 0.07) {
+            expect((a.viseme.openness - b.viseme.openness).abs(), lessThanOrEqualTo(0.6),
+                reason: 'big jumps go through a middle shape: $a -> $b');
+          }
+        }
+        for (final c in tl.cues.where((c) => c.viseme != Viseme.rest)) {
+          expect(c.duration, lessThanOrEqualTo(VisemeTimeline.maxHold + 1e-9), reason: '$c');
+        }
+        // Sample every 5 ms: a closed shape is never partly mixed with another.
+        for (var t = 0.0; t < tl.duration; t += 0.005) {
+          final s = tl.sample(t);
+          if (s.from.closed || s.to.closed) expect(s.mix, 1, reason: '$s at $t');
+        }
+        expect(tl.cues.last.viseme, Viseme.rest);
+      });
+    }
 
     test('pauses at punctuation become rest; the speech rate scales lengths', () {
       final tl = VisemeTimeline.plan('Hi. Ready?', CoachLanguage.en);
@@ -92,24 +127,32 @@ void main() {
       expect(slow.duration, greaterThan(fast.duration));
     });
 
-    test('sample crossfades into each shape over 60 ms', () {
-      final tl = VisemeTimeline.fromTimedWords('mamá', CoachLanguage.es, [(0, 4, 0.0, 0.8)]);
-      final c = tl.cues;
-      expect(c.map((x) => x.viseme), [Viseme.mbp, Viseme.a, Viseme.mbp, Viseme.a, Viseme.rest]);
-      final s = tl.sample(c[1].start + 0.03);
-      expect((s.from, s.to), (Viseme.mbp, Viseme.a));
+    test('open shapes crossfade over 30 ms', () {
+      final tl = VisemeTimeline.fromTimedWords('ella', CoachLanguage.es, [(0, 4, 0.0, 0.4)]);
+      final k = tl.cues.indexWhere((c) => c.viseme == Viseme.a2 || c.viseme == Viseme.a);
+      final c = tl.cues[k];
+      final s = tl.sample(c.start + 0.015);
+      expect(s.to, c.viseme);
       expect(s.mix, closeTo(0.5, 0.01));
-      expect(tl.sample(c[1].start + 0.07).mix, 1);
+      expect(tl.sample(c.start + 0.031).mix, 1);
       expect(tl.sample(-1).viseme, Viseme.rest);
       expect(tl.sample(5).viseme, Viseme.rest);
     });
 
-    test('measured word times are kept exactly', () {
+    test('middle shape is half-open, and rounded next to a rounded shape', () {
+      expect(VisemeTimeline.middle(Viseme.mbp, Viseme.a).openness, inInclusiveRange(0.3, 0.7));
+      expect(VisemeTimeline.middle(Viseme.mbp, Viseme.o).rounded, isTrue);
+    });
+
+    test('measured word times are kept exactly; "gran paso" closes the lips across the words', () {
       const text = 'Be clear about it';
       final tl = VisemeTimeline.fromTimedWords(text, CoachLanguage.en, [(0, 2, 0.1, 0.3), (3, 8, 0.35, 0.8), (9, 14, 0.9, 1.3), (15, 17, 1.35, 1.5)]);
       expect(tl.words.map((w) => w.start), [0.1, 0.35, 0.9, 1.35]);
       expect(tl.sample(0.12).to, Viseme.mbp);
       expect(tl.sample(0.05).viseme, Viseme.rest);
+      const es2 = 'gran paso';
+      final t2 = VisemeTimeline.fromTimedWords(es2, CoachLanguage.es, [(0, 4, 0, 0.3), (5, 9, 0.3, 0.7)]);
+      expect(t2.words[0].segments.last.viseme, Viseme.mbp);
     });
   });
 
@@ -163,7 +206,7 @@ void main() {
       d.started();
       d.word(0, 4);
       final tl = d.timeline!;
-      now = const Duration(seconds: 5);
+      now = const Duration(milliseconds: 1500);
       expect(d.planTime(), lessThanOrEqualTo(tl.words[0].end + 0.081));
       d.word(5, 10);
       expect(d.planTime(), closeTo(tl.words[1].start, 1e-6));
@@ -183,6 +226,24 @@ void main() {
       final t0 = d.planTime()!;
       now += const Duration(milliseconds: 100);
       expect(d.planTime()! - t0, lessThan(0.08), reason: 'slowed down towards 0.5x');
+    });
+
+    test('the mouth runs 80 ms ahead of the word timing', () {
+      const text = 'Mmm okay';
+      d.begin(text, CoachLanguage.en);
+      d.started();
+      final tl = d.timeline!;
+      now = const Duration(milliseconds: 50);
+      expect(d.sample().to, tl.sample(0.05 + VisemeTimeline.lead).to);
+      expect(VisemeTimeline.lead, closeTo(0.08, 1e-9));
+    });
+
+    test('ends by itself 1 s after the plan if no completion callback arrives', () {
+      d.begin('Short one', CoachLanguage.en);
+      d.started();
+      now = Duration(microseconds: ((d.timeline!.duration + 1.1) * 1e6).round());
+      expect(d.sample().viseme, Viseme.rest);
+      expect(d.active, isFalse);
     });
   });
 }

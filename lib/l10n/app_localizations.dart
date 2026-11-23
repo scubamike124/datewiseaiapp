@@ -1435,25 +1435,25 @@ abstract class AppLocalizations {
   /// **'You\'re close to this month\'s fair-use limit.'**
   String get coachUsageNoticeMonthly;
 
-  /// Voice stage: accessibility label of the animated coach portrait (idle).
+  /// Voice stage: accessibility label of the moving coach portrait (idle). Approved wording.
   ///
   /// In en, this message translates to:
   /// **'{name}, animated AI coach'**
   String avatarAnimated(String name);
 
-  /// Voice stage: animated coach while the reply is read aloud (lip-synced).
+  /// Voice stage: moving coach portrait while the reply is read aloud. Approved wording.
   ///
   /// In en, this message translates to:
   /// **'{name}, animated AI coach, speaking'**
   String avatarSpeaking(String name);
 
-  /// Voice stage: animated coach while the user talks.
+  /// Voice stage: moving coach portrait while the user talks. Approved wording.
   ///
   /// In en, this message translates to:
   /// **'{name}, animated AI coach, listening'**
   String avatarListening(String name);
 
-  /// Voice stage: animated coach while the reply is being written.
+  /// Voice stage: moving coach portrait while the reply is being written. Approved wording.
   ///
   /// In en, this message translates to:
   /// **'{name}, animated AI coach, thinking'**

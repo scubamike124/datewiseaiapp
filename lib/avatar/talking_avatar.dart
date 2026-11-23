@@ -49,31 +49,37 @@ class TalkingAvatar extends StatefulWidget {
 @visibleForTesting
 class TalkingAvatarState extends State<TalkingAvatar> with SingleTickerProviderStateMixin {
   AvatarFrames? _frames;
+  String? _held; // coach id whose frames this widget holds
   late final Ticker _ticker = createTicker(_tick);
-  final _animator = AvatarAnimator();
+  AvatarAnimator _animator = AvatarAnimator();
   final _pose = ValueNotifier<AvatarPose>(AvatarPose.still);
   Set<String> _available = const {};
   bool _still = false;
+  double _timeBase = 0;
+  double _lastPose = -1;
 
   /// Frame times measured in debug/profile (painter work per frame, µs).
   @visibleForTesting
   static final List<int> paintMicros = [];
 
+  /// Pose updates while not speaking are limited to this rate (Hz): blinks,
+  /// breathing and nods look the same at 30 fps and cost half the work.
+  static const double idleFps = 30;
+
   @visibleForTesting
   AvatarFrames? get frames => _frames;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadFrames();
-  }
+  @visibleForTesting
+  ValueListenable<AvatarPose> get pose => _pose;
 
   @override
   void didUpdateWidget(TalkingAvatar oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.coach.id != widget.coach.id) {
-      _frames = null;
-      _loadFrames();
+      _release();
+      _animator = AvatarAnimator();
+      _timeBase = 0;
+      _syncFrames();
     }
   }
 
@@ -81,13 +87,27 @@ class TalkingAvatarState extends State<TalkingAvatar> with SingleTickerProviderS
   void didChangeDependencies() {
     super.didChangeDependencies();
     _still = reduceMotion(context);
+    _syncFrames();
+  }
+
+  /// Decodes the frames only when they will be shown (not under Reduce
+  /// Motion), and frees them when Reduce Motion turns on.
+  void _syncFrames() {
+    if (_still) {
+      _release();
+    } else if (_held == null) {
+      _load();
+    }
     _syncTicker();
   }
 
-  Future<void> _loadFrames() async {
-    final id = widget.coach.id;
-    final f = await AvatarFrames.load(widget.coach, bundle: widget.bundle);
-    if (!mounted || widget.coach.id != id) return;
+  Future<void> _load() async {
+    final coach = widget.coach;
+    _held = coach.id;
+    final f = await AvatarFrames.acquire(coach, bundle: widget.bundle);
+    // Released meanwhile (disposed, coach changed, Reduce Motion on): the
+    // hold was already given back.
+    if (!mounted || _held != coach.id) return;
     setState(() {
       _frames = f;
       _available = f?.images.keys.toSet() ?? const {};
@@ -95,9 +115,21 @@ class TalkingAvatarState extends State<TalkingAvatar> with SingleTickerProviderS
     _syncTicker();
   }
 
+  void _release() {
+    final id = _held;
+    _held = null;
+    if (id != null) AvatarFrames.release(id);
+    // Only called from didChangeDependencies / didUpdateWidget, which are
+    // followed by a build anyway.
+    _frames = null;
+  }
+
   void _syncTicker() {
     final run = _frames != null && !_still;
     if (run && !_ticker.isActive) {
+      // Continue the animation clock where it stopped, so blink timers and
+      // gestures keep going after a pause (e.g. a Reduce Motion round trip).
+      _timeBase = _animator.lastTime;
       _ticker.start();
     } else if (!run && _ticker.isActive) {
       _ticker.stop();
@@ -105,13 +137,19 @@ class TalkingAvatarState extends State<TalkingAvatar> with SingleTickerProviderS
   }
 
   void _tick(Duration elapsed) {
-    final mouth = widget.mood == AvatarMood.speaking ? (widget.lipSync?.sample() ?? VisemeSample.rest) : VisemeSample.rest;
-    _pose.value = _animator.frame(elapsed.inMicroseconds / 1e6, widget.mood, mouth, available: _available);
+    final t = _timeBase + elapsed.inMicroseconds / 1e6;
+    final speaking = widget.mood == AvatarMood.speaking;
+    if (!speaking && t - _lastPose < 1 / idleFps) return;
+    _lastPose = t;
+    final mouth = speaking ? (widget.lipSync?.sample() ?? VisemeSample.rest) : VisemeSample.rest;
+    _pose.value = _animator.frame(t, widget.mood, mouth, available: _available);
   }
 
   @override
   void dispose() {
     _ticker.dispose();
+    final id = _held;
+    if (id != null) AvatarFrames.release(id);
     _pose.dispose();
     super.dispose();
   }
@@ -152,6 +190,7 @@ class AvatarPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final sw = kReleaseMode ? null : (Stopwatch()..start());
+    if (frames.isDisposed) return;
     final p = pose.value;
     final base = frames.base;
     final src = Size(base.width.toDouble(), base.height.toDouble());

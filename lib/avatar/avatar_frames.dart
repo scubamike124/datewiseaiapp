@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:ui' as ui;
 
@@ -58,40 +57,95 @@ class AvatarManifest {
 }
 
 /// The decoded portrait and every patch of one coach, ready to paint.
+///
+/// Only one coach's frames are kept: acquiring another coach disposes the
+/// previous coach's images once nobody holds them, and the last [release]
+/// (the voice stage closing) disposes them too.
 class AvatarFrames {
   AvatarFrames._(this.manifest, this.base, this.images);
 
   final AvatarManifest manifest;
   final ui.Image base;
   final Map<String, ui.Image> images;
+  bool _disposed = false;
 
-  static final Map<String, Future<AvatarFrames?>> _cache = {};
+  static String? _id;
+  static Future<AvatarFrames?>? _future;
+  static int _holders = 0;
 
-  /// Loads (once per coach, then cached) the portrait and its patches.
-  /// Null when the coach has no generated frames, or when the portrait was
-  /// replaced without regenerating them (its size no longer matches): the
-  /// caller then shows the still portrait.
-  static Future<AvatarFrames?> load(Coach coach, {AssetBundle? bundle}) =>
-      _cache.putIfAbsent(coach.id, () => _load(coach, bundle ?? rootBundle));
+  /// Loads (or reuses) a coach's portrait and patches and counts the caller
+  /// as a holder; pair with [release]. Null when the coach has no generated
+  /// frames, or the portrait was replaced without regenerating them (its size
+  /// no longer matches): the caller then shows the still portrait.
+  static Future<AvatarFrames?> acquire(Coach coach, {AssetBundle? bundle}) {
+    if (_id != coach.id) {
+      _disposeCurrent();
+      _id = coach.id;
+      _future = _load(coach, bundle ?? rootBundle);
+      _holders = 0;
+    }
+    _holders++;
+    return _future!;
+  }
 
-  /// Starts decoding a coach's frames early (e.g. when voice mode opens).
-  static void preload(Coach coach, {AssetBundle? bundle}) => unawaited(load(coach, bundle: bundle));
+  /// One holder of [coachId]'s frames is done; the last one frees them.
+  static void release(String coachId) {
+    if (coachId != _id) return;
+    _holders--;
+    if (_holders <= 0) _disposeCurrent();
+  }
+
+  static void _disposeCurrent() {
+    final f = _future;
+    _id = null;
+    _future = null;
+    _holders = 0;
+    f?.then((frames) => frames?._dispose());
+  }
+
+  /// Loads without holding (tests and the offline demo renderer).
+  @visibleForTesting
+  static Future<AvatarFrames?> load(Coach coach, {AssetBundle? bundle}) => _load(coach, bundle ?? rootBundle);
 
   @visibleForTesting
-  static void clearCache() => _cache.clear();
+  static void clearCache() => _disposeCurrent();
+
+  @visibleForTesting
+  static String? get heldCoach => _id;
+
+  bool get isDisposed => _disposed;
+
+  void _dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    base.dispose();
+    for (final i in images.values) {
+      i.dispose();
+    }
+  }
 
   static Future<AvatarFrames?> _load(Coach coach, AssetBundle bundle) async {
+    final decoded = <ui.Image>[];
     try {
       final manifest = AvatarManifest.parse(coach.id, await bundle.loadString('${AvatarManifest.dir(coach.id)}/manifest.json'));
       final base = await _decode(bundle, coach.heroAsset);
+      decoded.add(base);
       if (base.width != manifest.width || base.height != manifest.height) {
         base.dispose();
         return null;
       }
-      final entries = await Future.wait(manifest.patches.keys.map((n) async => MapEntry(n, await _decode(bundle, manifest.assetFor(n)))));
-      return AvatarFrames._(manifest, base, Map.fromEntries(entries));
+      final images = <String, ui.Image>{};
+      for (final n in manifest.patches.keys) {
+        final img = await _decode(bundle, manifest.assetFor(n));
+        decoded.add(img);
+        images[n] = img;
+      }
+      return AvatarFrames._(manifest, base, images);
     } catch (_) {
-      _cache.remove(coach.id);
+      // Free whatever was decoded before the failure.
+      for (final i in decoded) {
+        i.dispose();
+      }
       return null;
     }
   }
@@ -106,7 +160,7 @@ class AvatarFrames {
 
   /// The patch image and placement for [name], or null if not generated.
   (ui.Image, AvatarPatch)? patch(String? name) {
-    if (name == null) return null;
+    if (name == null || _disposed) return null;
     final img = images[name];
     final p = manifest.patches[name];
     return img == null || p == null ? null : (img, p);

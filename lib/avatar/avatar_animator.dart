@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 
 import 'lip_sync.dart';
+import 'viseme.dart';
 
 /// What the coach is doing on the voice stage.
 enum AvatarMood {
@@ -52,7 +53,11 @@ class AvatarPose {
 /// Turns time, mood and the lip-sync sample into an [AvatarPose].
 ///
 /// Pure and deterministic for a given [seed], so it is unit-tested and the
-/// offline demo renderer (tool/avatar/render_demo.py) mirrors it.
+/// offline demo renderer (tool/avatar/render_demo_test.dart) uses it as is.
+///
+/// Patches are switched, never crossfaded, for the eyes (a half-faded blink
+/// shows the iris through the lids). Head motion is a small whole-image
+/// transform (a few pixels, under a degree), so nothing is warped.
 class AvatarAnimator {
   AvatarAnimator({int seed = 7}) : _rng = math.Random(seed);
 
@@ -61,96 +66,116 @@ class AvatarAnimator {
   double _blinkStart = -10;
   AvatarMood _mood = AvatarMood.idle;
   double _moodSince = 0;
-  double _exprWeight = 0;
-  String? _expr;
   double _lastT = 0;
 
-  /// A blink: 0.07 s closing, 0.05 s shut, 0.1 s opening.
-  static const double blinkLength = 0.22;
-  static const double nodPeriod = 3.4;
-  static const double nodLength = 0.9;
-  static const double exprFade = 0.25;
+  // Head gestures: start time, length, depth (px down), tilt (radians).
+  double _gestureStart = -10;
+  double _gestureLength = 0.4;
+  double _gestureDepth = 0;
+  double _gestureTilt = 0;
+  double _nextNod = 0;
+  double _restSince = 0;
+  bool _wasRest = true;
+  double _lastEmphasis = -10;
 
-  /// Eyelid closure (0 open .. 1 shut) [s] seconds into a blink.
-  static double blinkClosure(double s) {
-    if (s < 0 || s >= blinkLength) return 0;
-    if (s < 0.07) return s / 0.07;
-    if (s < 0.12) return 1;
-    return 1 - (s - 0.12) / 0.10;
+  /// A blink: half-closed 40 ms, shut 60 ms, half-open 50 ms (150 ms).
+  static const double blinkLength = 0.15;
+
+  /// Chance that a blink is followed by a second one.
+  static const double doubleBlinkChance = 0.2;
+
+  /// Listening nod: 400 ms down and back, every 2.6-3.6 s.
+  static const double nodLength = 0.4;
+
+  /// Thinking glance appears this long after thinking starts.
+  static const double glanceDelay = 0.15;
+
+  /// Eye patch for [s] seconds into a blink: null, `blink_half` or `blink_closed`.
+  static String? blinkFrame(double s) {
+    if (s < 0 || s >= blinkLength) return null;
+    if (s < 0.04) return 'blink_half';
+    if (s < 0.10) return 'blink_closed';
+    return 'blink_half';
   }
 
-  /// Head-patch for the listening nod [s] seconds into the nod.
-  static (String?, double) nodFrame(double s) {
-    if (s < 0 || s >= nodLength) return (null, 0);
-    // Down (nod_1 then nod_2) and back up, as a smooth bump.
-    final p = math.sin(math.pi * s / nodLength); // 0..1..0
-    if (p < 0.5) return ('nod_1', p * 2);
-    return ('nod_2', (p - 0.5) * 2);
+  /// Head offset of a gesture [s] seconds in: a smooth down-and-back bump.
+  static double bump(double s, double length) => (s < 0 || s >= length) ? 0 : math.sin(math.pi * s / length);
+
+  void _gesture(double t, double length, double depth, double tilt) {
+    _gestureStart = t;
+    _gestureLength = length;
+    _gestureDepth = depth;
+    _gestureTilt = tilt;
   }
 
   AvatarPose frame(double t, AvatarMood mood, VisemeSample mouth, {Set<String>? available}) {
-    final dt = (t - _lastT).clamp(0.0, 0.1);
     _lastT = t;
     if (mood != _mood) {
       _mood = mood;
       _moodSince = t;
+      _nextNod = t + 0.5;
+      if (mood == AvatarMood.thinking) _gesture(t, 0.6, 1.5, 0.012);
     }
     bool has(String n) => available == null || available.contains(n);
     final layers = <AvatarLayer>[];
 
-    // Head expression (thinking frame; listening nods drawn below).
-    final wantExpr = mood == AvatarMood.thinking && has('think') ? 'think' : null;
-    if (wantExpr != null) {
-      _expr = wantExpr;
-      _exprWeight = math.min(1, _exprWeight + dt / exprFade);
-    } else {
-      _exprWeight = math.max(0, _exprWeight - dt / exprFade);
+    // Head gestures.
+    if (mood == AvatarMood.listening && t >= _nextNod) {
+      _gesture(t, nodLength, 3.0, 0.009);
+      _nextNod = t + 2.6 + _rng.nextDouble();
     }
-    if (_exprWeight > 0 && _expr != null) layers.add(AvatarLayer(_expr!, _exprWeight));
-
-    var headBusy = _exprWeight > 0;
-    if (mood == AvatarMood.listening && !headBusy) {
-      final s = (t - _moodSince - 0.4) % nodPeriod;
-      if (t - _moodSince > 0.4) {
-        final (n, w) = nodFrame(s);
-        if (n != null && has(n) && has('nod_1')) {
-          // nod_2 is drawn over a full nod_1, so the bump is continuous.
-          if (n == 'nod_2') layers.add(const AvatarLayer('nod_1', 1));
-          layers.add(AvatarLayer(n, w));
-          headBusy = true;
-        }
+    if (mood == AvatarMood.speaking) {
+      final rest = mouth.viseme == Viseme.rest;
+      if (rest && !_wasRest) _restSince = t;
+      // A phrase starts after a pause: a small nod with a slight tilt.
+      if (!rest && _wasRest && t - _restSince > 0.25) {
+        _gesture(t, 0.45, 2.5, (_rng.nextBool() ? 1 : -1) * 0.011);
+      } else if (!rest && mouth.to == Viseme.a && t - _lastEmphasis > 0.9 && t - _gestureStart > 0.6) {
+        // Emphasis on a stressed open vowel.
+        _gesture(t, 0.3, 2.0, 0);
+        _lastEmphasis = t;
       }
+      _wasRest = rest;
+    } else {
+      _wasRest = true;
     }
+    final g = bump(t - _gestureStart, _gestureLength);
+    final holdTilt = mood == AvatarMood.thinking && t - _moodSince >= 0.3 ? 0.012 : 0.0;
 
-    // Blinks, when the head patch is not covering the eyes.
+    // Blinks (switched, not faded), with an occasional double blink.
     if (t >= _nextBlink) {
       _blinkStart = t;
-      // Every 2.5-6 s; a little more often while listening.
       final base = mood == AvatarMood.listening ? 2.2 : 2.8;
-      _nextBlink = t + base + _rng.nextDouble() * 3.2;
+      _nextBlink = _rng.nextDouble() < doubleBlinkChance ? t + blinkLength + 0.12 : t + base + _rng.nextDouble() * 3.2;
     }
-    final c = blinkClosure(t - _blinkStart);
-    if (c > 0 && !headBusy) {
-      if (has('blink_half')) layers.add(AvatarLayer('blink_half', math.min(1, c * 2)));
-      if (c > 0.5 && has('blink_closed')) layers.add(AvatarLayer('blink_closed', (c - 0.5) * 2));
+    final blink = blinkFrame(t - _blinkStart);
+    if (blink != null && has(blink)) {
+      layers.add(AvatarLayer(blink, 1));
+    } else if (mood == AvatarMood.thinking && t - _moodSince >= glanceDelay && has('gaze')) {
+      layers.add(const AvatarLayer('gaze', 1));
     }
 
-    // Mouth.
-    if (mood == AvatarMood.speaking && !headBusy) {
+    // Mouth: lip-synced while speaking; lips closed while thinking.
+    if (mood == AvatarMood.speaking) {
       final from = mouth.from.asset, to = mouth.to.asset;
       if (from != null && has(from) && mouth.mix < 1) layers.add(AvatarLayer(from, to == null ? 1 - mouth.mix : 1));
       if (to != null && has(to) && mouth.mix > 0) layers.add(AvatarLayer(to, mouth.mix));
+    } else if (mood == AvatarMood.thinking && t - _moodSince >= glanceDelay && has('mbp')) {
+      layers.add(const AvatarLayer('mbp', 1));
     }
 
-    // Breathing and a slow sway; a little livelier while speaking.
+    // Breathing and a slow sway, plus the gesture.
     final live = mood == AvatarMood.speaking ? 1.0 : 0.7;
-    final open = mood == AvatarMood.speaking ? (mouth.viseme.openness) : 0.0;
     return AvatarPose(
       layers: layers,
-      scale: 1.015 + 0.004 * math.sin(2 * math.pi * t / 4.2),
-      dx: 1.4 * live * math.sin(2 * math.pi * t / 7.3),
-      dy: 0.9 * live * math.sin(2 * math.pi * t / 5.1 + 1) + 0.5 * open,
-      rotation: 0.004 * live * math.sin(2 * math.pi * t / 6.1),
+      // 5% zoom keeps the frame edges hidden during sway, nods and tilts.
+      scale: 1.05 + 0.004 * math.sin(2 * math.pi * t / 4.2),
+      dx: 1.2 * live * math.sin(2 * math.pi * t / 7.3),
+      dy: 0.8 * live * math.sin(2 * math.pi * t / 5.1 + 1) + _gestureDepth * g,
+      rotation: 0.003 * live * math.sin(2 * math.pi * t / 6.1) + _gestureTilt * g + holdTilt,
     );
   }
+
+  /// The last time passed to [frame] (to continue after a pause).
+  double get lastTime => _lastT;
 }

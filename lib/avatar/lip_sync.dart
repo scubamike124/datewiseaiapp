@@ -67,8 +67,25 @@ class VisemeTimeline {
   /// about 165 words a minute). Scaled linearly with the rate.
   static const double lettersPerSecondAtHalfRate = 13.5;
 
-  /// Transition between two mouth shapes (coarticulation), seconds.
-  static const double blend = 0.06;
+  /// Crossfade between two open mouth shapes, seconds. Short, so teeth
+  /// never ghost through lips; shapes with closed lips ([Viseme.closed])
+  /// switch without a crossfade at all.
+  static const double blend = 0.03;
+
+  /// How far the mouth runs ahead of the word timing, seconds. Lips form a
+  /// sound slightly before it is heard; the offline measurement showed the
+  /// mouth trailing the audio by 66-99 ms without it. Tunable.
+  static const double lead = 0.08;
+
+  /// Longest time one mouth shape is held while speaking, seconds; longer
+  /// stretches alternate between the full and half opening.
+  static const double maxHold = 0.25;
+
+  /// Openness jump above which a transition goes through a middle shape.
+  static const double bridgeJump = 0.4;
+
+  /// Length of that middle shape, seconds.
+  static const double bridgeLength = 0.035;
 
   static double lettersPerSecond(double rate) => lettersPerSecondAtHalfRate * (rate.clamp(0.1, 1.0) / 0.5);
 
@@ -79,10 +96,12 @@ class VisemeTimeline {
     final words = <PlannedWord>[];
     var t = 0.0;
     var last = 0;
-    for (final m in _word.allMatches(text)) {
+    final matches = _word.allMatches(text).toList();
+    for (var k = 0; k < matches.length; k++) {
+      final m = matches[k];
       t += _pauseBetween(text.substring(last, m.start), words.isEmpty);
       final w = m.group(0)!;
-      final segs = mapper.word(w);
+      final segs = mapper.word(w, next: _nextWord(text, matches, k));
       final letters = w.replaceAll(RegExp(r"['’]"), '').length;
       // Short words still take a syllable's time.
       final dur = (letters / lps).clamp(0.12, 2.0);
@@ -98,11 +117,23 @@ class VisemeTimeline {
   factory VisemeTimeline.fromTimedWords(
       String text, CoachLanguage language, List<(int, int, double, double)> timed) {
     final mapper = VisemeMapper.of(language);
-    final words = [
-      for (final (cs, ce, s, e) in timed)
-        PlannedWord(text.substring(cs, ce), cs, ce, s, e - s, mapper.word(text.substring(cs, ce))),
-    ];
+    final words = <PlannedWord>[];
+    for (var k = 0; k < timed.length; k++) {
+      final (cs, ce, s, e) = timed[k];
+      // The next word only matters when no pause separates them.
+      String? next;
+      if (k + 1 < timed.length && !RegExp(r'[.,;:!?…—–]').hasMatch(text.substring(ce, timed[k + 1].$1))) {
+        next = text.substring(timed[k + 1].$1, timed[k + 1].$2);
+      }
+      words.add(PlannedWord(text.substring(cs, ce), cs, ce, s, e - s, mapper.word(text.substring(cs, ce), next: next)));
+    }
     return VisemeTimeline._(text, words, _cues(words));
+  }
+
+  static String? _nextWord(String text, List<RegExpMatch> m, int k) {
+    if (k + 1 >= m.length) return null;
+    if (RegExp(r'[.,;:!?…—–\n]').hasMatch(text.substring(m[k].end, m[k + 1].start))) return null;
+    return m[k + 1].group(0);
   }
 
   static double _pauseBetween(String gap, bool first) {
@@ -139,7 +170,64 @@ class VisemeTimeline {
       }
     }
     if (cues.isNotEmpty) cues.add(VisemeCue(Viseme.rest, cues.last.end, cues.last.end + 0.2));
-    return cues;
+    return _bridge(_capHolds(cues));
+  }
+
+  /// No shape is held longer than [maxHold] while speaking: long vowels and
+  /// consonants alternate between their full and half opening (a held "a"
+  /// still moves, as real jaws do). Rest (a real pause) is left alone.
+  static List<VisemeCue> _capHolds(List<VisemeCue> cues) {
+    final out = <VisemeCue>[];
+    for (final c in cues) {
+      if (c.viseme == Viseme.rest || c.duration <= maxHold) {
+        out.add(c);
+        continue;
+      }
+      final n = (c.duration / 0.16).ceil();
+      final d = c.duration / n;
+      final alt = c.viseme.isVowel
+          ? (c.viseme.half == c.viseme ? c.viseme.full : c.viseme.half)
+          : (c.viseme.closed ? Viseme.u2 : Viseme.e2);
+      for (var k = 0; k < n; k++) {
+        out.add(VisemeCue(k.isEven ? c.viseme : alt, c.start + k * d, c.start + (k + 1) * d));
+      }
+    }
+    return out;
+  }
+
+  /// A big jump in openness (closed lips to a wide "a") goes through a short
+  /// middle shape, as a real mouth does, instead of a crossfade that would
+  /// show teeth through the lips.
+  static List<VisemeCue> _bridge(List<VisemeCue> cues) {
+    final out = <VisemeCue>[];
+    for (var k = 0; k < cues.length; k++) {
+      final c = cues[k];
+      final prev = out.isEmpty ? null : out.last;
+      if (prev != null &&
+          (prev.viseme.openness - c.viseme.openness).abs() > bridgeJump &&
+          c.duration > bridgeLength * 2) {
+        final mid = middle(prev.viseme, c.viseme);
+        out.add(VisemeCue(mid, c.start, c.start + bridgeLength));
+        out.add(VisemeCue(c.viseme, c.start + bridgeLength, c.end));
+      } else {
+        out.add(c);
+      }
+    }
+    return out;
+  }
+
+  /// The shape between [a] and [b]: half-open, rounded if either is rounded.
+  @visibleForTesting
+  static Viseme middle(Viseme a, Viseme b) {
+    final target = (a.openness + b.openness) / 2;
+    final pool = (a.rounded || b.rounded)
+        ? const [Viseme.u, Viseme.o2, Viseme.sh]
+        : const [Viseme.i2, Viseme.e2, Viseme.cons, Viseme.a2, Viseme.e];
+    var best = pool.first;
+    for (final v in pool) {
+      if ((v.openness - target).abs() < (best.openness - target).abs()) best = v;
+    }
+    return best;
   }
 
   int _cueIndex(double t) {
@@ -155,14 +243,18 @@ class VisemeTimeline {
     return lo;
   }
 
-  /// The mouth at time [t] (seconds on this timeline), crossfading into each
-  /// new shape over [blend] seconds.
+  /// The mouth at time [t] (seconds on this timeline): a [blend]-second
+  /// crossfade into each new open shape, a hard switch when either shape
+  /// has closed lips (no teeth showing through the lips).
   VisemeSample sample(double t) {
     if (cues.isEmpty || t < 0 || t >= duration) return VisemeSample.rest;
     final k = _cueIndex(t);
     final cue = cues[k];
     final prev = k > 0 ? cues[k - 1].viseme : Viseme.rest;
-    final b = blend < cue.duration * 0.6 ? blend : cue.duration * 0.6;
+    if (prev.closed || cue.viseme.closed || prev == Viseme.rest || cue.viseme == Viseme.rest) {
+      return VisemeSample(prev, cue.viseme, 1);
+    }
+    final b = blend < cue.duration * 0.5 ? blend : cue.duration * 0.5;
     final mix = b <= 0 ? 1.0 : ((t - cue.start) / b).clamp(0.0, 1.0);
     return VisemeSample(prev, cue.viseme, mix);
   }
@@ -268,6 +360,12 @@ class LipSyncDriver extends ChangeNotifier {
     final tl = _timeline;
     if (!_active || tl == null) return null;
     var t = _anchorPlan + (_now - _anchorNow) * _speed;
+    if (t > tl.duration + 1.0) {
+      // The completion callback never came (interrupted audio session):
+      // stop instead of freezing on a half-open mouth.
+      end();
+      return null;
+    }
     if (_sawWord && _anchorWord >= 0) {
       // Never run more than a little past the current word's end before
       // the next word event arrives: hold a closing mouth instead.
@@ -279,11 +377,12 @@ class LipSyncDriver extends ChangeNotifier {
     return t;
   }
 
-  /// The mouth shape for this display frame.
+  /// The mouth shape for this display frame, [VisemeTimeline.lead] ahead
+  /// of the word timing.
   VisemeSample sample() {
     final t = planTime();
     if (t == null) return VisemeSample.rest;
-    return _timeline!.sample(t);
+    return _timeline!.sample(t + VisemeTimeline.lead);
   }
 }
 

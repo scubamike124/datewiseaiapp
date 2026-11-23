@@ -2,6 +2,7 @@
 // animator's states, Reduce Motion fallback, accessibility labels, the
 // voice-stage hook, and a painter frame-time benchmark.
 
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -37,7 +38,7 @@ Widget host(Widget child, {Locale locale = const Locale('en'), bool disableAnima
 /// Decodes a coach's frames for real (outside the fake-async test zone), so
 /// the widget then finds them already loaded.
 Future<void> preload(WidgetTester tester, Coach coach) async {
-  await tester.runAsync(() => AvatarFrames.load(coach));
+  await tester.runAsync(() => AvatarFrames.acquire(coach));
 }
 
 /// Lets the widget pick up the preloaded frames and start animating.
@@ -58,7 +59,13 @@ void main() {
         expect(f, isNotNull, reason: 'run tool/avatar/regenerate.sh after changing ${coach.heroAsset}');
         expect((f!.base.width, f.base.height), (f.manifest.width, f.manifest.height));
         // The mouth must at least open, close and round; blinks must exist.
-        for (final n in ['mbp', 'a', 'i', 'u', 'blink_half']) {
+        for (final n in [
+          for (final v in Viseme.values)
+            if (v.asset != null) v.asset!,
+          'blink_half',
+          'blink_closed',
+          'gaze',
+        ]) {
           expect(f.images.containsKey(n), isTrue, reason: '${coach.id}/$n');
         }
         for (final p in f.manifest.patches.values) {
@@ -70,57 +77,90 @@ void main() {
         // the eye box ends above the mouth box's center.
         final mouth = f.manifest.patches['mbp']!.rect, eyes = f.manifest.patches['blink_half']!.rect;
         expect(eyes.center.dy, lessThan(mouth.top));
-        expect(avatarMemoryBytes(f), lessThan(24 * 1024 * 1024));
+        expect(f.manifest.patches.values.where((p) => p.region == AvatarRegion.head), isEmpty,
+            reason: 'head motion is a transform, never a warped frame');
+        expect(avatarMemoryBytes(f), lessThan(20 * 1024 * 1024));
       });
     }
   });
 
   group('animator', () {
-    test('blink curve closes, holds and reopens within 0.22 s', () {
-      expect(AvatarAnimator.blinkClosure(0), 0);
-      expect(AvatarAnimator.blinkClosure(0.09), 1);
-      expect(AvatarAnimator.blinkClosure(0.17), closeTo(0.5, 0.01));
-      expect(AvatarAnimator.blinkClosure(0.3), 0);
+    test('blinks switch frames (never fade) and last 150 ms', () {
+      expect(AvatarAnimator.blinkFrame(-0.01), isNull);
+      expect(AvatarAnimator.blinkFrame(0.02), 'blink_half');
+      expect(AvatarAnimator.blinkFrame(0.07), 'blink_closed');
+      expect(AvatarAnimator.blinkFrame(0.12), 'blink_half');
+      expect(AvatarAnimator.blinkFrame(0.15), isNull);
+      final a = AvatarAnimator();
+      for (var t = 0.0; t < 30; t += 1 / 60) {
+        for (final l in a.frame(t, AvatarMood.idle, VisemeSample.rest).layers) {
+          if (l.patch.startsWith('blink')) expect(l.opacity, 1);
+        }
+      }
     });
 
-    test('speaking draws the crossfaded mouth; thinking fades in the thinking look', () {
+    test('some blinks are double blinks', () {
+      final a = AvatarAnimator(seed: 1);
+      final starts = <double>[];
+      var was = false;
+      for (var t = 0.0; t < 120; t += 1 / 60) {
+        final b = a.frame(t, AvatarMood.idle, VisemeSample.rest).layers.any((l) => l.patch.startsWith('blink'));
+        if (b && !was) starts.add(t);
+        was = b;
+      }
+      final gaps = [for (var k = 1; k < starts.length; k++) starts[k] - starts[k - 1]];
+      expect(gaps.where((g) => g < 0.5), isNotEmpty, reason: 'double blinks');
+      expect(gaps.where((g) => g >= 2), isNotEmpty, reason: 'mostly single blinks seconds apart');
+    });
+
+    test('speaking draws the crossfaded mouth; thinking glances aside with lips closed', () {
       final a = AvatarAnimator();
-      final p = a.frame(0.5, AvatarMood.speaking, const VisemeSample(Viseme.mbp, Viseme.a, 0.4));
-      expect(p.layers, [const AvatarLayer('mbp', 1), const AvatarLayer('a', 0.4)]);
-      final toRest = a.frame(0.55, AvatarMood.speaking, const VisemeSample(Viseme.o, Viseme.rest, 0.25));
-      expect(toRest.layers, [const AvatarLayer('o', 0.75)]);
+      final p = a.frame(0.5, AvatarMood.speaking, const VisemeSample(Viseme.e, Viseme.a, 0.4));
+      expect(p.layers.where((l) => !l.patch.startsWith('blink')), [const AvatarLayer('e', 1), const AvatarLayer('a', 0.4)]);
       final b = AvatarAnimator();
       var think = AvatarPose.still;
       for (var t = 1.0; t < 1.4; t += 1 / 60) {
         think = b.frame(t, AvatarMood.thinking, VisemeSample.rest);
       }
-      expect(think.layers.first, const AvatarLayer('think', 1));
-      expect(think.layers.where((l) => l.patch == 'a'), isEmpty, reason: 'no mouth while thinking');
+      expect(think.layers.map((l) => l.patch), containsAll(['gaze', 'mbp']));
+      expect(think.layers.every((l) => l.opacity == 1), isTrue);
+      expect(think.rotation.abs(), greaterThan(0.005), reason: 'slight head tilt while thinking');
     });
 
-    test('listening nods periodically; blinks happen every few seconds; motion stays subtle', () {
+    test('listening nods are 400 ms whole-image bumps (3 px, under 1 degree); motion stays subtle', () {
       final a = AvatarAnimator();
-      final names = <String>{};
-      var blinks = 0;
-      var wasBlink = false;
+      var nodFrames = 0;
+      var maxDy = 0.0, maxRot = 0.0;
       for (var t = 0.0; t < 20; t += 1 / 60) {
         final p = a.frame(t, AvatarMood.listening, VisemeSample.rest);
-        names.addAll(p.layers.map((l) => l.patch));
-        final isBlink = p.layers.any((l) => l.patch.startsWith('blink'));
-        if (isBlink && !wasBlink) blinks++;
-        wasBlink = isBlink;
-        expect(p.scale, inInclusiveRange(1.01, 1.02));
-        expect(p.dx.abs(), lessThan(2));
-        expect(p.dy.abs(), lessThan(2));
+        expect(p.layers.where((l) => !l.patch.startsWith('blink')), isEmpty, reason: 'no warped head frames');
+        if (p.dy > 2.5) nodFrames++;
+        maxDy = math.max(maxDy, p.dy.abs());
+        maxRot = math.max(maxRot, p.rotation.abs());
+        expect(p.scale, inInclusiveRange(1.04, 1.06));
       }
-      expect(names, containsAll(['nod_1', 'nod_2', 'blink_half', 'blink_closed']));
-      expect(blinks, inInclusiveRange(3, 9));
+      expect(maxDy, inInclusiveRange(2.5, 4.5));
+      expect(maxRot, lessThan(1 * math.pi / 180));
+      expect(nodFrames, greaterThan(5), reason: 'nods happen');
+      expect(nodFrames, lessThan(20 * 60 * 0.25), reason: 'nods are short, not held');
+    });
+
+    test('a phrase start after a pause gets a small nod', () {
+      final a = AvatarAnimator();
+      for (var t = 0.0; t < 1; t += 1 / 60) {
+        a.frame(t, AvatarMood.speaking, VisemeSample.rest);
+      }
+      var maxDy = 0.0;
+      for (var t = 1.0; t < 1.5; t += 1 / 60) {
+        maxDy = math.max(maxDy, a.frame(t, AvatarMood.speaking, const VisemeSample(Viseme.e, Viseme.e, 1)).dy);
+      }
+      expect(maxDy, greaterThan(2));
     });
 
     test('a missing patch is skipped, never drawn', () {
       final a = AvatarAnimator();
       final p = a.frame(0.5, AvatarMood.speaking, const VisemeSample(Viseme.o, Viseme.e, 1), available: {'mbp'});
-      expect(p.layers, isEmpty);
+      expect(p.layers.where((l) => !l.patch.startsWith('blink')), isEmpty);
     });
 
     test('mood follows the chat screen state', () {
@@ -157,7 +197,7 @@ void main() {
       await preload(tester, Coaches.sofia);
       await tester.pumpWidget(host(const CoachStageAvatar(coach: Coaches.sofia, mood: AvatarMood.speaking), locale: const Locale('es')));
       await settleFrames(tester);
-      expect(find.bySemanticsLabel('Sofía, coach con IA animado, hablando'), findsOneWidget);
+      expect(find.bySemanticsLabel('Retrato animado de Sofía, coach con IA, hablando'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     });
 
@@ -169,6 +209,61 @@ void main() {
       expect(find.byType(CoachImage), findsOneWidget);
       expect(find.bySemanticsLabel('Diego, AI coach (still portrait)'), findsOneWidget);
       expect(tester.binding.hasScheduledFrame, isFalse, reason: 'no ticker running');
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('Reduce Motion does not decode the frames at all', (tester) async {
+      await tester.pumpWidget(host(const CoachStageAvatar(coach: Coaches.diego, mood: AvatarMood.idle), disableAnimations: true));
+      await tester.pump();
+      expect(AvatarFrames.heldCoach, isNull);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('frames of one coach at a time; disposed when the stage closes', (tester) async {
+      await preload(tester, Coaches.ava);
+      await tester.pumpWidget(host(const CoachStageAvatar(coach: Coaches.ava, mood: AvatarMood.idle)));
+      await settleFrames(tester);
+      final avaFrames = tester.state<TalkingAvatarState>(find.byType(TalkingAvatar)).frames!;
+      AvatarFrames.release('ava'); // the preload's hold
+      await preload(tester, Coaches.ethan);
+      await tester.pumpWidget(host(const CoachStageAvatar(coach: Coaches.ethan, mood: AvatarMood.idle)));
+      await settleFrames(tester);
+      expect(AvatarFrames.heldCoach, 'ethan');
+      expect(avaFrames.isDisposed, isTrue, reason: 'switching coach frees the previous images');
+      final ethanFrames = tester.state<TalkingAvatarState>(find.byType(TalkingAvatar)).frames!;
+      AvatarFrames.release('ethan');
+      await tester.pumpWidget(const SizedBox());
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 10)));
+      expect(ethanFrames.isDisposed, isTrue, reason: 'closing the voice stage frees them');
+      expect(AvatarFrames.heldCoach, isNull);
+    });
+
+    testWidgets('closing the stage before the frames finish loading gives the hold back', (tester) async {
+      await tester.pumpWidget(host(const CoachStageAvatar(coach: Coaches.sofia, mood: AvatarMood.idle)));
+      expect(AvatarFrames.heldCoach, 'sofia');
+      await tester.pumpWidget(const SizedBox());
+      expect(AvatarFrames.heldCoach, isNull);
+    });
+
+    testWidgets('blinks keep coming after a Reduce Motion round trip', (tester) async {
+      Widget app(bool reduce) => host(const CoachStageAvatar(coach: Coaches.ava, mood: AvatarMood.idle), disableAnimations: reduce);
+      await preload(tester, Coaches.ava);
+      await tester.pumpWidget(app(false));
+      await settleFrames(tester);
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpWidget(app(true));
+      await tester.pump(const Duration(seconds: 1));
+      await preload(tester, Coaches.ava);
+      await tester.pumpWidget(app(false));
+      await settleFrames(tester);
+      final st = tester.state<TalkingAvatarState>(find.byType(TalkingAvatar));
+      var blinked = false;
+      for (var i = 0; i < 8 * 30; i++) {
+        await tester.pump(const Duration(milliseconds: 33));
+        blinked |= st.pose.value.layers.any((l) => l.patch.startsWith('blink'));
+      }
+      expect(blinked, isTrue);
+      await tester.pumpWidget(const SizedBox());
     });
 
     testWidgets('before the frames are decoded it shows the still portrait (no blank stage)', (tester) async {
@@ -200,6 +295,7 @@ void main() {
     await tester.runAsync(() async {
       for (final coach in Coaches.all) {
         final f = (await AvatarFrames.load(coach))!;
+        results.add('${coach.id}: ${(avatarMemoryBytes(f) / 1048576).toStringAsFixed(1)} MB decoded');
         final pose = ValueNotifier(AvatarPose.still);
         final painter = AvatarPainter(f, pose, coach.heroFocus);
         final anim = AvatarAnimator();

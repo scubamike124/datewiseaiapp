@@ -866,22 +866,22 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String avatarAnimated(String name) {
-    return '$name, coach con IA animado';
+    return 'Retrato animado de $name, coach con IA';
   }
 
   @override
   String avatarSpeaking(String name) {
-    return '$name, coach con IA animado, hablando';
+    return 'Retrato animado de $name, coach con IA, hablando';
   }
 
   @override
   String avatarListening(String name) {
-    return '$name, coach con IA animado, escuchando';
+    return 'Retrato animado de $name, coach con IA, escuchando';
   }
 
   @override
   String avatarThinking(String name) {
-    return '$name, coach con IA animado, pensando';
+    return 'Retrato animado de $name, coach con IA, pensando';
   }
 
   @override
