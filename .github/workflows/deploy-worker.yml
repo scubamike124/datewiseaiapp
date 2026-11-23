@@ -1,0 +1,437 @@
+name: Deploy coach Worker
+
+# Deploys the DateWise coach Worker (backend/, Worker "datewise-photo-coach")
+# with Wrangler. Adapted from the manual workflow at f5b0401 (branch
+# claude/fix-retired-cf-model). Runbook: docs/launch/WORKER_DEPLOY_RUNBOOK.md.
+#
+# Two targets:
+#   chat-v7-cost-guard  backend/ at the chosen ref (multi-module, Durable
+#                       Object + migration, rate-limit binding, ID_HASH_SALT).
+#   chat-v6             backend/ at the pinned commit f5b0401 (single file, AI
+#                       binding only): the approved fix for the v1 HTTP 502.
+#
+# Two jobs:
+#   check   no secrets, no Cloudflare access: offline tests, config checks,
+#           `wrangler deploy --dry-run --outdir`, bundle ?version check.
+#   deploy  only when dry_run is false. Runs in the GitHub Environment
+#           "production-worker", which the owner creates with themselves as the
+#           required reviewer, so every real deploy waits for the owner's click.
+#
+# Triggers:
+#   workflow_dispatch (needs this file on the default branch to show in the UI).
+#   Tag push, which works from any branch (the workflow file at the tagged
+#   commit is used):
+#     worker-v7-*      deploy chat-v7-cost-guard from the tagged commit
+#     worker-v6-*      deploy chat-v6 from f5b0401
+#     ...-dry          (suffix) dry run only, never deploys
+#
+# Secrets (repository or "production-worker" environment secrets), used only by
+# the Cloudflare steps of the deploy job:
+#   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID   (the account they point at is
+#                                                  the account deployed to)
+#   ID_HASH_SALT                                  (chat-v7 only; set on the
+#                                                  Worker only if it is missing)
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Worker to deploy'
+        type: choice
+        options:
+          - chat-v7-cost-guard
+          - chat-v6
+        default: chat-v7-cost-guard
+      ref:
+        description: 'chat-v7 only: branch, tag or commit SHA to deploy (empty = the ref this run uses). chat-v6 is always f5b0401.'
+        type: string
+        required: false
+        default: ''
+      dry_run:
+        description: 'Dry run only (bundle and checks, no upload). Untick to deploy after the owner approves.'
+        type: boolean
+        default: true
+  push:
+    tags:
+      - 'worker-v7-*'
+      - 'worker-v6-*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-worker
+  cancel-in-progress: false
+
+env:
+  WRANGLER_VERSION: '4.158.0'
+  WRANGLER_SEND_METRICS: 'false'
+  WORKER_NAME: datewise-photo-coach
+  # chat-v6: the commit and worker.js sha256 that Amber's allowlist pins.
+  V6_SHA: f5b0401f52e78375a4b48b865d6e58314e18e115
+  V6_WORKER_SHA256: de390ddb4481cb3e8ceccb3bf2e230a79c80c40db4752c3fc3c0f53e13d23837
+
+jobs:
+  check:
+    name: Check and dry-run bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      target: ${{ steps.plan.outputs.target }}
+      sha: ${{ steps.resolve.outputs.sha }}
+      expect_version: ${{ steps.plan.outputs.expect_version }}
+      dry_run: ${{ steps.plan.outputs.dry_run }}
+    steps:
+      - name: Work out the target
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          IN_TARGET: ${{ inputs.target }}
+          IN_REF: ${{ inputs.ref }}
+          IN_DRY: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "push" ]; then
+            case "$REF_NAME" in
+              worker-v7-*) target=chat-v7-cost-guard ;;
+              worker-v6-*) target=chat-v6 ;;
+              *) echo "::error::Unexpected tag $REF_NAME"; exit 1 ;;
+            esac
+            case "$REF_NAME" in *-dry) dry=true ;; *) dry=false ;; esac
+            ref="$GITHUB_SHA"
+          else
+            target="$IN_TARGET"
+            dry="$IN_DRY"
+            ref="${IN_REF:-$GITHUB_SHA}"
+          fi
+          if [ "$target" = "chat-v6" ]; then
+            ref="$V6_SHA"
+          fi
+          # Refs come from a person; allow only plain ref characters.
+          if ! printf '%s' "$ref" | grep -Eq '^[A-Za-z0-9._/-]{1,200}$'; then
+            echo "::error::ref has unexpected characters"; exit 1
+          fi
+          case "$target" in
+            chat-v7-cost-guard|chat-v6) ;;
+            *) echo "::error::Unknown target"; exit 1 ;;
+          esac
+          {
+            echo "target=$target"
+            echo "ref=$ref"
+            echo "expect_version=$target"
+            echo "dry_run=$dry"
+          } >> "$GITHUB_OUTPUT"
+          echo "Target: $target  ref: $ref  dry_run: $dry"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ steps.plan.outputs.ref }}
+          persist-credentials: false
+
+      - name: Resolve the commit
+        id: resolve
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: chat-v6 source must match Amber's pinned hash
+        if: steps.plan.outputs.target == 'chat-v6'
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$V6_SHA"
+          actual=$(sha256sum backend/worker.js | cut -d' ' -f1)
+          if [ "$actual" != "$V6_WORKER_SHA256" ]; then
+            echo "::error::backend/worker.js sha256 $actual does not match the pinned $V6_WORKER_SHA256"; exit 1
+          fi
+
+      - name: Offline Worker tests must pass
+        run: node --test backend/*.test.mjs
+
+      - name: Check wrangler.toml
+        env:
+          TARGET: ${{ steps.plan.outputs.target }}
+        run: |
+          node --input-type=module - <<'EOF'
+          import { readFileSync } from 'node:fs';
+          const target = process.env.TARGET;
+          const lines = readFileSync('backend/wrangler.toml', 'utf8').split('\n');
+          const errors = [];
+          // Collect key = value pairs per [section] / [[array-section]].
+          const sections = [];
+          let cur = { name: '', keys: {} };
+          sections.push(cur);
+          for (const raw of lines) {
+            const line = raw.replace(/\s+#.*$/, '').trim();
+            if (!line || line.startsWith('#')) continue;
+            const h = line.match(/^\[\[?\s*([^\]]+?)\s*\]\]?$/);
+            if (h) { cur = { name: h[1], keys: {} }; sections.push(cur); continue; }
+            const kv = line.match(/^([A-Za-z0-9_.-]+)\s*=\s*(.*)$/);
+            if (kv) cur.keys[kv[1]] = kv[2].replace(/^"(.*)"$/, '$1');
+          }
+          const top = sections[0].keys;
+          if (top.name !== process.env.WORKER_NAME) errors.push(`name must be ${process.env.WORKER_NAME}, got ${top.name}`);
+          // [vars]: refuse placeholder values.
+          const placeholder = /^$|REPLACE|CHANGE_?ME|TODO|TBD|FIXME|PLACEHOLDER|YOUR[_-]|<[^>]*>|x{4,}|example\.(com|org)/i;
+          for (const s of sections.filter((s) => s.name === 'vars')) {
+            for (const [k, v] of Object.entries(s.keys)) {
+              if (placeholder.test(v)) errors.push(`[vars] ${k} looks like a placeholder: "${v}"`);
+            }
+          }
+          if (target === 'chat-v7-cost-guard') {
+            const rl = sections.filter((s) => s.name === 'ratelimits');
+            if (rl.length === 0) errors.push('[[ratelimits]] block is missing');
+            for (const s of rl) {
+              if (!/^[1-9][0-9]*$/.test(s.keys.namespace_id || '')) errors.push(`[[ratelimits]] ${s.keys.name}: namespace_id must be a positive integer, got "${s.keys.namespace_id ?? ''}"`);
+              else console.log(`rate limit ${s.keys.name}: namespace_id ${s.keys.namespace_id}`);
+            }
+            const dob = sections.filter((s) => s.name === 'durable_objects.bindings');
+            if (!dob.some((s) => s.keys.name === 'USAGE_GUARD' && s.keys.class_name === 'UsageGuard')) errors.push('Durable Object binding USAGE_GUARD (UsageGuard) is missing');
+            const mig = sections.filter((s) => s.name === 'migrations');
+            if (!mig.some((s) => /UsageGuard/.test(s.keys.new_sqlite_classes || ''))) errors.push('[[migrations]] with new_sqlite_classes = ["UsageGuard"] is missing');
+            // Cost limits: every budget and cap must be set to a whole number.
+            const vars = Object.assign({}, ...sections.filter((s) => s.name === 'vars').map((s) => s.keys));
+            const caps = ['DAILY_NEURON_BUDGET', 'ANON_NEURON_BUDGET', 'DAILY_MESSAGE_LIMIT', 'MONTHLY_MESSAGE_LIMIT',
+              'PER_MINUTE_LIMIT', 'MAX_CONCURRENT', 'MAX_INPUT_TOKENS', 'MAX_OUTPUT_TOKENS', 'IP_PER_MINUTE_LIMIT',
+              'ANON_DAILY_LIMIT', 'ANON_MONTHLY_LIMIT'];
+            for (const k of caps) {
+              if (!/^(0|[1-9][0-9]*)$/.test(vars[k] ?? '')) errors.push(`[vars] ${k} must be a whole number, got "${vars[k] ?? ''}"`);
+            }
+            if (!(Number(vars.DAILY_NEURON_BUDGET) > 0)) errors.push('[vars] DAILY_NEURON_BUDGET must be above 0 (it is the global circuit breaker)');
+            if (Number(vars.ANON_NEURON_BUDGET) > Number(vars.DAILY_NEURON_BUDGET)) errors.push('[vars] ANON_NEURON_BUDGET exceeds DAILY_NEURON_BUDGET');
+            console.log(`cost limits: DAILY_NEURON_BUDGET=${vars.DAILY_NEURON_BUDGET} ANON_NEURON_BUDGET=${vars.ANON_NEURON_BUDGET} DAILY_MESSAGE_LIMIT=${vars.DAILY_MESSAGE_LIMIT} MONTHLY_MESSAGE_LIMIT=${vars.MONTHLY_MESSAGE_LIMIT}`);
+          }
+          if (errors.length) { for (const e of errors) console.log(`::error::${e}`); process.exit(1); }
+          console.log('wrangler.toml checks passed');
+          EOF
+
+      - name: Dry-run bundle (no upload, no credentials)
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          npx --yes "wrangler@${WRANGLER_VERSION}" deploy --dry-run --outdir "$RUNNER_TEMP/dist" 2>&1 | tee "$RUNNER_TEMP/dryrun.log"
+
+      - name: Dry-run output must list the guard bindings (chat-v7)
+        if: steps.plan.outputs.target == 'chat-v7-cost-guard'
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/dryrun.log"
+          need() { grep -Eq "$1" "$log" || { echo "::error::dry-run bindings lack: $2"; exit 1; }; }
+          need 'env\.AI[[:space:]].*AI' 'AI binding'
+          need 'env\.USAGE_GUARD \(UsageGuard\).*Durable Object' 'USAGE_GUARD Durable Object'
+          need 'env\.RATE_LIMITER .*Rate Limit' 'RATE_LIMITER rate-limit binding'
+          need 'env\.DAILY_NEURON_BUDGET \("[1-9][0-9]*"\)' 'DAILY_NEURON_BUDGET var'
+          need 'env\.ANON_NEURON_BUDGET \("[0-9]+"\)' 'ANON_NEURON_BUDGET var'
+          need 'env\.DAILY_MESSAGE_LIMIT \("[0-9]+"\)' 'DAILY_MESSAGE_LIMIT var'
+          need 'env\.MONTHLY_MESSAGE_LIMIT \("[0-9]+"\)' 'MONTHLY_MESSAGE_LIMIT var'
+          echo "Dry-run bundle has AI, USAGE_GUARD, RATE_LIMITER and the cost-limit vars."
+
+      - name: Bundle must report the expected ?version
+        env:
+          EXPECT: ${{ steps.plan.outputs.expect_version }}
+        run: |
+          node --input-type=module - "$RUNNER_TEMP/dist/worker.js" <<'EOF'
+          import { pathToFileURL } from 'node:url';
+          const mod = await import(pathToFileURL(process.argv[2]).href);
+          const res = await mod.default.fetch(new Request('https://bundle.invalid/?version'), {}, {});
+          const { version } = await res.json();
+          console.log(`bundle reports version=${version}`);
+          if (version !== process.env.EXPECT) {
+            console.log(`::error::bundle reports ${version}, expected ${process.env.EXPECT}`);
+            process.exit(1);
+          }
+          EOF
+
+      - name: Summary
+        env:
+          TARGET: ${{ steps.plan.outputs.target }}
+          SHA: ${{ steps.resolve.outputs.sha }}
+          DRY: ${{ steps.plan.outputs.dry_run }}
+        run: |
+          {
+            echo "### Dry run passed"
+            echo "- Target: \`$TARGET\`"
+            echo "- Commit: \`$SHA\`"
+            echo "- Wrangler: \`$WRANGLER_VERSION\`"
+            echo "- Bundle size: $(wc -c < "$RUNNER_TEMP/dist/worker.js") bytes"
+            if [ "$DRY" = "true" ]; then echo "- dry_run=true: nothing was deployed."; else echo "- Deploy job waits for approval in the production-worker environment."; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: worker-bundle-${{ steps.plan.outputs.target }}
+          path: ${{ runner.temp }}/dist
+          retention-days: 14
+
+  deploy:
+    name: Deploy (owner approval required)
+    needs: check
+    if: needs.check.outputs.dry_run == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production-worker
+    env:
+      TARGET: ${{ needs.check.outputs.target }}
+      EXPECT: ${{ needs.check.outputs.expect_version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ needs.check.outputs.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Check the deploy secrets are set (values are never printed)
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SALT: ${{ secrets.ID_HASH_SALT }}
+        run: |
+          test -n "$CF_TOKEN" || { echo "::error::Add the CLOUDFLARE_API_TOKEN secret"; exit 1; }
+          test -n "$CF_ACCOUNT" || { echo "::error::Add the CLOUDFLARE_ACCOUNT_ID secret"; exit 1; }
+          # chat-v7 needs ID_HASH_SALT (without it the Worker falls back to a public
+          # default salt). It must exist on the Worker already (e.g. set once in
+          # the Cloudflare dashboard) or as this secret; the salt step below fails
+          # the run before deploying if neither is true.
+          if [ "$TARGET" = "chat-v7-cost-guard" ] && [ -z "$SALT" ]; then
+            echo "ID_HASH_SALT GitHub secret is not set; the Worker must already have it (checked next)."
+          fi
+
+      - name: Record the live version before deploying (rollback point)
+        id: before
+        working-directory: backend
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -uo pipefail
+          npx --yes "wrangler@${WRANGLER_VERSION}" deployments status --json > "$RUNNER_TEMP/before.json" 2> "$RUNNER_TEMP/before.err"
+          if [ $? -eq 0 ]; then
+            prev=$(node -e 'const d=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const v=(d.versions||[]).slice().sort((a,b)=>b.percentage-a.percentage)[0];process.stdout.write(v?v.version_id:"")' "$RUNNER_TEMP/before.json")
+          else
+            prev=""
+            echo "No current deployment found (new Worker on this account?)."
+          fi
+          echo "prev_version=$prev" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Before deploy"
+            echo "- Previous version id: \`${prev:-none}\`"
+            echo "- Roll back with: \`cd backend && npx wrangler@${WRANGLER_VERSION} rollback ${prev:-<version-id>} -m \"rollback\"\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Find the current live ?version and Worker URL
+        id: live
+        working-directory: backend
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WORKER_URL_VAR: ${{ vars.WORKER_URL }}
+        run: |
+          set -uo pipefail
+          url="${WORKER_URL_VAR:-}"
+          if [ -z "$url" ]; then
+            sub=$(curl -sS --max-time 20 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" \
+              | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{try{process.stdout.write(JSON.parse(s).result?.subdomain||"")}catch{}})')
+            [ -n "$sub" ] && url="https://${WORKER_NAME}.${sub}.workers.dev"
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          live=""
+          if [ -n "$url" ]; then
+            live=$(curl -sS --max-time 20 "$url/?version" | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{try{process.stdout.write(String(JSON.parse(s).version||""))}catch{}})') || true
+          fi
+          echo "live_version=$live" >> "$GITHUB_OUTPUT"
+          echo "Worker URL: ${url:-unknown}  live version: ${live:-unknown}"
+          echo "- Live version before deploy: \`${live:-unknown}\` at ${url:-unknown URL}" >> "$GITHUB_STEP_SUMMARY"
+          # chat-v6 has no UsageGuard class; deploying it over chat-v7 would drop a
+          # migrated Durable Object class. Use wrangler rollback for that instead.
+          if [ "$TARGET" = "chat-v6" ] && [ "$live" = "chat-v7-cost-guard" ]; then
+            echo "::error::chat-v7-cost-guard is live. Do not deploy chat-v6 over it; use wrangler rollback (runbook, Rollback)."
+            exit 1
+          fi
+
+      - name: Prepare ID_HASH_SALT only if the Worker does not have it
+        id: salt
+        if: needs.check.outputs.target == 'chat-v7-cost-guard'
+        working-directory: backend
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ID_HASH_SALT: ${{ secrets.ID_HASH_SALT }}
+        run: |
+          set -uo pipefail
+          if npx --yes "wrangler@${WRANGLER_VERSION}" secret list --format json > "$RUNNER_TEMP/secrets.json" 2>/dev/null \
+            && node -e 'const l=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.exit(l.some(s=>s.name==="ID_HASH_SALT")?0:1)' "$RUNNER_TEMP/secrets.json"; then
+            echo "ID_HASH_SALT is already set on the Worker; keeping it (rotating it resets every counter)."
+            echo "file=" >> "$GITHUB_OUTPUT"
+          elif [ -n "${ID_HASH_SALT:-}" ]; then
+            umask 077
+            # Written from the environment, never printed; uploaded with the deploy
+            # (wrangler deploy --secrets-file is additive) and deleted afterwards.
+            node -e 'require("fs").writeFileSync(process.argv[1], JSON.stringify({ ID_HASH_SALT: process.env.ID_HASH_SALT }))' "$RUNNER_TEMP/salt.json"
+            echo "ID_HASH_SALT is missing on the Worker; it will be set with this deploy."
+            echo "file=$RUNNER_TEMP/salt.json" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::ID_HASH_SALT is missing on the Worker and no ID_HASH_SALT secret is set. Not deploying."
+            rm -f "$RUNNER_TEMP/secrets.json"
+            exit 1
+          fi
+          rm -f "$RUNNER_TEMP/secrets.json"
+
+      - name: Deploy with Wrangler
+        id: deploy
+        uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
+          workingDirectory: backend
+          command: deploy --message "${{ needs.check.outputs.target }} ${{ needs.check.outputs.sha }} run ${{ github.run_id }}" ${{ steps.salt.outputs.file != '' && format('--secrets-file {0}', steps.salt.outputs.file) || '' }}
+
+      - name: Remove the salt file
+        if: always()
+        run: rm -f "$RUNNER_TEMP/salt.json"
+
+      - name: Post-deploy checks (no AI is used)
+        env:
+          URL_FROM_DEPLOY: ${{ steps.deploy.outputs.deployment-url }}
+          URL_FROM_LIVE: ${{ steps.live.outputs.url }}
+          PREV: ${{ steps.before.outputs.prev_version }}
+        run: |
+          set -uo pipefail
+          url="${URL_FROM_LIVE:-$URL_FROM_DEPLOY}"
+          url="${url%/}"
+          if [ -z "$url" ]; then echo "::error::Unknown Worker URL; set the WORKER_URL repository variable"; exit 1; fi
+          ok=""
+          for i in 1 2 3 4 5 6; do
+            got=$(curl -sS --max-time 20 "$url/?version" | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{try{process.stdout.write(String(JSON.parse(s).version||""))}catch{}})') || true
+            echo "attempt $i: ?version = ${got:-<none>}"
+            if [ "$got" = "$EXPECT" ]; then ok=1; break; fi
+            sleep 10
+          done
+          fail() { echo "::error::$1"; echo "- FAILED: $1. Roll back: \`npx wrangler@${WRANGLER_VERSION} rollback ${PREV:-<version-id>}\`" >> "$GITHUB_STEP_SUMMARY"; exit 1; }
+          [ -n "$ok" ] || fail "?version did not report $EXPECT"
+          if [ "$TARGET" = "chat-v7-cost-guard" ]; then
+            # A v2 chat request with no StoreKit token is refused before any model
+            # call: 403 SUBSCRIPTION_REQUIRED. A 503 GUARD_UNAVAILABLE here would
+            # mean the USAGE_GUARD Durable Object binding is missing.
+            code=$(curl -sS --max-time 20 -o "$RUNNER_TEMP/h.json" -w '%{http_code}' -X POST "$url/" \
+              -H 'Content-Type: application/json' \
+              --data '{"coachId":"ava","messages":[{"role":"user","content":"deploy health check"}]}') || true
+            body_code=$(node -e 'try{process.stdout.write(String(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).code||""))}catch{}' "$RUNNER_TEMP/h.json")
+            echo "health: HTTP $code code=$body_code"
+            [ "$code" = "403" ] && [ "$body_code" = "SUBSCRIPTION_REQUIRED" ] || fail "health check expected 403 SUBSCRIPTION_REQUIRED, got $code $body_code"
+          else
+            # chat-v6: a plain GET is refused with 405 and makes no model call.
+            code=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "$url/") || true
+            echo "health: GET / -> HTTP $code"
+            [ "$code" = "405" ] || fail "health check expected 405, got $code"
+          fi
+          {
+            echo "### Deployed"
+            echo "- \`$url/?version\` = \`$EXPECT\`"
+            echo "- Previous version id (rollback point): \`${PREV:-none}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
