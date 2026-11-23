@@ -12,6 +12,7 @@ import 'package:datewise_ai/models/chat_thread.dart';
 import 'package:datewise_ai/models/reply_options.dart';
 import 'package:datewise_ai/screens/shell.dart';
 import 'package:datewise_ai/services/storage_service.dart';
+import 'package:datewise_ai/state/app_state.dart';
 
 import 'helpers.dart';
 
@@ -99,4 +100,83 @@ void main() {
     expect(size.width, greaterThanOrEqualTo(44));
     expect(size.height, greaterThanOrEqualTo(44));
   }, variant: const TargetPlatformVariant({TargetPlatform.iOS, TargetPlatform.macOS}));
+
+  group('Undo after a bulk delete (privacy)', () {
+    Future<TestApp> deleteOne(WidgetTester t, {Size size = const Size(390, 844), double scale = 1.0}) async {
+      final app = await pumpApp(t, size: size, scale: scale, prefs: {...onboardedPrefs(), 'dw_threads': _threads()}, tab: AppTab.chat);
+      await t.pumpAndSettle();
+      await _openHistory(t);
+      await t.tap(find.byKey(const ValueKey('history-delete-t1')));
+      await t.pumpAndSettle();
+      expect(find.byKey(const ValueKey('undo-delete')), findsOneWidget);
+      return app;
+    }
+
+    Future<void> expectGone(TestApp app) async {
+      expect(app.state.threads, isEmpty);
+      expect((await StorageService.create()).loadThreads(), isEmpty, reason: 'not written back to the device');
+    }
+
+    testWidgets('the "Conversation deleted · Undo" snackbar closes by itself', (t) async {
+      await deleteOne(t);
+      expect(t.widget<SnackBar>(find.byKey(const ValueKey('conversation-deleted'))).persist, isFalse);
+      await t.pump(const Duration(seconds: 6));
+      await t.pumpAndSettle();
+      expect(find.byKey(const ValueKey('conversation-deleted')), findsNothing);
+    });
+
+    testWidgets('delete, then "Delete all conversations", then Undo: nothing comes back', (t) async {
+      final app = await deleteOne(t);
+      await app.state.deleteAllConversations();
+      await t.pump();
+      await t.tap(find.byKey(const ValueKey('undo-delete')));
+      await t.pumpAndSettle();
+      await expectGone(app);
+    });
+
+    testWidgets('delete, then "Delete my data", then Undo: nothing comes back', (t) async {
+      final app = await deleteOne(t);
+      await app.state.deleteMyData();
+      await t.pump();
+      // The snackbar may already be gone with the shell; tap it if it is not.
+      final undo = find.byKey(const ValueKey('undo-delete'));
+      if (undo.evaluate().isNotEmpty) await t.tap(undo, warnIfMissed: false);
+      await t.pumpAndSettle();
+      await expectGone(app);
+    });
+
+    testWidgets('leaving the chat tab closes the Undo snackbar', (t) async {
+      await deleteOne(t);
+      await t.tap(find.byKey(const ValueKey('tab-you')));
+      await t.pumpAndSettle();
+      expect(find.byKey(const ValueKey('conversation-deleted')), findsNothing);
+    });
+
+    testWidgets('on iPhone SE at 2.0 the snackbar floats above the composer', (t) async {
+      await deleteOne(t, size: const Size(375, 667), scale: 2.0);
+      // The visible bar (the SnackBar widget's own box includes its margin).
+      final bar = t.getRect(find
+          .descendant(of: find.byKey(const ValueKey('conversation-deleted')), matching: find.byType(Material))
+          .first);
+      final composer = t.getRect(find.byKey(const ValueKey('composer')));
+      expect(bar.bottom, lessThanOrEqualTo(composer.top), reason: 'the composer stays visible and usable');
+      expect(t.takeException(), isNull);
+    });
+
+    test('AppState: Undo is refused after either bulk delete, allowed otherwise', () async {
+      for (final bulk in <String?>[null, 'all', 'mine']) {
+        final app = await makeState(prefs: {...onboardedPrefs(), 'dw_threads': _threads()});
+        final AppState s = app.state;
+        final removed = (await s.deleteThread('t1'))!;
+        if (bulk == 'all') await s.deleteAllConversations();
+        if (bulk == 'mine') await s.deleteMyData();
+        final restored = await s.restoreThread(removed);
+        expect(restored, bulk == null, reason: '$bulk');
+        expect(s.threads.map((x) => x.id), bulk == null ? ['t1'] : isEmpty, reason: '$bulk');
+        expect((await StorageService.create()).loadThreads().map((x) => x.id), bulk == null ? ['t1'] : isEmpty);
+        // A second Undo of the same delete does nothing.
+        expect(await s.restoreThread(removed), isFalse);
+      }
+    });
+  });
 }

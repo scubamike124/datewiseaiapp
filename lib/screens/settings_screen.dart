@@ -199,6 +199,8 @@ class SettingsScreen extends StatelessWidget {
                 destructive: true,
                 onTap: () async {
                   if (await _confirm(context, l.deleteAllConversationsTitle, l.deleteAllConversationsBody, l.delete)) {
+                    // A pending "Conversation deleted · Undo" goes too.
+                    if (context.mounted) ScaffoldMessenger.of(context).clearSnackBars();
                     state.deleteAllConversations();
                   }
                 },
@@ -212,6 +214,8 @@ class SettingsScreen extends StatelessWidget {
                 destructive: true,
                 onTap: () async {
                   if (await _confirm(context, l.deleteMyDataTitle, l.deleteMyDataBody, l.deleteEverything)) {
+                    // A pending "Conversation deleted · Undo" goes too.
+                    if (context.mounted) ScaffoldMessenger.of(context).clearSnackBars();
                     state.deleteMyData();
                   }
                 },

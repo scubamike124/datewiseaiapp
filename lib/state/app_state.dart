@@ -302,6 +302,14 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Bumped by [deleteAllConversations] and [deleteMyData]: a conversation
+  /// deleted before a bulk delete can never be brought back by Undo.
+  int _dataEpoch = 0;
+
+  /// The [_dataEpoch] each conversation deleted by [deleteThread] was
+  /// deleted under (what [restoreThread] may still put back).
+  final Map<String, int> _deletedEpoch = {};
+
   /// Deletes a conversation (from the device too) and returns it, so the
   /// caller can offer Undo ([restoreThread]); null when there was none.
   Future<ChatThread?> deleteThread(String id) async {
@@ -309,6 +317,7 @@ class AppState extends ChangeNotifier {
     final i = _threads.indexWhere((t) => t.id == id);
     if (i < 0) return null;
     final removed = _threads.removeAt(i);
+    _deletedEpoch[id] = _dataEpoch;
     if (_activeThreadId == id) _activeThreadId = latestThreadFor(selectedCoach)?.id;
     await _persist();
     notifyListeners();
@@ -317,14 +326,19 @@ class AppState extends ChangeNotifier {
 
   /// Undo for [deleteThread]: puts the conversation back (saved again) in
   /// its place by date; [reopen] opens it again when it was the open one.
-  Future<void> restoreThread(ChatThread thread, {bool reopen = false}) async {
-    if (_threads.any((t) => t.id == thread.id)) return;
+  /// Refused (returns false) once "Delete all conversations" or "Delete my
+  /// data" has run since the delete: deleted data never comes back.
+  Future<bool> restoreThread(ChatThread thread, {bool reopen = false}) async {
+    final epoch = _deletedEpoch.remove(thread.id);
+    if (epoch == null || epoch != _dataEpoch) return false;
+    if (_threads.any((t) => t.id == thread.id)) return false;
     _threads
       ..add(thread)
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     if (reopen && thread.coachId == selectedCoach.id) _activeThreadId = thread.id;
     await _persist();
     notifyListeners();
+    return true;
   }
 
   // --- Messaging ----------------------------------------------------------
@@ -541,7 +555,15 @@ class AppState extends ChangeNotifier {
 
   // --- Deleting -----------------------------------------------------------
 
+  /// Invalidates every pending Undo (see [restoreThread]); called before
+  /// anything is awaited, so an Undo tapped meanwhile is refused too.
+  void _bumpDataEpoch() {
+    _dataEpoch++;
+    _deletedEpoch.clear();
+  }
+
   Future<void> deleteAllConversations() async {
+    _bumpDataEpoch();
     await cancelReply();
     _threads.clear();
     _activeThreadId = null;
@@ -555,6 +577,7 @@ class AppState extends ChangeNotifier {
   /// Store subscription itself is managed by Apple and is not canceled;
   /// Restore Purchases brings an active one back.
   Future<void> deleteMyData() async {
+    _bumpDataEpoch();
     await cancelReply();
     await _storage.clearAll();
     _threads.clear();
