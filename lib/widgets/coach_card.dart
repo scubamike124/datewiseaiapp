@@ -41,8 +41,11 @@ class CoachCard extends StatelessWidget {
         children: [
           SizedBox(
             // The photo shrinks a little at large text sizes so the name,
-            // description and button keep their room.
-            height: MediaQuery.textScalerOf(context).scale(1) > 1.5 ? 120 : 150,
+            // description and button keep their room; on iPad the cards are
+            // wider, so the photo is taller to keep a portrait shape.
+            height: MediaQuery.textScalerOf(context).scale(1) > 1.5
+                ? 120
+                : (isTabletLayout(context) ? 230 : 150),
             child: Stack(
               fit: StackFit.expand,
               children: [

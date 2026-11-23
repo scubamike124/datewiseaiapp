@@ -79,6 +79,7 @@ class _CoachesScreenState extends State<CoachesScreen> with VoicePreview {
         // The last line clears the tab bar and the home indicator.
         padding: EdgeInsets.fromLTRB(14, top + 16, 14, 24 + MediaQuery.paddingOf(context).bottom),
         child: ContentWidth(
+          maxWidth: kWideContentMaxWidth,
           child: Column(
             children: [
               LargeTitle(

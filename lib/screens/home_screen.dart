@@ -51,10 +51,14 @@ class HomeScreen extends StatelessWidget {
     final resume = last != null && last.messages.any((m) => m.isUser) ? last.title : null;
     final top = MediaQuery.paddingOf(context).top;
     final l = context.l10n;
+    // iPad: a wider column, a larger portrait and a wider text column, so
+    // the hero keeps the phone's proportions instead of a small strip.
+    final tablet = isTabletLayout(context);
 
     return SingleChildScrollView(
       key: const PageStorageKey('home-scroll'),
       child: ContentWidth(
+        maxWidth: tablet ? kWideContentMaxWidth : kContentMaxWidth,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -64,8 +68,8 @@ class HomeScreen extends StatelessWidget {
                 Positioned(
                   right: -36,
                   top: 0,
-                  width: 300,
-                  height: 330 + top,
+                  width: tablet ? 420 : 300,
+                  height: (tablet ? 440 : 330) + top,
                   // Fade the photo's left and bottom edges into the page.
                   child: ShaderMask(
                     blendMode: BlendMode.dstIn,
@@ -113,16 +117,16 @@ class HomeScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 44, child: Align(alignment: Alignment.centerLeft, child: BrandMark())),
-                      const SizedBox(height: 22),
+                      SizedBox(height: tablet ? 88 : 22),
                       ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 240),
+                        constraints: BoxConstraints(maxWidth: tablet ? 340 : 240),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Semantics(
                               header: true,
                               child: Text(l.greetingFor(DateTime.now()),
-                                  style: AppText.display.copyWith(fontSize: 34, height: 1.05)),
+                                  style: AppText.display.copyWith(fontSize: tablet ? 42 : 34, height: 1.05)),
                             ),
                             const SizedBox(height: 10),
                             Text(
@@ -315,7 +319,7 @@ class _Tile extends StatelessWidget {
       label: label,
       excludeSemantics: true,
       child: Container(
-        constraints: const BoxConstraints(minHeight: 100),
+        constraints: BoxConstraints(minHeight: isTabletLayout(context) ? 132 : 100),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(color: AppColors.line),
