@@ -1,0 +1,72 @@
+name: Chat model comparison
+
+# Real Workers AI replies from Llama 3.3 70B fp8-fast (production) and Gemma 4 26B,
+# with the v2 Worker's own coach prompts (backend/eval/model-eval.mjs). Deploys
+# nothing. Manual only: it never runs on a push or a pull request, so it cannot
+# spend the free Workers AI allowance by itself. See docs/business/MODEL_COMPARISON.md.
+#
+# Needs two repository secrets: CLOUDFLARE_AI_TOKEN (an existing Cloudflare API token
+# that can run Workers AI) and CLOUDFLARE_ACCOUNT_ID. They are passed to the one
+# step that calls the API, never to the offline steps. Without them the live
+# step fails with "BLOCKED" and spends nothing.
+on:
+  workflow_dispatch:
+    inputs:
+      part:
+        description: '1 = English coaches, 2 = Spanish coaches + load test (run on separate UTC days), all = both'
+        type: choice
+        options: ['1', '2', 'all']
+        default: '1'
+      budget:
+        description: 'Neuron budget for this run (stops early; the free allowance is 10,000/day, shared with production)'
+        type: string
+        default: '4000'
+      concurrency:
+        description: 'Parallel requests per model in the light load test (part 2 or all; 0 = off)'
+        type: choice
+        options: ['10', '5', '0']
+        default: '10'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: model-eval
+  cancel-in-progress: false
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Offline harness tests (no credentials)
+        run: node --test backend/eval/model-eval.test.mjs
+      - name: Neuron estimate
+        env:
+          PART: ${{ inputs.part }}
+          BUDGET: ${{ inputs.budget }}
+          CONC: ${{ inputs.concurrency }}
+        run: node backend/eval/model-eval.mjs --estimate-only --part="$PART" --budget="$BUDGET" --concurrency="$CONC" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Compare models (real API)
+        env:
+          CLOUDFLARE_AI_TOKEN: ${{ secrets.CLOUDFLARE_AI_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PART: ${{ inputs.part }}
+          BUDGET: ${{ inputs.budget }}
+          CONC: ${{ inputs.concurrency }}
+        run: |
+          node backend/eval/model-eval.mjs --part="$PART" --budget="$BUDGET" --concurrency="$CONC" \
+            --out=model-eval.md --key-out=model-eval-key.md
+          cat model-eval.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: model-eval-part-${{ inputs.part }}
+          path: |
+            model-eval.md
+            model-eval-key.md
+          if-no-files-found: ignore
