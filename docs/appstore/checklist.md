@@ -6,7 +6,19 @@ been uploaded and nothing has been submitted. Do the steps in order.
 
 App: **DateWise AI - Dating Coach**, Apple ID `6780110141`, bundle id
 `com.datewise.datewiseAi` (unchanged; v2 is an update, not a new app).
-Version **2.0.0**, build **4** (set in `ios/Flutter/Version.xcconfig`).
+Version **2.0.0**, build **100** (`version: 2.0.0+100` in `pubspec.yaml`; CI
+TestFlight builds are 101 and up, see step 19).
+
+**Still open for the owner** (details in the numbered steps):
+- Interim coach portraits: the current `assets/coaches/` images are interim;
+  replace them with the final, licensed portraits and record them (step 10).
+- iPad 13" screenshots: required because the app supports iPad; generate and
+  review them, then upload with the iPhone sets (steps 11 and 24).
+- Live legal and support URLs: deploy the website so
+  `https://datewiseai.com/privacy-policy` and `/terms-of-service` show the v2
+  pages (served by `web/_redirects` on Netlify or `web/.htaccess` on Apache),
+  and choose a live Support URL (steps 6 and 7).
+- Billing Grace Period stays OFF unless you also change the backend (step 12a).
 
 ## 1. Accounts and agreements (once)
 
@@ -56,6 +68,13 @@ Version **2.0.0**, build **4** (set in `ios/Flutter/Version.xcconfig`).
     (1 month, USD 9.99, no introductory offer, EN + ES localizations).
 13. Add the subscription **review screenshot** (paywall from a TestFlight or
     simulator build showing the real price).
+12a. **Billing Grace Period: keep it OFF** (Monetization › Subscriptions ›
+    Billing Grace Period). The coach backend matches it with
+    `BILLING_GRACE_DAYS = "0"` in `backend/wrangler.toml`, so chat stops when a
+    renewal fails (Apple keeps retrying the payment; chat resumes once it
+    succeeds). If you turn grace on, set `BILLING_GRACE_DAYS` to the same
+    number of days (3, 16 or 28) and redeploy the Worker before release, or
+    subscribers in grace would be refused.
 14. Status should become "Ready to Submit". It is submitted together with the
     2.0.0 version (step 26), not on its own.
 15. Optional: create a **Sandbox Apple Account** (Users and Access › Sandbox)
@@ -96,12 +115,20 @@ to 100 + the run number so each upload is unique.
 
 ## 7. Build and upload (pick one)
 
-19. The CI TestFlight job sets the build number to 100 + the run number, so
-    each upload is unique. For a local or manual upload, raise the build
-    number in `pubspec.yaml` (`version: 2.0.0+N`, currently `2.0.0+4`) instead.
+19. Build numbers: `pubspec.yaml` is `version: 2.0.0+100`, and the CI
+    TestFlight job uses 100 + the run number (101, 102, ...), so a manual
+    upload of the pubspec build (100) never collides with a CI build. For a
+    second manual upload, pass a number above the highest build already in
+    App Store Connect: `flutter build ipa --build-number=<N>`. App Store
+    Connect rejects a repeated number; it never overwrites a build.
 20. **On a Mac:** `flutter pub get && flutter build ipa --release`, then
-    upload `build/ios/ipa/*.ipa` with Transporter or Xcode Organizer.
-    **Or CI:** run the signed-testflight job (step 6).
+    upload `build/ios/ipa/*.ipa` with the Transporter app or Xcode Organizer.
+    **Or CI:** run the signed-testflight job (step 6). It uploads with
+    `xcrun altool --upload-package` and the App Store Connect API key
+    (the older `--upload-app` command is deprecated). **BLOCKED (not verified
+    here):** this upload step has never run; it needs a Mac runner with the
+    secrets. On the first run, check that the build appears in TestFlight; if
+    altool fails, upload the job's IPA artifact with Transporter instead.
 21. Wait for processing; answer nothing for export compliance (the Info.plist
     already declares HTTPS-only encryption).
 
@@ -116,6 +143,12 @@ to 100 + the run number so each upload is unique.
     **StoreKit Configuration** › choose `DateWise.storekit`. Run on a
     simulator; purchases use the local file (USD 9.99, monthly). Set it back
     to "None" before archiving if you prefer (it does not affect archives).
+    This covers the **purchase UI only** (paywall, buy, restore, locked and
+    unlocked states). Chat does not work with it: local StoreKit
+    transactions have the environment "Xcode" and are not signed by Apple, so
+    the coach backend refuses them (403 `SUBSCRIPTION_INVALID`). Test chat
+    with a **Sandbox** Apple Account on a device or through **TestFlight**
+    (step 22); Sandbox purchases get 20 replies a day.
 
 ## 9. Store listing and submit
 
@@ -123,7 +156,8 @@ to 100 + the run number so each upload is unique.
     upload screenshots (6.9", 6.5", iPad 13") for each language.
 25. App Information: category Lifestyle, age rating questionnaire (§2, target
     18+), App Privacy answers (§3), privacy policy URL.
-26. Version page: select build 2.0.0 (4); under "In-App Purchases and
+26. Version page: select build 2.0.0 (100, or the CI build you tested in
+    TestFlight); under "In-App Purchases and
     Subscriptions" add `datewise_premium_monthly`; App Review Information:
     contact details and the review notes (§4); sign-in not required.
 27. Choose release: manual release after approval is recommended.

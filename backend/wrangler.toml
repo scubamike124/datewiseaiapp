@@ -81,7 +81,9 @@ ALLOW_SANDBOX = "1"
 SANDBOX_DAILY_LIMIT = "20"
 # Minutes accepted after expiresDate while a renewal reaches the device.
 EXPIRY_LEEWAY_MINUTES = "60"
-# Match App Store Connect's Billing Grace Period (0, 3, 16 or 28 days for monthly plans).
+# Must equal App Store Connect's Billing Grace Period (0, 3, 16 or 28 days for
+# monthly plans). The recommendation is grace OFF, so 0; if it is turned on in
+# App Store Connect, set the same number of days here (docs/appstore/checklist.md, step 12a).
 BILLING_GRACE_DAYS = "0"
 # App Store Server Notifications v2 at POST /apple/notifications (REFUND/REVOKE). Off by default.
 ASSN_ENABLED = "0"
