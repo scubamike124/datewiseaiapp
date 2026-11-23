@@ -485,11 +485,15 @@ void main() {
       expect(assets.where((a) => a.startsWith('assets/coaches/')), hasLength(8));
       final images = assets.where((a) => RegExp(r'\.(jpe?g|png|webp|gif|heic)$', caseSensitive: false).hasMatch(a));
       for (final a in images) {
-        expect(a.startsWith('assets/coaches/') || a.startsWith('assets/icon/'), isTrue, reason: a);
+        // assets/avatar/: talking-avatar patches generated from the coach
+        // portraits (tool/avatar/), not stock photos.
+        expect(a.startsWith('assets/coaches/') || a.startsWith('assets/avatar/') || a.startsWith('assets/icon/'),
+            isTrue, reason: a);
       }
       for (final a in assets) {
         expect(
           a.startsWith('assets/coaches/') ||
+              a.startsWith('assets/avatar/') ||
               a.startsWith('assets/fonts/') ||
               a.startsWith('assets/icon/') ||
               a.startsWith('packages/') ||

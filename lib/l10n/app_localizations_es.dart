@@ -863,4 +863,37 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get coachUsageNoticeMonthly =>
       'Te estás acercando al límite de uso justo de este mes.';
+
+  @override
+  String avatarAnimated(String name) {
+    return '$name, coach con IA animado';
+  }
+
+  @override
+  String avatarSpeaking(String name) {
+    return '$name, coach con IA animado, hablando';
+  }
+
+  @override
+  String avatarListening(String name) {
+    return '$name, coach con IA animado, escuchando';
+  }
+
+  @override
+  String avatarThinking(String name) {
+    return '$name, coach con IA animado, pensando';
+  }
+
+  @override
+  String get voiceQualityRow => 'Voces más naturales para tu coach';
+
+  @override
+  String get voiceQualityTitle => 'Consigue voces más naturales';
+
+  @override
+  String get voiceQualityBody =>
+      'Los coaches hablan con las voces de tu iPhone, en tu dispositivo. Para un sonido más natural, descarga una voz Premium o Mejorada de Apple:\n\n1. Abre la app Configuración › Accesibilidad › Contenido leído › Voces.\n2. Elige Español o Inglés.\n3. Descarga una voz marcada como Premium o Mejorada (por ejemplo Paulina o Juan, Ava o Evan).\n\nDateWise la usa automáticamente la próxima vez que hable tu coach. Cada coach conserva una voz distinta si tienes varias instaladas.';
+
+  @override
+  String get voiceQualityDone => 'Entendido';
 }

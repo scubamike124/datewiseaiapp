@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
+import '../avatar/lip_sync.dart';
 import '../models/coach.dart';
 import 'reply_language.dart';
 
@@ -93,8 +94,13 @@ class CoachVoiceProfile {
 /// On-device TTS for iOS and Android. Picks, per coach, the installed system
 /// voice that fits their language and gender (see [pickVoice]) and speaks
 /// with the coach's own pitch and rate.
-class DeviceVoiceService implements VoiceService {
+class DeviceVoiceService implements VoiceService, LipSyncSource {
   DeviceVoiceService._(this._tts, this._voices);
+
+  /// Mouth timing for the talking avatar (lib/avatar/): fed from the
+  /// synthesizer's start, word-range and completion callbacks.
+  @override
+  final LipSyncDriver lipSync = LipSyncDriver();
 
   final FlutterTts _tts;
   final List<Map<String, String>> _voices;
@@ -120,10 +126,26 @@ class DeviceVoiceService implements VoiceService {
             if (v is Map) {for (final e in v.entries) '${e.key}': '${e.value}'},
       ];
       final service = DeviceVoiceService._(tts, voices);
-      tts.setStartHandler(() => service._speaking.value = true);
-      tts.setCompletionHandler(() => service._speaking.value = false);
-      tts.setCancelHandler(() => service._speaking.value = false);
-      tts.setErrorHandler((_) => service._speaking.value = false);
+      final lip = service.lipSync;
+      tts.setStartHandler(() {
+        service._speaking.value = true;
+        lip.started();
+      });
+      // AVSpeechSynthesizer reports each word as it starts (character range
+      // in the spoken text); the avatar's mouth follows it.
+      tts.setProgressHandler((_, start, end, _) => lip.word(start, end));
+      tts.setCompletionHandler(() {
+        service._speaking.value = false;
+        lip.end();
+      });
+      tts.setCancelHandler(() {
+        service._speaking.value = false;
+        lip.end();
+      });
+      tts.setErrorHandler((_) {
+        service._speaking.value = false;
+        lip.end();
+      });
       return service;
     } catch (_) {
       return NoVoiceService();
@@ -144,7 +166,8 @@ class DeviceVoiceService implements VoiceService {
   /// identifier). Order of preference:
   ///  1. a voice of the coach's gender (from the metadata, or else a known
   ///     voice name), trying the coach's locales in order (en-US; es-MX,
-  ///     es-US, es-ES); within a locale, known names first, then quality;
+  ///     es-US, es-ES); within a locale, Premium > Enhanced > default
+  ///     quality, then known names;
   ///  2. any voice in those locales not known to be the other gender;
   ///  3. any voice in those locales (pitch then keeps the coaches apart).
   /// Null when no voice matches the language (the default voice is used).
@@ -186,9 +209,11 @@ class DeviceVoiceService implements VoiceService {
           _ => 1,
         };
 
+    // Premium and Enhanced voices (free downloads in iOS Settings) sound far
+    // more natural, so quality comes first, then the coach's known names.
     int score(Map<String, String> v) {
       final rank = nameRank(v, profile.preferredNames);
-      return (rank >= 0 ? 100 - rank : 0) * 10 + quality(v);
+      return quality(v) * 1000 + (rank >= 0 ? 100 - rank : 0);
     }
 
     Map<String, String>? best(bool Function(Map<String, String>) accept) {
@@ -232,6 +257,7 @@ class DeviceVoiceService implements VoiceService {
     final profile = CoachVoiceProfile.of(coach);
     await _tts.setPitch(profile.pitch);
     await _tts.setSpeechRate(profile.rate);
+    lipSync.begin(clean, language, rate: profile.rate);
     await _tts.speak(clean);
   }
 
@@ -262,5 +288,6 @@ class DeviceVoiceService implements VoiceService {
   Future<void> stop() async {
     await _tts.stop();
     _speaking.value = false;
+    lipSync.end();
   }
 }

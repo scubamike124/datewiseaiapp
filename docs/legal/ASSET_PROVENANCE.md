@@ -61,13 +61,26 @@ least 1024). Same-language pairs look alike (Ava↔Sofía about 0.71,
 Ethan↔Diego about 0.68); the finals should differ in hair, wardrobe,
 accessories and background, with cross-coach similarity below 0.5.
 
+## Animated frames (derived from the portraits)
+
+- `assets/avatar/<coach>/*.jpg` are small patches (mouth shapes, blinks,
+  nods, a thinking look) generated offline from each `-hero.jpg` with
+  LivePortrait (MIT code and weights; InsightFace replaced by YuNet, MIT) and
+  gated by SFace identity and iris-colour checks. Outside each patch's mask
+  the pixels are the original portrait. They are derivatives of the portraits
+  above and follow their status. Pipeline and licences: `tool/avatar/README.md`.
+- The app composites them on the device (lip-synced to the device's own
+  speech); nothing is sent to an avatar provider.
+- When the finals arrive, run `tool/avatar/regenerate.sh` after the intake
+  check.
+
 ## Final portraits (pending)
 
 - The owner supplies eight finals: `{ava,ethan,sofia,diego}-{hero,avatar}.jpg`,
   hero at least 1024×1400 portrait, avatar at least 1024 on the short side.
 - Run the identity and size check on them, re-check `heroFocus` /
-  `avatarFocus` in `lib/models/coach.dart`, and regenerate the App Store
-  screenshots.
+  `avatarFocus` in `lib/models/coach.dart`, regenerate the animated frames
+  (`tool/avatar/regenerate.sh`) and the App Store screenshots.
 - Then update this file: per-file source, generation date and account,
   processing, and the owner's approval date.
 

@@ -1,0 +1,185 @@
+{
+ "coach": "diego",
+ "source": "diego-hero.jpg",
+ "width": 1228,
+ "height": 658,
+ "generator": "LivePortrait (MIT) + YuNet (MIT); tool/avatar/gen_frames.py",
+ "frames": {
+  "mbp": {
+   "region": "mouth",
+   "rect": [
+    376,
+    311,
+    427,
+    347
+   ],
+   "identity": 0.905,
+   "master": 0.957
+  },
+  "a": {
+   "region": "mouth",
+   "rect": [
+    376,
+    311,
+    427,
+    347
+   ],
+   "identity": 0.84,
+   "master": 0.888
+  },
+  "e": {
+   "region": "mouth",
+   "rect": [
+    376,
+    311,
+    427,
+    347
+   ],
+   "identity": 0.895,
+   "master": 0.922
+  },
+  "i": {
+   "region": "mouth",
+   "rect": [
+    376,
+    311,
+    427,
+    347
+   ],
+   "identity": 0.886,
+   "master": 0.928
+  },
+  "o": {
+   "region": "mouth",
+   "rect": [
+    376,
+    311,
+    427,
+    347
+   ],
+   "identity": 0.813,
+   "master": 0.89
+  },
+  "u": {
+   "region": "mouth",
+   "rect": [
+    376,
+    311,
+    427,
+    347
+   ],
+   "identity": 0.865,
+   "master": 0.938
+  },
+  "fv": {
+   "region": "mouth",
+   "rect": [
+    376,
+    311,
+    427,
+    347
+   ],
+   "identity": 0.917,
+   "master": 0.941
+  },
+  "l": {
+   "region": "mouth",
+   "rect": [
+    376,
+    311,
+    427,
+    347
+   ],
+   "identity": 0.853,
+   "master": 0.929
+  },
+  "th": {
+   "region": "mouth",
+   "rect": [
+    376,
+    311,
+    427,
+    347
+   ],
+   "identity": 0.893,
+   "master": 0.957
+  },
+  "cons": {
+   "region": "mouth",
+   "rect": [
+    376,
+    311,
+    427,
+    347
+   ],
+   "identity": 0.893,
+   "master": 0.946
+  },
+  "blink_half": {
+   "region": "eyes",
+   "rect": [
+    434,
+    150,
+    437,
+    201
+   ],
+   "identity": 0.908,
+   "master": 0.943
+  },
+  "blink_closed": {
+   "region": "eyes",
+   "rect": [
+    434,
+    150,
+    437,
+    201
+   ],
+   "identity": 0.856,
+   "master": 0.909
+  },
+  "nod_1": {
+   "region": "head",
+   "rect": [
+    228,
+    0,
+    805,
+    658
+   ],
+   "identity": 0.918,
+   "master": 0.949
+  },
+  "nod_2": {
+   "region": "head",
+   "rect": [
+    228,
+    0,
+    805,
+    658
+   ],
+   "identity": 0.889,
+   "master": 0.955
+  },
+  "attentive": {
+   "region": "head",
+   "rect": [
+    228,
+    0,
+    805,
+    658
+   ],
+   "identity": 0.849,
+   "master": 0.857
+  },
+  "think": {
+   "region": "head",
+   "rect": [
+    228,
+    0,
+    805,
+    658
+   ],
+   "identity": 0.924,
+   "master": 0.912
+  }
+ }
+}

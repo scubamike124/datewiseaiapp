@@ -159,10 +159,13 @@ void main() {
     });
   });
 
-  group('copy honesty: still portraits + voice, no animation or lip-sync claims', () {
+  // The voice stage animates the portrait on the device (frame compositing
+  // with lip-sync, lib/avatar/), so "animated" is honest. It is not video:
+  // no video-call, live-video or real-time-video claims anywhere.
+  group('copy honesty: animated portrait + voice, no video or live-avatar claims', () {
     final banned = RegExp(
-      r'animat|lip[- ]?sync|lip sync|lips move|video call|videollamada|live avatar|talking avatar|'
-      r'avatar animado|avatar que habla|sincroniza|labios|moving portrait|facetime|face[- ]to[- ]face|cara a cara',
+      r'video call|videollamada|live video|video en vivo|real[- ]time video|video en tiempo real|'
+      r'live avatar|avatar en vivo|facetime|face[- ]to[- ]face|cara a cara|deepfake',
       caseSensitive: false,
     );
     final files = [

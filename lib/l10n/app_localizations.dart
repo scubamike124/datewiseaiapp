@@ -1434,6 +1434,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'You\'re close to this month\'s fair-use limit.'**
   String get coachUsageNoticeMonthly;
+
+  /// Voice stage: accessibility label of the animated coach portrait (idle).
+  ///
+  /// In en, this message translates to:
+  /// **'{name}, animated AI coach'**
+  String avatarAnimated(String name);
+
+  /// Voice stage: animated coach while the reply is read aloud (lip-synced).
+  ///
+  /// In en, this message translates to:
+  /// **'{name}, animated AI coach, speaking'**
+  String avatarSpeaking(String name);
+
+  /// Voice stage: animated coach while the user talks.
+  ///
+  /// In en, this message translates to:
+  /// **'{name}, animated AI coach, listening'**
+  String avatarListening(String name);
+
+  /// Voice stage: animated coach while the reply is being written.
+  ///
+  /// In en, this message translates to:
+  /// **'{name}, animated AI coach, thinking'**
+  String avatarThinking(String name);
+
+  /// Settings row that opens the Premium-voice tip.
+  ///
+  /// In en, this message translates to:
+  /// **'More natural coach voices'**
+  String get voiceQualityRow;
+
+  /// Premium-voice tip: title.
+  ///
+  /// In en, this message translates to:
+  /// **'Get more natural voices'**
+  String get voiceQualityTitle;
+
+  /// Premium-voice tip: steps (iOS Settings path).
+  ///
+  /// In en, this message translates to:
+  /// **'Coaches speak with your iPhone\'s own voices, on your device. For the most natural sound, download one of Apple\'s Premium or Enhanced voices:\n\n1. Open the Settings app › Accessibility › Spoken Content › Voices.\n2. Choose English or Spanish.\n3. Download a voice marked Premium or Enhanced (for example Ava or Zoe, Evan or Nathan, Paulina or Juan).\n\nDateWise uses it automatically the next time a coach speaks. Each coach keeps a distinct voice when several are installed.'**
+  String get voiceQualityBody;
+
+  /// Premium-voice tip: close button.
+  ///
+  /// In en, this message translates to:
+  /// **'Got it'**
+  String get voiceQualityDone;
 }
 
 class _AppLocalizationsDelegate

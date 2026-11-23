@@ -117,6 +117,12 @@ flutter:
     # Coach portraits: {id}-hero.jpg and {id}-avatar.jpg for ava, ethan, sofia,
     # diego. Replace the files in place (same names) with the final portraits.
     - assets/coaches/
+    # Talking-avatar patches generated from the portraits above
+    # (tool/avatar/regenerate.sh); rebuild them whenever a portrait changes.
+    - assets/avatar/ava/
+    - assets/avatar/ethan/
+    - assets/avatar/sofia/
+    - assets/avatar/diego/
 
   # Bundled OFL fonts (licenses in assets/fonts/OFL-*.txt).
   fonts:

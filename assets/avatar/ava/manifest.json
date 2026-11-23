@@ -1,0 +1,185 @@
+{
+ "coach": "ava",
+ "source": "ava-hero.jpg",
+ "width": 1212,
+ "height": 762,
+ "generator": "LivePortrait (MIT) + YuNet (MIT); tool/avatar/gen_frames.py",
+ "frames": {
+  "mbp": {
+   "region": "mouth",
+   "rect": [
+    394,
+    356,
+    463,
+    399
+   ],
+   "identity": 0.896,
+   "master": 0.942
+  },
+  "a": {
+   "region": "mouth",
+   "rect": [
+    394,
+    356,
+    463,
+    399
+   ],
+   "identity": 0.797,
+   "master": 0.866
+  },
+  "e": {
+   "region": "mouth",
+   "rect": [
+    394,
+    356,
+    463,
+    399
+   ],
+   "identity": 0.766,
+   "master": 0.828
+  },
+  "i": {
+   "region": "mouth",
+   "rect": [
+    394,
+    356,
+    463,
+    399
+   ],
+   "identity": 0.884,
+   "master": 0.936
+  },
+  "o": {
+   "region": "mouth",
+   "rect": [
+    394,
+    356,
+    463,
+    399
+   ],
+   "identity": 0.737,
+   "master": 0.793
+  },
+  "u": {
+   "region": "mouth",
+   "rect": [
+    394,
+    356,
+    463,
+    399
+   ],
+   "identity": 0.849,
+   "master": 0.899
+  },
+  "fv": {
+   "region": "mouth",
+   "rect": [
+    394,
+    356,
+    463,
+    399
+   ],
+   "identity": 0.894,
+   "master": 0.956
+  },
+  "l": {
+   "region": "mouth",
+   "rect": [
+    394,
+    356,
+    463,
+    399
+   ],
+   "identity": 0.823,
+   "master": 0.891
+  },
+  "th": {
+   "region": "mouth",
+   "rect": [
+    394,
+    356,
+    463,
+    399
+   ],
+   "identity": 0.89,
+   "master": 0.946
+  },
+  "cons": {
+   "region": "mouth",
+   "rect": [
+    394,
+    356,
+    463,
+    399
+   ],
+   "identity": 0.892,
+   "master": 0.948
+  },
+  "blink_half": {
+   "region": "eyes",
+   "rect": [
+    462,
+    172,
+    475,
+    223
+   ],
+   "identity": 0.849,
+   "master": 0.902
+  },
+  "blink_closed": {
+   "region": "eyes",
+   "rect": [
+    462,
+    172,
+    475,
+    223
+   ],
+   "identity": 0.754,
+   "master": 0.811
+  },
+  "nod_1": {
+   "region": "head",
+   "rect": [
+    235,
+    0,
+    877,
+    762
+   ],
+   "identity": 0.877,
+   "master": 0.941
+  },
+  "nod_2": {
+   "region": "head",
+   "rect": [
+    235,
+    0,
+    877,
+    762
+   ],
+   "identity": 0.857,
+   "master": 0.924
+  },
+  "attentive": {
+   "region": "head",
+   "rect": [
+    235,
+    0,
+    877,
+    762
+   ],
+   "identity": 0.795,
+   "master": 0.845
+  },
+  "think": {
+   "region": "head",
+   "rect": [
+    235,
+    0,
+    877,
+    762
+   ],
+   "identity": 0.853,
+   "master": 0.912
+  }
+ }
+}

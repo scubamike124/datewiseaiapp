@@ -71,7 +71,7 @@ Do not add competitor or other app names.)
 > • Follow a short weekly plan and see your progress
 >
 > VOICE PRACTICE
-> Hold the talk button to speak to your coach and hear replies read aloud. Speech recognition runs on your iPhone; only the text of your message is sent.
+> Hold the talk button to speak to your coach and hear replies read aloud while your coach's portrait moves with the words: an animated AI coach with lip-synced speech, drawn on your iPhone. Speech recognition runs on your iPhone; only the text of your message is sent.
 >
 > PRIVACY
 > • No account and no sign-in
@@ -111,7 +111,7 @@ Do not add competitor or other app names.)
 > • Seguir un plan semanal corto y ver tu progreso
 >
 > PRÁCTICA POR VOZ
-> Mantén presionado el botón para hablar con tu coach y escucha sus respuestas en voz alta. El reconocimiento de voz funciona en tu iPhone; solo se envía el texto de tu mensaje.
+> Mantén presionado el botón para hablar con tu coach y escucha sus respuestas en voz alta mientras su retrato se mueve con las palabras: un coach con IA animado, con los labios sincronizados con la voz y generado en tu iPhone. El reconocimiento de voz funciona en tu iPhone; solo se envía el texto de tu mensaje.
 >
 > PRIVACIDAD
 > • Sin cuenta y sin inicio de sesión

@@ -81,6 +81,17 @@ void main() {
     expect(DeviceVoiceService.pickVoice(voices, Coaches.ava)!['quality'], 'premium');
   });
 
+  test('a downloaded Premium/Enhanced voice beats a default voice, even one with a better-known name', () {
+    final voices = [
+      v('Samantha', 'en-US', gender: 'female'),
+      v('Zoe', 'en-US', gender: 'female', quality: 'premium'),
+      v('Juan', 'es-MX', gender: 'male'),
+      v('Diego', 'es-MX', gender: 'male', quality: 'enhanced'),
+    ];
+    expect(pick(voices, Coaches.ava), 'Zoe');
+    expect(pick(voices, Coaches.diego), 'Diego');
+  });
+
   test('a single voice per language: both coaches use it; pitch and rate tell them apart', () {
     final voices = [v('Samantha', 'en-US', gender: 'female'), v('Paulina', 'es-MX', gender: 'female')];
     expect(pick(voices, Coaches.ethan), 'Samantha', reason: 'last resort: right language, other gender');
