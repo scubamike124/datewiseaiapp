@@ -48,8 +48,11 @@ code itself.
   - A v2-only Worker can set `LEGACY_CLIENTS = "0"` and `ANON_NEURON_BUDGET = "0"`
     in a reviewed `wrangler.toml` PR. The workflow's checks accept both, and the
     403 health check doesn't depend on them.
-  - Open `https://<worker-url>/?agree=1` once after the first deploy on a new
-    account, to accept the Llama licence for that account.
+  - To accept the Llama licence on a new account: in the Cloudflare dashboard
+    (Worker, Settings, Variables) add `ALLOW_AGREE` = `1`, open
+    `https://<worker-url>/?agree=1` once, then delete the variable. Without it
+    `?agree=1` is refused (405) and never runs the model, so nobody can use it
+    to spend the account's AI allowance without a subscription.
 - **Or reuse the current account.** Then lower `DAILY_NEURON_BUDGET` (and
   `ANON_NEURON_BUDGET`) so DateWise plus the other projects stay inside 10,000
   neurons a day, and check that rate-limit namespace `740219` is not used by any

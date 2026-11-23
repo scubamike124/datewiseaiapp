@@ -21,7 +21,7 @@ Last checked 2026-11-22 for #20. Each line says what was verified and how. "Owne
 |---|---|---|
 | Premium dark-purple redesign (web, onboarding, picker, chat, account) | 🔨 | Branch `claude/datewise-premium-redesign`, with screenshots per screen. |
 | Phone, tablet and desktop layouts without overflow | 🟡 | Coach flow tested at 320–1280 px wide, including 1.3× text (#21). Re-run for the redesign. |
-| Website live | 🟡 | `main` deploys to GitHub Pages on push (deploy.yml). The custom domain `datewiseai.com` is referenced in code but not verified here. |
+| Website live | 🟡 | GitHub Pages is published only by a manual run of deploy.yml from `main` (no deploy on push since 2026-11-23). The custom domain `datewiseai.com` is referenced in code but not verified here. |
 
 ## 3. Signup and onboarding (Required)
 | Item | Status | Evidence / next step |

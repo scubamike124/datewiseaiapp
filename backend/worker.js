@@ -695,16 +695,19 @@ async function route(request, env, ctx) {
       return new Response(null, { status: 204, headers: corsHeaders() });
     }
 
-    // One-time Llama license acceptance. Open <worker-url>/?agree=1 once in a
-    // browser; Cloudflare registers acceptance for the whole account. We try a
-    // few input shapes because some gated models validate inputs differently.
+    // One-time Llama license acceptance. It runs the model with no subscription
+    // check, so it is off unless the Worker has ALLOW_AGREE = "1" (set it only
+    // for the first deploy on a new Cloudflare account, open
+    // <worker-url>/?agree=1 once, then remove it). Cloudflare registers
+    // acceptance for the whole account. We try a few input shapes because some
+    // gated models validate inputs differently.
     if (request.method === 'GET') {
       const url = new URL(request.url);
       // Quick deploy check: open <worker-url>/?version to confirm this code is live.
       if (url.searchParams.has('version')) {
         return json({ version: GUARD_VERSION, note: 'chat-v6 + cost guard (fair-use caps, neuron budget, StoreKit 2 JWS), server-side coach prompts; text model llama-3.3-70b-instruct-fp8-fast' });
       }
-      if (url.searchParams.get('agree') === '1') {
+      if (url.searchParams.get('agree') === '1' && env.ALLOW_AGREE === '1') {
         if (!env.AI) return json({ error: 'AI binding "AI" missing' }, 500);
         const attempts = [
           { prompt: 'agree' },

@@ -24,6 +24,13 @@ void main() {
     }
   });
 
+  test('the website is published only by hand, and only from main', () {
+    final s = File('.github/workflows/deploy.yml').readAsStringSync();
+    final on = s.substring(s.indexOf('\non:\n') + 1, s.indexOf('\npermissions:'));
+    expect(on.trim(), 'on:\n  workflow_dispatch:');
+    expect(s, contains("  build:\n    # Only main is ever published, whichever branch the run is started from.\n    if: github.ref == 'refs/heads/main'\n"));
+  });
+
   test('pull requests compile the same web build that deploy.yml publishes from main', () {
     final cmd = RegExp(r'run: (flutter build web[^\n]*)');
     final deploy = cmd.firstMatch(File('.github/workflows/deploy.yml').readAsStringSync())![1];
@@ -173,7 +180,7 @@ void main() {
       final protectMain = runbook.indexOf('Do 1f (**Protect `main`**, mandatory) **before** the merge');
       expect(protectMain, greaterThan(-1));
       expect(protectMain, lessThan(runbook.indexOf('1. Merge `claude/datewise-v2-app`')));
-      expect(runbook, contains('every push to `main` runs **Deploy to GitHub Pages**'));
+      expect(runbook, contains('Merging does **not** publish the website'));
       expect(runbook, contains('`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` or `ID_HASH_SALT` is a repository secret'));
       expect(runbook, contains('**Signed IPA / TestFlight (manual, needs secrets)**'));
       expect(runbook, contains('**Settings**, then **Apps**, then **App Store** (iOS 18 and later'));
