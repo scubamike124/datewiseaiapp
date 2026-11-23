@@ -19,12 +19,13 @@ The owner's standard for all products:
    `src/lib/api-v1/ios-build`, `android-build`; docs in `docs/white-glove-treatment/`). White Glove is a Capacitor
    shell that loads the live site and can include an app's own Capacitor plugins (its existing-project lane).
 3. Do not build separate Flutter, Swift, Kotlin or React Native apps. Native code is allowed only for a feature White
-   Glove cannot provide, and it should become a reusable White Glove plugin, not app-only code.
+   Glove cannot provide, and it should become a reusable White Glove plugin, not app-only code. (DateWise's existing
+   Flutter iOS app is the exception described below.)
 4. Check White Glove's capabilities in its code before adding native functionality.
 
 ### DateWise's current position (owner decisions, 2026-11-23)
 
-A code review of White Glove on 2026-11-23 found it does **not** yet provide three things DateWise depends on:
+A code review of White Glove on 2026-11-23 found it does **not** yet provide (re-check White Glove's code before relying on this) three things DateWise depends on:
 Apple In-App Purchase (StoreKit 2 with the signed transaction for `backend/apple_jws.js`), speech recognition, and
 speech playback with timing for the avatar's mouth. It had also not yet run a real signed build or TestFlight upload,
 and its live Android lane is not built.
@@ -39,9 +40,9 @@ The owner chose: **ship DateWise v1 with the existing Flutter iOS build, and ext
   its pipeline until DateWise is verified working through White Glove.
 - Add no new native-only features to it. Bug fixes, security fixes and App Store requirements only.
 - New product work goes into the shared web/app code and the backend, which both delivery paths use.
-- Afterwards, the native pieces (StoreKit 2 subscription and entitlement JWS, speech recognition, AVSpeechSynthesizer
+- After the owner has verified DateWise works, the native pieces (StoreKit 2 subscription and entitlement JWS, speech recognition, AVSpeechSynthesizer
   audio with word markers and levels) are ported into reusable White Glove Capacitor plugins, and DateWise moves to
-  White Glove once those plugins and a real White Glove build are verified on a device.
+  White Glove once those plugins and a real White Glove build are verified on a device and the owner approves the switch.
 
 ## Standing limits
 
