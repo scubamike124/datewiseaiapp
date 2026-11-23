@@ -276,14 +276,27 @@ void main() {
       }
     });
 
-    test('the chat path enforces no subscription (current state, for the cost-guard work)', () {
-      // handleChat runs before any tier check; tier is client-sent anyway.
-      final chat = worker.indexOf('return await handleChat(env, messages)');
-      final gate = worker.indexOf("if (tier !== 'magnet')");
-      expect(chat, greaterThan(0));
-      expect(gate, greaterThan(chat), reason: 'chat returns before the (photo-only) tier gate');
-      expect(RegExp(r'jws|signedTransaction|verifyReceipt|appAccountToken', caseSensitive: false).hasMatch(worker), isFalse,
-          reason: 'no App Store transaction verification yet');
+    test('chat-v7 cost guard: every chat request passes admit() before the model', () {
+      final guard = File('backend/cost_guard.js').readAsStringSync();
+      expect(worker, contains('chat-v7'));
+      expect(guard, contains("GUARD_VERSION = 'chat-v7-cost-guard'"));
+      // The guard (fair-use caps, budget, entitlement) runs before Workers AI.
+      final handler = worker.indexOf('async function handleChat(');
+      final gate = worker.indexOf('await admit(', handler);
+      final model = worker.indexOf('runChatStream(env', handler);
+      expect(handler, greaterThan(0));
+      expect(gate, greaterThan(handler));
+      expect(model, greaterThan(gate), reason: 'admit() comes before the model call');
+      expect(worker, contains("if (gate.response) return gate.response;"));
+      // The StoreKit 2 JWS is verified offline and refusals carry codes.
+      expect(guard, contains('checkEntitlement(jws'));
+      for (final code in ['SUBSCRIPTION_EXPIRED', 'SUBSCRIPTION_REVOKED', 'SUBSCRIPTION_INVALID', 'SUBSCRIPTION_REQUIRED', 'DAILY_LIMIT', 'MONTHLY_LIMIT']) {
+        expect(guard, contains(code), reason: code);
+      }
+      // Without a token, chat-v7 falls back to the anonymous caps until
+      // REQUIRE_SUBSCRIPTION is switched on (documented in wrangler.toml).
+      expect(wrangler, contains('REQUIRE_SUBSCRIPTION = "0"'));
+      expect(guard, contains("return { response: guardError('SUBSCRIPTION_REQUIRED', cors) };"));
     });
   });
 
