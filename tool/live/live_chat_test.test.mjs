@@ -189,6 +189,29 @@ test('live mode refuses the host in DW_PRODUCTION_WORKER_URL (custom domain) unl
   assert.deepEqual(calls, [`${staging}/?version`, 'https://api.datewise.test/?version']);
 });
 
+test('a trailing dot on either host is the same host; "," or "*" in DW_PRODUCTION_WORKER_URL is refused', async () => {
+  const never = async () => { throw new Error('no request may be sent'); };
+  const cases = [
+    ['https://api.datewise.test./', 'api.datewise.test'],
+    ['https://api.datewise.test', 'https://api.datewise.test./'],
+    ['https://api.datewise.test.', 'api.datewise.test.'],
+    [`${PRODUCTION_URL}.`, ''],
+  ];
+  for (const [baseUrl, productionWorkerUrl] of cases) {
+    await assert.rejects(
+      runKit({ mode: 'live', jws: fakeToken(), confirmLive: true, baseUrl, productionWorkerUrl, fetchImpl: never, log: quiet }),
+      /production Worker.*staging Worker/,
+      `${baseUrl} vs ${productionWorkerUrl}`,
+    );
+  }
+  for (const productionWorkerUrl of ['api.datewise.test,other.test', '*.datewise.test', 'https://*.datewise.test']) {
+    await assert.rejects(
+      runKit({ mode: 'live', jws: fakeToken(), confirmLive: true, baseUrl: `https://${STAGING_WORKER}.scubamike124.workers.dev`, productionWorkerUrl, fetchImpl: never, log: quiet }),
+      /DW_PRODUCTION_WORKER_URL must be one URL or host name/,
+    );
+  }
+});
+
 test('the CLI passes DW_PRODUCTION_WORKER_URL to the production-Worker refusal', async () => {
   const err = [];
   const write = process.stderr.write;

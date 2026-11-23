@@ -133,6 +133,17 @@ void main() {
       expect(runbook, contains('coach_backend'));
       expect(runbook, contains('50000'));
       expect(runbook, contains(stagingUrl));
+      // iPhone-only, with the pre-live isolation check and the bindings it lists.
+      expect(runbook, contains('iPhone only: no Mac needed'));
+      expect(runbook, contains('## 1. Pre-live isolation check'));
+      for (final id in ['740219', '740220', '740221']) {
+        expect(runbook, contains(id));
+      }
+      final toml = File('backend/wrangler.toml').readAsStringSync();
+      final staging = toml.substring(toml.indexOf('[env.staging]'));
+      expect(RegExp(r'^namespace_id = "740221"', multiLine: true).hasMatch(staging), isTrue);
+      expect(RegExp(r'^\[+env\.staging\.(kv_namespaces|d1_databases|r2_buckets|services|queues|tail_consumers)', multiLine: true).hasMatch(staging), isFalse);
+      expect(RegExp(r'^script_name', multiLine: true).hasMatch(staging), isFalse);
       expect(File('docs/appstore/checklist.md').readAsStringSync(), contains('IPHONE_E2E_DEMO.md'));
       expect(File('docs/qa/LIVE_AI_TEST_PLAN.md').readAsStringSync(), contains('IPHONE_E2E_DEMO.md'));
     });

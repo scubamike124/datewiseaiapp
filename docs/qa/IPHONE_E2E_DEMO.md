@@ -3,7 +3,14 @@
 **Status: ready to run, BLOCKED on owner steps** (signing secrets, merge to `main`, staging deploy). Nothing here has run
 on an iPhone yet.
 
-One run on a real iPhone proves the whole chain:
+**iPhone only: no Mac needed.** Every step below is done on the iPhone: Safari for github.com, appstoreconnect.apple.com
+and dash.cloudflare.com, plus the TestFlight app. The signed build is made by GitHub Actions on GitHub's own macOS
+runner. Steps that truly need a computer are marked **[COMPUTER]**; none of them is needed if the signing secrets
+already exist.
+
+Tip: if a page in Safari hides a menu, tap **aA** in the address bar, then **Request Desktop Website**.
+
+One run proves the whole chain:
 
 ```
 you speak ──> on-device speech recognition (speech_to_text, iOS Speech, onDevice: true)
@@ -12,9 +19,10 @@ you speak ──> on-device speech recognition (speech_to_text, iOS Speech, onDe
           ──> reply streams back ──> coach voice (iOS voices, on device) + avatar mouth synchronized to the speech
 ```
 
-The app talks to the isolated **staging** Worker (`[env.staging]` in `backend/wrangler.toml`, runbook section 9), never
-production. Nothing in Cloudflare security or Apple subscription verification is bypassed: the staging Worker has the
-same security as production, and the build has no fake store and no offline coach.
+The app talks to the isolated **staging** Worker (`[env.staging]` in `backend/wrangler.toml`; see
+docs/launch/WORKER_DEPLOY_RUNBOOK.md section 9), never production. Nothing in Cloudflare security or Apple subscription
+verification is bypassed. The staging Worker has the same security as production, and the build has no fake store and
+no offline coach.
 
 ## 0. What is verified before the device run, and what only the device run proves
 
@@ -22,12 +30,13 @@ same security as production, and the build has no fake store and no offline coac
 |---|---|
 | A release build with `COACH_BACKEND_URL` set to staging uses the real backend client at exactly that URL, never the offline demo coach | `test/staging_device_demo_test.dart` |
 | A non-HTTPS backend URL is refused (release builds fail every reply instead) | `test/staging_device_demo_test.dart`, `test/backend_chat_test.dart` |
-| Every chat request sends the StoreKit entitlement JWS (`X-DateWise-Entitlement`); release iOS builds always use the real App Store (`DW_FAKE_STORE` and `DW_MOCK_AI` are ignored in release) | `test/staging_device_demo_test.dart` |
+| Every chat request sends the StoreKit entitlement JWS (`X-DateWise-Entitlement`). Release iOS builds always use the real App Store (`DW_FAKE_STORE` and `DW_MOCK_AI` are ignored in release) | `test/staging_device_demo_test.dart` |
 | The staging Worker refuses a request without a valid StoreKit JWS (403 `SUBSCRIPTION_REQUIRED` / `SUBSCRIPTION_INVALID`), checked again after every staging deploy | `backend/*.test.mjs`, deploy-worker.yml post-deploy checks |
 | The full chat-v7 Worker code path with a scripted model (limits, streaming, report) | `tool/live/live_chat_test.mjs --mode local` (SIMULATED, not AI evidence) |
-| The `iOS build` workflow: `coach_backend` is a fixed choice, the staging URL is a constant, the input reaches the shell only through `env:`, staging builds get the +50000 build-number range, and the compiled binary is checked for the right host | `test/workflows_test.dart`, actionlint |
+| The `iOS build` workflow: `coach_backend` is a fixed choice and the staging URL is a constant. The input reaches the shell only through `env:`, staging builds get the +50000 build-number range, and the compiled binary is checked for the right host | `test/workflows_test.dart`, actionlint |
 | The app compiles for iOS (unsigned release build on macOS) | `iOS build` workflow, job "Unsigned release build" |
 | Lip-sync timing on a host (word-anchored driver, audio-path envelope) | `test/avatar_lip_sync_test.dart`, `test/avatar_voice_audio_test.dart` |
+| Staging cannot reach production data (static review, section 1) | `backend/wrangler.toml`, `backend/staging_env.test.mjs` |
 
 | Proved **only** by this device run |
 |---|
@@ -38,153 +47,292 @@ same security as production, and the build has no fake store and no offline coac
 | The avatar's mouth moving in time with the audio on real hardware |
 | End-to-end latency on a real network |
 
-## 1. Prerequisites (owner, once)
+## 1. Pre-live isolation check
 
-1. **Signing secrets** for the `iOS build` workflow's `signed-testflight` job, all seven (docs/appstore/checklist.md,
-   Details section 6): `IOS_DIST_CERT_P12_BASE64`, `IOS_DIST_CERT_PASSWORD`, `IOS_PROVISIONING_PROFILE_BASE64`,
-   `APPLE_TEAM_ID`, `APP_STORE_CONNECT_API_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_API_KEY_P8`.
-   The job fails visibly if any is missing.
-2. **App Store Connect**: the auto-renewable subscription **`datewise_premium_monthly`** exists for the app (checklist
-   Details section 4) with status at least "Ready to Submit", and the Paid Applications agreement is active.
-   TestFlight purchases are free and run in Apple's **Sandbox** environment.
-3. **A tester account.** In TestFlight, purchases use the Apple Account signed in to the App Store on the iPhone and are
-   not charged. Also create a **Sandbox Apple Account** (App Store Connect, Users and Access, Sandbox, Test Accounts)
-   as a fallback: if TestFlight asks for one, or you test a development build, sign in to it on the iPhone under
-   Settings, App Store, Sandbox Account. Either way the token the Worker receives says `environment: Sandbox`, which
-   staging accepts (`ALLOW_SANDBOX = "1"`, `SANDBOX_DAILY_LIMIT` 40).
-4. **Merge to `main`** through a reviewed PR: chat-v7, the staging config (PR #34), and this PR (the `coach_backend`
-   input). "Run workflow" only lists inputs that are in `ios-build.yml` on the branch you run from, and the staging
-   deploy only deploys commits on `main`.
-5. **Deploy the staging Worker** (docs/launch/WORKER_DEPLOY_RUNBOOK.md section 9, owner steps 2 to 4):
-   1. Confirm rate-limit namespace `740221` is not used by another Worker on the account.
-   2. Actions, *Deploy coach Worker*, Run workflow from `main`: target **`chat-v7-staging`**, `dry_run` on. The summary
-      must say **STAGING**.
-   3. Run again with `dry_run` off and approve the `production-worker` environment.
-   4. Check: `curl -s https://datewise-coach-staging.scubamike124.workers.dev/?version` returns
-      `"version":"chat-v7-cost-guard"`. If the summary shows a different workers.dev subdomain than `scubamike124`,
-      stop: the build below has the host fixed and would not reach it (change the constant in `ios-build.yml` in a
-      reviewed PR first).
-6. An iPhone with iOS 15 or later, the TestFlight app, and (recommended) a Premium or Enhanced voice downloaded
-   (Settings, Accessibility, Spoken Content, Voices).
+**What was verified statically** (main session, branch `claude/datewise-v2-app` at `310e94e`; no Cloudflare call):
 
-## 2. Build the TestFlight staging build
+- **Bindings.** `[env.staging]` in `backend/wrangler.toml` declares exactly three:
+  - `AI`: account-level Workers AI. It is not separate from production: both Workers draw on the account's free
+    10,000-neuron daily allowance.
+  - `USAGE_GUARD`: the Durable Object class `UsageGuard`, with **no `script_name`**. It is a separate namespace owned
+    by `datewise-coach-staging`, so staging has its own counters and budget and cannot see production's.
+  - `RATE_LIMITER`: rate-limit namespace **`740221`**.
+- **No other bindings.** There are no KV, D1, R2, service, queue or tail bindings.
+- **No outbound calls.** `backend/*.js` makes no outbound `fetch`. The only `fetch` calls are the Worker's own
+  handler and the Durable Object stub.
+- **Environment names read.** `AI`, `ALLOW_SANDBOX`, `APPLE_BUNDLE_ID`, `APPLE_PRODUCT_ID`, `ASSN_ENABLED`,
+  `FAILOPEN_LIMITER` (absent on staging), `ID_HASH_SALT` (staging's own random salt, never production's),
+  `LEGACY_CLIENTS`, `RATE_LIMITER`, `REQUIRE_SUBSCRIPTION` and `USAGE_GUARD`. Also the numeric limit variables, read
+  through `guardConfig()` in `backend/cost_guard.js`. None is a credential or a link to another service.
+- **Rate-limit namespace IDs in repo configs:**
+  - production: `740219`;
+  - reserved: `740220` (commented out);
+  - staging: `740221`.
 
-Actions, **iOS build**, Run workflow from `main`:
+  No other wrangler config in this repository or in `amberai` (which shares the Cloudflare account) declares a
+  rate-limit namespace. Amber's redeploy tool only keeps the production Worker's existing bindings.
 
-| Input | Value |
-|---|---|
-| `signed_build` | ticked |
-| `upload_testflight` | ticked |
-| `coach_backend` | **`staging`** |
-| `avatar_audio_path` | off for the first run (flutter_tts word-anchored mouth driver, the App Store default). Optional second run ticked, see section 5 |
-| `run_tests` | optional |
+**What cannot be verified from the repositories:** Workers on the account that were created outside these repos. A
+Worker that already uses namespace `740221` would share rate-limit counters with staging. Check it yourself. This is
+read-only and works in Safari on the iPhone:
 
-What the workflow does with `coach_backend: staging`:
+1. Open **dash.cloudflare.com** and sign in. Pick the account if asked.
+2. Left menu (tap the menu icon on a phone): **Compute (Workers)**, then **Workers & Pages**. On older dashboards it
+   is just **Workers & Pages**.
+3. For **each** Worker in the list except `datewise-coach-staging`:
+   1. Tap its name, then **Settings**, then **Bindings**.
+   2. Look at any **Rate Limiting** binding and its **namespace ID**.
+4. **PASS** if no Worker other than `datewise-coach-staging` shows `740221`. If one does, stop: change staging's
+   namespace in a reviewed PR to `main` first.
 
-- Builds with `--dart-define=COACH_BACKEND_URL=https://datewise-coach-staging.scubamike124.workers.dev`. The URL is a
-  constant in the workflow, never typed in; `production` (the default) passes no define and keeps the app's
-  production URL.
-- **Build number +50000**: 100 + run number, +5000 with `avatar_audio_path`, then +50000 for staging. Example run 50:
-  production 150, audio-path test 5150, staging **50150**, staging with audio path **55150**. The ranges stay apart
-  while run numbers are below about 4,900 (the same limit the audio-path range already has).
-- The run summary says **"STAGING COACH BUILD ... do NOT submit for App Store review"**, the IPA artifact is named
-  `datewise-ios-ipa-signed-STAGING`, and the job fails if the compiled app does not contain the staging host (or a
-  production build does).
-- The unsigned job refuses `coach_backend: staging` without `signed_build`.
+**After the staging deploy** (section 2, step 6), open **Workers & Pages**, then **`datewise-coach-staging`**, then
+**Settings**, then **Bindings**. **PASS** only if it lists exactly these three:
 
-**Never submit a 50000+ build for App Store review.** There is no App Store submission flag in the workflow (it only
-uploads to TestFlight); submission is a manual choice in App Store Connect, so this rule is yours to keep. Because App
-Store Connect can reject a lower build number after a higher one of the same version, upload the App Store build of a
-version before any 50000+ build of that version, or give the demo its own version (for example 2.0.1).
+- **Workers AI** `AI`;
+- **Durable Object** `USAGE_GUARD` (class `UsageGuard`, this Worker);
+- **Rate Limiting** `RATE_LIMITER` with namespace `740221`.
 
-Wait for processing in App Store Connect (TestFlight tab), then add the build to an internal testing group that
-includes you. Answer nothing for export compliance (the Info.plist already declares it).
+Anything else (KV, D1, R2, a service binding, a queue, a tail consumer) is a FAIL: delete the staging Worker
+(section 8) and report it.
 
-## 3. Install, subscribe, allow voice
+## 2. Prerequisites (owner, once)
 
-1. Install the build from the TestFlight app. Check the build number in TestFlight is 50000+.
-2. Open DateWise, finish onboarding and the 18+ gate.
-3. **Confirm the backend:** You tab, scroll to the bottom. Under the version line it must say
-   **"Test build · coach server: datewise-coach-staging.scubamike124.workers.dev"**. (Production builds never show
-   this line.) If it is missing, you installed the wrong build: stop.
-4. **Subscribe:** open the paywall and buy the monthly plan. TestFlight shows a sheet saying you will not be charged;
-   confirm with your Apple Account (or the Sandbox account if asked). The paywall closes and the coaches unlock.
-5. **Permissions:** open a coach, switch to **Voice mode** ("Talk to <name>"), press **Hold to talk**. Allow the
-   **microphone** prompt and the **speech recognition** prompt. If you denied one, the app offers Open Settings.
+### 2.1 GitHub signing secrets (github.com in Safari)
 
-## 4. The demo
+The `iOS build` workflow's `signed-testflight` job needs seven repository secrets. Skip this step if they already
+exist. To check: repo **Settings**, then **Secrets and variables**, then **Actions**, then the **Secrets** tab, under
+**Repository secrets**.
 
-1. Pick a coach (Ava or Ethan for English; Sofía or Diego for Spanish).
-2. **Start the screen recording first** (Control Centre, Screen Recording, long-press and turn **Microphone on** so your
-   voice is recorded along with the coach's audio).
-3. Hold **Hold to talk**, say a specific question, release. Suggested: *"I have a first date on Friday at a jazz bar.
-   She loves hiking. What should I ask her?"*
-4. Expected:
-   - While you hold, the transcript appears; after release your words show as your message.
+To add one: on that page tap **New repository secret**, enter the **Name**, paste the value into **Secret**, then
+tap **Add secret**.
+
+| Secret | Where the value comes from | Computer? |
+|---|---|---|
+| `APPLE_TEAM_ID` | developer.apple.com, **Account**, **Membership details**, **Team ID** | no |
+| `APP_STORE_CONNECT_API_KEY_ID` | appstoreconnect.apple.com, **Users and Access**, **Integrations**, **App Store Connect API**, **Team Keys**, **+** (Generate API Key), access **App Manager**. The **Key ID** column | no |
+| `APP_STORE_CONNECT_ISSUER_ID` | the same page, **Issuer ID** (tap **Copy**) | no |
+| `APP_STORE_CONNECT_API_KEY_P8` | the same row, **Download** (only once). The file opens in Safari or saves to Files. Paste its **full text**, including the `BEGIN`/`END` lines | no (open the `.p8` in the Files app, select all, copy) |
+| `IOS_PROVISIONING_PROFILE_BASE64` | developer.apple.com, **Certificates, Identifiers & Profiles**, **Profiles**, the App Store profile for `com.datewise.datewiseAi`, **Download**, then base64 of the file | **[COMPUTER]** to base64-encode it (`base64 -i profile.mobileprovision`). Any computer works, Mac not required |
+| `IOS_DIST_CERT_P12_BASE64` | an **Apple Distribution** certificate **with its private key** exported as `.p12`, then base64 | **[COMPUTER]**. The private key is created on the computer that made the certificate request (Keychain Access on a Mac, or `openssl` on any computer) |
+| `IOS_DIST_CERT_PASSWORD` | the password chosen when exporting the `.p12` | with the above |
+
+The job fails visibly with "Signing secrets missing" if any is absent. Nothing is built or uploaded in that case.
+
+### 2.2 App Store Connect (appstoreconnect.apple.com in Safari)
+
+1. **Agreement:** **Business** (or **Agreements, Tax, and Banking**). **Paid Applications** must be **Active**.
+2. **Subscription:** **Apps**, then **DateWise AI - Dating Coach**, then **Monetization**, then **Subscriptions**,
+   then the subscription group. **`datewise_premium_monthly`** must exist with price, localization and review
+   information filled in. Its status must be at least **Ready to Submit** ("Missing Metadata" can stop StoreKit from
+   returning it).
+3. **Sandbox tester:** **Users and Access**, then **Sandbox** in the sidebar, then **Test Accounts** (or **Sandbox
+   Testers**), then **+**. Enter the first and last name and an email address that has **never** been an Apple
+   Account (for example a new `+sandbox` alias of your email). Then enter a password and the country or region
+   (United States for USD pricing), and tap **Create**. Note the email and password.
+4. **TestFlight group** (once): **Apps**, then **DateWise AI**, then **TestFlight**, then **Internal Testing**, then
+   **+** (Create Group). Name it `iPhone demo` and add yourself as a tester (you must be a user on the team). The
+   build is added to it in section 3.
+
+### 2.3 Merge to `main` (github.com in Safari)
+
+The staging deploy only deploys commits on `main`, and **Run workflow** only shows the inputs that `ios-build.yml` has
+on the branch you run from.
+
+1. Merge chat-v7, the staging config (PR #34) and this PR (the `coach_backend` input) into `main` through reviewed PRs.
+2. To merge a PR: **Pull requests**, open the PR, then **Merge pull request**, then **Confirm merge**.
+
+### 2.4 Deploy the staging Worker (github.com in Safari)
+
+These are runbook section 9, owner steps 2 to 4.
+
+1. Run the **rate-limit namespace check** in section 1. It must PASS.
+2. Repo **Actions** tab, then **Deploy coach Worker** in the workflow list, then **Run workflow**. Fill in the form:
+   - **Use workflow from:** `main`;
+   - **target:** `chat-v7-staging`;
+   - **dry_run:** ticked.
+
+   Tap the green **Run workflow** button.
+3. Open the run when it finishes. The summary must say **STAGING** and show the commit.
+4. Run it again with **dry_run unticked**. The deploy job waits for you: tap **Review deployments**, tick
+   **production-worker**, then tap **Approve and deploy**. The GitHub mobile app can also approve it from the
+   notification.
+5. When the run is green, open
+   **https://datewise-coach-staging.scubamike124.workers.dev/?version** in Safari. It must show
+   `"version":"chat-v7-cost-guard"`. If the run summary shows a workers.dev subdomain other than `scubamike124`, stop:
+   the build below has that host fixed and would not reach it. Change the constant in `ios-build.yml` in a reviewed
+   PR first.
+6. Run the **post-deploy bindings check** in section 1. It must PASS.
+
+### 2.5 The iPhone
+
+- iOS 15 or later (iOS 18+ recommended for the Sandbox sign-in flow below).
+- Install **TestFlight** from the App Store.
+- **Sandbox account:** **Settings**, then **App Store**, then scroll to **Sandbox Account** (under Developer or near
+  the bottom), then sign in with the tester from 2.2 step 3. On iOS 18 and later this section may only appear, or ask
+  for the sign-in, at the first purchase in a test build. Then sign in there when the purchase sheet asks. Never sign
+  in to the Sandbox account under **Settings, [your name]** (that is your real Apple Account).
+- Recommended: a Premium or Enhanced voice: **Settings**, then **Accessibility**, then **Spoken Content**, then
+  **Voices**, then English (and Spanish), then download one marked Premium or Enhanced.
+- Screen recording in Control Center: **Settings**, then **Control Center**. Add **Screen Recording** if it is not
+  already there (iOS 18 and later: open Control Center, tap **+**, then **Add a Control**, then **Screen Recording**).
+
+## 3. Build the TestFlight staging build (github.com in Safari)
+
+1. Repo **Actions** tab, then **iOS build**, then **Run workflow**. Set:
+
+   | Field | Value |
+   |---|---|
+   | Use workflow from | `main` |
+   | `signed_build` | ticked |
+   | `upload_testflight` | ticked |
+   | `coach_backend` | **`staging`** |
+   | `avatar_audio_path` | unticked for the first run (flutter_tts word-anchored mouth driver, the App Store default). Optional second run ticked, see section 6 |
+   | `run_tests` | optional |
+
+   Tap the green **Run workflow** button. The run takes about 20 to 40 minutes.
+2. Open the run, then the job **Signed IPA / TestFlight**. The summary must show
+   **"STAGING COACH BUILD ... do NOT submit for App Store review"**, the build number, `Coach backend: staging` and
+   `Coach host check passed (staging)`.
+3. App Store Connect: **Apps**, then **DateWise AI**, then **TestFlight**. Wait until the new build (50000+) finishes
+   **Processing**, usually 5 to 30 minutes. Then open **Internal Testing**, then **iPhone demo**, then **Builds**, then
+   **+**, select the 50000+ build and tap **Add**. Export compliance should not be asked (the Info.plist declares it).
+   If it is, answer that the app uses only exempt encryption (HTTPS).
+
+What `coach_backend: staging` does:
+
+- **Backend URL.** The build gets
+  `--dart-define=COACH_BACKEND_URL=https://datewise-coach-staging.scubamike124.workers.dev`. The URL is a constant in
+  the workflow, never typed in. `production` (the default) passes no define and keeps the app's production URL.
+- **Build number +50000.** The base is 100 + the run number. The audio path adds 5000, then staging adds 50000. For
+  run 50:
+
+  | Build | Number |
+  |---|---|
+  | production | 150 |
+  | audio-path test | 5150 |
+  | staging | **50150** |
+  | staging with audio path | **55150** |
+
+  The ranges stay apart while run numbers are below about 4,900 (the same limit the audio-path range already has).
+- **Labels and checks.** The run summary carries the STAGING warning and the IPA artifact is named
+  `datewise-ios-ipa-signed-STAGING`. The job fails if the compiled app lacks the staging host, or if a production
+  build contains it.
+- **Unsigned job.** It refuses `coach_backend: staging` without `signed_build`.
+
+**Never submit a 50000+ build for App Store review.** The workflow has no App Store submission flag (it only uploads
+to TestFlight). Submission is a manual choice in App Store Connect, so this rule is yours to keep. App Store Connect
+can reject a lower build number after a higher one of the same version, so do one of these:
+
+- upload the App Store build of a version before any 50000+ build of that version; or
+- give the demo its own version (for example 2.0.1).
+
+## 4. Install, subscribe, allow voice (on the iPhone)
+
+1. **Install.** Open **TestFlight**, then **DateWise AI**, then **Install** (or **Update**). Check that the build
+   number shown is 50000+.
+2. **Onboarding.** Open DateWise and finish onboarding and the 18+ gate.
+3. **Confirm the backend.** Open the **You** tab and scroll to the bottom. Under the version line it must say
+   **"Test build · coach server: datewise-coach-staging.scubamike124.workers.dev"**. Production builds never show
+   this line. If it is missing, you installed the wrong build: stop.
+4. **Subscribe.** Open the paywall and buy the monthly plan. The sheet must say **[Environment: Sandbox]** or say
+   that you will not be charged. Sign in with the Sandbox tester if asked (on iOS 18+ this is where the sign-in
+   happens). The paywall closes and the coaches unlock.
+5. **Permissions.** Open a coach, switch to **Voice mode** ("Talk to <name>"), then press **Hold to talk**. Tap
+   **Allow** on the **microphone** prompt and **OK** on the **speech recognition** prompt. If you denied one, the app
+   offers **Open Settings**: under **Settings, DateWise AI**, turn on **Microphone** and **Speech Recognition**.
+
+## 5. The demo
+
+1. **Pick a coach.** Ava or Ethan for English; Sofía or Diego for Spanish.
+2. **Start recording first.** Open Control Center, **long-press** Screen Recording, turn **Microphone On**, then tap
+   **Start Recording**. This records your voice along with the coach's audio.
+3. **Speak.** Hold **Hold to talk**, ask a specific question, then release. Suggested: *"I have a first date on Friday
+   at a jazz bar. She loves hiking. What should I ask her?"*
+4. **Expected:**
+   - While you hold, the transcript appears. After you release, your words show as your message.
    - Within a few seconds the coach's reply starts streaming as text.
-   - The coach speaks the reply; the avatar's mouth opens and closes with the words and stops when the speech stops.
-5. Do 3 to 5 exchanges, including one follow-up that depends on the previous answer ("And if she asks what I do?").
-6. Optional, owner-side proof the request hit staging: with Wrangler signed in,
-   `cd backend && npx wrangler@4.158.0 tail --env staging --format=pretty` prints a count-only `event: usage` line per
-   reply (no message text).
+   - The coach speaks the reply. The avatar's mouth opens and closes with the words and stops when the speech stops.
+5. **Continue.** Do 3 to 5 exchanges, including one follow-up that depends on the previous answer ("And if she asks
+   what I do?").
+6. **Optional: owner-side proof the request hit staging.** In Safari, open Cloudflare **Workers & Pages**, then
+   **`datewise-coach-staging`**, then **Logs** (live or real-time logs; begin the log stream before you speak). Each
+   reply prints a count-only `event: usage` line, with no message text. The same is possible from a computer with
+   `cd backend && npx wrangler@4.158.0 tail --env staging --format=pretty` **[COMPUTER, optional]**.
 
 ### How to tell a real AI reply from the offline demo coach
 
-- A TestFlight build is a release build: the offline demo coach is **not compiled in** and `DW_MOCK_AI` is ignored. In
-  release, a reply is either from the Worker or an error notice ("Couldn't reach your coach...", "Coaching is
-  temporarily unavailable..."). A "subscription required" or limit notice means the Worker answered but refused.
-- The reply uses your specifics (Friday, jazz bar, hiking) and the follow-up builds on the previous answer. The demo
-  coach only matches a few keywords to fixed templates and gives the same text for the same question.
-- Ask the same question twice: a real reply is worded differently.
-- `wrangler tail` (above) shows one usage event per reply.
+- **No offline coach.** A TestFlight build is a release build: the offline demo coach is **not compiled in** and
+  `DW_MOCK_AI` is ignored. In release, a reply is either from the Worker or an error notice ("Couldn't reach your
+  coach...", "Coaching is temporarily unavailable..."). A "subscription required" or limit notice means the Worker
+  answered but refused.
+- **Specifics.** The reply uses your specifics (Friday, jazz bar, hiking) and the follow-up builds on the previous
+  answer. The demo coach only matches a few keywords to fixed templates and gives the same text for the same question.
+- **Repeat the question.** Ask the same question twice: a real reply is worded differently.
+- **Logs.** The Cloudflare logs (step 6) show one usage event per reply.
 
-## 5. Pass/fail checklist
+## 6. Pass/fail checklist
 
 Record each as PASS / FAIL with a note and the timestamp in the recording.
 
 | # | Check | PASS when |
 |---|---|---|
+| 0 | Isolation | Section 1: namespace `740221` unused elsewhere; staging shows exactly the three bindings |
 | 1 | Correct build | TestFlight build is 50000+; You tab shows the staging coach server line |
 | 2 | Subscription | Sandbox purchase completes; coaches unlocked; no "subscription required" notice in chat |
 | 3 | Permissions | Microphone and speech prompts appear with DateWise's text; allowing them enables Hold to talk |
 | 4 | Speech recognised | The transcript matches what you said (minor wording differences are fine), on device, with no network error |
-| 5 | Real AI reply | Specific to your question, consistent across a follow-up, different when repeated (section 4) |
+| 5 | Real AI reply | Specific to your question, consistent across a follow-up, different when repeated (section 5) |
 | 6 | Voice playback | The whole reply is spoken in the coach's voice and language, not cut off at the end |
-| 7 | Mouth sync | The mouth moves while the voice speaks, is closed in pauses and after the last word, and is not visibly ahead of or behind the sound (lip-sync offset under about a tenth of a second by eye) |
-| 8 | Latency | From releasing Hold to talk: first reply text within about 3 s, voice starting within about 2 s after that. Note the times; over 6 s total is a FAIL to investigate |
-| 9 | Stability | No crash, no stuck "listening" state, Hold to talk works again after each reply |
+| 7 | Mouth sync | The mouth moves while the voice speaks, is closed in pauses and after the last word, and is not visibly ahead of or behind the sound (under about a tenth of a second by eye) |
+| 8 | Latency | From releasing Hold to talk: first reply text within about 3 s, voice starting within about 2 s after that. Note the times; over 6 s in total is a FAIL to investigate |
+| 9 | Stability | No crash, no stuck "Listening…" state, Hold to talk works again after each reply |
 
-**Mouth sync, two drivers:**
+**Mouth sync has two drivers:**
 
-- **Default** (`avatar_audio_path` off, what App Store builds use): the voice is spoken by flutter_tts and the mouth
-  follows its word-range events (word-anchored driver). Run this first.
-- **Native audio path** (`avatar_audio_path` ticked, `--dart-define=DW_AVATAR_AUDIO_PATH=true`): the reply is rendered
-  through `AVSpeechSynthesizer` and the mouth follows the real audio loudness (and word markers on iOS 17+). Optional
-  second build (build number 55000+) to compare; also try headphones, a call or Siri interruption and backgrounding
-  (docs/avatar/TALKING_AVATARS.md, checklist E4/E7).
+- **Default** (`avatar_audio_path` unticked, what App Store builds use): flutter_tts speaks the reply and the mouth
+  follows its word-range events (the word-anchored driver). Run this first.
+- **Native audio path** (`avatar_audio_path` ticked, `--dart-define=DW_AVATAR_AUDIO_PATH=true`): `AVSpeechSynthesizer`
+  renders the reply and the mouth follows the real audio loudness (and word markers on iOS 17+). This is an optional
+  second build (build number 55000+) to compare. Also try:
+  - headphones;
+  - a call or Siri interruption;
+  - backgrounding the app.
 
-## 6. What to keep
+  See docs/avatar/TALKING_AVATARS.md and checklist items E4 and E7.
 
-- The **screen recording with audio** (microphone on) of the whole session, from opening the You tab (staging line)
-  through at least three exchanges.
-- The filled checklist above, the build number, iPhone model and iOS version, voice used (default, Enhanced or
-  Premium), speaker or headphones.
+## 7. What to keep
+
+- **The screen recording** with audio (microphone on) of the whole session. It should run from the You tab (the
+  staging line) through at least three exchanges. It is saved to Photos.
+- **The notes:**
+  - the filled checklist above;
+  - the build number;
+  - the iPhone model and iOS version;
+  - the voice used (default, Enhanced or Premium);
+  - speaker or headphones.
 - Keep recordings out of the repository if they show anything personal.
 
-## 7. Teardown and cost
+## 8. Teardown and cost
 
 After the run (and after `docs/qa/LIVE_AI_TEST_PLAN.md` if you run it on the same staging deploy):
 
-```bash
-cd backend && npx wrangler@4.158.0 delete --env staging   # deletes Worker datewise-coach-staging only
-```
+1. **Delete the staging Worker.** In Cloudflare in Safari: **Workers & Pages**, then **`datewise-coach-staging`**,
+   then **Settings**, then scroll to the bottom and tap **Delete**. Type the name if asked, and check that it is
+   `datewise-coach-staging`, never `datewise-photo-coach`. This deletes only the staging Worker, its Durable Object
+   data and its salt. From a computer, `cd backend && npx wrangler@4.158.0 delete --env staging` does the same
+   **[COMPUTER, optional]**.
+2. **Check it is gone.** Open **https://datewise-coach-staging.scubamike124.workers.dev/?version**: it no longer shows
+   `chat-v7-cost-guard`.
+3. **Expire the build.** In App Store Connect: **TestFlight**, then the 50000+ build, then **Expire Build**, so testers
+   do not keep a build that can no longer get replies.
 
-Check that Wrangler names `datewise-coach-staging` before confirming (or use the dashboard: Workers,
-`datewise-coach-staging`, Settings, Delete). Once it is gone, the staging TestFlight build can no longer get replies;
-expire it in App Store Connect (TestFlight, the build, Expire Build) so testers do not keep using it.
+**Cost: $0.**
 
-**Cost: $0.** GitHub-hosted macOS runners are free on this public repository; TestFlight and Sandbox purchases are
-free; the staging Worker, its Durable Object and rate-limit binding are covered by Workers Free. A demo of a few
-replies uses a small part of the account's free **10,000-neuron daily allowance**, which the staging and production
-Workers **share** (staging stops itself at `DAILY_NEURON_BUDGET` 4000 and Sandbox users at `SANDBOX_NEURON_BUDGET`
-3000). On Workers Free, use past the allowance fails rather than bills. No paid service or new account is needed.
+- **Build:** GitHub-hosted macOS runners are free on this public repository.
+- **Purchases:** TestFlight and Sandbox purchases are free.
+- **Worker:** Workers Free covers the staging Worker, its Durable Object and the rate-limit binding.
+- **AI:** a demo of a few replies uses a small part of the account's free **10,000-neuron daily allowance**, which the
+  staging and production Workers **share**. Staging stops itself at `DAILY_NEURON_BUDGET` 4000, and Sandbox users at
+  `SANDBOX_NEURON_BUDGET` 3000. On Workers Free, use past the allowance fails rather than bills.
+
+No paid service or new account is needed.
