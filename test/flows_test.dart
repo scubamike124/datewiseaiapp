@@ -191,6 +191,48 @@ void main() {
     expect(app.state.memoryText, isEmpty);
   });
 
+  for (final (lang, prefs, title, body, cancel, action) in [
+    ('en', onboardedPrefs(), 'Turn off Coach memory?',
+        'Your note will be deleted from this device, and coaches will only see the current conversation.', 'Cancel', 'Turn off & delete'),
+    ('es', spanishPrefs(), '¿Desactivar la memoria del coach?',
+        'Tu nota se eliminará de este dispositivo y los coaches solo verán la conversación actual.', 'Cancelar', 'Desactivar y borrar'),
+  ]) {
+    testWidgets('[$lang] turning Coach memory off asks first, then deletes the note', (tester) async {
+      final app = await pumpApp(tester,
+          prefs: {...prefs, 'dw_memory_on': true, 'dw_memory_text': 'Shy at first.'}, tab: AppTab.you);
+      expect(app.state.memoryEnabled, isTrue);
+
+      // Cancel keeps memory on and the note.
+      await tester.tap(find.byKey(const ValueKey('row-memory')));
+      await tester.pumpAndSettle();
+      expect(find.text(title), findsOneWidget);
+      expect(find.text(body), findsOneWidget);
+      expect(find.text(action), findsOneWidget);
+      await tester.tap(find.text(cancel));
+      await tester.pumpAndSettle();
+      expect(app.state.memoryEnabled, isTrue);
+      expect(app.state.memoryText, 'Shy at first.');
+      expect(app.storage.memoryText, 'Shy at first.');
+
+      // "Turn off & delete" turns it off and deletes the note.
+      await tester.tap(find.byKey(const ValueKey('row-memory')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('confirm-action')));
+      await tester.pumpAndSettle();
+      expect(app.state.memoryEnabled, isFalse);
+      expect(app.state.memoryText, isEmpty);
+      expect(app.storage.memoryText, isEmpty);
+    });
+  }
+
+  testWidgets('turning Coach memory off with no note needs no confirmation', (tester) async {
+    final app = await pumpApp(tester, prefs: {...onboardedPrefs(), 'dw_memory_on': true}, tab: AppTab.you);
+    await tester.tap(find.byKey(const ValueKey('row-memory')));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(app.state.memoryEnabled, isFalse);
+  });
+
   testWidgets('Delete my data returns to the welcome screen', (tester) async {
     final app = await pumpApp(tester, prefs: onboardedPrefs(), tab: AppTab.you);
     await tester.ensureVisible(find.byKey(const ValueKey('row-delete-data')));

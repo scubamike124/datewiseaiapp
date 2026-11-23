@@ -122,7 +122,15 @@ class SettingsScreen extends StatelessWidget {
                 title: l.memoryTitle,
                 subtitle: state.memoryEnabled ? l.memoryOn : l.memoryOff,
                 value: state.memoryEnabled,
-                onChanged: state.setMemoryEnabled,
+                onChanged: (on) async {
+                  // Turning memory off deletes the note: confirm first.
+                  if (!on &&
+                      state.memoryText.isNotEmpty &&
+                      !await _confirm(context, l.memoryOffTitle, l.memoryOffBody, l.memoryOffAction)) {
+                    return;
+                  }
+                  await state.setMemoryEnabled(on);
+                },
               ),
               _Row(
                 key: const ValueKey('row-memory-edit'),

@@ -685,6 +685,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get clearMemoryBody => 'Your note will be deleted from this device.';
 
   @override
+  String get memoryOffTitle => 'Turn off Coach memory?';
+
+  @override
+  String get memoryOffBody =>
+      'Your note will be deleted from this device, and coaches will only see the current conversation.';
+
+  @override
+  String get memoryOffAction => 'Turn off & delete';
+
+  @override
   String get memorySheetBody =>
       'A short note your coaches see with each message while Coach memory is on. Write only what you are happy to share.';
 

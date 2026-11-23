@@ -1178,6 +1178,24 @@ abstract class AppLocalizations {
   /// **'Your note will be deleted from this device.'**
   String get clearMemoryBody;
 
+  /// No description provided for @memoryOffTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn off Coach memory?'**
+  String get memoryOffTitle;
+
+  /// No description provided for @memoryOffBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Your note will be deleted from this device, and coaches will only see the current conversation.'**
+  String get memoryOffBody;
+
+  /// Confirm button when turning Coach memory off: it deletes the note.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn off & delete'**
+  String get memoryOffAction;
+
   /// No description provided for @memorySheetBody.
   ///
   /// In en, this message translates to:

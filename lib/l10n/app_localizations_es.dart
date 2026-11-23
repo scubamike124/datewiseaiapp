@@ -706,6 +706,16 @@ class AppLocalizationsEs extends AppLocalizations {
   String get clearMemoryBody => 'Tu nota se eliminará de este dispositivo.';
 
   @override
+  String get memoryOffTitle => '¿Desactivar la memoria del coach?';
+
+  @override
+  String get memoryOffBody =>
+      'Tu nota se eliminará de este dispositivo y los coaches solo verán la conversación actual.';
+
+  @override
+  String get memoryOffAction => 'Desactivar y borrar';
+
+  @override
   String get memorySheetBody =>
       'Una nota breve que tus coaches ven con cada mensaje mientras la memoria del coach está activada. Escribe solo lo que quieras compartir.';
 
