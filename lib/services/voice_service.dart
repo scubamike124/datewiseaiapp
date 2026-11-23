@@ -156,17 +156,22 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
   void _wireTts() {
     final lip = lipSync;
     _tts.setStartHandler(() {
+      if (!_ttsCurrent) return; // a replaced utterance
       _speaking.value = true;
       lip.started();
     });
     // AVSpeechSynthesizer reports each word as it starts (character range
     // in the spoken text); the avatar's mouth follows it.
-    _tts.setProgressHandler((_, start, end, _) => lip.word(start, end));
+    _tts.setProgressHandler((_, start, end, _) {
+      if (_ttsCurrent) lip.word(start, end);
+    });
     _tts.setCompletionHandler(() {
+      if (!_ttsCurrent) return;
       _speaking.value = false;
       lip.end();
     });
     _tts.setCancelHandler(() {
+      if (!_ttsCurrent) return;
       _speaking.value = false;
       lip.end();
     });
@@ -217,6 +222,12 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
   /// by a stop (or a newer speak) does not go on to start the audio.
   int _generation = 0;
 
+  /// The generation of the utterance flutter_tts is currently speaking; its
+  /// callbacks are ignored once a newer utterance has started.
+  int _ttsGeneration = -1;
+
+  bool get _ttsCurrent => _ttsGeneration == _generation;
+
   static Future<VoiceService> create() async {
     if (kIsWeb ||
         !(defaultTargetPlatform == TargetPlatform.iOS ||
@@ -236,7 +247,9 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
             if (v is Map) {for (final e in v.entries) '${e.key}': '${e.value}'},
       ];
       final service = DeviceVoiceService._(
-          tts, voices, defaultTargetPlatform == TargetPlatform.iOS ? ChannelSpeechAudioBackend() : null);
+          tts, voices, defaultTargetPlatform == TargetPlatform.iOS && DeviceVoiceService.useAudioPath
+              ? ChannelSpeechAudioBackend()
+              : null);
       return service;
     } catch (_) {
       return NoVoiceService();
@@ -375,6 +388,7 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
       if (gen != _generation) return;
       await _prepareAudioSession();
       if (gen != _generation) return;
+      _ttsGeneration = gen;
       await _tts.speak(clean);
     }
 

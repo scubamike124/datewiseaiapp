@@ -21,8 +21,7 @@ Who does it:
 
 Numbers below are copied from `backend/wrangler.toml` and the linked docs.
 Where two docs disagree, this list names the one that wins. Docs marked
-"(PR #30)" are on branch `claude/datewise-model-eval`; docs marked "(avatar
-branch)" are on `claude/datewise-talking-avatars` until it is merged.
+"(PR #30)" are on branch `claude/datewise-model-eval` until that PR is merged.
 
 [runbook]: ../launch/WORKER_DEPLOY_RUNBOOK.md
 [cfsep]: ../launch/CLOUDFLARE_ACCOUNT_SEPARATION_PLAN.md
@@ -36,9 +35,9 @@ branch)" are on `claude/datewise-talking-avatars` until it is merged.
 [meta]: metadata.md
 [prov]: ../legal/ASSET_PROVENANCE.md
 [handoff]: ../review/FINAL_REVIEW_HANDOFF.md
-[avatar]: https://github.com/scubamike124/datewiseaiapp/blob/claude/datewise-talking-avatars/docs/avatar/TALKING_AVATARS.md
-[avtool]: https://github.com/scubamike124/datewiseaiapp/blob/claude/datewise-talking-avatars/tool/avatar/README.md
-[bakeoff]: https://github.com/scubamike124/datewiseaiapp/blob/claude/datewise-talking-avatars/docs/avatar/PAID_PROVIDER_BAKEOFF.md
+[avatar]: ../avatar/TALKING_AVATARS.md
+[avtool]: ../../tool/avatar/README.md
+[bakeoff]: ../avatar/PAID_PROVIDER_BAKEOFF.md
 
 ### A. Owner decisions
 
@@ -51,7 +50,7 @@ branch)" are on `claude/datewise-talking-avatars` until it is merged.
 | A5 | **App Store Server Notifications on.** Code done and tested; `ASSN_ENABLED = "0"` until the URLs are set (B16), then `"1"` in a reviewed PR and a redeploy (D5) | Owner-only | Refunds and revocations take effect at once, Apple's grace period is followed, and a renewal that has not reached the device does not lock a subscriber out. Chat works without it | [assn], [resil] §3 |
 | A6 | **Fail-open stays off.** `FAIL_OPEN_PER_SUBSCRIBER = FAIL_OPEN_PER_ISOLATE = "0"` and `FAILOPEN_LIMITER` commented out. If the owner ever opts in: 3 / 10 and the `FAILOPEN_LIMITER` binding with its own namespace_id | Done in code | Failing open removes the budget breaker; leave it off until logs show Durable Object outages actually happen | [resil] §4 (L6) |
 | A7 | **`LEGACY_CLIENTS` timeline** (now `"1"`). Separate account (B6): the new v2-only Worker sets `LEGACY_CLIENTS = "0"` and `ANON_NEURON_BUDGET = "0"` from day one; the old Worker keeps chat-v6 for v1 until R+90 days (then a no-AI "please update" responder) and is deleted at R+180. Same account: keep `"1"` for **60 to 90 days** after v2 ships, then `"0"`. If App Store Connect version history shows 1.0.2 never shipped, `"0"` at launch | Owner-only | Anyone can pose as v1, so the token-less path is an anonymous allowance (`ANON_NEURON_BUDGET` 2,000 a day); retiring it stops that and cuts the budget needed by about 20% | [resil] §2, [v1], [cfsep] §3.3 |
-| A8 | **Paid avatar provider bake-off** (Simli and Anam free tiers; LiveAvatar and Tavus optional). Approve or decline: free accounts (no card), uploading the four approved portraits, then vendor, plan and privacy changes | Owner-only | Not needed for 2.0: the on-device avatar costs $0 and sends nothing out. A paid vendor costs per minute and receives the coach's reply audio | [bakeoff] (avatar branch) |
+| A8 | **Paid avatar provider bake-off** (Simli and Anam free tiers; LiveAvatar and Tavus optional). Approve or decline: free accounts (no card), uploading the four approved portraits, then vendor, plan and privacy changes | Owner-only | Not needed for 2.0: the on-device avatar costs $0 and sends nothing out. A paid vendor costs per minute and receives the coach's reply audio | [bakeoff] |
 | A9 | **Minimum iOS stays 15.** iOS 12–14 users keep the last v1 build their device supports (see B20) | Done in code | Xcode 26 (required for uploads since 2026-04-28) and Flutter 3.47 both set iOS 15 as the floor, and StoreKit 2 (the subscription check) needs iOS 15. Every iPhone that runs iOS 13/14 can install iOS 15 (to be checked against Apple's list before public text) | [v1] |
 
 ### B. Owner accounts and settings
@@ -105,7 +104,7 @@ branch)" are on `claude/datewise-talking-avatars` until it is merged.
 | C1 | **The 8 final portraits**: `{ava,ethan,sofia,diego}-{hero,avatar}.jpg`, hero portrait at least 1024×1400, avatar at least 1024 on the short side, and each meeting the portrait requirements below | Owner-only | The current eight are interim (landscape, hero = avatar, Ava and Sofía look alike) and fail the size rules | [prov] |
 | C2 | **Provenance**: generation date(s), the account used, the original files, and your approval date | Owner-only | Apple can ask; the record must show the faces are illustrations, not real people | [prov] |
 | C3 | **Run `portrait_intake`** (identity, size and pair-distance check; kept outside the repository), then re-check `heroFocus` / `avatarFocus` in `lib/models/coach.dart` | Agent, after owner | Catches swapped or too-similar faces before anything is generated from them | [prov] |
-| C4 | **Run `tool/avatar/regenerate.sh`** (all four coaches), then `flutter test test/avatar_widget_test.dart`, and review the sheets in `build/avatar-review/` | Agent, after owner | Avatar frames are cut from the portrait; a new portrait without new frames falls back to a still image (a same-size replacement is not detected) | [avtool] (avatar branch) |
+| C4 | **Run `tool/avatar/regenerate.sh`** (all four coaches), then `flutter test test/avatar_widget_test.dart`, and review the sheets in `build/avatar-review/` | Agent, after owner | Avatar frames are cut from the portrait; a new portrait without new frames falls back to a still image (a same-size replacement is not detected) | [avtool] |
 | C5 | **Regenerate the screenshots** (`tool/appstore_screenshots/generate.sh`): iPhone 6.9" and 6.5" and iPad 13" (2064x2752), EN and ES; the owner reviews every image | Agent, after owner | The store images must show the final faces; the iPad set is required because the app supports iPad | Details step 11, [meta] §7 |
 
 **Portrait requirements** (each of the 8 files):
@@ -144,7 +143,7 @@ Nothing here has run: it needs a signed build on TestFlight (Details steps
 | E1 | **StoreKit Sandbox test plan** P1–X4 (purchase, restore, renewal, expiry, refund, billing retry, grace). A FAIL in P1, R1, N1, E1, F1 or B1 blocks submission | Owner-only | Subscription bugs are the most likely rejection and the most costly lockout | [sandbox] |
 | E2 | **Voice and speech-to-text in EN and ES** (hold to talk, timeout, a transcript during a streaming reply) | Owner-only | On-device recognition cannot be tested in CI | Details step 22 |
 | E3 | **Permission prompts** for microphone and speech recognition, EN and ES; the denied path offers Open Settings | Owner-only | App Review checks the purpose strings and the denied path | Details step 22 |
-| E4 | **Avatar word timing per voice tier**: default, Enhanced and Premium voices; native audio path on iOS 15/16 (loudness only) and iOS 17+ (word markers), and the fallback; tune A/V sync | Owner-only | Lip sync was measured only on a host, never on an iPhone | [avatar] "Blocked / to do" (avatar branch) |
+| E4 | **Avatar word timing per voice tier**: default, Enhanced and Premium voices; native audio path on iOS 15/16 (loudness only) and iOS 17+ (word markers), and the fallback; tune A/V sync | Owner-only | Lip sync was measured only on a host, never on an iPhone | [avatar] "Blocked / to do" |
 | E5 | **Frame time and memory** in a profile build on the voice stage | Owner-only | Must not drop frames or grow memory on older iPhones | [avatar](../avatar/TALKING_AVATARS.md) |
 | E7 | **Avatar native audio path** (only if it should ship): run `iOS build` by hand with `signed_build`, `upload_testflight` and `avatar_audio_path` ticked. That build is marked "AVATAR AUDIO-PATH TEST BUILD" in the run summary and gets a build number 5000 higher (e.g. 5150 instead of 150): **never submit a 5000+ build for review**. Upload the App Store build of a version before any 5000+ test build of that same version (or give test builds their own version, e.g. 2.0.1), because App Store Connect can reject a lower build number after a higher one; the ranges would also overlap once run numbers pass about 4,900. Test playback, ducking and release, a call/Siri interruption, unplugging headphones, backgrounding, and the fallback. Release builds keep the flag off (flutter_tts path) until this passes | Owner-only | The native path cannot be tested off-device | [avatar](../avatar/TALKING_AVATARS.md) |
 | E6 | **Live AI tests for the four coaches** (Ava, Ethan, Sofía, Diego) in EN and ES: replies, language, limit notices, usage headers; plus onboarding and the 18+ gate, Delete my data, and the iPad layout | Owner-only | The model has not been called from a v2 build yet | Details step 22, [models] (PR #30) |

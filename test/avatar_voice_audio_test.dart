@@ -71,6 +71,33 @@ void main() {
     expect(calls.where((c) => c == 'speak'), hasLength(1));
   });
 
+  Future<void> nativeCallback(String method) async {
+    const codec = StandardMethodCodec();
+    await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .handlePlatformMessage('flutter_tts', codec.encodeMethodCall(MethodCall(method)), (_) {});
+  }
+
+  test('a late flutter_tts cancel from the replaced utterance does not clear the new one', () async {
+    DeviceVoiceService.useAudioPath = false;
+    final s = DeviceVoiceService.forTesting(FlutterTts(), voices);
+    await s.speak('First reply from Ava.', Coaches.ava);
+    await nativeCallback('speak.onStart');
+    expect(s.speaking.value, isTrue);
+    // The second reply is between its stop and its speak when the first
+    // utterance's cancel callback arrives: it must be ignored.
+    holdStop = Completer<void>();
+    final second = s.speak('Second reply from Ava.', Coaches.ava);
+    await Future<void>.delayed(Duration.zero);
+    await nativeCallback('speak.onCancel');
+    expect(s.speaking.value, isTrue, reason: 'stale cancel ignored');
+    holdStop!.complete();
+    await second;
+    await nativeCallback('speak.onStart');
+    expect(s.speaking.value, isTrue);
+    await nativeCallback('speak.onComplete');
+    expect(s.speaking.value, isFalse, reason: 'the current utterance still ends normally');
+  });
+
   test('audio path: native speech with the chosen voice; levels drive the jaw; done ends it', () async {
     final audio = FakeAudio();
     final s = DeviceVoiceService.forTesting(FlutterTts(), voices, audio: audio);
