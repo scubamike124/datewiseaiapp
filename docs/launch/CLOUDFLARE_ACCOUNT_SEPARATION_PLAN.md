@@ -60,7 +60,7 @@ A stable hostname means a later move between accounts or vendors doesn't need an
 Recommendation: **A for the first v2 build**, unless the owner moves DNS (B) and verifies mail before the build is cut. If B is done later, a v2.0.x update can switch to `api.datewiseai.com`, and the workers.dev URL stays live for builds that still use it.
 
 ### 3.3 v1 builds stay on the old Worker
-- App Store 1.0 uses the former developer's Worker (see `V1_TRANSITION_PLAN.md`). 1.0.2, if it shipped, has the **old** URL compiled in. So the old Worker on the shared account must keep serving v1 during the transition.
+- App Store 1.0 uses the former developer's Worker (see `V1_TRANSITION_SUMMARY.md`). 1.0.2, if it shipped, has the **old** URL compiled in. So the old Worker on the shared account must keep serving v1 during the transition.
 - **Old Worker (shared account):** deploy **chat-v6** (`f5b0401`) now. It fixes the HTTP 502 for 1.0.2, needs only the existing `AI` binding, and keeps v1's own prompts and photo coach. Later, replace it with a small "please update" responder (section 5, step 11) that uses no AI at all, then delete it.
 - **New Worker (new account):** serves only v2, so set `LEGACY_CLIENTS = "0"` and `ANON_NEURON_BUDGET = "0"` there. A token-less request then gets `426 APP_UPDATE_REQUIRED` and costs nothing. The photo coach path is off (v2 has no photos).
 - Running both Workers during the transition is the plan; neither replaces the other.
@@ -77,26 +77,36 @@ Optional. If enabled (`ASSN_ENABLED = "1"`), set both the Production and Sandbox
 ### 4.1 API tokens (Owner creates; My Profile → API Tokens → Create Token → Custom)
 | Token | Permissions | Scope | Used by |
 |---|---|---|---|
-| **Deploy token** | Account · **Workers Scripts · Edit** | **Account Resources: Include → only the new DateWise account.** No zone permissions. | GitHub Actions deploy (`wrangler deploy`, `wrangler secret put`, rollback) |
-| (only if wrangler insists on listing accounts) | add Account · Account Settings · Read | same account | — usually not needed when `CLOUDFLARE_ACCOUNT_ID` is set |
+| **Deploy token** | Account · **Workers Scripts · Edit** | **Account Resources: Include → only the new DateWise account.** No zone permissions. | GitHub Actions deploy (`wrangler deploy`, `wrangler secret list`, `--secrets-file`, rollback) |
+| (fallback, only if Wrangler fails listing accounts or the user: `/memberships`, `/user`) | add Account · Account Settings · Read, and if still needed User · User Details · Read | same account | — usually not needed when `CLOUDFLARE_ACCOUNT_ID` is set (same fallback as `WORKER_DEPLOY_RUNBOOK.md` 1b) |
 | (only if option B is used, and only if CI should manage the domain) | Zone · Workers Routes · Edit on `datewiseai.com` | that zone only | Prefer attaching the custom domain once in the dashboard instead |
 | Optional **model-evaluation token** | Account · **Workers AI · Read** and **Edit** | the new account only | the model comparison harness (PR #30), if run |
 
 - The Workers AI **binding** needs no token: the Worker uses its own account's AI.
 - Set an expiry date on each token, and keep the Global API Key unused.
 
-### 4.2 GitHub (datewiseaiapp): use an Environment, not repo-wide secrets
-- Settings → Environments → **New environment `production-worker`**, with **Required reviewers: the owner** and deployment branches and tags limited to `main`, `claude/datewise-v2-app` and tags `worker-v*` (the workflow deploys from tags too).
-- Environment secrets:
+### 4.2 GitHub (datewiseaiapp): the deploy workflow and its environment
+Deploys go through `.github/workflows/deploy-worker.yml`, adapted from the earlier manual workflow at `f5b0401`. The steps are in **`WORKER_DEPLOY_RUNBOOK.md`**, which is the source of truth. In short:
+- **Environment `production-worker`** (Settings → Environments):
+  - **Required reviewers: the owner**;
+  - **Deployment branches and tags: selected**, namely `main`, `claude/datewise-v2-app` and tag pattern `worker-v*`;
+  - a tag ruleset so only the owner can create `worker-v*` tags (runbook 1c and 1e).
+- **Environment secrets only**, never repository secrets; the workflow fails if repository-level copies exist:
   - `CLOUDFLARE_API_TOKEN` (the deploy token);
-  - `CLOUDFLARE_ACCOUNT_ID` (the new account's ID; not a secret, but kept out of the repo);
-  - `ID_HASH_SALT`: **optional.** Recommended: the owner sets it **once** in the Cloudflare dashboard (Worker → Settings → Variables and Secrets → Add → Secret) and it is never stored in GitHub. If CI is to set it, store it here and use `wrangler secret put ID_HASH_SALT` from a step that reads only this secret.
-- The existing `deploy-worker.yml` (on `f5b0401`, not yet on the v2 branch) is the workflow to reuse. Changes it needs for chat-v7:
-  - run `node --test backend/worker.test.mjs backend/cost_guard.test.mjs`;
-  - pin actions to commit SHAs, as the other workflows already do;
-  - set `wranglerVersion` to 4.36 or later (needed for `[[ratelimits]]`);
-  - add `environment: production-worker`;
-  - check `?version` = `chat-v7-cost-guard` at the new URL.
+  - `CLOUDFLARE_ACCOUNT_ID` (the new account's ID).
+- **`ID_HASH_SALT`, either way works:**
+  - **(a)** the owner sets it once in the Cloudflare dashboard (Worker → Settings → Variables and Secrets → Add → Secret), so it is never stored in GitHub. This needs the Worker to exist.
+  - **(b)** it is stored as a `production-worker` environment secret.
+
+  The workflow checks with `wrangler secret list`. A salt that is already there is kept. If the Worker has none, it uploads the secret with the deploy (`wrangler deploy --secrets-file`, additive). If neither exists, or the list fails for any reason other than "Worker not found", it fails before deploying.
+- **What the workflow already does for chat-v7:**
+  - runs `node --test backend/*.test.mjs`;
+  - pins actions to commit SHAs;
+  - uses wrangler 4.158.0 (4.36 or later is needed for `[[ratelimits]]`);
+  - deploys only reviewed commits (ancestors of `main` or `claude/datewise-v2-app`);
+  - does a dry run with binding and cost-limit checks;
+  - records the previous version id;
+  - checks `?version` = `chat-v7-cost-guard` and a no-AI 403 `SUBSCRIPTION_REQUIRED` at the new URL.
 
 ### 4.3 `wrangler.toml` for the new account (in a reviewed PR)
 - Keep: `[ai]`, `[[durable_objects.bindings]]`, `[[migrations]] v1-usage-guard`, `[[ratelimits]]` (740219 is fine in a fresh account).
@@ -112,14 +122,14 @@ Optional. If enabled (`ASSN_ENABLED = "1"`), set both the Production and Sandbox
 | 2 | Create the new Cloudflare account (free). Choose its workers.dev subdomain (Workers & Pages → Overview). If Paid is chosen, subscribe ($5/month, **spending approval**). | **Owner** | Nothing deployed yet; the account can be closed |
 | 3 | Create the deploy token (4.1). Add the GitHub environment and secrets (4.2). | **Owner** | Revoke the token; delete the environment |
 | 4 | PR: wrangler.toml values for the new account (4.3), and the updated `deploy-worker.yml`. Review and merge. | Agent prepares; owner approves | Revert the PR |
-| 5 | Run the deploy workflow (`WORKER_DEPLOY_RUNBOOK.md`; dry run first, then the owner approves the `production-worker` gate): `wrangler deploy` creates the Worker, the DO class and migration, the rate-limit binding and the vars. Set `ID_HASH_SALT`. Check `?version` = `chat-v7-cost-guard`. | **Owner** runs it | `wrangler rollback`, or delete the Worker. No app uses it yet |
+| 5 | Run the deploy workflow (`WORKER_DEPLOY_RUNBOOK.md`; dry run first, then the owner approves the `production-worker` gate): `wrangler deploy` creates the Worker, the DO class and migration, the rate-limit binding and the vars. `ID_HASH_SALT` comes from the environment secret on this first deploy (4.2 (b)). Check `?version` = `chat-v7-cost-guard`. | **Owner** runs it | `wrangler rollback`, or delete the Worker. No app uses it yet |
 | 6 | Live tests against the new URL using a TestFlight or debug build with `--dart-define=COACH_BACKEND_URL=<new URL>` (no code change). Include a sandbox purchase, the subscription check, the limits and EN/ES replies. | Owner (device); agent prepares checks | Nothing to roll back |
 | 7 | (Option B only) Move DNS to Cloudflare in the new account: copy all records, lower TTLs, switch nameservers at the registrar, verify mail (send and receive at `support@`), then add the `api.datewiseai.com` Custom Domain to the Worker. | **Owner** | Switch the nameservers back at the registrar (GoDaddy keeps the old zone if it isn't deleted) |
 | 8 | PR: `productionUrl` → the new URL (`lib/services/ai_config.dart:14`, `test/backend_chat_test.dart:97,115`, `scripts/production-e2e-probe.mjs:9`). CI green. | Agent; owner approves | Revert the PR before the build is submitted |
 | 9 | Build and submit v2. Use a **7-day phased release**. | **Owner** | Pause the phased release. Backend problems: roll back the Worker version (step 5) |
 | 10 | (Optional) Enable ASSN: `ASSN_ENABLED = "1"` and the URL in App Store Connect (3.5). | **Owner** | Clear the URL; set `ASSN_ENABLED = "0"` |
-| 11 | After the adoption window (`V1_TRANSITION_PLAN.md`): replace the old Worker's code with an "update the app" responder (no AI calls), then delete it once v1 traffic is near zero. | **Owner** approves | Redeploy chat-v6 from the version history |
-| 12 | Remove the old Worker from any other deploy tooling's allowlist, so no tool keeps a path to it. | Owner / agent | — |
+| 11 | After the adoption window (`V1_TRANSITION_SUMMARY.md`): replace the old Worker's code with an "update the app" responder (no AI calls), then delete it once v1 traffic is near zero. | **Owner** approves | Redeploy chat-v6 from the version history |
+| 12 | Remove the old Worker from any other deploy tooling, so no tool keeps a path to it. | Owner | — |
 
 ## 6. Costs
 
@@ -157,16 +167,16 @@ From `docs/business/WORKERS_PAID_EVALUATION.md` section 4 (`node docs/business/a
   - Use it at most once more, for the chat-v6 stop-gap on the old Worker (step 1).
   - Deploy the new account only through this repo's reviewed wrangler workflow (section 4.2).
   - Don't give that tool a token for the new account, because that would undo the separation.
-  - Remove DateWise from its allowlist at step 12.
+  - Remove DateWise from that tool at step 12.
 
 ## 8. Owner-only steps (short list)
 1. Approve and run the chat-v6 stop-gap on the old Worker.
 2. Decide Free or Workers Paid; approve $5 a month if Paid.
 3. Create the new Cloudflare account and choose its workers.dev subdomain.
 4. Create the scoped deploy token (Workers Scripts Edit, new account only).
-5. Create the GitHub environment `production-worker` (required reviewer: you) with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
-6. Set `ID_HASH_SALT` in the new Worker's dashboard (a long random value; store it in your password manager).
-7. Run the deploy workflow; confirm `?version`.
+5. Create the GitHub environment `production-worker` (required reviewer: you; deployment branches and tags restricted) with the environment secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, and add the `worker-v*` tag ruleset (`WORKER_DEPLOY_RUNBOOK.md` 1c–1e).
+6. `ID_HASH_SALT` (a long random value; store it in your password manager). For the first deploy on the new account, add it as a `production-worker` environment secret, because the Worker doesn't exist yet. Afterwards you may delete that secret, since the Worker keeps it.
+7. Run the deploy workflow (dry run, then approve the deploy); confirm `?version`.
 8. Decide on the custom domain. For option B: copy the DNS records, switch nameservers, test `support@` mail.
 9. Test on TestFlight; approve the `productionUrl` PR; submit v2 with phased release.
 10. (Optional) Set the ASSN URL in App Store Connect.
