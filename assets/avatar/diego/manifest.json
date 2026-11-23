@@ -190,8 +190,8 @@
     437,
     201
    ],
-   "identity": 0.893,
-   "master": 0.946
+   "identity": 0.891,
+   "master": 0.933
   },
   "blink_closed": {
    "region": "eyes",
@@ -215,5 +215,15 @@
    "identity": 0.876,
    "master": 0.894
   }
- }
+ },
+ "mouth": [
+  610.6,
+  447.4
+ ],
+ "mouth_width": 220.3,
+ "chin": 598.3,
+ "blink_half_openings": [
+  0.47,
+  0.53
+ ]
 }

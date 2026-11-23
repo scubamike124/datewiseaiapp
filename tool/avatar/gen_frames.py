@@ -52,10 +52,52 @@ VISEMES = {
 # Head motion (nods, tilts) is a whole-image transform in the app, not a
 # generated frame, so nothing warps the hair, hands or background.
 EYES = {
-    "blink_half": dict(eye=0.16),
+    "blink_half": dict(eye=0.16),   # replaced by a per-eye symmetric render (symmetric_half_blink)
     "blink_closed": dict(eye=0.0),
     "gaze": dict(gaze_x=8, gaze_y=12),
 }
+
+# LivePortrait 203-point layout: the two eyes (image left, image right) and the lips.
+EYE_L, EYE_R, LIPS = list(range(0, 24)), list(range(24, 48)), list(range(48, 96))
+
+
+def eye_apertures(eng, rgb, lmk_init):
+    """Mean opening of each eye (pixels): eye-outline area / eye width, from
+    LivePortrait's landmarks (independent of head tilt)."""
+    l = eng.lmk.run(rgb, lmk_init)
+    out = []
+    for idx in (EYE_L, EYE_R):
+        pts = l[idx].astype(np.float32)
+        hull = cv2.convexHull(pts)
+        width = float(max(np.linalg.norm(p - q) for p in pts for q in pts))
+        out.append(float(cv2.contourArea(hull)) / max(width, 1.0))  # mean opening; roll-invariant
+    return out
+
+
+def symmetric_half_blink(eng, st, mask, rgb):
+    """A half blink with both eyes equally closed (~45% of their opening).
+    One eye-ratio setting closes the two eyes unevenly on a tilted or
+    smiling face (it read as a wink), so each eye takes the render whose
+    opening is closest to the target, and the two halves are joined at the
+    bridge of the nose."""
+    open_ap = eye_apertures(eng, rgb, st["lmk203"])
+    target = [0.45 * a for a in open_ap]
+    renders = []
+    for r in (0.05, 0.08, 0.11, 0.14, 0.17, 0.2, 0.24, 0.28):
+        _, full = eng.render(st, eye=r)
+        renders.append((full, eye_apertures(eng, full, st["lmk203"])))
+    pick = [min(renders, key=lambda x: abs(x[1][k] - target[k])) for k in (0, 1)]
+    face = st["face"]
+    mid = int((face[4] + face[6]) / 2)
+    H, W = rgb.shape[:2]
+    left = np.zeros((H, W), np.float32)
+    left[:, :mid] = 1
+    k = int(0.15 * abs(face[6] - face[4])) | 1
+    left = cv2.GaussianBlur(left, (k, k), 0)
+    full = (pick[0][0].astype(np.float32) * left[..., None] +
+            pick[1][0].astype(np.float32) * (1 - left[..., None])).astype(np.uint8)
+    got = [pick[0][1][0] / open_ap[0], pick[1][1][1] / open_ap[1]]
+    return full, got
 
 # LivePortrait landmark indices (203-point layout): face contour.
 CONTOUR = list(range(108, 145))
@@ -178,9 +220,18 @@ def main():
         review = {}
         jobs = [(n, kw, "mouth") for n, kw in VISEMES.items()] + \
                [(n, kw, "eyes") for n, kw in EYES.items()]
+        lips = st["lmk203"][LIPS]
+        manifest["mouth"] = [round(float(lips[:, 0].mean()), 1), round(float(lips[:, 1].mean()), 1)]
+        manifest["mouth_width"] = round(float(lips[:, 0].max() - lips[:, 0].min()), 1)
+        manifest["chin"] = round(float(st["lmk203"][126][1]), 1)
         for name, kw, region in jobs:
-            _, full = eng.render(st, **kw)
             mask, box = reg[region]
+            if name == "blink_half":
+                full, got = symmetric_half_blink(eng, st, mask, rgb)
+                manifest["blink_half_openings"] = [round(g, 2) for g in got]
+                print(f"{coach}/blink_half: eye openings {got[0]:.2f} / {got[1]:.2f} of open", flush=True)
+            else:
+                _, full = eng.render(st, **kw)
             full = match_detail(full, rgb, mask)
             comp = blend(rgb, full, mask)
             comp_bgr = cv2.cvtColor(comp, cv2.COLOR_RGB2BGR)
