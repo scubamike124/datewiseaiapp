@@ -491,7 +491,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get paywallWebOnly =>
-      'Subscribe in the iPhone app. Purchases are not available on the web.';
+      'Subscribe in the app on your iPhone or iPad. Purchases are not available on the web.';
 
   @override
   String get purchasePending =>
@@ -711,7 +711,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get memoryTurnOnBody =>
-      'Your note is kept only while Coach memory is on. It will then be sent to your coach with each message.';
+      'Your note is kept only while Coach memory is on. While it is on, it is sent to your coach with each message.';
 
   @override
   String get memoryTurnOnAction => 'Turn on & save';

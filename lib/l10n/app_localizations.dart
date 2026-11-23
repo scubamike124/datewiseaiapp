@@ -905,7 +905,7 @@ abstract class AppLocalizations {
   /// No description provided for @paywallWebOnly.
   ///
   /// In en, this message translates to:
-  /// **'Subscribe in the iPhone app. Purchases are not available on the web.'**
+  /// **'Subscribe in the app on your iPhone or iPad. Purchases are not available on the web.'**
   String get paywallWebOnly;
 
   /// No description provided for @purchasePending.
@@ -1216,7 +1216,7 @@ abstract class AppLocalizations {
   /// No description provided for @memoryTurnOnBody.
   ///
   /// In en, this message translates to:
-  /// **'Your note is kept only while Coach memory is on. It will then be sent to your coach with each message.'**
+  /// **'Your note is kept only while Coach memory is on. While it is on, it is sent to your coach with each message.'**
   String get memoryTurnOnBody;
 
   /// Confirm button when saving a Coach memory note while memory is off: turns memory on and saves.
