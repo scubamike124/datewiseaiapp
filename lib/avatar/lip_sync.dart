@@ -87,9 +87,12 @@ class VisemeTimeline {
   /// Openness jump above which a transition goes through a middle shape.
   static const double bridgeJump = 0.4;
 
-  /// Length of that middle shape, seconds: at least two frames at 60 Hz,
-  /// so it is never a one-frame flicker.
-  static const double bridgeLength = 0.034;
+  /// Length of that middle shape, seconds (= [minShape]).
+  static const double bridgeLength = 0.05;
+
+  /// Shortest time any mouth shape stays on screen, seconds (measured in
+  /// time, not frames): shorter ones are merged into a neighbour.
+  static const double minShape = 0.05;
 
   /// A middle shape is only inserted if the shape after it still lasts this
   /// long; otherwise the change is a plain switch.
@@ -178,7 +181,34 @@ class VisemeTimeline {
       }
     }
     if (cues.isNotEmpty) cues.add(VisemeCue(Viseme.rest, cues.last.end, cues.last.end + 0.2));
-    return _bridge(_capHolds(cues));
+    return _mergeShort(_bridge(_capHolds(cues)));
+  }
+
+  /// Merges every mouth shape shorter than [minShape] into the neighbour
+  /// closest in openness (not into a pause), so nothing flashes.
+  static List<VisemeCue> _mergeShort(List<VisemeCue> cues) {
+    final out = List<VisemeCue>.of(cues);
+    var changed = true;
+    while (changed) {
+      changed = false;
+      for (var k = 0; k < out.length; k++) {
+        final c = out[k];
+        if (c.viseme == Viseme.rest || c.duration >= minShape - 1e-9) continue;
+        final prev = k > 0 && out[k - 1].viseme != Viseme.rest ? out[k - 1] : null;
+        final next = k + 1 < out.length && out[k + 1].viseme != Viseme.rest ? out[k + 1] : null;
+        if (prev == null && next == null) continue;
+        double gap(VisemeCue? n) => n == null ? 1e9 : (n.viseme.openness - c.viseme.openness).abs();
+        if (gap(prev) <= gap(next)) {
+          out[k - 1] = VisemeCue(prev!.viseme, prev.start, c.end);
+        } else {
+          out[k + 1] = VisemeCue(next!.viseme, c.start, next.end);
+        }
+        out.removeAt(k);
+        changed = true;
+        break;
+      }
+    }
+    return out;
   }
 
   /// No shape is held longer than [maxHold] while speaking: long vowels and
@@ -461,11 +491,28 @@ class LipSyncDriver extends ChangeNotifier {
     return t;
   }
 
+  Viseme _shown = Viseme.rest;
+  double _shownSince = -1e9;
+
+  /// The shape for this display frame, held for at least
+  /// [VisemeTimeline.minShape] (by time) before it may change.
+  VisemeSample sample() {
+    final want = _sample();
+    final now = _now;
+    if (want.to == _shown) return want;
+    if (now - _shownSince < VisemeTimeline.minShape && _active) {
+      return VisemeSample(_shown, _shown, 1);
+    }
+    _shown = want.to;
+    _shownSince = now;
+    return want;
+  }
+
   /// The mouth shape for this display frame, [VisemeTimeline.lead] ahead
   /// of the word timing. With the real audio, the loudness picks the vowel's
   /// opening (full when loud, half when soft), and the mouth never shows
   /// rest while the audio is audible.
-  VisemeSample sample() {
+  VisemeSample _sample() {
     final t = planTime();
     if (t == null) return VisemeSample.rest;
     final a = _audio;

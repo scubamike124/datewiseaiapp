@@ -68,20 +68,26 @@ assets/coaches/<id>-hero.jpg                     native audio path (iOS 13+ API,
     to the background ends the utterance with "done": the stage stops
     speaking; the next reply uses the native path again.
   * If the synthesizer renders no audio at all, the channel reports an error
-    before playback; Dart also waits at most 3 s for playback to start. In
-    both cases the same reply is spoken through flutter_tts and the app keeps
-    using flutter_tts for the session. An explicit stop releases the audio
-    session so other apps' audio is no longer ducked.
+    before playback (the same reply is spoken through flutter_tts and the
+    app keeps flutter_tts for the session). Dart also waits at most 3 s for
+    playback to start; a timeout falls back for that reply only (a cold
+    Premium voice can be slow), and two in a row turn the path off. An
+    explicit stop releases the audio session, if this channel activated it,
+    so other apps' audio is no longer ducked.
   * **Build flag:** `--dart-define=DW_AVATAR_AUDIO_PATH=true` turns it on
     (`DeviceVoiceService.useAudioPath`). **Default off**: App Store builds use
     the flutter_tts word-range path until the native path has passed an
     iPhone test. For that test, run the `iOS build` workflow by hand with
     `signed_build`, `upload_testflight` and `avatar_audio_path` ticked, and
-    install the TestFlight build. Leave `avatar_audio_path` off for a build
-    meant for App Store review.
+    install the TestFlight build. Such a build is marked "AVATAR AUDIO-PATH
+    TEST BUILD" in the run summary and its build number is 5000 higher, so
+    it cannot be mistaken for an App Store candidate (checklist E7).
   * **The app minimum stays iOS 15.** It compiles in CI.
 * **Alignment:** with markers (iOS 17), the plan is mapped word by word
-  (markers out of order or past the audio are ignored). Otherwise the
+  (markers out of order or past the audio are ignored; binary search over a
+  cached marker list; lip-closure windows rebuilt at most once per second
+  of new audio: worst call 8 ms, 0.5 s in total for a 114 s reply in a
+  debug test). Otherwise the
   loudness is aligned to the plan by dynamic time warping (20 ms steps, both
   ends fixed once synthesis is complete; at most 250k cells, coarser for
   long replies; re-warped at most once per second of new audio, so the UI
@@ -101,9 +107,10 @@ assets/coaches/<id>-hero.jpg                     native audio path (iOS 13+ API,
 * **Transitions:** every change of mouth shape is a hard switch between two
   whole photos (no crossfade, so no teeth through lips); closed lips and an
   open or smiling mouth pass through a just-parted shape (and a middle
-  shape for large jumps). A middle shape lasts at least 34 ms (two frames at
-  60 Hz) and is skipped when the next shape would last under 50 ms, so
-  there is no one-frame flicker. Blinks are switched too.
+  shape for large jumps). Every shape stays on screen at least 50 ms,
+  measured in time: shorter shapes in the plan are merged into the
+  neighbour closest in openness, and the driver holds a shape 50 ms before
+  it may change. Blinks are switched too.
 * **Blinks:** 150 ms; the first one at a random moment 1.5–4 s in; sometimes
   a double blink, never three in a row; the schedule is seeded per coach and
   per session; the half-closed frame closes both eyes equally.
@@ -114,7 +121,7 @@ assets/coaches/<id>-hero.jpg                     native audio path (iOS 13+ API,
   large-text stage and the wide iPad stage never show an edge.
 * **Constants:** `VisemeTimeline.lead` 0.08 s (word path),
   `LipSyncDriver.audioLead` 0.03 s (audio path), `maxHold` 0.25 s,
-  `bridgeJump` 0.4, `bridgeLength` 0.034 s, `minAfterBridge` 0.05 s,
+  `bridgeJump` 0.4, `bridgeLength` and `minShape` 0.05 s, `minAfterBridge` 0.05 s,
   `AudioAlignment.closureSearch` 0.06 s, `AvatarPainter.jawDrop` 0.12.
   Tune on a device.
 * **Memory:** only the coach on screen is decoded (11.1–12.6 MB of images).
@@ -135,9 +142,10 @@ assets/coaches/<id>-hero.jpg                     native audio path (iOS 13+ API,
 * With the native audio path, the same voice identifier, pitch and rate are
   passed to AVSpeechSynthesizer, so the coach sounds the same as before.
 * Same-gender coaches who share the only installed voice of a language
-  (Ava answering in Spanish with Sofía's voice, Ethan with Diego's) differ
-  by about 8% in speaking rate as well as in pitch (rates 0.52/0.48 and
-  0.49/0.45; pitch 1.02/1.10 and 0.95/0.88).
+  (Ava answering in Spanish with Sofía's voice, Ethan with Diego's) are kept
+  apart by rate and pitch: Ava/Sofía rate 0.54/0.46 (16%) and pitch
+  0.98/1.10 (2 semitones); Ethan/Diego rate 0.49/0.45 (8%) and pitch
+  0.95/0.88.
 * Each coach gets a distinct voice when the device has several: Ava and
   Ethan (en-US) and Sofía and Diego (es-MX) differ by gender; a coach
   answering in the other language avoids the voice of that language's own

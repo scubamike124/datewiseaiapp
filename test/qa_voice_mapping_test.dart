@@ -4,6 +4,7 @@
 // iPhone is BLOCKED (physical device) — see docs/qa/AI_VOICE_REPORT.md.
 
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -53,13 +54,23 @@ void main() {
       }
 
       expect(Coaches.all.map(d).toList(), [
-        // Same-gender pairs ~8% apart in rate (a shared voice still sounds
-        // like two people): Ava/Sofía 0.52/0.48, Ethan/Diego 0.49/0.45.
-        'ava:en-US>en-GB>en-AU>en:1.02:0.52',
+        // Same-gender pairs apart in rate and pitch (a shared voice still
+        // sounds like two people): Ava/Sofía 16% and 2 semitones,
+        // Ethan/Diego 8% and about 1.3 semitones.
+        'ava:en-US>en-GB>en-AU>en:0.98:0.54',
         'ethan:en-US>en-GB>en-AU>en:0.95:0.49',
-        'sofia:es-MX>es-US>es-ES>es:1.1:0.48',
+        'sofia:es-MX>es-US>es-ES>es:1.1:0.46',
         'diego:es-MX>es-US>es-ES>es:0.88:0.45',
       ]);
+    });
+
+    test('same-gender pairs sound apart even on one shared voice', () {
+      double semis(double a, double b) => 12 * math.log(a / b) / math.ln2;
+      final ava = CoachVoiceProfile.of(Coaches.ava), sofia = CoachVoiceProfile.of(Coaches.sofia);
+      final ethan = CoachVoiceProfile.of(Coaches.ethan), diego = CoachVoiceProfile.of(Coaches.diego);
+      expect((ava.rate - sofia.rate).abs() / 0.5, greaterThanOrEqualTo(0.16 - 1e-9));
+      expect(semis(sofia.pitch, ava.pitch).abs(), closeTo(2, 0.1));
+      expect((ethan.rate - diego.rate).abs() / 0.5, greaterThanOrEqualTo(0.08 - 1e-9));
     });
 
     test('female coaches never get a known male name first, and vice versa', () {

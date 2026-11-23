@@ -111,6 +111,7 @@ void main() {
         }
         for (final c in tl.cues.where((c) => c.viseme != Viseme.rest)) {
           expect(c.duration, lessThanOrEqualTo(VisemeTimeline.maxHold + 1e-9), reason: '$c');
+          expect(c.duration, greaterThanOrEqualTo(VisemeTimeline.minShape - 1e-9), reason: 'no flash: $c');
         }
         // Sample every 5 ms: a closed shape is never partly mixed with another.
         for (var t = 0.0; t < tl.duration; t += 0.005) {
@@ -260,6 +261,24 @@ void main() {
       expect(d.planTime()! - t0, lessThan(0.08), reason: 'slowed down towards 0.5x');
     });
 
+    test('a shape stays on screen at least 50 ms, measured in time', () {
+      d.begin('Mamá, ¿me ayudas con el primer mensaje?', CoachLanguage.es);
+      d.started();
+      d.addLevels(0, 0.01, [for (var i = 0; i < 300; i++) i.isEven ? 0.6 : 0.1]); // flickery loudness
+      d.audioComplete();
+      var shown = d.sample().to;
+      var since = 0.0;
+      for (var ms = 1; ms < 2500; ms++) {
+        now = Duration(milliseconds: ms);
+        final v = d.sample().to;
+        if (v != shown) {
+          expect(ms / 1000 - since, greaterThanOrEqualTo(VisemeTimeline.minShape - 1e-9), reason: '$shown at $since');
+          shown = v;
+          since = ms / 1000;
+        }
+      }
+    });
+
     test('the mouth runs 80 ms ahead of the word timing', () {
       const text = 'Mmm okay';
       d.begin(text, CoachLanguage.en);
@@ -384,6 +403,51 @@ void main() {
       }
       expect(a.inClosure(0.40), isTrue);
       expect(a.inClosure(0.25), isFalse);
+    });
+
+    test('with markers, a 2-minute reply in 100 ms chunks: every call stays cheap', () {
+      final text = List.filled(26, 'Esta es una frase de prueba, con pausas y palabras largas.').join(' ');
+      final tl = VisemeTimeline.plan(text, CoachLanguage.es);
+      expect(tl.duration, greaterThan(110));
+      final a = AudioAlignment(tl);
+      final n = (tl.duration / 0.01).ceil();
+      final all = [for (var i = 0; i < n; i++) (i ~/ 25).isEven ? 0.5 : 0.0];
+      var worst = 0, total = 0, nextWord = 0;
+      final sw = Stopwatch();
+      for (var i = 0; i < n; i += 10) {
+        sw
+          ..reset()
+          ..start();
+        a.addLevels(i * 0.01, 0.01, all.sublist(i, math.min(n, i + 10)));
+        while (nextWord < tl.words.length && tl.words[nextWord].start <= (i + 10) * 0.01) {
+          a.addMarker(tl.words[nextWord].charStart, tl.words[nextWord].start);
+          nextWord++;
+        }
+        worst = math.max(worst, sw.elapsedMicroseconds);
+        total += sw.elapsedMicroseconds;
+        // Six display frames per chunk, as the stage would ask.
+        for (var f = 0; f < 6; f++) {
+          sw
+            ..reset()
+            ..start();
+          final t = i * 0.01 + f / 60;
+          a.planTime(t);
+          a.inClosure(t);
+          worst = math.max(worst, sw.elapsedMicroseconds);
+          total += sw.elapsedMicroseconds;
+        }
+      }
+      sw
+        ..reset()
+        ..start();
+      a.complete();
+      a.closures();
+      worst = math.max(worst, sw.elapsedMicroseconds);
+      total += sw.elapsedMicroseconds;
+      // ignore: avoid_print
+      print('AudioAlignment with markers: worst call ${(worst / 1000).toStringAsFixed(1)} ms, total ${(total / 1000).toStringAsFixed(0)} ms (${tl.duration.toStringAsFixed(0)} s reply, debug VM)');
+      expect(worst, lessThan(150000));
+      expect(total, lessThan(3000000));
     });
 
     test('markers past the audio or out of order are ignored (unit mistakes)', () {

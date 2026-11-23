@@ -24,14 +24,15 @@ VOICES = {
     ("diego", "en"): ("en_US-norman-medium", None, 0),      # male, public domain
     ("sofia", "es"): ("es_MX-claude-high", None, 0),        # female, Apache-2.0
     ("diego", "es"): ("es_MX-ald-medium", None, 0),         # male, Unlicense
-    ("ava", "es"): ("es_MX-claude-high", None, -1.5),       # same es-MX voice, lower and slower
+    ("ava", "es"): ("es_MX-claude-high", None, -2.0),       # same es-MX voice, 2 semitones lower, 16% faster
     ("ethan", "es"): ("es_MX-ald-medium", None, +0.5),      # same es-MX voice, slightly higher, faster
 }
-# Piper length scale (1 = the voice's own pace; > 1 slower). Coaches that
-# share a voice differ by about 8% in rate, like the app's voice profiles.
+# Piper length scale (1 = the voice's own pace; > 1 slower), following the
+# app's voice profiles: Ava and Sofía ~16% apart in rate (Ava faster),
+# Ethan and Diego ~8%.
 PACE = {
-    ("ava", "en"): 1.0, ("ethan", "en"): 1.05, ("sofia", "en"): 1.0, ("diego", "en"): 1.06,
-    ("sofia", "es"): 1.0, ("ava", "es"): 1.08, ("diego", "es"): 1.06, ("ethan", "es"): 0.97,
+    ("ava", "en"): 0.93, ("ethan", "en"): 1.05, ("sofia", "en"): 1.08, ("diego", "en"): 1.06,
+    ("sofia", "es"): 1.08, ("ava", "es"): 0.93, ("diego", "es"): 1.06, ("ethan", "es"): 0.97,
 }
 TEXT = {
     ("ava", "en"): "Hi, I'm Ava. Your profile already shows warmth. Change one thing: lead with a specific story, then ask a playful question.",
