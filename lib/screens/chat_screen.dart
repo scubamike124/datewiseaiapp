@@ -523,6 +523,9 @@ class _SheetTile extends StatelessWidget {
       );
 }
 
+/// Largest text scale for the chat header's "AI dating coach · English" line.
+const double kHeaderSubtitleMaxScale = 1.4;
+
 class _Header extends StatelessWidget {
   const _Header({required this.coach, required this.speaking, required this.onMenu});
   final Coach coach;
@@ -547,7 +550,18 @@ class _Header extends StatelessWidget {
                   child: Text(coach.name,
                       style: const TextStyle(fontFamily: AppFonts.serif, fontSize: 21, fontWeight: FontWeight.w500, color: AppColors.text, height: 1.15)),
                 ),
-                Text(l.aiLabel(coach), key: const ValueKey('ai-label'), style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                // One line at any text size: the size is capped for this
+                // subtitle only, and an ellipsis catches what is left (VoiceOver
+                // still reads it in full). "AI" comes first, so it always shows.
+                MediaQuery.withClampedTextScaling(
+                  maxScaleFactor: kHeaderSubtitleMaxScale,
+                  child: Text(l.aiLabel(coach),
+                      key: const ValueKey('ai-label'),
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                ),
               ],
             ),
           ),

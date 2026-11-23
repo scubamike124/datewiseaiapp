@@ -95,12 +95,15 @@ void main() {
       expect(lefts, hasLength(2));
     });
 
-    testWidgets('[$lang 2.0] support email is a full subtitle; the delete-data note is not capped', (t) async {
+    testWidgets('[$lang 2.0] support email is a whole one-line subtitle; the delete-data note is not capped', (t) async {
       await pumpApp(t, scale: scale, prefs: prefs, tab: AppTab.you);
       final email = find.text(AppLinks.supportEmail);
       await t.scrollUntilVisible(email, 300);
       expect(fullyLaidOut(t, email), isTrue);
-      expect(t.widget<Text>(email).maxLines, isNull);
+      // One line, shrunk to fit if needed, so it never breaks at its dot
+      // (see ipad_and_large_text_test.dart).
+      expect(t.widget<Text>(email).maxLines, 1);
+      expect(t.widget<Text>(email).overflow, isNot(TextOverflow.ellipsis));
       final support = find.text(lang == 'es' ? 'Soporte' : 'Support');
       expect(fullyLaidOut(t, support), isTrue);
       // The label has the row's full width, not what the email leaves.
