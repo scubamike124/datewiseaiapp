@@ -3,6 +3,10 @@
 Date: 2026-11-23. Nothing here was bought, activated or deployed. The account stays on its current plan,
 and the configured price stays $9.99; $19.99 is a proposed price for this analysis only.
 
+Updated 2026-11-23 for the base branch `claude/datewise-v2-app` at `be57af7` (cost guard with budget slices,
+legacy per-request caps, opt-in fail-open). Figures that depend on the guard are read from `backend/cost_guard.js`
+and `backend/wrangler.toml` at that commit.
+
 Labels: **MEASURED** = read from an official page (URL below) or from code at a named file.
 **ASSUMPTION** = an estimate, to be replaced with real usage.
 
@@ -78,6 +82,23 @@ required on Workers Paid.** It is the only control that is strict, sits in front
 counts in neurons before the call is made (the guard reserves each request's worst case and settles the
 measured amount after). Keep `MONTHLY_NEURON_BUDGET` available as a second ceiling.
 
+What the breaker does at `be57af7` (MEASURED, code):
+
+- **One total, with slices inside it.** `DAILY_NEURON_BUDGET` counts every AI call. Token-less v1 traffic may
+  use at most `ANON_NEURON_BUDGET` (default 20% of the total) and Sandbox (TestFlight, App Review) at most
+  `SANDBOX_NEURON_BUDGET` (default 10%; `wrangler.toml` sets it to a fixed **1,000**). The slices are caps, not
+  reservations: what they do not use stays available to subscribers, but on a bad day they can take their full
+  share, so the total must cover subscribers **plus** both slices (section 5).
+- **Legacy per-request caps.** The token-less v1 chat is cut to `LEGACY_MAX_INPUT_TOKENS` **3,000** in and
+  `LEGACY_MAX_OUTPUT_TOKENS` **500** out (v2 subscribers keep 6,000 / 800). A worst-case v1 request is 182 neurons
+  on Llama and 41 on Gemma, against 324 and 76 for a worst-case v2 request.
+- **Fails closed by default.** If the Durable Object throws, chat is refused. Fail-open is **opt-in**:
+  `FAIL_OPEN_PER_SUBSCRIBER` and `FAIL_OPEN_PER_ISOLATE` are both **0** by default. If the owner turns it on
+  (3 and 10 recommended, at most `FAIL_OPEN_MAX_MINUTES` 15 per isolate per outage, only verified Production
+  tokens, only with the dedicated `FAILOPEN_LIMITER` binding), those messages skip the breaker and use the legacy
+  caps. Its exposure is bounded and small (`docs/qa/SUBSCRIPTION_RESILIENCE.md`, section 4); it does not change
+  the budget figures below.
+
 ### A second, independent limit with AI Gateway (free)
 
 AI Gateway's core features, including analytics, caching and rate limiting, are free on all plans (MEASURED,
@@ -149,7 +170,9 @@ Net = subscribers x $19.99 x (1 - commission) x (1 - 3% refunds, ASSUMPTION). Co
 
 Refunds column: the 3% of proceeds lost at 15% / at 30% commission.
 
-### DAILY_NEURON_BUDGET needed per scenario
+### DAILY_NEURON_BUDGET needed per scenario (subscriber traffic only)
+
+This table sizes subscriber demand alone. The budget to configure also has to hold the v1 and Sandbox slices; use section 5.
 
 Average day = monthly neurons / 30. Peak day = 2x the average (ASSUMPTION). Recommended budget = the peak day rounded up to 5,000, never below the free 10,000. "Most the breaker allows" = the AI bill if the whole budget were used every day for 30 days: the ceiling the breaker enforces.
 
@@ -204,34 +227,108 @@ AI + infrastructure may use at most 30% of net (70% margin target, ASSUMPTION, a
 
 ## 5. Recommended DAILY_NEURON_BUDGET and allowances
 
-All ASSUMPTION, derived from the tables above; replace with measured usage after launch.
+Usage, peak factor, tester count and in-flight share are ASSUMPTION; prices, caps and slice rules are MEASURED
+(`backend/cost_guard.js`, `backend/wrangler.toml` at `be57af7`). Every budget below is derived from both, so treat
+it as an ASSUMPTION until the guard's count-only logs give measured daily neurons. Produced by
+`node docs/business/ai_cost_model.mjs --workers-paid`.
 
-**Budget.** Size the breaker for typical usage with 2x peak-day headroom, and let the per-subscriber caps handle
-heavy users:
+**How it is sized.** The breaker refuses a call when `spent + reservation > DAILY_NEURON_BUDGET`. The total must
+hold, on the busiest day:
 
-| Subscribers | Llama 3.3 70B | Gemma 4 26B | Most the breaker allows a month (Llama / Gemma) |
-|---|---|---|---|
-| 100 | 195,000 | 45,000 | $61 / $12 |
-| 500 | 960,000 | 220,000 | $314 / $69 |
-| 1,000 | 1,915,000 | 440,000 | $629 / $142 |
-| 5,000 | 9,565,000 | 2,200,000 | $3,153 / $723 |
+1. subscriber traffic at 2x the average day (ASSUMPTION);
+2. the Sandbox slice, so App Review and TestFlight never starve subscribers or get refused themselves;
+3. a little headroom for in-flight reservations (each call reserves input + the 800-token output cap until it
+   settles);
+4. while v1 1.0.2 is still served (`LEGACY_CLIENTS=1`), the anonymous slice, which is 20% of the total, so the
+   sum of 1 to 3 is divided by 0.8. After `LEGACY_CLIENTS=0`, v1 chat makes no model call and that slice goes
+   unused.
 
-Rule of thumb: about **2,000 neurons per subscriber per day on Llama**, or **450 on Gemma**. A user base that is
-mostly heavy needs about 7x more (heavy rows of the table in section 4); raise the budget only from measured
-daily usage. Also:
+### Recommended DAILY_NEURON_BUDGET (v1 still served, `LEGACY_CLIENTS=1`)
 
+| Subscribers | Llama 3.3: start (typical usage) | Llama 3.3: 25% heavy users | Llama 3.3: all heavy (upper bound) | Gemma 4: start (typical usage) | Gemma 4: 25% heavy users | Gemma 4: all heavy (upper bound) |
+|---|---|---|---|---|---|---|
+| 100 | **285,000** ($91 / month max) | 665,000 ($216) | 1,800,000 ($591) | **70,000** ($20) | 165,000 ($51) | 440,000 ($142) |
+| 500 | **1,245,000** ($408) | 3,135,000 ($1,031) | 8,810,000 ($2,904) | **290,000** ($92) | 755,000 ($246) | 2,150,000 ($706) |
+| 1,000 | **2,440,000** ($802) | 6,225,000 ($2,051) | 17,575,000 ($5,796) | **565,000** ($183) | 1,495,000 ($490) | 4,290,000 ($1,412) |
+| 5,000 | **12,020,000** ($3,963) | 30,940,000 ($10,207) | 87,695,000 ($28,936) | **2,765,000** ($909) | 7,420,000 ($2,445) | 21,385,000 ($7,054) |
+
+All ASSUMPTION (derived). "$ / month max" is the most AI can cost in 30 days with that budget, after the free
+10,000 neurons a day; it is a ceiling, not a forecast (the forecast is the AI column in section 4). Once v1 is
+retired, the budgets drop by about 20% (the "v1 off" columns below).
+
+Usage profiles (ASSUMPTION, `AI_COST_MODEL.md` section 3): typical = 250 messages a month (2,000 tokens in,
+300 out), heavy = 1,200 (3,500 / 400). Heavy users stay within the hard caps (150 a day, 1,500 a month), so even
+the all-heavy column is profitable at $19.99 (section 4); it is shown as the upper bound a realistic user base
+could need, not as a starting value.
+
+**Recommendation (ASSUMPTION; the owner decides).**
+
+- **Start** at the "typical" column for the subscriber count you have, and review the guard's logs weekly. Move
+  toward the "25% heavy" column when the busiest day reaches about 60% of the budget. Never configure the
+  all-heavy column without measured demand: it is the ceiling a wholly heavy user base would need.
+- **Sandbox slice on Workers Paid:** set `SANDBOX_NEURON_BUDGET` to **35,000** on Llama or **10,000** on Gemma
+  (5 testers x 20 a day x a worst-case request; ASSUMPTION). The fixed `1000` in `wrangler.toml` is sized for the
+  free 10,000 a day; on Llama it fits only about 7 typical Sandbox messages a day in total (each reserves about
+  217 neurons and settles at about 115), on Gemma about 37 (MEASURED caps and prices, typical size ASSUMPTION).
+  Keep it at 1,000 while the account stays on Workers Free.
+- **Retiring v1** (`LEGACY_CLIENTS=0`) lowers the budget needed by about 20%; the anonymous slice then has nothing
+  to pay for.
+- **Model switch:** the budget is in neurons, so it must be changed together with the model. Gemma needs about
+  a quarter of Llama's budget for the same traffic. A budget sized for Gemma would trip early on Llama.
+- **Rule of thumb** (typical usage, v1 served): about **2,400 to 2,850 neurons per subscriber per day on Llama**
+  and **550 to 700 on Gemma**, the higher figure at 100 subscribers because the Sandbox slice is fixed.
 - Stay on Workers Free with `DAILY_NEURON_BUDGET = 10000` (the current value, $0) until real usage regularly
-  reaches about 8,000 neurons a day. That is about 8 typical subscribers on Llama (about 960 neurons each a day), or about 35 on Gemma (about 220 each).
-- After moving to Workers Paid (the owner's decision), set the budget from the table and review it weekly against
-  the guard's logs. Set `MONTHLY_NEURON_BUDGET` to about 30 x the average day x 1.25 as a second ceiling.
-- When the breaker trips, chat stops for everyone until 00:00 UTC (`SERVICE_BUDGET_EXHAUSTED`). Keep at least 2x
-  headroom, so it trips only under abuse or a bug, never on a busy day.
+  reaches about 8,000 neurons a day.
+- After moving to Workers Paid (the owner's decision), set `MONTHLY_NEURON_BUDGET` to about 30 x the average day
+  x 1.25 as a second ceiling.
+- When the breaker trips, chat stops for everyone until 00:00 UTC (`SERVICE_BUDGET_EXHAUSTED`). The 2x peak factor
+  is there so that it trips only under abuse or a bug, never on a busy day.
 - Add the AI Gateway rate and spend limits from section 3 as an independent second layer, and a Cloudflare budget
   alert by email.
 
+What the breaker protects against (MEASURED caps x MEASURED prices): without it, each subscriber could use up to
+150 worst-case requests a day, 48,578 neurons on Llama or 11,455 on Gemma (the 1,500-a-month cap still limits each
+one to $5.34 or $1.26 a month). If every one of 5,000 subscribers did that on the same day, it would be about 243
+million neurons on Llama (about $2,670 that day); the breaker refuses everything above the budget instead.
+
+### Full table
+
+Subscriber peak day = subscribers x monthly neurons / 30 x 2 (usage and peak ASSUMPTION, prices MEASURED). Sandbox slice = 5 testers (ASSUMPTION) x SANDBOX_DAILY_LIMIT 20 (MEASURED) x a worst-case v2 request (6,000 in / 800 out, MEASURED caps), rounded up. In-flight headroom = 1% of subscribers (at least 2, ASSUMPTION) each holding a worst-case reservation. v1 on (LEGACY_CLIENTS=1): token-less traffic may take its whole ANON_NEURON_BUDGET slice, 20% of the total (MEASURED default), so budget = (peak + sandbox + in-flight) / 0.8. v1 off: budget = peak + sandbox + in-flight. Rounded up to 5,000. "$ / month max" = the most the breaker lets AI cost in 30 days after the free 10,000 a day.
+
+| Model | Subs | Usage | Subscriber peak day | Sandbox slice | In-flight headroom | DAILY_NEURON_BUDGET, v1 on | $ / month max, v1 on | DAILY_NEURON_BUDGET, v1 off | $ / month max, v1 off |
+|---|---|---|---|---|---|---|---|---|---|
+| Llama 3.3 70B fp8-fast | 100 | typical (all) | 191,296 | 35,000 | 648 | **285,000** | $91 | 230,000 | $73 |
+| Llama 3.3 70B fp8-fast | 100 | 25% heavy, 75% typical | 493,992 | 35,000 | 648 | **665,000** | $216 | 530,000 | $172 |
+| Llama 3.3 70B fp8-fast | 100 | heavy (all) | 1,402,080 | 35,000 | 648 | **1,800,000** | $591 | 1,440,000 | $472 |
+| Llama 3.3 70B fp8-fast | 500 | typical (all) | 956,479 | 35,000 | 1,619 | **1,245,000** | $408 | 995,000 | $325 |
+| Llama 3.3 70B fp8-fast | 500 | 25% heavy, 75% typical | 2,469,959 | 35,000 | 1,619 | **3,135,000** | $1,031 | 2,510,000 | $825 |
+| Llama 3.3 70B fp8-fast | 500 | heavy (all) | 7,010,400 | 35,000 | 1,619 | **8,810,000** | $2,904 | 7,050,000 | $2,323 |
+| Llama 3.3 70B fp8-fast | 1,000 | typical (all) | 1,912,958 | 35,000 | 3,239 | **2,440,000** | $802 | 1,955,000 | $642 |
+| Llama 3.3 70B fp8-fast | 1,000 | 25% heavy, 75% typical | 4,939,919 | 35,000 | 3,239 | **6,225,000** | $2,051 | 4,980,000 | $1,640 |
+| Llama 3.3 70B fp8-fast | 1,000 | heavy (all) | 14,020,800 | 35,000 | 3,239 | **17,575,000** | $5,796 | 14,060,000 | $4,637 |
+| Llama 3.3 70B fp8-fast | 5,000 | typical (all) | 9,564,792 | 35,000 | 16,193 | **12,020,000** | $3,963 | 9,620,000 | $3,171 |
+| Llama 3.3 70B fp8-fast | 5,000 | 25% heavy, 75% typical | 24,699,594 | 35,000 | 16,193 | **30,940,000** | $10,207 | 24,755,000 | $8,166 |
+| Llama 3.3 70B fp8-fast | 5,000 | heavy (all) | 70,104,000 | 35,000 | 16,193 | **87,695,000** | $28,936 | 70,160,000 | $23,150 |
+| Gemma 4 26B | 100 | typical (all) | 43,940 | 10,000 | 153 | **70,000** | $20 | 55,000 | $15 |
+| Gemma 4 26B | 100 | 25% heavy, 75% typical | 118,410 | 10,000 | 153 | **165,000** | $51 | 130,000 | $40 |
+| Gemma 4 26B | 100 | heavy (all) | 341,822 | 10,000 | 153 | **440,000** | $142 | 355,000 | $114 |
+| Gemma 4 26B | 500 | typical (all) | 219,699 | 10,000 | 382 | **290,000** | $92 | 235,000 | $74 |
+| Gemma 4 26B | 500 | 25% heavy, 75% typical | 592,051 | 10,000 | 382 | **755,000** | $246 | 605,000 | $196 |
+| Gemma 4 26B | 500 | heavy (all) | 1,709,108 | 10,000 | 382 | **2,150,000** | $706 | 1,720,000 | $564 |
+| Gemma 4 26B | 1,000 | typical (all) | 439,398 | 10,000 | 764 | **565,000** | $183 | 455,000 | $147 |
+| Gemma 4 26B | 1,000 | 25% heavy, 75% typical | 1,184,103 | 10,000 | 764 | **1,495,000** | $490 | 1,195,000 | $391 |
+| Gemma 4 26B | 1,000 | heavy (all) | 3,418,216 | 10,000 | 764 | **4,290,000** | $1,412 | 3,430,000 | $1,129 |
+| Gemma 4 26B | 5,000 | typical (all) | 2,196,992 | 10,000 | 3,818 | **2,765,000** | $909 | 2,215,000 | $728 |
+| Gemma 4 26B | 5,000 | 25% heavy, 75% typical | 5,920,514 | 10,000 | 3,818 | **7,420,000** | $2,445 | 5,935,000 | $1,955 |
+| Gemma 4 26B | 5,000 | heavy (all) | 17,091,080 | 10,000 | 3,818 | **21,385,000** | $7,054 | 17,105,000 | $5,641 |
+
+Per-request worst cases (MEASURED caps x MEASURED prices):
+- Llama 3.3 70B fp8-fast: v2 request 6,000 / 800 tokens = 323.9 neurons; v1 (legacy) request 3,000 / 500 = 182.4 neurons; one subscriber at 150 a day, all worst case = 48,578 neurons a day.
+- Gemma 4 26B: v2 request 6,000 / 800 tokens = 76.4 neurons; v1 (legacy) request 3,000 / 500 = 40.9 neurons; one subscriber at 150 a day, all worst case = 11,455 neurons a day.
+
 **Allowances at $19.99.** Keep the hard anti-abuse caps as they are (`DAILY_MESSAGE_LIMIT` 150,
 `MONTHLY_MESSAGE_LIMIT` 1,500, `MAX_INPUT_TOKENS` 6,000, `MAX_OUTPUT_TOKENS` 800); they already guarantee no loss
-on any one subscriber with either model. For the published fair-use level (at the 70% margin target, ASSUMPTION):
+on any one subscriber with either model. The token-less v1 path keeps its smaller caps (3,000 in, 500 out). For the published fair-use level (at the 70% margin target, ASSUMPTION):
 
 | Model | Sustainable messages a month (worst case to heavy x 1.5) | Voice equivalent, minutes a month (2 turns a minute, ASSUMPTION) | Recommendation |
 |---|---|---|---|
@@ -252,3 +349,7 @@ Describe the allowance as generous fair use, never as "unlimited" (AI_COST_MODEL
   independent rate and spend limit in front of Workers AI. That needs a one-line change in `worker.js` and
   dashboard settings, and no purchase.
 - At $19.99, margins are about 82% to 99% on Llama and 95% to 99.9% on Gemma for 100 to 5,000 subscribers.
+- Recommended starting `DAILY_NEURON_BUDGET` on Workers Paid, with v1 still served: Llama 285,000 / 1,245,000 /
+  2,440,000 / 12,020,000 and Gemma 70,000 / 290,000 / 565,000 / 2,765,000 for 100 / 500 / 1,000 / 5,000
+  subscribers (ASSUMPTION; section 5 has the heavy-usage figures). Raise `SANDBOX_NEURON_BUDGET` with it.
+  Fail-open stays off unless the owner opts in.

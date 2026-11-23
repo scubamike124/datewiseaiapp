@@ -429,14 +429,25 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
             if (_voiceMode)
-              ContentWidth(
-                child: _Stage(
-                  coach: coach,
-                  speaking: speaking,
-                  elapsed: _elapsed,
-                  captions: _captions,
-                  caption: _currentCaption(state),
-                  onToggleCaptions: () => setState(() => _captions = !_captions),
+              // At large text the stage is capped and scrolls, instead of
+              // pushing the talk dock off screen; normal text is unchanged.
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                    maxHeight: MediaQuery.textScalerOf(context).scale(1) > 1.3
+                        ? MediaQuery.sizeOf(context).height * 0.18
+                        : double.infinity),
+                child: SingleChildScrollView(
+                  key: const ValueKey('voice-stage-scroll'),
+                  child: ContentWidth(
+                    child: _Stage(
+                      coach: coach,
+                      speaking: speaking,
+                      elapsed: _elapsed,
+                      captions: _captions,
+                      caption: _currentCaption(state),
+                      onToggleCaptions: () => setState(() => _captions = !_captions),
+                    ),
+                  ),
                 ),
               ),
             Expanded(
@@ -489,8 +500,8 @@ class _ChatScreenState extends State<ChatScreen> {
     final msgs = state.activeThread?.messages ?? const <ChatMessage>[];
     for (var i = msgs.length - 1; i >= 0; i--) {
       if (!msgs[i].isUser) {
-        final body = parseReply(msgs[i].text).body.replaceAll(RegExp(r'\*\*'), '').replaceAll('\n', ' ');
-        return body.length > 240 ? '…${body.substring(body.length - 240)}' : body;
+        // The whole reply: the caption box scrolls instead of cutting it.
+        return parseReply(msgs[i].text).body.replaceAll(RegExp(r'\*\*'), '').replaceAll('\n', ' ');
       }
     }
     return state.selectedCoach.greeting.replaceAll('**', '').replaceAll('\n', ' ');
@@ -511,6 +522,9 @@ class _SheetTile extends StatelessWidget {
         onTap: onTap,
       );
 }
+
+/// Largest text scale for the chat header's "AI dating coach · English" line.
+const double kHeaderSubtitleMaxScale = 1.4;
 
 class _Header extends StatelessWidget {
   const _Header({required this.coach, required this.speaking, required this.onMenu});
@@ -536,7 +550,18 @@ class _Header extends StatelessWidget {
                   child: Text(coach.name,
                       style: const TextStyle(fontFamily: AppFonts.serif, fontSize: 21, fontWeight: FontWeight.w500, color: AppColors.text, height: 1.15)),
                 ),
-                Text(l.aiLabel(coach), key: const ValueKey('ai-label'), style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                // One line at any text size: the size is capped for this
+                // subtitle only, and an ellipsis catches what is left (VoiceOver
+                // still reads it in full). "AI" comes first, so it always shows.
+                MediaQuery.withClampedTextScaling(
+                  maxScaleFactor: kHeaderSubtitleMaxScale,
+                  child: Text(l.aiLabel(coach),
+                      key: const ValueKey('ai-label'),
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                ),
               ],
             ),
           ),
@@ -590,7 +615,8 @@ class _Stage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(
-            height: 170,
+            // A shorter portrait at large text leaves room for the captions.
+            height: MediaQuery.textScalerOf(context).scale(1) > 1.3 ? 110 : 170,
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -618,8 +644,19 @@ class _Stage extends StatelessWidget {
                 children: [
                   Text(coach.name.toUpperCase(), style: AppText.eyebrow.copyWith(fontSize: 11)),
                   const SizedBox(height: 4),
-                  Text(caption, maxLines: 4, overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 13.5, height: 1.45, color: AppColors.text)),
+                  // The whole reply, never truncated: it scrolls inside a
+                  // capped height, so long replies at large text stay readable.
+                  // It starts at the end, the part being read aloud last.
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.22),
+                    child: SingleChildScrollView(
+                      key: const ValueKey('voice-caption-scroll'),
+                      reverse: true,
+                      child: Text(caption,
+                          key: const ValueKey('voice-caption'),
+                          style: const TextStyle(fontSize: 13.5, height: 1.45, color: AppColors.text)),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -797,6 +834,7 @@ class _Bubble extends StatelessWidget {
                               failure: message.failure,
                               code: message.failedCode,
                               onRetry: onRetry,
+                              showPaywallAction: showOptions,
                             )
                           : message.isPhotoOnly
                               ? Text(l.photoNoLongerAvailable,
@@ -880,16 +918,28 @@ class _Starters extends StatelessWidget {
         spacing: 8,
         runSpacing: 8,
         children: [
+          // Stadium buttons whose label wraps (an ActionChip label is one
+          // line and cuts words off at large text). Wrap gives each one the
+          // full row width at most, so a long starter fills it and wraps.
           for (final s in coach.starters)
-            ActionChip(
+            OutlinedButton(
               key: ValueKey('starter-$s'),
-              label: Text(s),
               onPressed: () => onTap(s),
-              backgroundColor: const Color(0x0DFFFFFF),
-              side: const BorderSide(color: AppColors.line2),
-              shape: const StadiumBorder(),
-              labelStyle: const TextStyle(fontSize: 13.5, color: AppColors.text),
-              materialTapTargetSize: MaterialTapTargetSize.padded,
+              style: OutlinedButton.styleFrom(
+                backgroundColor: const Color(0x0DFFFFFF),
+                foregroundColor: AppColors.text,
+                side: const BorderSide(color: AppColors.line2),
+                shape: const StadiumBorder(),
+                minimumSize: const Size(48, 44),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                tapTargetSize: MaterialTapTargetSize.padded,
+                alignment: AlignmentDirectional.centerStart,
+              ),
+              child: Text(
+                s,
+                softWrap: true,
+                style: const TextStyle(fontSize: 13.5, height: 1.3, color: AppColors.text, fontWeight: FontWeight.w400),
+              ),
             ),
         ],
       ),
@@ -1151,9 +1201,17 @@ class _Locked extends StatelessWidget {
 }
 
 /// A reply that could not be delivered: the friendly notice (localized), any
-/// text that arrived before the failure, and "Try again".
+/// text that arrived before the failure, "Try again", and for a subscription
+/// refusal (see [CoachLimitCode.paywallAction]) a button that opens the
+/// paywall with Subscribe and Restore purchases.
 class _FailedReply extends StatelessWidget {
-  const _FailedReply({required this.partial, required this.stopped, required this.onRetry, this.failure, this.code});
+  const _FailedReply(
+      {required this.partial,
+      required this.stopped,
+      required this.onRetry,
+      this.failure,
+      this.code,
+      this.showPaywallAction = false});
   final String partial;
   final bool stopped;
   final ReplyFailure? failure;
@@ -1162,9 +1220,13 @@ class _FailedReply extends StatelessWidget {
   final String? code;
   final VoidCallback? onRetry;
 
+  /// Only on the newest reply, like "Try again".
+  final bool showPaywallAction;
+
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
+    final paywall = showPaywallAction && !stopped && CoachLimitCode.paywallAction.contains(code);
     return Column(
       key: const ValueKey('reply-failed'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1199,17 +1261,37 @@ class _FailedReply extends StatelessWidget {
             ),
           ],
         ),
-        if (onRetry != null) ...[
+        if (onRetry != null || paywall) ...[
           const SizedBox(height: 8),
-          DwButton(
-            key: const ValueKey('retry'),
-            label: l.retry,
-            leading: Icons.refresh_rounded,
-            onPressed: onRetry,
-            style: DwButtonStyle.ghost,
-            height: 44,
-            fontSize: 14,
-            padding: 16,
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (paywall)
+                DwButton(
+                  key: const ValueKey('reply-paywall'),
+                  // "Restore purchases" where the notice says to tap it;
+                  // otherwise the paywall (Subscribe, Restore purchases).
+                  label: code == CoachLimitCode.subscriptionInvalid ? l.restorePurchases : l.seePremium,
+                  leading: Icons.workspace_premium_outlined,
+                  onPressed: () => showPaywall(context),
+                  style: DwButtonStyle.ghost,
+                  height: 44,
+                  fontSize: 14,
+                  padding: 16,
+                ),
+              if (onRetry != null)
+                DwButton(
+                  key: const ValueKey('retry'),
+                  label: l.retry,
+                  leading: Icons.refresh_rounded,
+                  onPressed: onRetry,
+                  style: DwButtonStyle.ghost,
+                  height: 44,
+                  fontSize: 14,
+                  padding: 16,
+                ),
+            ],
           ),
         ],
       ],

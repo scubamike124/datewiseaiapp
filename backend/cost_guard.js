@@ -14,8 +14,10 @@
  *   handles one request at a time, so check-and-increment is atomic.
  * - Budget: every AI call first reserves its worst-case neurons in the global
  *   object; when the daily budget would be exceeded, the call is refused before
- *   the model runs, then settled with the measured usage. Fails closed: no
- *   guard, no AI call, and no paid fallback.
+ *   the model runs, then settled with the measured usage. Fails closed. An
+ *   opt-in, bounded exception (off by default): while the Durable Object
+ *   throws, a subscriber whose Production token verifies offline may get a few
+ *   messages (FAIL_OPEN_*; see failOpenAllowed). No paid fallback.
  * - Logs: counts only (hashed id prefix, counters, estimated neurons, outcome).
  *   No message text, no profile, no IP address, no transaction id.
  *
@@ -50,10 +52,22 @@ const DEFAULTS = {
   SANDBOX_DAILY_LIMIT: 20,
   DAILY_NEURON_BUDGET: 10000,
   ANON_NEURON_BUDGET: -1, // -1 = 20% of DAILY_NEURON_BUDGET
+  SANDBOX_NEURON_BUDGET: -1, // -1 = 10% of DAILY_NEURON_BUDGET
   MONTHLY_NEURON_BUDGET: 0, // 0 = off
   LEASE_SECONDS: 120,
   EXPIRY_LEEWAY_MINUTES: 60,
   BILLING_GRACE_DAYS: 0,
+  // Opt-in bounded fail-open while the Durable Object throws (see
+  // failOpenAllowed). 0 (the default) = fail closed. Per Worker isolate and
+  // clock hour, plus a cross-isolate bound through the rate-limit binding and
+  // at most FAIL_OPEN_MAX_MINUTES of fail-open per isolate per outage.
+  FAIL_OPEN_PER_SUBSCRIBER: 0,
+  FAIL_OPEN_PER_ISOLATE: 0,
+  FAIL_OPEN_MAX_MINUTES: 15,
+  // Per-request caps for the token-less v1 (legacy) chat, so posing as v1
+  // buys only short prompts and short replies.
+  LEGACY_MAX_INPUT_TOKENS: 3000,
+  LEGACY_MAX_OUTPUT_TOKENS: 500,
 };
 
 export function guardConfig(env = {}) {
@@ -64,6 +78,7 @@ export function guardConfig(env = {}) {
     cfg[k] = Number.isFinite(n) && n >= 0 ? n : def;
   }
   if (cfg.ANON_NEURON_BUDGET < 0) cfg.ANON_NEURON_BUDGET = Math.floor(cfg.DAILY_NEURON_BUDGET * 0.2);
+  if (cfg.SANDBOX_NEURON_BUDGET < 0) cfg.SANDBOX_NEURON_BUDGET = Math.floor(cfg.DAILY_NEURON_BUDGET * 0.1);
   cfg.REQUIRE_SUBSCRIPTION = String(env.REQUIRE_SUBSCRIPTION ?? '0') === '1';
   cfg.LEGACY_CLIENTS = String(env.LEGACY_CLIENTS ?? '1') === '1';
   cfg.ALLOW_SANDBOX = String(env.ALLOW_SANDBOX ?? '1') === '1';
@@ -256,6 +271,8 @@ export class UsageGuard {
       budget: () => this.budget(body),
       'budget-settle': () => this.budgetSettle(body),
       'set-revoked': () => this.setRevoked(body),
+      'sub-event': () => this.subEvent(body),
+      'sub-status': () => this.subStatus(body),
     };
     if (!Object.hasOwn(ops, op)) return new Response('not found', { status: 404 });
     return new Response(JSON.stringify(await ops[op]()), { headers: { 'Content-Type': 'application/json' } });
@@ -341,20 +358,53 @@ export class UsageGuard {
     return { ok: true, applied: true };
   }
 
-  async budget({ now, neurons, daily, monthly, anon, anonDaily }) {
+  /**
+   * Subscription state learned from App Store Server Notifications, per
+   * subscriber object. Each notification fully describes the fields it sets,
+   * and the one with the latest `signedDate` wins, so a duplicate or an older
+   * notification delivered late changes nothing (idempotent, order-safe).
+   * Fields: renewedUntil / renewedTx (the latest renewal Apple confirmed, so a
+   * device token from the previous period keeps working) and graceUntil
+   * (Apple's Billing Grace Period end).
+   */
+  async subEvent({ at, set }) {
+    const s = (await this.storage.get('u')) || {};
+    const prev = s.assn;
+    if (prev && prev.at >= at) return { ok: true, applied: false };
+    s.assn = { ...(prev || {}), ...set, at };
+    await this.storage.put('u', s);
+    return { ok: true, applied: true };
+  }
+
+  /** The latest time Apple says this subscription is paid up to (renewal or grace), or 0. */
+  async subStatus() {
+    const s = (await this.storage.get('u')) || {};
+    const a = s.assn || {};
+    const rev = s.rev || {};
+    const renewed = a.renewedTx && rev[a.renewedTx]?.revoked ? 0 : Number(a.renewedUntil) || 0;
+    const grace = Number(a.graceUntil) || 0;
+    return { ok: true, activeUntil: Math.max(renewed, grace), via: grace > renewed ? 'grace' : 'renewal' };
+  }
+
+  async budget({ now, neurons, daily, monthly, anon, anonDaily, sandbox, sandboxDaily }) {
     const s = (await this.storage.get('g')) || {};
     const day = dayKey(now);
     const month = monthKey(now);
-    if (s.day !== day) Object.assign(s, { day, spent: 0, anonSpent: 0 });
+    if (s.day !== day) Object.assign(s, { day, spent: 0, anonSpent: 0, sbxSpent: 0 });
     if (s.month !== month) Object.assign(s, { month, monthSpent: 0 });
     s.anonSpent = s.anonSpent || 0;
+    s.sbxSpent = s.sbxSpent || 0;
     const refuse = (retryAt) => ({ ok: false, code: 'SERVICE_BUDGET_EXHAUSTED', retryAfter: (retryAt - now) / 1000 });
     if (s.spent + neurons > daily) return refuse(nextDay(now));
     if (anon && s.anonSpent + neurons > anonDaily) return refuse(nextDay(now));
+    // Sandbox (TestFlight, App Review) has its own slice: it cannot use up the
+    // subscribers' budget, and v1 traffic cannot starve App Review.
+    if (sandbox && s.sbxSpent + neurons > sandboxDaily) return refuse(nextDay(now));
     if (monthly > 0 && s.monthSpent + neurons > monthly) return refuse(nextMonth(now));
     s.spent += neurons;
     s.monthSpent += neurons;
     if (anon) s.anonSpent += neurons;
+    if (sandbox) s.sbxSpent += neurons;
     await this.storage.put('g', s);
     return { ok: true, day, spent: s.spent };
   }
@@ -364,12 +414,13 @@ export class UsageGuard {
    * used, or charges an overage (a measured cost above the estimate), so the
    * budget always reflects real usage.
    */
-  async budgetSettle({ day, reserved, actual, anon }) {
+  async budgetSettle({ day, reserved, actual, anon, sandbox }) {
     const s = (await this.storage.get('g')) || {};
     const delta = actual - reserved;
     if (s.day === day) {
       s.spent = Math.max(0, s.spent + delta);
       if (anon) s.anonSpent = Math.max(0, (s.anonSpent || 0) + delta);
+      if (sandbox) s.sbxSpent = Math.max(0, (s.sbxSpent || 0) + delta);
     }
     if (s.month === day.slice(0, 7)) s.monthSpent = Math.max(0, s.monthSpent + delta);
     await this.storage.put('g', s);
@@ -399,20 +450,64 @@ function logUsage(fields) {
   }
 }
 
+// --- opt-in bounded fail-open (Durable Object throwing) ---------------------------
+// Off unless FAIL_OPEN_PER_SUBSCRIBER and FAIL_OPEN_PER_ISOLATE are both > 0.
+// When a Durable Object call throws (never when the binding is missing), a
+// subscriber whose Production token verified offline (signed by Apple, this
+// app and product, not expired, not revoked in the token itself) may still get
+// a few messages, with the legacy per-request caps. Bounds, all required:
+//   1. per isolate and clock hour: FAIL_OPEN_PER_SUBSCRIBER per subscriber,
+//      FAIL_OPEN_PER_ISOLATE in total;
+//   2. at most FAIL_OPEN_MAX_MINUTES of fail-open per isolate per outage. An
+//      outage ends only after 10 quiet minutes (no DO call throwing), never on
+//      a single successful DO call, so a flapping DO cannot reset the bound;
+//   3. across isolates: the dedicated FAILOPEN_LIMITER rate-limit binding must
+//      allow both `failopen:<subscriber>` and `failopen:all`. It is never
+//      RATE_LIMITER: no FAILOPEN_LIMITER, or one failing, means fail closed.
+//      Workers rate limits count per Cloudflare location, so this bound is
+//      per colo, not global.
+// Sandbox and token-less (v1) requests always fail closed.
+const OUTAGE_QUIET_MS = 10 * 60_000;
+const failOpenWindows = { hour: -1, total: 0, per: new Map(), outageStart: 0, outageLast: 0 };
+export function _resetFailOpenForTests() {
+  Object.assign(failOpenWindows, { hour: -1, total: 0, per: new Map(), outageStart: 0, outageLast: 0 });
+}
+async function failOpenAllowed(env, cfg, key, now) {
+  if (cfg.FAIL_OPEN_PER_SUBSCRIBER <= 0 || cfg.FAIL_OPEN_PER_ISOLATE <= 0) return false;
+  const w = failOpenWindows;
+  if (!w.outageStart || now - w.outageLast > OUTAGE_QUIET_MS) w.outageStart = now;
+  w.outageLast = now;
+  if (now - w.outageStart > cfg.FAIL_OPEN_MAX_MINUTES * 60_000) return false;
+  const hour = Math.floor(now / 3_600_000);
+  if (w.hour !== hour) Object.assign(w, { hour, total: 0, per: new Map() });
+  const used = w.per.get(key) || 0;
+  if (used >= cfg.FAIL_OPEN_PER_SUBSCRIBER || w.total >= cfg.FAIL_OPEN_PER_ISOLATE) return false;
+  const limiter = env.FAILOPEN_LIMITER; // dedicated binding only, never RATE_LIMITER
+  if (!limiter || typeof limiter.limit !== 'function') return false;
+  try {
+    if (!(await limiter.limit({ key: `failopen:${key}` })).success) return false;
+    if (!(await limiter.limit({ key: 'failopen:all' })).success) return false;
+  } catch {
+    return false;
+  }
+  w.per.set(key, used + 1);
+  w.total += 1;
+  return true;
+}
+
 /**
  * Admits (or refuses) one AI request before any model call.
  * kind: 'chat' | 'legacy-chat' | 'photo'; model + estimated input/output
- * tokens (or `neurons`) give the worst-case reservation.
+ * tokens (or `neurons`) give the worst-case reservation. requireToken: the
+ * request must carry a valid StoreKit token whatever REQUIRE_SUBSCRIPTION says
+ * (every v2 chat request); without one it gets 403 SUBSCRIPTION_REQUIRED.
  * Returns { response } to send as-is, or { ticket } with headers to add and
  * finish(actualNeurons, { refund }) to call once when the work is done.
  */
-export async function admit(request, env, cors, { kind, model, inTokens, outTokens, neurons }) {
+export async function admit(request, env, cors, { kind, model, inTokens, outTokens, neurons, requireToken = false }) {
   const cfg = guardConfig(env);
   const now = Date.now();
-  if (!env.USAGE_GUARD || typeof env.USAGE_GUARD.idFromName !== 'function') {
-    logUsage({ kind, outcome: 'GUARD_UNAVAILABLE' });
-    return { response: guardError('GUARD_UNAVAILABLE', cors) };
-  }
+  const hasGuard = Boolean(env.USAGE_GUARD && typeof env.USAGE_GUARD.idFromName === 'function');
   const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
   const netKey = await anonKey(cfg, ip);
   if (!(await ipAllowed(env, cfg, netKey.slice(5, 37), now))) {
@@ -424,6 +519,7 @@ export async function admit(request, env, cors, { kind, model, inTokens, outToke
   const jws = request.headers.get('X-DateWise-Entitlement');
   let key;
   let tx = null;
+  let verified = null;
   let limits;
   const base = {
     perMinute: cfg.PER_MINUTE_LIMIT,
@@ -432,9 +528,22 @@ export async function admit(request, env, cors, { kind, model, inTokens, outToke
     leaseMs: cfg.LEASE_SECONDS * 1000,
   };
   if (jws) {
-    const r = await checkEntitlement(jws, cfg, now);
+    let r = await checkEntitlement(jws, cfg, now);
+    if (r.code === 'SUBSCRIPTION_EXPIRED' && r.tx && cfg.ASSN_ENABLED && hasGuard) {
+      // The device may still hold the previous period's token (a renewal that
+      // has not reached it yet), or the subscriber may be in Apple's Billing
+      // Grace Period. Both are known from Apple's signed notifications.
+      try {
+        const st = await callDo(env, await subscriberKey(cfg, r.tx), 'sub-status', { now });
+        if (st.activeUntil && now <= st.activeUntil + cfg.EXPIRY_LEEWAY_MINUTES * 60_000) {
+          r = { tx: r.tx, via: st.via };
+        }
+      } catch {
+        /* the DO is down: the token alone decides (still expired) */
+      }
+    }
     if (r.code) {
-      if (r.code === 'SUBSCRIPTION_REVOKED' && r.tx) {
+      if (r.code === 'SUBSCRIPTION_REVOKED' && r.tx && hasGuard) {
         // Remember the refund so an older saved copy of this transaction is refused too.
         try {
           await callDo(env, await subscriberKey(cfg, r.tx), 'set-revoked', {
@@ -449,11 +558,14 @@ export async function admit(request, env, cors, { kind, model, inTokens, outToke
       logUsage({ kind, outcome: r.code, reason: r.reason });
       return { response: guardError(r.code, cors) };
     }
+    verified = r.tx;
     key = await subscriberKey(cfg, r.tx);
     tx = await txHash(cfg, r.tx.transactionId);
     const sandbox = r.tx.environment === 'Sandbox';
     limits = { ...base, daily: sandbox ? cfg.SANDBOX_DAILY_LIMIT : cfg.DAILY_MESSAGE_LIMIT, monthly: cfg.MONTHLY_MESSAGE_LIMIT };
-  } else if (cfg.REQUIRE_SUBSCRIPTION) {
+  } else if (requireToken || cfg.REQUIRE_SUBSCRIPTION) {
+    // v2 chat always needs a subscription; REQUIRE_SUBSCRIPTION=1 also refuses
+    // the token-less v1 (legacy) chat and photo requests.
     logUsage({ kind, outcome: 'SUBSCRIPTION_REQUIRED' });
     return { response: guardError('SUBSCRIPTION_REQUIRED', cors) };
   } else {
@@ -461,15 +573,48 @@ export async function admit(request, env, cors, { kind, model, inTokens, outToke
     limits = { ...base, daily: cfg.ANON_DAILY_LIMIT, monthly: cfg.ANON_MONTHLY_LIMIT };
   }
   const anon = !jws;
+  const sandbox = verified?.environment === 'Sandbox';
   const who = cfg.SALT_SET ? key.slice(0, key.indexOf(':') + 13) : undefined;
-
   const reserveNeurons = neurons ?? neuronsFor(model, inTokens, outTokens);
+
+  const closed = () => {
+    logUsage({ kind, who, outcome: 'GUARD_UNAVAILABLE' });
+    return { response: guardError('GUARD_UNAVAILABLE', cors, { retryAfter: 30 }) };
+  };
+  // A Durable Object call threw: a verified Production subscriber may get the
+  // opt-in bounded allowance (see failOpenAllowed); everyone else is refused.
+  const unavailable = async () => {
+    if (verified && !sandbox && (await failOpenAllowed(env, cfg, key, now))) {
+      logUsage({ kind, who, outcome: 'fail_open', reserve: reserveNeurons });
+      let done = false;
+      const finish = async (actualNeurons, { refund = false } = {}) => {
+        if (done) return;
+        done = true;
+        logUsage({ kind, who, outcome: refund ? 'fail_open_failed' : 'fail_open_ok', neurons: Math.max(0, Math.ceil(actualNeurons)) });
+      };
+      // degraded: the caller applies the legacy per-request caps before the model runs.
+      return {
+        ticket: {
+          headers: { 'X-DateWise-Degraded': '1', 'Access-Control-Expose-Headers': 'X-DateWise-Degraded' },
+          finish,
+          cfg,
+          reserveNeurons,
+          degraded: true,
+          maxInputTokens: Math.min(cfg.MAX_INPUT_TOKENS, cfg.LEGACY_MAX_INPUT_TOKENS),
+          maxOutputTokens: Math.min(cfg.MAX_OUTPUT_TOKENS, cfg.LEGACY_MAX_OUTPUT_TOKENS),
+        },
+      };
+    }
+    return closed();
+  };
+  // No binding is a configuration error, not an outage: always fail closed.
+  if (!hasGuard) return closed();
+
   let sub;
   try {
     sub = await callDo(env, key, 'reserve', { now, txHash: tx, limits });
   } catch {
-    logUsage({ kind, who, outcome: 'GUARD_UNAVAILABLE' });
-    return { response: guardError('GUARD_UNAVAILABLE', cors) };
+    return await unavailable();
   }
   if (!sub.ok) {
     logUsage({ kind, who, outcome: sub.code });
@@ -487,11 +632,12 @@ export async function admit(request, env, cors, { kind, model, inTokens, outToke
       monthly: cfg.MONTHLY_NEURON_BUDGET,
       anon,
       anonDaily: cfg.ANON_NEURON_BUDGET,
+      sandbox,
+      sandboxDaily: cfg.SANDBOX_NEURON_BUDGET,
     });
   } catch {
     await releaseSub(true);
-    logUsage({ kind, who, outcome: 'GUARD_UNAVAILABLE' });
-    return { response: guardError('GUARD_UNAVAILABLE', cors) };
+    return await unavailable();
   }
   if (!budget.ok) {
     await releaseSub(true);
@@ -513,7 +659,7 @@ export async function admit(request, env, cors, { kind, model, inTokens, outToke
     const actual = Math.max(0, Math.ceil(actualNeurons));
     await Promise.all([
       releaseSub(refund),
-      callDo(env, 'global', 'budget-settle', { day: budget.day, reserved: reserveNeurons, actual, anon }).catch(() => {}),
+      callDo(env, 'global', 'budget-settle', { day: budget.day, reserved: reserveNeurons, actual, anon, sandbox }).catch(() => {}),
     ]);
     logUsage({
       kind,
@@ -625,11 +771,43 @@ export function meteredAi(ai) {
 }
 
 /**
- * Optional App Store Server Notifications v2 endpoint (POST /apple/notifications),
- * off unless ASSN_ENABLED=1 and the URL is set in App Store Connect. REFUND and
- * REVOKE mark the transaction as revoked so a saved copy of it stops working;
- * REFUND_REVERSED lifts that again.
+ * App Store Server Notifications v2 endpoint (POST /apple/notifications), off
+ * unless ASSN_ENABLED=1 and the URL is set in App Store Connect
+ * (docs/appstore/ASSN_SETUP.md). Everything is verified offline (JWS against
+ * Apple Root CA - G3), so an Apple outage never blocks chat: notifications only
+ * add knowledge the device token cannot carry.
+ *
+ * What each notification changes (per subscriber; the latest signedDate wins,
+ * so duplicates and late deliveries are no-ops):
+ *   SUBSCRIBED, DID_RENEW, RENEWAL_EXTENDED, OFFER_REDEEMED  -> renewedUntil = tx.expiresDate, grace cleared
+ *   DID_FAIL_TO_RENEW + GRACE_PERIOD                          -> graceUntil = renewalInfo.gracePeriodExpiresDate
+ *   DID_FAIL_TO_RENEW (billing retry, no grace)               -> grace cleared (no access until it renews)
+ *   GRACE_PERIOD_EXPIRED                                      -> grace cleared
+ *   EXPIRED (any subtype)                                     -> renewal and grace cleared
+ *   REFUND, REVOKE                                            -> that transaction revoked
+ *   REFUND_REVERSED                                           -> that transaction reinstated
+ *   DID_CHANGE_RENEWAL_STATUS, DID_CHANGE_RENEWAL_PREF, PRICE_INCREASE,
+ *   REFUND_DECLINED, CONSUMPTION_REQUEST, TEST, anything else -> acknowledged, nothing changes
+ * A notification for another product id (e.g. an old IAP) is acknowledged and ignored.
+ * Replies: 200 when handled or deliberately ignored (Apple stops retrying; this
+ * includes a genuine notification without signedTransactionInfo); 400 when a
+ * signature, bundle or transaction/renewal match fails; 503 when
+ * the state could not be stored (Apple retries later).
  */
+const GRACE_MAX_MS = 28 * 86_400_000; // the longest Billing Grace Period Apple offers
+export const ASSN_EFFECTS = {
+  SUBSCRIBED: 'renewed',
+  DID_RENEW: 'renewed',
+  RENEWAL_EXTENDED: 'renewed',
+  OFFER_REDEEMED: 'renewed',
+  DID_FAIL_TO_RENEW: 'failed_renewal',
+  GRACE_PERIOD_EXPIRED: 'grace_over',
+  EXPIRED: 'expired',
+  REFUND: 'revoke',
+  REVOKE: 'revoke',
+  REFUND_REVERSED: 'reinstate',
+};
+
 export async function handleAppleNotification(request, env) {
   const cfg = guardConfig(env);
   if (!cfg.ASSN_ENABLED || !env.USAGE_GUARD) return new Response('not found', { status: 404 });
@@ -640,9 +818,12 @@ export async function handleAppleNotification(request, env) {
     return new Response('bad request', { status: 400 });
   }
   const now = Date.now();
+  let n;
+  let tx = null;
+  let renewal = null;
   try {
     // A notification nests the signed transaction and renewal info: allow 64k.
-    const n = await verifyAppleJws(body?.signedPayload, verifyOpts(now, { maxLength: 64_000 }));
+    n = await verifyAppleJws(body?.signedPayload, verifyOpts(now, { maxLength: 64_000 }));
     const data = n.data || {};
     if (data.bundleId !== cfg.APPLE_BUNDLE_ID) throw new JwsError('notification_bundle');
     // Valid, but not for this deployment (for example Sandbox with ALLOW_SANDBOX=0):
@@ -651,21 +832,82 @@ export async function handleAppleNotification(request, env) {
       logUsage({ kind: 'assn', outcome: 'ignored', reason: 'environment' });
       return new Response('ignored', { status: 200 });
     }
-    const type = n.notificationType;
-    if ((type === 'REFUND' || type === 'REVOKE' || type === 'REFUND_REVERSED') && data.signedTransactionInfo) {
-      const tx = await verifyAppleJws(data.signedTransactionInfo, verifyOpts(now));
-      if (tx.bundleId !== cfg.APPLE_BUNDLE_ID || tx.environment !== data.environment) throw new JwsError('transaction_mismatch');
-      const r = await callDo(env, await subscriberKey(cfg, tx), 'set-revoked', {
-        txHash: await txHash(cfg, tx.transactionId),
-        revoked: type !== 'REFUND_REVERSED',
-        // Per transaction, the latest signed state wins (out-of-order delivery).
-        at: Number(tx.signedDate) || Number(n.signedDate) || now,
-      });
-      logUsage({ kind: 'assn', outcome: r.applied ? type : 'stale' });
+    if (!Object.hasOwn(ASSN_EFFECTS, n.notificationType)) {
+      // TEST, DID_CHANGE_RENEWAL_STATUS (auto-renew on/off: access is unchanged
+      // until expiresDate), PRICE_INCREASE, REFUND_DECLINED, ...
+      logUsage({ kind: 'assn', outcome: 'ack', type: String(n.notificationType).slice(0, 40) });
+      return new Response('ok', { status: 200 });
     }
-    return new Response('ok', { status: 200 });
+    if (!data.signedTransactionInfo) {
+      // A genuine notification that carries no transaction cannot change anything
+      // here. Acknowledge it (a 4xx would only make Apple retry it) and log it.
+      logUsage({ kind: 'assn', outcome: 'ignored', reason: 'no_transaction', type: n.notificationType });
+      return new Response('ignored', { status: 200 });
+    }
+    tx = await verifyAppleJws(data.signedTransactionInfo, verifyOpts(now));
+    if (tx.bundleId !== cfg.APPLE_BUNDLE_ID || tx.environment !== data.environment) throw new JwsError('transaction_mismatch');
+    if (!tx.originalTransactionId || !tx.transactionId) throw new JwsError('no_original_id');
+    if (data.signedRenewalInfo) {
+      renewal = await verifyAppleJws(data.signedRenewalInfo, verifyOpts(now));
+      // The renewal info must name the same subscription and environment.
+      if (renewal.originalTransactionId !== tx.originalTransactionId || renewal.environment !== data.environment) {
+        throw new JwsError('renewal_mismatch');
+      }
+    }
   } catch (e) {
     logUsage({ kind: 'assn', outcome: 'invalid', reason: e instanceof JwsError ? e.reason : 'error' });
     return new Response('invalid', { status: 400 });
+  }
+  if (tx.productId !== cfg.APPLE_PRODUCT_ID) {
+    // Another product of this app (for example an IAP created before v2): not ours to count.
+    logUsage({ kind: 'assn', outcome: 'ignored', reason: 'product' });
+    return new Response('ignored', { status: 200 });
+  }
+
+  const type = n.notificationType;
+  const effect = ASSN_EFFECTS[type];
+  const at = Number(n.signedDate) || Number(tx.signedDate) || now;
+  const key = await subscriberKey(cfg, tx);
+  const hash = await txHash(cfg, tx.transactionId);
+  let set = null;
+  switch (effect) {
+    case 'renewed':
+      set = { renewedUntil: Number(tx.expiresDate) || 0, renewedTx: hash, graceUntil: 0 };
+      break;
+    case 'failed_renewal': {
+      const graceEnd = Number(renewal?.gracePeriodExpiresDate);
+      const inGrace = n.subtype === 'GRACE_PERIOD' && Number.isFinite(graceEnd);
+      set = { graceUntil: inGrace ? Math.min(graceEnd, (Number(tx.expiresDate) || now) + GRACE_MAX_MS) : 0 };
+      break;
+    }
+    case 'grace_over':
+      set = { graceUntil: 0 };
+      break;
+    case 'expired':
+      set = { renewedUntil: 0, graceUntil: 0 };
+      break;
+    default:
+      break;
+  }
+  try {
+    let applied;
+    if (set) {
+      applied = (await callDo(env, key, 'sub-event', { at, set })).applied;
+    } else {
+      // REFUND / REVOKE / REFUND_REVERSED: per transaction, the latest signed state wins.
+      applied = (
+        await callDo(env, key, 'set-revoked', {
+          txHash: hash,
+          revoked: effect === 'revoke',
+          at: Number(tx.signedDate) || at,
+        })
+      ).applied;
+    }
+    logUsage({ kind: 'assn', outcome: applied ? type : 'stale', subtype: n.subtype ? String(n.subtype).slice(0, 40) : undefined });
+    return new Response('ok', { status: 200 });
+  } catch {
+    // The state could not be stored: Apple retries a non-2xx notification later.
+    logUsage({ kind: 'assn', outcome: 'GUARD_UNAVAILABLE' });
+    return new Response('retry', { status: 503 });
   }
 }

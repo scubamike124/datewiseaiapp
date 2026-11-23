@@ -111,6 +111,35 @@ void main() {
     expect(seen.length, 2);
   });
 
+  test('403 SUBSCRIPTION_REQUIRED (a v2 request without a token): re-read StoreKit once, retry with the token', () async {
+    final seen = <String?>[];
+    var answers = [403, 200];
+    final svc = BackendAIService(
+      endpoint: 'https://example.workers.dev',
+      clientFactory: () => MockClient.streaming((req, _) async {
+        seen.add(req.headers['X-DateWise-Entitlement']);
+        final status = answers.removeAt(0);
+        final body = status == 200 ? 'data: {"response":"Hi"}\n\ndata: [DONE]\n\n' : '{"error":"SUBSCRIPTION_REQUIRED","code":"SUBSCRIPTION_REQUIRED"}';
+        return http.StreamedResponse(Stream.value(utf8.encode(body)), status);
+      }),
+    );
+    EntitlementToken.refresher = () async => EntitlementToken.update('fresh.jws.token');
+    expect(await svc.streamReply(history: history, tier: SubscriptionTier.values.last).toList(), ['Hi']);
+    expect(seen, [null, 'fresh.jws.token']);
+
+    // Still no subscription after the re-read: the code reaches the chat, which
+    // shows the "subscription isn't active" notice.
+    answers = [403, 403];
+    EntitlementToken.update(null);
+    EntitlementToken.refresher = () async {};
+    await expectLater(
+      svc.streamReply(history: history, tier: SubscriptionTier.values.last).toList(),
+      throwsA(isA<CoachUnavailableException>().having((e) => e.code, 'code', CoachLimitCode.subscriptionRequired)),
+    );
+    final en = lookupAppLocalizations(const Locale('en'));
+    expect(coachLimitMessage(en, CoachLimitCode.subscriptionRequired), en.coachLimitSubscriptionInactive);
+  });
+
   test('limit codes do not trigger a refresh', () async {
     var refreshes = 0;
     EntitlementToken.refresher = () async => refreshes++;

@@ -83,7 +83,15 @@
       }
     }
   },
-  "welcomePortrait": "Ava, an AI dating coach, smiling",
+  "welcomePortrait": "{name}, an AI dating coach, smiling",
+  "@welcomePortrait": {
+    "description": "Semantic label of the welcome hero portrait (Ava in English, Sofía in Spanish).",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "welcomeTitleLead": "Meet your\nAI dating ",
   "welcomeTitleAccent": "coach.",
   "welcomeBody": "Honest help with your profile, your messages and your first date, from a coach who listens.",
@@ -103,7 +111,7 @@
       }
     }
   },
-  "goalsTitle": "What would you like help with?",
+  "goalsTitle": "What would you like help with?",
   "goalsSubtitle": "Pick up to three. They become your plan for the week.",
   "goalConversations": "Better conversations",
   "goalProfile": "A stronger profile",
@@ -118,13 +126,14 @@
   "ageUnder": "I am under 18",
   "underageTitle": "Sorry, DateWise is only for adults.",
   "underageBody": "You need to be 18 or older to use DateWise AI.",
+  "underageClose": "You can close the app now.",
   "chooseCoachTitle": "Choose your dating coach",
-  "chooseCoachSubtitle": "All four are AI coaches. Pick a style; switch any time.",
+  "chooseCoachSubtitle": "All four are AI coaches. Pick a style; switch any time.",
   "coachesEyebrow": "AI dating coaches",
   "greetingMorning": "Good morning.",
   "greetingAfternoon": "Good afternoon.",
   "greetingEvening": "Good evening.",
-  "homeReady": "{name} is ready when you are. Your AI coach, any time.",
+  "homeReady": "{name} is ready when you are. Your AI coach, any time.",
   "@homeReady": {
     "placeholders": {
       "name": {
@@ -363,7 +372,7 @@
       }
     }
   },
-  "paywallWebOnly": "Subscribe in the iPhone app. Purchases are not available on the web.",
+  "paywallWebOnly": "Subscribe in the app on your iPhone or iPad. Purchases are not available on the web.",
   "purchasePending": "Your purchase is pending approval. Chat unlocks as soon as it is approved.",
   "purchaseFailed": "Purchase failed. Please try again.",
   "purchasesUnavailable": "Purchases are not available right now.",
@@ -386,6 +395,28 @@
   },
   "priceFromAppStore": "Price shown by the App Store",
   "subscribe": "Subscribe",
+  "paywallFairUse": "Fair use: up to {daily} coach replies a day and {monthly} a month, at most {perMinute} a minute and {concurrent} at a time. Typed and spoken messages count the same. A notice appears near a limit; at the limit, chat pauses until the next day (00:00 UTC) or month.",
+  "@paywallFairUse": {
+    "description": "Paywall line next to the disclosure. Numbers come from lib/config/fair_use.dart (the backend limits).",
+    "placeholders": {
+      "daily": {
+        "type": "String",
+        "example": "150"
+      },
+      "monthly": {
+        "type": "String",
+        "example": "1,500"
+      },
+      "perMinute": {
+        "type": "String",
+        "example": "12"
+      },
+      "concurrent": {
+        "type": "String",
+        "example": "2"
+      }
+    }
+  },
   "paywallDisclosureNoPrice": "Monthly subscription at the price shown by the App Store. Payment is charged to your Apple Account at confirmation of purchase. The subscription renews automatically every month at that price unless you cancel it at least 24 hours before the end of the current period. Cancel any time in Settings › [your name] › Subscriptions.",
   "tapToSend": "Stop and send",
   "tapToTalkHint": "Double-tap to start talking, then double-tap again to send",
@@ -466,7 +497,7 @@
   "sectionMemory": "Coach memory",
   "memoryTitle": "Coach memory",
   "memoryOn": "On: your note is sent with each message.",
-  "memoryOff": "Off: your note is deleted and coaches only see the current conversation.",
+  "memoryOff": "Off: no note is kept (turning it off deletes it) and coaches only see the current conversation.",
   "writeNote": "Write your note",
   "yourNote": "Your note",
   "clearMemory": "Clear memory",
@@ -474,6 +505,12 @@
   "clearMemoryBody": "Your note will be deleted from this device.",
   "memoryOffTitle": "Turn off Coach memory?",
   "memoryOffBody": "Your note will be deleted from this device, and coaches will only see the current conversation.",
+  "memoryTurnOnTitle": "Turn on Coach memory?",
+  "memoryTurnOnBody": "Your note is kept only while Coach memory is on. While it is on, it is sent to your coach with each message.",
+  "memoryTurnOnAction": "Turn on & save",
+  "@memoryTurnOnAction": {
+    "description": "Confirm button when saving a Coach memory note while memory is off: turns memory on and saves."
+  },
   "memoryOffAction": "Turn off & delete",
   "@memoryOffAction": {
     "description": "Confirm button when turning Coach memory off: it deletes the note."
@@ -494,7 +531,7 @@
   "deleteMyData": "Delete my data",
   "deleteMyDataNote": "Does not cancel your subscription. Cancel it in Apple settings.",
   "deleteMyDataTitle": "Delete all your data?",
-  "deleteMyDataBody": "Conversations, plan, progress, Coach memory, settings and the saved subscription status will be erased from this device, and the app will start again.\n\nThis does not cancel your App Store subscription. To cancel it, go to Settings › [your name] › Subscriptions.",
+  "deleteMyDataBody": "Conversations, plan, progress, Coach memory and settings will be erased from this device, and the app will start again.\n\nYour subscription is managed by Apple and stays active: deleting your data does not cancel it. To cancel it, go to Settings › [your name] › Subscriptions.",
   "deleteEverything": "Delete everything",
   "sectionAbout": "About",
   "support": "Support",

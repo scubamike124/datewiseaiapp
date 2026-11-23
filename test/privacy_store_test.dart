@@ -117,7 +117,8 @@ void main() {
       await tester.ensureVisible(find.byKey(const ValueKey('row-delete-data')));
       await tester.tap(find.byKey(const ValueKey('row-delete-data')));
       await tester.pumpAndSettle();
-      expect(find.textContaining('This does not cancel your App Store subscription'), findsOneWidget);
+      expect(find.textContaining('Your subscription is managed by Apple and stays active'), findsOneWidget);
+      expect(find.textContaining('subscription status'), findsNothing, reason: 'nothing about a subscription status is stored or erased');
       expect(find.textContaining('Settings › [your name] › Subscriptions'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('confirm-action')));
       await tester.pumpAndSettle();

@@ -2,12 +2,12 @@
 //   node --test backend/eval/model-eval.test.mjs
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { COACHES, coachSystemPrompt } from '../coach_prompts.js';
+import { COACHES, coachMessages, coachSystemPrompt } from '../coach_prompts.js';
 import { MODEL_NEURONS } from '../cost_guard.js';
 import { checkReply, claimsHuman, detectLanguage, spainOnlyWords } from './checks.mjs';
 import { makeFakeFetch } from './fake-fetch.mjs';
 import { MODELS, NEURON_USD, buildPlan, callModel, main, parseArgs } from './model-eval.mjs';
-import { SCENARIOS } from './scenarios.mjs';
+import { SCENARIOS, profileFor } from './scenarios.mjs';
 
 const LLAMA = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const GEMMA = '@cf/google/gemma-4-26b-a4b-it';
@@ -60,6 +60,13 @@ test('the plan uses the server-built coach prompt for every coach and scenario',
     assert.equal(jobs.length, SCENARIOS[COACHES[coachId].lang].length + 1);
     assert.ok(jobs.some((j) => j.scenario === 'cross-language' && j.lang !== COACHES[coachId].lang));
     for (const j of jobs) assert.match(j.messages[0].content, new RegExp(`^You are ${COACHES[coachId].name}, an AI dating coach`));
+    // Byte-for-byte what the Worker builds (worker.js calls the same coachMessages), so a
+    // prompt change on the server reaches the comparison with no copy to keep in sync.
+    for (const j of jobs) {
+      const userText = j.messages[j.messages.length - 1].content;
+      assert.deepEqual(j.messages, coachMessages(coachId, profileFor(COACHES[coachId].lang), [{ role: 'user', content: userText }]));
+      assert.match(j.messages[0].content, /uses the app in .* \(follow your LANGUAGE rule for replies\)/);
+    }
   }
   const p1 = buildPlan(parseArgs(['--part=1']));
   assert.deepEqual([...new Set(p1.jobs.map((j) => j.coachId))], ['ava', 'ethan']);

@@ -124,13 +124,20 @@ test('the client system prompt is ignored; the server builds the coach prompt', 
   assert.match(sent[0].content, /more confidence/);
   assert.ok(!sent.some((m) => m.content.includes('general assistant')));
   assert.ok(!sent[0].content.includes('bogus'));
+  // The profile line names only the interface language and defers to the
+  // LANGUAGE rule, worded exactly as the app's own persona (user_profile.dart).
+  assert.match(sent[0].content, /uses the app in Español \(follow your LANGUAGE rule for replies\)/);
+  assert.ok(!/\bprefers\b/.test(sent[0].content));
+  const dart = readFileSync(new URL('../lib/models/user_profile.dart', import.meta.url), 'utf8');
+  assert.ok(dart.includes("'uses the app in ${language.label} (follow your LANGUAGE rule for replies)'"));
 });
 
 test('unknown coach ids are refused; v1 ids map to the v2 coaches', async () => {
   const env = makeEnv();
-  const bad = await send(env, { body: { coachId: 'hacker' } });
+  const jws = await pki.sign(txPayload({ originalTransactionId: otid() }));
+  const bad = await send(env, { jws, body: { coachId: 'hacker' } });
   assert.equal(bad.res.status, 400);
-  const legacy = await send(env, { body: { coachId: 'mateo' } });
+  const legacy = await send(env, { jws, body: { coachId: 'mateo' } });
   assert.equal(legacy.res.status, 200);
   assert.match(env.AI.calls[0].input.messages[0].content, /You are Diego/);
 });
@@ -291,15 +298,43 @@ test('reinstall / reset bypass: a new device, new IP and a renewed transaction s
   }
   const fresh = await pki.sign(txPayload({ originalTransactionId: o, transactionId: 'r-new', purchaseDate: Date.now() }));
   assert.equal((await send(env, { jws: fresh, ip: freshIp() })).json().code, 'DAILY_LIMIT');
-  // Dropping the token: refused outright once REQUIRE_SUBSCRIPTION=1 ...
-  const strict = makeEnv({ DAILY_MESSAGE_LIMIT: '3', REQUIRE_SUBSCRIPTION: '1' }, { ns: env.USAGE_GUARD });
-  assert.equal((await send(strict, {})).json().code, 'SUBSCRIPTION_REQUIRED');
-  // ... and, during the rollout (REQUIRE_SUBSCRIPTION=0), limited to the small per-IP anonymous bucket.
+  // Dropping the token from a v2 request (coachId) is refused outright, whatever REQUIRE_SUBSCRIPTION says.
+  for (const REQUIRE_SUBSCRIPTION of ['0', '1']) {
+    const e = makeEnv({ DAILY_MESSAGE_LIMIT: '3', REQUIRE_SUBSCRIPTION }, { ns: env.USAGE_GUARD });
+    const r = await send(e, { ip: freshIp() });
+    assert.equal(r.res.status, 403);
+    assert.equal(r.json().code, 'SUBSCRIPTION_REQUIRED');
+  }
+  // Posing as the v1 build (no coachId, no token) only reaches the small per-IP anonymous bucket ...
   const ip = freshIp();
   const anon = makeEnv({ ANON_DAILY_LIMIT: '2' });
-  assert.equal((await send(anon, { ip })).res.status, 200);
-  assert.equal((await send(anon, { ip })).res.status, 200);
-  assert.equal((await send(anon, { ip })).json().code, 'DAILY_LIMIT');
+  const v1 = { coachId: undefined };
+  assert.equal((await send(anon, { ip, body: v1 })).res.status, 200);
+  assert.equal((await send(anon, { ip, body: v1 })).res.status, 200);
+  assert.equal((await send(anon, { ip, body: v1 })).json().code, 'DAILY_LIMIT');
+  // ... and is refused once REQUIRE_SUBSCRIPTION=1.
+  assert.equal((await send(makeEnv({ REQUIRE_SUBSCRIPTION: '1' }), { body: v1 })).json().code, 'SUBSCRIPTION_REQUIRED');
+});
+
+test('v2 request without a valid token: 403 SUBSCRIPTION_REQUIRED before any model call, even with REQUIRE_SUBSCRIPTION=0', async () => {
+  const env = makeEnv({ REQUIRE_SUBSCRIPTION: '0' });
+  for (const coachId of ['ava', 'ethan', 'sofia', 'diego']) {
+    const r = await send(env, { body: { coachId } });
+    assert.equal(r.res.status, 403);
+    assert.equal(r.json().code, 'SUBSCRIPTION_REQUIRED');
+  }
+  // An empty entitlement header is not a token.
+  const c = ctx();
+  const req = chat({ body: { coachId: 'ava' } });
+  req.headers.set('X-DateWise-Entitlement', '');
+  const res = await worker.fetch(req, env, c);
+  assert.equal(res.status, 403);
+  assert.equal((await res.json()).code, 'SUBSCRIPTION_REQUIRED');
+  // An invalid token keeps its own code (the app refreshes the entitlement once).
+  assert.equal((await send(env, { jws: 'not-a-jws' })).json().code, 'SUBSCRIPTION_INVALID');
+  assert.equal(env.AI.calls.length, 0);
+  // The legacy v1 path (no coachId, no token) is unchanged.
+  assert.equal((await send(env, { body: { coachId: undefined } })).res.status, 200);
 });
 
 test('budget exhaustion: exact reservations and settlements, refused before any model call', async () => {
@@ -335,9 +370,11 @@ test('anonymous traffic has its own slice of the budget, so it cannot starve sub
   const ai = fakeAi();
   const env = makeEnv({ DAILY_NEURON_BUDGET: '1000', ANON_NEURON_BUDGET: '250', ANON_DAILY_LIMIT: '100' }, { ai });
   const anon = [];
-  for (let i = 0; i < 6; i++) anon.push(await send(env, { ip: freshIp() }));
+  for (let i = 0; i < 10; i++) anon.push(await send(env, { ip: freshIp(), body: { coachId: undefined } }));
   const anonOk = anon.filter((r) => r.res.status === 200).length;
-  const reserve = neuronsFor(LLAMA, estimateTokens(ai.calls[0].input.messages), 800);
+  // The v1 path reserves with the legacy output cap (LEGACY_MAX_OUTPUT_TOKENS, 500).
+  assert.equal(ai.calls[0].input.max_tokens, 500);
+  const reserve = neuronsFor(LLAMA, estimateTokens(ai.calls[0].input.messages), 500);
   assert.equal(anonOk, Math.floor((250 - reserve) / 27) + 1);
   assert.equal(anon.at(-1).json().code, 'SERVICE_BUDGET_EXHAUSTED');
   // A subscriber is still served from the rest of the budget.
@@ -356,10 +393,10 @@ test('anonymous buckets: IPv4 address, IPv6 /64', async () => {
   assert.equal(ipBucket('::ffff:198.51.100.4'), '198.51.100.4');
   // Two addresses in one /64 share a bucket; another /64 does not.
   const env = makeEnv({ ANON_DAILY_LIMIT: '2', IP_PER_MINUTE_LIMIT: '100' });
-  assert.equal((await send(env, { ip: '2001:db8:1:2::a' })).res.status, 200);
-  assert.equal((await send(env, { ip: '2001:db8:1:2:ffff::b' })).res.status, 200);
-  assert.equal((await send(env, { ip: '2001:db8:1:2:1234::c' })).json().code, 'DAILY_LIMIT');
-  assert.equal((await send(env, { ip: '2001:db8:1:3::a' })).res.status, 200);
+  assert.equal((await send(env, { ip: '2001:db8:1:2::a', body: { coachId: undefined } })).res.status, 200);
+  assert.equal((await send(env, { ip: '2001:db8:1:2:ffff::b', body: { coachId: undefined } })).res.status, 200);
+  assert.equal((await send(env, { ip: '2001:db8:1:2:1234::c', body: { coachId: undefined } })).json().code, 'DAILY_LIMIT');
+  assert.equal((await send(env, { ip: '2001:db8:1:3::a', body: { coachId: undefined } })).res.status, 200);
 });
 
 test('a refused budget gives the subscriber their message back', async () => {
@@ -371,13 +408,14 @@ test('a refused budget gives the subscriber their message back', async () => {
   assert.equal(env.USAGE_GUARD.objects.get(key).data.get('u').dayCount, 0);
 });
 
-test('fails closed: no guard binding or a failing guard means no model call (no paid fallback)', async () => {
+test('fails closed (fail-open off): no guard binding or a failing guard means no model call (no paid fallback)', async () => {
+  // The bounded fail-open for verified subscribers is tested in subscription_resilience.test.mjs.
   const jws = await pki.sign(txPayload({ originalTransactionId: otid() }));
-  const noBinding = { AI: fakeAi() };
+  const noBinding = { AI: fakeAi(), FAIL_OPEN_PER_SUBSCRIBER: '0' };
   const r1 = await send(noBinding, { jws });
   assert.equal(r1.res.status, 503);
   assert.equal(r1.json().code, 'GUARD_UNAVAILABLE');
-  const broken = makeEnv({}, { ns: fakeDoNamespace({ fail: true }) });
+  const broken = makeEnv({ FAIL_OPEN_PER_ISOLATE: '0' }, { ns: fakeDoNamespace({ fail: true }) });
   const r2 = await send(broken, { jws });
   assert.equal(r2.json().code, 'GUARD_UNAVAILABLE');
   assert.equal(noBinding.AI.calls.length + broken.AI.calls.length, 0);
@@ -477,9 +515,15 @@ test('v1 App Store build (no coachId): chat-v6 behaviour inside the anonymous ca
   assert.equal(env.AI.calls[0].input.messages[0].content, 'You are DateWise AI, a dating coach.');
   assert.equal((await v1({ messages: [{ role: 'user', content: 'again' }] })).res.status, 200);
   assert.equal((await v1({ messages: [{ role: 'user', content: 'third' }] })).json().code, 'DAILY_LIMIT');
-  const off = await send(makeEnv({ LEGACY_CLIENTS: '0' }), { body: { coachId: undefined } });
-  assert.equal(off.res.status, 426);
-  assert.equal(off.json().code, 'APP_UPDATE_REQUIRED');
+  // LEGACY_CLIENTS=0: v1 shows only a fixed text for a non-200 reply, so the
+  // update notice comes as a normal one-message reply that v1 displays. No model runs.
+  const offEnv = makeEnv({ LEGACY_CLIENTS: '0' });
+  const off = await send(offEnv, { body: { coachId: undefined } });
+  assert.equal(off.res.status, 200);
+  assert.equal(off.res.headers.get('X-DateWise-Code'), 'APP_UPDATE_REQUIRED');
+  assert.match(off.text, /update the app in the App Store/);
+  assert.match(off.text, /data: \[DONE\]/);
+  assert.equal(offEnv.AI.calls.length, 0);
 });
 
 test('v1 photo coach: works for the old build, reserved at worst case and settled with measured usage', async () => {
@@ -578,7 +622,7 @@ test('notifications: bundleId required, inner transaction checked, REFUND_REVERS
     return worker.fetch(new Request('https://example.workers.dev/apple/notifications', { method: 'POST', body: JSON.stringify({ signedPayload }) }), env, ctx());
   };
   const inner = async (over = {}) => pki.sign({ ...tx, revocationDate: Date.now() - 500, filler: pad, ...over });
-  const renewal = await pki.sign({ originalTransactionId: o, autoRenewStatus: 0, signedDate: Date.now() - 1000, filler: pad });
+  const renewal = await pki.sign({ originalTransactionId: o, autoRenewStatus: 0, signedDate: Date.now() - 1000, environment: 'Production', filler: pad });
   const full = { bundleId: tx.bundleId, environment: 'Production', signedTransactionInfo: await inner(), signedRenewalInfo: renewal };
   assert.ok(JSON.stringify(full).length > 16_000);
   // Missing or wrong bundleId, or an inner transaction from another app or environment: rejected.

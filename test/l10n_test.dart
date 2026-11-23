@@ -126,7 +126,9 @@ void main() {
       await pumpScreen(tester, const WelcomeScreen(), locale: es);
       expect(find.text('Comenzar'), findsOneWidget);
       expect(find.text('Mejores conversaciones'), findsOneWidget);
-      expect(find.text('Ava · coach con IA · Inglés'), findsOneWidget);
+      // The hero follows the locale: Sofía on a Spanish first run.
+      expect(find.text('Sofía · coach con IA · Español'), findsOneWidget);
+      expect(find.bySemanticsLabel('Sofía, una coach de citas con IA, sonriendo'), findsOneWidget);
     });
 
     testWidgets('onboarding steps', (tester) async {
@@ -244,9 +246,18 @@ void main() {
       expect(es.paywallHeadline('Sofía'), 'Coaching diario con Sofía y todo el equipo.');
     });
 
-    test('Coach memory: turning it off says the note is deleted', () {
-      expect(en.memoryOff, contains('deleted'));
+    test('Delete my data: the subscription is managed by Apple and stays active', () {
+      expect(en.deleteMyDataBody, contains('Your subscription is managed by Apple and stays active'));
+      expect(es.deleteMyDataBody, contains('Tu suscripción la administra Apple y sigue activa'));
+      expect(en.deleteMyDataBody, isNot(contains('subscription status')));
+      expect(es.deleteMyDataBody, isNot(contains('estado guardado')));
+    });
+
+    test('Coach memory: turning it off says the note is deleted and none is kept', () {
+      expect(en.memoryOff, contains('deletes'));
+      expect(en.memoryOff, contains('no note is kept'));
       expect(es.memoryOff, contains('se borra'));
+      expect(es.memoryOff, contains('no se guarda ninguna nota'));
     });
   });
 }

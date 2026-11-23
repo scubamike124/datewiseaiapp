@@ -25,6 +25,7 @@ import 'package:datewise_ai/models/coach.dart';
 import 'package:datewise_ai/models/tier.dart';
 import 'package:datewise_ai/models/user_profile.dart';
 import 'package:datewise_ai/services/ai_service.dart';
+import 'package:datewise_ai/services/coach_usage.dart';
 import 'package:datewise_ai/services/storage_service.dart';
 import 'package:datewise_ai/services/store_service.dart';
 import 'package:datewise_ai/state/app_state.dart';
@@ -126,12 +127,19 @@ class _ScriptedIap implements InAppPurchase {
 class _FakeSK2 implements InAppPurchase2API {
   List<String> entitled = [];
   bool fail = false;
+
+  /// Fail only the next [failTimes] reads.
+  int failTimes = 0;
   int calls = 0;
 
   @override
   Future<List<SK2TransactionMessage>> currentEntitlements() async {
     calls++;
     if (fail) throw StateError('App Store unreachable');
+    if (failTimes > 0) {
+      failTimes--;
+      throw StateError('App Store unreachable');
+    }
     return [
       for (final id in entitled)
         SK2TransactionMessage(id: 1, originalId: 1, productId: id, status: SK2PurchaseStatusMessage.purchased),
@@ -386,6 +394,74 @@ void main() {
       expect(store.isEntitled, isFalse);
       iap.emit([_details(PurchaseStatus.purchased)]);
       await _settle();
+      expect(store.isEntitled, isFalse);
+    });
+  });
+
+  group('StoreKit 2 re-read fails on a Transaction.updates event', () {
+    late _FakeSK2 sk2;
+    setUp(() {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      sk2 = _FakeSK2();
+      setInAppPurchaseHostApis(api2: sk2);
+    });
+    tearDown(() {
+      debugDefaultTargetPlatformOverride = null;
+      EntitlementToken.update(null);
+    });
+
+    PurchaseDetails withJws(String jws) => PurchaseDetails(
+          purchaseID: 'tx-update',
+          productID: StoreConfig.productId,
+          verificationData: PurchaseVerificationData(localVerificationData: jws, serverVerificationData: jws, source: 'app_store'),
+          transactionDate: '0',
+          status: PurchaseStatus.purchased,
+        )..pendingCompletePurchase = true;
+
+    test('not entitled before: stays locked; only the token is updated', () async {
+      final iap = _ScriptedIap();
+      final store = AppStoreService(iap: iap);
+      await store.init();
+      expect(store.isEntitled, isFalse);
+      sk2.fail = true;
+      iap.emit([withJws('aaa.bbb.ccc')]);
+      await _settle();
+      expect(store.isEntitled, isFalse, reason: 'the event alone does not unlock chat');
+      expect(EntitlementToken.current, 'aaa.bbb.ccc');
+    });
+
+    test('entitled before: stays entitled; the token is updated', () async {
+      sk2.entitled = [StoreConfig.productId];
+      final iap = _ScriptedIap();
+      final store = AppStoreService(iap: iap);
+      await store.init();
+      expect(store.isEntitled, isTrue);
+      sk2.fail = true;
+      iap.emit([withJws('new.jws.token')]);
+      await _settle();
+      expect(store.isEntitled, isTrue);
+      expect(EntitlementToken.current, 'new.jws.token');
+    });
+
+    test('a purchase the user made: one delayed re-read, then entitled', () async {
+      final iap = _ScriptedIap();
+      final store = AppStoreService(iap: iap, purchaseRereadDelay: const Duration(milliseconds: 10));
+      await store.init();
+      sk2.entitled = [StoreConfig.productId];
+      sk2.failTimes = 1;
+      final before = sk2.calls;
+      expect(await store.buy(), PurchaseResult.purchased);
+      expect(sk2.calls - before, 2, reason: 'first re-read failed, the delayed one succeeded');
+      expect(store.isEntitled, isTrue);
+    });
+
+    test('a purchase the user made: both re-reads fail, reported pending (not failed)', () async {
+      final iap = _ScriptedIap();
+      final store = AppStoreService(iap: iap, purchaseRereadDelay: const Duration(milliseconds: 10));
+      await store.init();
+      sk2.fail = true;
+      expect(await store.buy(), PurchaseResult.pending,
+          reason: 'the user paid; say it unlocks when confirmed instead of prompting a second purchase');
       expect(store.isEntitled, isFalse);
     });
   });

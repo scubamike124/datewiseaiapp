@@ -71,10 +71,10 @@
 
       <h2>Información que proporcionas</h2>
       <ul>
-        <li>Sin cuenta: DateWise AI no tiene inicio de sesión ni cuentas. No recopilamos tu nombre, tu correo electrónico ni contraseñas.</li>
-        <li>Tus preferencias de coaching: al configurar la app eliges en qué quieres ayuda, tu idioma y tu coach, y confirmas que tienes 18 años o más. Solo se usan para personalizar el coaching.</li>
-        <li>Contenido del coaching: los mensajes que envías a tu coach con IA, escritos o hablados.</li>
-        <li>Memoria del coach (opcional, desactivada por defecto): si la activas, una nota breve que escribes se envía con tus mensajes para que tu coach la tenga en cuenta. Puedes verla, editarla o borrarla en Tú › Memoria del coach.</li>
+        <li><strong>Sin cuenta:</strong> DateWise AI no tiene inicio de sesión ni cuentas. No recopilamos tu nombre, tu correo electrónico ni contraseñas.</li>
+        <li><strong>Tus preferencias de coaching:</strong> al configurar la app eliges en qué quieres ayuda, tu idioma y tu coach, y confirmas que tienes 18 años o más. Solo se usan para personalizar el coaching.</li>
+        <li><strong>Contenido del coaching:</strong> los mensajes que envías a tu coach con IA, escritos o hablados.</li>
+        <li><strong>Memoria del coach (opcional, desactivada por defecto):</strong> si la activas, una nota breve que escribes se envía con tus mensajes para que tu coach la tenga en cuenta. Puedes verla, editarla o borrarla en Tú › Memoria del coach.</li>
       </ul>
 
       <h2>Información guardada en tu dispositivo</h2>
@@ -84,7 +84,7 @@
 
       <h2>Cómo usamos la información</h2>
       <ul>
-        <li>Para darte coaching con IA: tus mensajes, tus preferencias de coaching y (solo si la memoria del coach está activada) tu nota se envían a nuestro proveedor de procesamiento de IA para generar las respuestas, que se te devuelven.</li>
+        <li><strong>Para darte coaching con IA:</strong> tus mensajes, tus preferencias de coaching y (solo si la memoria del coach está activada) tu nota se envían a nuestro proveedor de procesamiento de IA para generar las respuestas, que se te devuelven.</li>
         <li>Para operar, proteger y mejorar la app.</li>
         <li>No vendemos tu información personal, no usamos tus mensajes para entrenar modelos de IA y la app no contiene publicidad, analítica ni rastreo.</li>
       </ul>
@@ -97,12 +97,16 @@
 
       <h2>Cómo se manejan tus mensajes</h2>
       <ul>
-        <li>Los mensajes se transmiten de forma segura a nuestro proveedor de procesamiento de IA, se procesan para generar una respuesta y la respuesta vuelve a tu dispositivo. Se procesan de forma transitoria y no se guardan en nuestros servidores.</li>
+        <li>Los mensajes se transmiten de forma segura a nuestro proveedor de procesamiento de IA, se procesan para generar una respuesta y la respuesta vuelve a tu dispositivo. Se procesan de forma transitoria y no se guardan en nuestros servidores. No guardamos ningún contenido de tus conversaciones en nuestros servidores.</li>
+        <li><strong>Protección contra abusos:</strong> un hash unidireccional de tu identificador de red (tu dirección IP o, con IPv6, el bloque de red de la dirección) se usa para limitar la frecuencia de uso y proteger el servicio contra abusos. La dirección IP en sí no se guarda.</li>
       </ul>
 
       <h2>Suscripciones</h2>
       <ul>
-        <li>DateWise Premium se compra y se administra a través de Apple. Apple procesa el pago; nosotros no recibimos tus datos de pago. La app verifica el estado de tu suscripción con Apple en tu dispositivo.</li>
+        <li>DateWise Premium se compra y se administra a través de Apple. Apple procesa el pago; nosotros no recibimos tus datos de pago, tu nombre ni los datos de tu Cuenta de Apple.</li>
+        <li><strong>Verificación de la suscripción:</strong> con cada mensaje, la app envía a nuestro servidor la prueba firmada por Apple de tu suscripción (la transacción de StoreKit). El servidor la verifica con los certificados de Apple.</li>
+        <li><strong>Conteos de uso justo:</strong> para aplicar los límites de uso justo de los Términos de uso, el servidor guarda conteos anónimos de respuestas del coach, identificados por un hash unidireccional con sal del ID de transacción de la suscripción. Estos conteos no están vinculados a tu identidad y no contienen nada de tus conversaciones.</li>
+        <li><strong>Reembolsos:</strong> si Apple informa que una compra se reembolsó o revocó, el servidor guarda ese estado como un hash del ID de transacción, para que la transacción deje de aceptarse.</li>
       </ul>
 
       <h2>Proveedores de servicios</h2>
@@ -114,8 +118,9 @@
 
       <h2>Conservación y eliminación de datos</h2>
       <ul>
-        <li>Los datos del dispositivo se conservan hasta que los eliminas: Tú › Eliminar todas las conversaciones, Tú › Eliminar mis datos (borra todo lo que DateWise guardó en el dispositivo) o desinstalando la app. Eliminar tus datos no cancela tu suscripción del App Store; para cancelarla, ve a Configuración › [tu nombre] › Suscripciones.</li>
+        <li><strong>Los datos del dispositivo se conservan hasta que los eliminas:</strong> Tú › Eliminar todas las conversaciones, Tú › Eliminar mis datos (borra todo lo que DateWise guardó en el dispositivo) o desinstalando la app. Eliminar tus datos no cancela tu suscripción del App Store; para cancelarla, ve a Configuración › [tu nombre] › Suscripciones.</li>
         <li>Los mensajes enviados para obtener una respuesta no se conservan en nuestros servidores después de procesarse.</li>
+        <li><strong>En nuestro servidor:</strong> los conteos diarios de respuestas se reinician cada día (00:00 UTC), los mensuales se conservan solo durante el mes en curso y los registros de límite de frecuencia duran poco (alrededor de un minuto). El estado de un reembolso o una revocación se conserva, como hash, solo para que la transacción siga rechazada.</li>
       </ul>
 
       <h2>Seguridad</h2>
@@ -128,7 +133,7 @@
       <p>DateWise AI es para personas de 18 años o más. No recopilamos a sabiendas datos de menores de 18 años. Si crees que un menor usó la app, contáctanos.</p>
 
       <h2>Tus opciones</h2>
-      <p>Tus datos permanecen en tu dispositivo y puedes eliminarlos en cualquier momento desde la app. Según dónde vivas, puedes tener derecho a acceder, corregir o eliminar tu información personal; escríbenos a <a href="mailto:support@datewiseai.com">support@datewiseai.com</a>.</p>
+      <p>Tus conversaciones y preferencias permanecen en tu dispositivo y puedes eliminarlas en cualquier momento desde la app. Nuestro servidor no guarda contenido de tus conversaciones ni nada vinculado a tu identidad. Según dónde vivas, puedes tener derecho a acceder, corregir o eliminar tu información personal; escríbenos a <a href="mailto:support@datewiseai.com">support@datewiseai.com</a>.</p>
 
       <h2>Cambios a esta política</h2>
       <p>Podemos actualizar esta política de vez en cuando. Cambiaremos la fecha de &quot;Última actualización&quot; de arriba, y los cambios importantes se reflejarán en la app.</p>

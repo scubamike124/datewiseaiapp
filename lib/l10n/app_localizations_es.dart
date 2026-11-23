@@ -118,7 +118,9 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String get welcomePortrait => 'Ava, una coach de citas con IA, sonriendo';
+  String welcomePortrait(String name) {
+    return '$name, una coach de citas con IA, sonriendo';
+  }
 
   @override
   String get welcomeTitleLead => 'Conoce a tu\ncoach de citas ';
@@ -180,7 +182,7 @@ class AppLocalizationsEs extends AppLocalizations {
       'La app y tus coaches lo usarán. Puedes cambiarlo cuando quieras en la pestaña Tú.';
 
   @override
-  String get ageTitle => 'DateWise es solo para adultos.';
+  String get ageTitle => 'DateWise es solo para adultos.';
 
   @override
   String get ageSubtitle => 'Confirma tu edad para continuar.';
@@ -192,18 +194,21 @@ class AppLocalizationsEs extends AppLocalizations {
   String get ageUnder => 'Tengo menos de 18 años';
 
   @override
-  String get underageTitle => 'Lo sentimos, DateWise es solo para adultos.';
+  String get underageTitle => 'Lo sentimos, DateWise es solo para adultos.';
 
   @override
   String get underageBody =>
       'Necesitas tener 18 años o más para usar DateWise AI.';
 
   @override
+  String get underageClose => 'Ya puedes cerrar la app.';
+
+  @override
   String get chooseCoachTitle => 'Elige a tu coach de citas';
 
   @override
   String get chooseCoachSubtitle =>
-      'Los cuatro son coaches con IA. Elige un estilo y cámbialo cuando quieras.';
+      'Los cuatro son coaches con IA. Elige un estilo y cámbialo cuando quieras.';
 
   @override
   String get coachesEyebrow => 'Coaches de citas con IA';
@@ -259,12 +264,12 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String planItemConversations(String name) {
-    return 'Practica un primer mensaje con $name';
+    return 'Practica un primer mensaje con $name';
   }
 
   @override
   String planItemProfile(String name) {
-    return 'Reescribe tu biografía con $name';
+    return 'Reescribe tu biografía con $name';
   }
 
   @override
@@ -308,7 +313,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get quickProfilePrompt => 'Ayúdame a mejorar mi perfil de citas.';
 
   @override
-  String get quickDate => 'Prepararme para una cita';
+  String get quickDate => 'Prepararme para una cita';
 
   @override
   String get quickDatePrompt => 'Ayúdame a prepararme para una cita.';
@@ -504,7 +509,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get paywallWebOnly =>
-      'Suscríbete desde la app para iPhone. Las compras no están disponibles en la web.';
+      'Suscríbete desde la app en tu iPhone o iPad. Las compras no están disponibles en la web.';
 
   @override
   String get purchasePending =>
@@ -550,6 +555,16 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get subscribe => 'Suscribirme';
+
+  @override
+  String paywallFairUse(
+    String daily,
+    String monthly,
+    String perMinute,
+    String concurrent,
+  ) {
+    return 'Uso justo: hasta $daily respuestas del coach al día y $monthly al mes, con un máximo de $perMinute por minuto y $concurrent a la vez. Los mensajes escritos y hablados cuentan igual. Verás un aviso cerca de un límite; al alcanzarlo, el chat se pausa hasta el día siguiente (00:00 UTC) o el mes siguiente.';
+  }
 
   @override
   String get paywallDisclosureNoPrice =>
@@ -688,7 +703,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get memoryOff =>
-      'Desactivada: tu nota se borra y los coaches solo ven la conversación actual.';
+      'Desactivada: no se guarda ninguna nota (al desactivarla se borra) y los coaches solo ven la conversación actual.';
 
   @override
   String get writeNote => 'Escribe tu nota';
@@ -711,6 +726,16 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get memoryOffBody =>
       'Tu nota se eliminará de este dispositivo y los coaches solo verán la conversación actual.';
+
+  @override
+  String get memoryTurnOnTitle => '¿Activar la memoria del coach?';
+
+  @override
+  String get memoryTurnOnBody =>
+      'Tu nota solo se guarda mientras la memoria del coach está activada. Mientras esté activada, se enviará a tu coach con cada mensaje.';
+
+  @override
+  String get memoryTurnOnAction => 'Activar y guardar';
 
   @override
   String get memoryOffAction => 'Desactivar y borrar';
@@ -770,7 +795,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get deleteMyDataBody =>
-      'Las conversaciones, el plan, el progreso, la memoria del coach, tus preferencias y el estado guardado de la suscripción se borrarán de este dispositivo, y la app empezará de nuevo.\n\nEsto no cancela tu suscripción del App Store. Para cancelarla, ve a Configuración › [tu nombre] › Suscripciones.';
+      'Las conversaciones, el plan, el progreso, la memoria del coach y tus preferencias se borrarán de este dispositivo, y la app empezará de nuevo.\n\nTu suscripción la administra Apple y sigue activa: eliminar tus datos no la cancela. Para cancelarla, ve a Configuración › [tu nombre] › Suscripciones.';
 
   @override
   String get deleteEverything => 'Eliminar todo';
@@ -801,11 +826,11 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get coachLimitDaily =>
-      'Llegaste al límite de coaching de hoy. Se renueva a la medianoche (UTC).';
+      'Llegaste al límite de coaching de hoy. Se restablece a la medianoche (UTC).';
 
   @override
   String get coachLimitMonthly =>
-      'Llegaste al límite de uso justo de este mes. Se renueva el día 1.';
+      'Llegaste al límite de uso justo de este mes. Se restablece el día 1.';
 
   @override
   String get coachLimitSlowDown =>
@@ -813,7 +838,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get coachLimitBusy =>
-      'El coaching está muy ocupado en este momento. Inténtalo más tarde.';
+      'Hay mucha demanda de coaching en este momento. Inténtalo más tarde.';
 
   @override
   String get coachLimitSubscriptionInactive =>

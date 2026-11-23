@@ -1,0 +1,617 @@
+name: Deploy coach Worker
+
+# Deploys the DateWise coach Worker (backend/, Worker "datewise-photo-coach")
+# with Wrangler. Adapted from the manual workflow at f5b0401 (branch
+# claude/fix-retired-cf-model). Runbook: docs/launch/WORKER_DEPLOY_RUNBOOK.md.
+#
+# Targets:
+#   chat-v7-cost-guard  backend/ at a commit that is an ancestor of main:
+#                       multi-module, Durable Object + migration, rate-limit
+#                       binding, ID_HASH_SALT.
+#   chat-v6             backend/ at the pinned commit f5b0401 (single file, AI
+#                       binding only), with a pinned worker.js sha256.
+#   For BOTH targets the commit this workflow runs from (the dispatched branch
+#   head or the tagged commit) must also be an ancestor of main, because that
+#   commit supplies this workflow file. The owner protects main with a ruleset
+#   (PR + approving review, no force push), so "on main" means "merged through
+#   a reviewed PR".
+#
+# Jobs:
+#   check   no Cloudflare secrets: ref and commit checks, offline tests, config
+#           checks, `wrangler deploy --dry-run --outdir`, bundle ?version check.
+#   deploy  only when a deploy was asked for. Runs in the GitHub Environment
+#           "production-worker" (owner as required reviewer, deployment
+#           branches/tags restricted), so every real deploy waits for the
+#           owner's click. The Cloudflare secrets must be ENVIRONMENT secrets;
+#           the check job fails if repository/organization secrets exist.
+#
+# Triggers:
+#   workflow_dispatch (dry_run defaults to true).
+#   Tag push (the workflow file at the tagged commit is used), DRY by default:
+#     worker-v7-<name>          dry run of chat-v7 at the tagged commit
+#     worker-v6-<name>          dry run of chat-v6 (f5b0401)
+#     worker-v7-<name>-deploy   real deploy (after approval); same for v6
+#
+# Security notes: every value that reaches a shell, $GITHUB_OUTPUT or a Wrangler
+# command line is validated first and passed through env, never interpolated
+# with ${{ }} into a script.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Worker to deploy'
+        type: choice
+        options:
+          - chat-v7-cost-guard
+          - chat-v6
+        default: chat-v7-cost-guard
+      ref:
+        description: 'chat-v7 only: branch, tag or commit SHA (must already be on main; empty = this run''s commit). chat-v6 is always f5b0401.'
+        type: string
+        required: false
+        default: ''
+      dry_run:
+        description: 'Dry run only (bundle and checks, no upload). Untick to deploy after the owner approves.'
+        type: boolean
+        default: true
+      force_v6_over_unknown:
+        description: 'chat-v6 only: deploy even though the live version could not be read (never over a live chat-v7).'
+        type: boolean
+        default: false
+  push:
+    tags:
+      - 'worker-v7-*'
+      - 'worker-v6-*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-worker
+  cancel-in-progress: false
+
+env:
+  WRANGLER_VERSION: '4.158.0'
+  WRANGLER_SEND_METRICS: 'false'
+  WORKER_NAME: datewise-photo-coach
+  # chat-v6: the reviewed commit and its worker.js sha256.
+  V6_SHA: f5b0401f52e78375a4b48b865d6e58314e18e115
+  V6_WORKER_SHA256: de390ddb4481cb3e8ceccb3bf2e230a79c80c40db4752c3fc3c0f53e13d23837
+  # Commits (the workflow's own and chat-v7's code) must be ancestors of main.
+  REVIEWED_BRANCH: main
+
+jobs:
+  check:
+    name: Check and dry-run bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      target: ${{ steps.plan.outputs.target }}
+      sha: ${{ steps.resolve.outputs.sha }}
+      expect_version: ${{ steps.plan.outputs.target }}
+      deploy: ${{ steps.plan.outputs.deploy }}
+      force_v6: ${{ steps.plan.outputs.force_v6 }}
+    steps:
+      - name: Cloudflare secrets must be environment secrets, not repository secrets
+        # This job has no environment, so it can only see repository or
+        # organization secrets. Those would bypass the production-worker gate.
+        env:
+          REPO_CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          REPO_CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          REPO_SALT: ${{ secrets.ID_HASH_SALT }}
+        run: |
+          bad=0
+          [ -z "$REPO_CF_TOKEN" ] || { echo "::error::CLOUDFLARE_API_TOKEN is a repository/organization secret. Delete it there and add it to the production-worker environment only."; bad=1; }
+          [ -z "$REPO_CF_ACCOUNT" ] || { echo "::error::CLOUDFLARE_ACCOUNT_ID is a repository/organization secret. Move it to the production-worker environment."; bad=1; }
+          [ -z "$REPO_SALT" ] || { echo "::error::ID_HASH_SALT is a repository/organization secret. Move it to the production-worker environment."; bad=1; }
+          exit $bad
+
+      - name: Work out and validate the target
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          IN_TARGET: ${{ inputs.target }}
+          IN_REF: ${{ inputs.ref }}
+          IN_DRY: ${{ inputs.dry_run }}
+          IN_FORCE_V6: ${{ inputs.force_v6_over_unknown }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          nl=$'\n'; cr=$'\r'
+          die() { echo "::error::$1"; exit 1; }
+          # A ref from a person: one line, plain ref characters, no option-like
+          # or traversal forms, no pull-request refs (which can carry fork code).
+          valid_ref() {
+            local r="$1"
+            [[ "$r" != *"$nl"* && "$r" != *"$cr"* ]] || return 1
+            [[ "$r" =~ ^[A-Za-z0-9._/-]{1,200}$ ]] || return 1
+            [[ "$r" != -* && "$r" != *..* && "$r" != */ && "$r" != *//* ]] || return 1
+            [[ "$r" != refs/pull/* && "$r" != pull/* && "$r" != */pull/* ]] || return 1
+            [[ "$r" != refs/remotes/* ]] || return 1
+            return 0
+          }
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]] || die "unexpected GITHUB_SHA"
+          force_v6=false
+          if [ "$EVENT" = "push" ]; then
+            [[ "$REF_NAME" != *"$nl"* ]] || die "bad tag"
+            [[ "$REF_NAME" =~ ^worker-v[67]-[A-Za-z0-9._-]{1,100}$ ]] || die "Unexpected tag name"
+            case "$REF_NAME" in
+              worker-v7-*) target=chat-v7-cost-guard ;;
+              worker-v6-*) target=chat-v6 ;;
+            esac
+            # Tags are dry unless they end in -deploy.
+            case "$REF_NAME" in *-deploy) deploy=true ;; *) deploy=false ;; esac
+            ref="$GITHUB_SHA"
+          elif [ "$EVENT" = "workflow_dispatch" ]; then
+            case "$IN_TARGET" in
+              chat-v7-cost-guard|chat-v6) target="$IN_TARGET" ;;
+              *) die "Unknown target" ;;
+            esac
+            case "$IN_DRY" in
+              true) deploy=false ;;
+              false) deploy=true ;;
+              *) die "dry_run must be true or false" ;;
+            esac
+            [ "$IN_FORCE_V6" = "true" ] && force_v6=true
+            if [ -n "$IN_REF" ]; then
+              valid_ref "$IN_REF" || die "ref is not an allowed branch, tag or commit name"
+              ref="$IN_REF"
+            else
+              ref="$GITHUB_SHA"
+            fi
+          else
+            die "Unsupported event"
+          fi
+          if [ "$target" = "chat-v6" ]; then
+            ref="$V6_SHA"
+          fi
+          # Only validated, single-line values are written here.
+          {
+            printf 'target=%s\n' "$target"
+            printf 'ref=%s\n' "$ref"
+            printf 'deploy=%s\n' "$deploy"
+            printf 'force_v6=%s\n' "$force_v6"
+          } >> "$GITHUB_OUTPUT"
+          echo "Target: $target  ref: $ref  deploy: $deploy"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ steps.plan.outputs.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: The commits must be on main (workflow commit, and chat-v7 code) or the chat-v6 pin
+        id: resolve
+        env:
+          TARGET: ${{ steps.plan.outputs.target }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha=$(git rev-parse --verify 'HEAD^{commit}')
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::could not resolve the commit"; exit 1; }
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::unexpected GITHUB_SHA"; exit 1; }
+          git fetch --quiet --no-tags origin "+refs/heads/$REVIEWED_BRANCH:refs/remotes/origin/$REVIEWED_BRANCH" \
+            || { echo "::error::could not fetch $REVIEWED_BRANCH"; exit 1; }
+          on_main() { git merge-base --is-ancestor "$1" "refs/remotes/origin/$REVIEWED_BRANCH"; }
+          # The workflow file comes from GITHUB_SHA, so it must be merged too.
+          on_main "$GITHUB_SHA" || { echo "::error::This workflow run's commit $GITHUB_SHA is not on $REVIEWED_BRANCH. Run it from main, or tag a commit that is on main."; exit 1; }
+          if [ "$TARGET" = "chat-v6" ]; then
+            [ "$sha" = "$V6_SHA" ] || { echo "::error::chat-v6 must be $V6_SHA"; exit 1; }
+            actual=$(git show "$sha:backend/worker.js" | sha256sum | cut -d' ' -f1)
+            [ "$actual" = "$V6_WORKER_SHA256" ] || { echo "::error::backend/worker.js sha256 $actual does not match the pinned $V6_WORKER_SHA256"; exit 1; }
+          else
+            on_main "$sha" || { echo "::error::$sha is not on $REVIEWED_BRANCH; chat-v7 deploys only code merged to $REVIEWED_BRANCH"; exit 1; }
+            echo "Commit $sha is on $REVIEWED_BRANCH"
+          fi
+          printf 'sha=%s\n' "$sha" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Refuse build hooks, registry and environment overrides
+        shell: bash
+        run: |
+          set -uo pipefail
+          shopt -s nullglob dotglob
+          bad=0
+          # Files that could change what Wrangler builds, installs or talks to
+          # (.env files can set CLOUDFLARE_API_BASE_URL and similar).
+          for f in .npmrc backend/.npmrc backend/package.json backend/node_modules \
+                   backend/wrangler.json backend/wrangler.jsonc \
+                   .env .env.* backend/.env backend/.env.* backend/.dev.vars backend/.dev.vars.*; do
+            if [ -e "$f" ]; then echo "::error::$f must not exist (it could change what Wrangler builds, installs or connects to)"; bad=1; fi
+          done
+          # Any "build" key at any level of wrangler.toml (custom build command),
+          # parsed with a real TOML parser so quoted keys are caught too.
+          python3 - <<'EOF' || bad=1
+          import sys, tomllib
+          try:
+              cfg = tomllib.load(open('backend/wrangler.toml', 'rb'))
+          except Exception as e:
+              print(f'::error::backend/wrangler.toml does not parse: {e}'); sys.exit(1)
+          found = []
+          def walk(o, path):
+              if isinstance(o, dict):
+                  for k, v in o.items():
+                      if k.strip().lower() == 'build': found.append('.'.join(path + [k]))
+                      walk(v, path + [k])
+              elif isinstance(o, list):
+                  for i, v in enumerate(o): walk(v, path + [str(i)])
+          walk(cfg, [])
+          for f in found: print(f'::error::backend/wrangler.toml must not have a build key ({f})')
+          sys.exit(1 if found else 0)
+          EOF
+          exit $bad
+
+      - name: Offline Worker tests must pass
+        run: node --test backend/*.test.mjs
+
+      - name: Check wrangler.toml
+        env:
+          TARGET: ${{ steps.plan.outputs.target }}
+        run: |
+          python3 - <<'EOF'
+          import os, re, sys, tomllib
+          target = os.environ['TARGET']
+          cfg = tomllib.load(open('backend/wrangler.toml', 'rb'))
+          errors = []
+          if cfg.get('name') != os.environ['WORKER_NAME']: errors.append(f"name must be {os.environ['WORKER_NAME']}, got {cfg.get('name')}")
+          if cfg.get('main') != 'worker.js': errors.append(f"main must be worker.js, got {cfg.get('main')}")
+          vars_ = cfg.get('vars', {}) or {}
+          if not isinstance(vars_, dict): errors.append('[vars] must be a table'); vars_ = {}
+          # [vars]: refuse placeholder values.
+          placeholder = re.compile(r'^$|REPLACE|CHANGE_?ME|TODO|TBD|FIXME|PLACEHOLDER|YOUR[_-]|<[^>]*>|x{4,}|example\.(com|org)', re.I)
+          for k, v in vars_.items():
+              if placeholder.search(str(v)): errors.append(f'[vars] {k} looks like a placeholder: "{v}"')
+          if target == 'chat-v7-cost-guard':
+              rl = cfg.get('ratelimits', []) or []
+              if not rl: errors.append('[[ratelimits]] block is missing')
+              for b in rl:
+                  ns = str(b.get('namespace_id', ''))
+                  if not re.fullmatch(r'[1-9][0-9]*', ns): errors.append(f"[[ratelimits]] {b.get('name')}: namespace_id must be a positive integer, got \"{ns}\"")
+                  else: print(f"rate limit {b.get('name')}: namespace_id {ns}")
+              dob = (cfg.get('durable_objects', {}) or {}).get('bindings', []) or []
+              if not any(b.get('name') == 'USAGE_GUARD' and b.get('class_name') == 'UsageGuard' for b in dob): errors.append('Durable Object binding USAGE_GUARD (UsageGuard) is missing')
+              mig = cfg.get('migrations', []) or []
+              if not any('UsageGuard' in (m.get('new_sqlite_classes') or []) for m in mig): errors.append('[[migrations]] with new_sqlite_classes = ["UsageGuard"] is missing')
+              # Cost limits: every budget and cap must be set to a whole number.
+              caps = ['DAILY_NEURON_BUDGET', 'ANON_NEURON_BUDGET', 'DAILY_MESSAGE_LIMIT', 'MONTHLY_MESSAGE_LIMIT',
+                      'PER_MINUTE_LIMIT', 'MAX_CONCURRENT', 'MAX_INPUT_TOKENS', 'MAX_OUTPUT_TOKENS', 'IP_PER_MINUTE_LIMIT',
+                      'ANON_DAILY_LIMIT', 'ANON_MONTHLY_LIMIT']
+              for k in caps:
+                  if not re.fullmatch(r'0|[1-9][0-9]*', str(vars_.get(k, ''))): errors.append(f'[vars] {k} must be a whole number, got "{vars_.get(k, "")}"')
+              try:
+                  if not int(vars_.get('DAILY_NEURON_BUDGET', 0)) > 0: errors.append('[vars] DAILY_NEURON_BUDGET must be above 0 (it is the global circuit breaker)')
+                  if int(vars_.get('ANON_NEURON_BUDGET', 0)) > int(vars_.get('DAILY_NEURON_BUDGET', 0)): errors.append('[vars] ANON_NEURON_BUDGET exceeds DAILY_NEURON_BUDGET')
+              except ValueError:
+                  pass
+              print('cost limits: ' + ' '.join(f'{k}={vars_.get(k)}' for k in ['DAILY_NEURON_BUDGET', 'ANON_NEURON_BUDGET', 'DAILY_MESSAGE_LIMIT', 'MONTHLY_MESSAGE_LIMIT']))
+          for e in errors: print(f'::error::{e}')
+          if errors: sys.exit(1)
+          print('wrangler.toml checks passed')
+          EOF
+
+      - name: Dry-run bundle (no upload, no credentials)
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          npx --yes "wrangler@${WRANGLER_VERSION}" deploy --dry-run --outdir "$RUNNER_TEMP/dist" 2>&1 | tee "$RUNNER_TEMP/dryrun.log"
+
+      - name: Dry-run output must list the guard bindings (chat-v7)
+        if: steps.plan.outputs.target == 'chat-v7-cost-guard'
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/dryrun.log"
+          need() { grep -Eq "$1" "$log" || { echo "::error::dry-run bindings lack: $2"; exit 1; }; }
+          need 'env\.AI[[:space:]].*AI' 'AI binding'
+          need 'env\.USAGE_GUARD \(UsageGuard\).*Durable Object' 'USAGE_GUARD Durable Object'
+          need 'env\.RATE_LIMITER .*Rate Limit' 'RATE_LIMITER rate-limit binding'
+          need 'env\.DAILY_NEURON_BUDGET \("[1-9][0-9]*"\)' 'DAILY_NEURON_BUDGET var'
+          need 'env\.ANON_NEURON_BUDGET \("[0-9]+"\)' 'ANON_NEURON_BUDGET var'
+          need 'env\.DAILY_MESSAGE_LIMIT \("[0-9]+"\)' 'DAILY_MESSAGE_LIMIT var'
+          need 'env\.MONTHLY_MESSAGE_LIMIT \("[0-9]+"\)' 'MONTHLY_MESSAGE_LIMIT var'
+          echo "Dry-run bundle has AI, USAGE_GUARD, RATE_LIMITER and the cost-limit vars."
+
+      - name: Bundle must report the expected ?version
+        env:
+          EXPECT: ${{ steps.plan.outputs.target }}
+        run: |
+          node --input-type=module - "$RUNNER_TEMP/dist/worker.js" <<'EOF'
+          import { pathToFileURL } from 'node:url';
+          const mod = await import(pathToFileURL(process.argv[2]).href);
+          const res = await mod.default.fetch(new Request('https://bundle.invalid/?version'), {}, {});
+          const { version } = await res.json();
+          console.log(`bundle reports version=${version}`);
+          if (version !== process.env.EXPECT) {
+            console.log(`::error::bundle reports ${version}, expected ${process.env.EXPECT}`);
+            process.exit(1);
+          }
+          EOF
+
+      - name: Summary
+        env:
+          TARGET: ${{ steps.plan.outputs.target }}
+          SHA: ${{ steps.resolve.outputs.sha }}
+          DEPLOY: ${{ steps.plan.outputs.deploy }}
+        run: |
+          {
+            echo "### Dry run passed"
+            echo "- Target: \`$TARGET\`"
+            echo "- Commit: \`$SHA\` ($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$SHA)"
+            echo "- Wrangler: \`$WRANGLER_VERSION\`"
+            echo "- Bundle size: $(wc -c < "$RUNNER_TEMP/dist/worker.js") bytes"
+            if [ "$DEPLOY" = "true" ]; then echo "- The deploy job waits for approval in the production-worker environment. **Approve only if this commit is the one you mean to deploy.**"; else echo "- Dry run only: nothing was deployed."; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: worker-bundle-${{ steps.plan.outputs.target }}
+          path: ${{ runner.temp }}/dist
+          retention-days: 14
+
+  deploy:
+    name: Deploy ${{ needs.check.outputs.target }} @ ${{ needs.check.outputs.sha }} (owner approval)
+    needs: check
+    if: needs.check.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production-worker
+    env:
+      TARGET: ${{ needs.check.outputs.target }}
+      SHA: ${{ needs.check.outputs.sha }}
+      FORCE_V6: ${{ needs.check.outputs.force_v6 }}
+    steps:
+      - name: Re-validate the plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$TARGET" in chat-v7-cost-guard|chat-v6) ;; *) echo "::error::bad target"; exit 1 ;; esac
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::bad commit"; exit 1; }
+          if [ "$TARGET" = "chat-v6" ]; then [ "$SHA" = "$V6_SHA" ] || { echo "::error::chat-v6 must be $V6_SHA"; exit 1; }; fi
+          case "$FORCE_V6" in true|false) ;; *) echo "::error::bad force flag"; exit 1 ;; esac
+          printf 'EXPECT=%s\n' "$TARGET" >> "$GITHUB_ENV"
+          printf 'ROLLBACK_HINT=%s\n' "cd backend && npx wrangler@${WRANGLER_VERSION} rollback <version-id> -m \"rollback\"" >> "$GITHUB_ENV"
+          {
+            echo "### Deploying"
+            echo "- Target: \`$TARGET\`"
+            echo "- Commit: \`$SHA\` ($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$SHA)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ needs.check.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Re-check the commits and refused files
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ "$(git rev-parse HEAD)" = "$SHA" ] || { echo "::error::checked-out commit differs"; exit 1; }
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::unexpected GITHUB_SHA"; exit 1; }
+          git fetch --quiet --no-tags origin "+refs/heads/$REVIEWED_BRANCH:refs/remotes/origin/$REVIEWED_BRANCH" \
+            || { echo "::error::could not fetch $REVIEWED_BRANCH"; exit 1; }
+          on_main() { git merge-base --is-ancestor "$1" "refs/remotes/origin/$REVIEWED_BRANCH"; }
+          # The workflow file comes from GITHUB_SHA, so it must be merged too.
+          on_main "$GITHUB_SHA" || { echo "::error::This workflow run's commit $GITHUB_SHA is not on $REVIEWED_BRANCH. Run it from main, or tag a commit that is on main."; exit 1; }
+          if [ "$TARGET" = "chat-v7-cost-guard" ]; then
+            on_main "$SHA" || { echo "::error::$SHA is not on $REVIEWED_BRANCH"; exit 1; }
+          else
+            [ "$(sha256sum backend/worker.js | cut -d' ' -f1)" = "$V6_WORKER_SHA256" ] || { echo "::error::chat-v6 hash mismatch"; exit 1; }
+          fi
+          set +e
+          shopt -s nullglob dotglob
+          bad=0
+          # Files that could change what Wrangler builds, installs or talks to
+          # (.env files can set CLOUDFLARE_API_BASE_URL and similar).
+          for f in .npmrc backend/.npmrc backend/package.json backend/node_modules \
+                   backend/wrangler.json backend/wrangler.jsonc \
+                   .env .env.* backend/.env backend/.env.* backend/.dev.vars backend/.dev.vars.*; do
+            if [ -e "$f" ]; then echo "::error::$f must not exist (it could change what Wrangler builds, installs or connects to)"; bad=1; fi
+          done
+          # Any "build" key at any level of wrangler.toml (custom build command),
+          # parsed with a real TOML parser so quoted keys are caught too.
+          python3 - <<'EOF' || bad=1
+          import sys, tomllib
+          try:
+              cfg = tomllib.load(open('backend/wrangler.toml', 'rb'))
+          except Exception as e:
+              print(f'::error::backend/wrangler.toml does not parse: {e}'); sys.exit(1)
+          found = []
+          def walk(o, path):
+              if isinstance(o, dict):
+                  for k, v in o.items():
+                      if k.strip().lower() == 'build': found.append('.'.join(path + [k]))
+                      walk(v, path + [k])
+              elif isinstance(o, list):
+                  for i, v in enumerate(o): walk(v, path + [str(i)])
+          walk(cfg, [])
+          for f in found: print(f'::error::backend/wrangler.toml must not have a build key ({f})')
+          sys.exit(1 if found else 0)
+          EOF
+          exit $bad
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Check the deploy secrets are set (values are never printed)
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          test -n "$CF_TOKEN" || { echo "::error::Add the CLOUDFLARE_API_TOKEN secret to the production-worker environment"; exit 1; }
+          test -n "$CF_ACCOUNT" || { echo "::error::Add the CLOUDFLARE_ACCOUNT_ID secret to the production-worker environment"; exit 1; }
+
+      - name: Record the live version id before deploying (rollback point)
+        id: before
+        working-directory: backend
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -uo pipefail
+          if npx --yes "wrangler@${WRANGLER_VERSION}" deployments status --json > "$RUNNER_TEMP/before.json" 2> "$RUNNER_TEMP/before.err"; then
+            prev=$(node -e 'const d=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const v=(d.versions||[]).slice().sort((a,b)=>b.percentage-a.percentage)[0];process.stdout.write(v&&/^[0-9a-f-]{36}$/.test(v.version_id)?v.version_id:"")' "$RUNNER_TEMP/before.json")
+            [ -n "$prev" ] || { echo "::error::Could not read the current version id; not deploying"; exit 1; }
+            exists=true
+          elif grep -Eq '\[code: 10007\]|has no deployments|Worker "?datewise-photo-coach"? not found' "$RUNNER_TEMP/before.err"; then
+            prev=""
+            exists=false
+            echo "The Worker does not exist on this account yet (first deploy)."
+          else
+            cat "$RUNNER_TEMP/before.err"
+            echo "::error::Could not read the current deployment; not deploying (fail closed)."
+            exit 1
+          fi
+          printf 'prev_version=%s\n' "$prev" >> "$GITHUB_OUTPUT"
+          printf 'exists=%s\n' "$exists" >> "$GITHUB_OUTPUT"
+          {
+            echo "- Previous version id: \`${prev:-none (new Worker)}\`"
+            echo "- Roll back with: \`${ROLLBACK_HINT/<version-id>/${prev:-<version-id>}}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Find the Worker URL and the live ?version
+        id: live
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WORKER_URL_VAR: ${{ vars.WORKER_URL }}
+          EXISTS: ${{ steps.before.outputs.exists }}
+        run: |
+          set -uo pipefail
+          url="${WORKER_URL_VAR:-}"
+          if [ -n "$url" ] && ! [[ "$url" =~ ^https://[A-Za-z0-9.-]+$ ]]; then
+            echo "::error::WORKER_URL must look like https://host (no path)"; exit 1
+          fi
+          if [ -z "$url" ]; then
+            sub=$(curl -sS --max-time 20 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" \
+              | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{try{const v=JSON.parse(s).result?.subdomain||"";process.stdout.write(/^[a-z0-9-]+$/.test(v)?v:"")}catch{}})')
+            [ -n "$sub" ] && url="https://${WORKER_NAME}.${sub}.workers.dev"
+          fi
+          [ -n "$url" ] || { echo "::error::No workers.dev subdomain on this account and no WORKER_URL variable. Register the subdomain (Workers & Pages, Overview) first. Not deploying."; exit 1; }
+          printf 'url=%s\n' "$url" >> "$GITHUB_OUTPUT"
+          live=""
+          if [ "$EXISTS" = "true" ]; then
+            live=$(curl -sS --max-time 20 "$url/?version" | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{try{const v=String(JSON.parse(s).version||"");process.stdout.write(/^[A-Za-z0-9._-]{1,60}$/.test(v)?v:"")}catch{}})') || true
+          fi
+          echo "Worker URL: $url  live version: ${live:-unknown}"
+          echo "- Live version before deploy: \`${live:-unknown}\` at $url" >> "$GITHUB_STEP_SUMMARY"
+          # chat-v6 has no UsageGuard class; deploying it over chat-v7 would drop
+          # a migrated Durable Object class. Fail closed when the live version is
+          # unknown, unless the owner explicitly forced it.
+          if [ "$TARGET" = "chat-v6" ] && [ "$EXISTS" = "true" ]; then
+            if [ "$live" = "chat-v7-cost-guard" ]; then
+              echo "::error::chat-v7-cost-guard is live. Do not deploy chat-v6 over it; use wrangler rollback (runbook, Rollback)."; exit 1
+            fi
+            if [ -z "$live" ] && [ "$FORCE_V6" != "true" ]; then
+              echo "::error::Live version unknown. Not deploying chat-v6 unless force_v6_over_unknown is set (check the dashboard first)."; exit 1
+            fi
+          fi
+
+      - name: ID_HASH_SALT must exist on the Worker or be provided (set only if missing)
+        id: salt
+        if: needs.check.outputs.target == 'chat-v7-cost-guard'
+        working-directory: backend
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ID_HASH_SALT: ${{ secrets.ID_HASH_SALT }}
+        run: |
+          set -uo pipefail
+          rm -f "$RUNNER_TEMP/salt.json"
+          if npx --yes "wrangler@${WRANGLER_VERSION}" secret list --format json > "$RUNNER_TEMP/secrets.json" 2> "$RUNNER_TEMP/secrets.err"; then
+            if node -e 'const l=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.exit(Array.isArray(l)&&l.some(s=>s.name==="ID_HASH_SALT")?0:1)' "$RUNNER_TEMP/secrets.json"; then
+              has=true
+            else
+              has=false
+            fi
+          elif grep -Eq 'Worker "datewise-photo-coach"( \(env: [^)]*\))? not found' "$RUNNER_TEMP/secrets.err"; then
+            has=false
+            echo "The Worker does not exist yet."
+          else
+            # Any other error: never risk overwriting an existing salt.
+            cat "$RUNNER_TEMP/secrets.err"
+            echo "::error::Could not list the Worker's secrets; not deploying."
+            rm -f "$RUNNER_TEMP/secrets.json"; exit 1
+          fi
+          rm -f "$RUNNER_TEMP/secrets.json" "$RUNNER_TEMP/secrets.err"
+          if [ "$has" = "true" ]; then
+            echo "ID_HASH_SALT is already set on the Worker; keeping it (rotating it resets every counter)."
+            echo "with_salt=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "${ID_HASH_SALT:-}" ]; then
+            umask 077
+            # Written from the environment, never printed; uploaded with the deploy
+            # (wrangler deploy --secrets-file is additive) and deleted afterwards.
+            node -e 'require("fs").writeFileSync(process.argv[1], JSON.stringify({ ID_HASH_SALT: process.env.ID_HASH_SALT }))' "$RUNNER_TEMP/salt.json"
+            echo "ID_HASH_SALT is missing on the Worker; it will be set from the environment secret with this deploy."
+            echo "with_salt=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::ID_HASH_SALT is missing on the Worker and the production-worker environment has no ID_HASH_SALT secret. Not deploying."
+            exit 1
+          fi
+
+      - name: Deploy with Wrangler
+        id: deploy
+        uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
+          workingDirectory: backend
+          # Only constant strings and the runner's own temp path; no user input.
+          command: ${{ steps.salt.outputs.with_salt == 'true' && format('deploy --secrets-file {0}/salt.json', runner.temp) || 'deploy' }}
+
+      - name: Remove the salt file
+        if: always()
+        run: rm -f "$RUNNER_TEMP/salt.json"
+
+      - name: Post-deploy checks (no AI is used)
+        shell: bash
+        env:
+          URL: ${{ steps.live.outputs.url }}
+          PREV: ${{ steps.before.outputs.prev_version }}
+        run: |
+          set -uo pipefail
+          url="${URL%/}"
+          hint="${ROLLBACK_HINT/<version-id>/${PREV:-<version-id>}}"
+          fail() { echo "::error::$1"; echo "- FAILED: $1. Roll back: \`$hint\`" >> "$GITHUB_STEP_SUMMARY"; exit 1; }
+          # Up to about 3 minutes: a brand-new workers.dev subdomain can take a
+          # while to start answering.
+          ok=""
+          for i in $(seq 1 18); do
+            got=$(curl -sS --max-time 15 "$url/?version" | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{try{process.stdout.write(String(JSON.parse(s).version||""))}catch{}})') || true
+            echo "attempt $i: ?version = ${got:-<none>}"
+            if [ "$got" = "$EXPECT" ]; then ok=1; break; fi
+            sleep 10
+          done
+          [ -n "$ok" ] || fail "?version did not report $EXPECT within 3 minutes"
+          if [ "$TARGET" = "chat-v7-cost-guard" ]; then
+            # A v2 chat request with no StoreKit token is refused before any model
+            # call: 403 SUBSCRIPTION_REQUIRED. Reaching that code means the
+            # USAGE_GUARD binding is present (else 503 GUARD_UNAVAILABLE) and the IP
+            # rate limit answered; it does not exercise the Durable Object itself.
+            code=$(curl -sS --max-time 20 -o "$RUNNER_TEMP/h.json" -w '%{http_code}' -X POST "$url/" \
+              -H 'Content-Type: application/json' \
+              --data '{"coachId":"ava","messages":[{"role":"user","content":"deploy health check"}]}') || true
+            body_code=$(node -e 'try{process.stdout.write(String(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).code||""))}catch{}' "$RUNNER_TEMP/h.json")
+            echo "health: HTTP $code code=$body_code"
+            [ "$code" = "403" ] && [ "$body_code" = "SUBSCRIPTION_REQUIRED" ] || fail "health check expected 403 SUBSCRIPTION_REQUIRED, got $code $body_code"
+          else
+            # chat-v6: a plain GET is refused with 405 and makes no model call.
+            code=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "$url/") || true
+            echo "health: GET / -> HTTP $code"
+            [ "$code" = "405" ] || fail "health check expected 405, got $code"
+          fi
+          {
+            echo "### Deployed"
+            echo "- \`$url/?version\` = \`$EXPECT\`"
+            echo "- Previous version id (rollback point): \`${PREV:-none}\`"
+            echo "- Roll back with: \`$hint\`"
+          } >> "$GITHUB_STEP_SUMMARY"

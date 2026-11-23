@@ -166,6 +166,60 @@ function workersPaidTables() {
     const heavy = usdPerMsg(m, U.heavy);
     w(`| ${m.name} | ${comm * 100}% | ${f(net)} | ${f(maxAi)} | $${worst.toFixed(5)} | ${n(Math.floor(maxAi / worst))} | $${heavy.toFixed(5)} | ${n(Math.floor(maxAi / (heavy * 1.5)))} | ${f(1500 * worst)} |`);
   }
+  w();
+  w(budgetSliceTable());
+  return q.join('\n');
+}
+
+// --- DAILY_NEURON_BUDGET with the chat-v7 guard's slices (claude/datewise-v2-app be57af7) ---
+// The global breaker counts every AI call. Token-less v1 traffic may use up to ANON_NEURON_BUDGET
+// and Sandbox (TestFlight, App Review) up to SANDBOX_NEURON_BUDGET, both INSIDE the daily total
+// (cost_guard.js UsageGuard.budget). Each call first reserves input + the output cap, then settles.
+const ANON_SHARE = 0.2; // MEASURED: cost_guard.js default, ANON_NEURON_BUDGET = 20% of the daily budget
+const V2_MAX_IN = 6000; // MEASURED: MAX_INPUT_TOKENS (wrangler.toml)
+const V2_MAX_OUT = 800; // MEASURED: MAX_OUTPUT_TOKENS and worker.js MAX_CHAT_TOKENS
+const LEGACY_IN = 3000; // MEASURED: LEGACY_MAX_INPUT_TOKENS (wrangler.toml, cost_guard.js default)
+const LEGACY_OUT = 500; // MEASURED: LEGACY_MAX_OUTPUT_TOKENS
+const SANDBOX_DAILY = 20; // MEASURED: SANDBOX_DAILY_LIMIT (per tester)
+const SANDBOX_TESTERS = 5; // ASSUMPTION: App Review plus a few TestFlight testers on one day
+const INFLIGHT_SHARE = 0.01; // ASSUMPTION: at the busiest moment 1% of subscribers have a reply streaming
+const MIX = {
+  typical: { label: 'typical (all)', parts: [['typical', 1]] },
+  mixed: { label: '25% heavy, 75% typical', parts: [['typical', 0.75], ['heavy', 0.25]] },
+  heavy: { label: 'heavy (all)', parts: [['heavy', 1]] },
+};
+const neuronsAt = (m, inTok, outTok) => (inTok * m.inN + outTok * m.outN) / 1e6;
+const roundUp = (x) => Math.max(FREE_NEURONS_DAY, Math.ceil(x / BUDGET_STEP) * BUDGET_STEP);
+
+function sliceBudget(m, mixKey, subs) {
+  const perSubMonth = MIX[mixKey].parts.reduce((a, [uk, share]) => a + share * U[uk].msgsMonth * neuronsPerMsg(m, U[uk]), 0);
+  const subPeak = (subs * perSubMonth / 30) * PEAK_FACTOR;
+  const sandbox = roundUp(SANDBOX_TESTERS * SANDBOX_DAILY * neuronsAt(m, V2_MAX_IN, V2_MAX_OUT));
+  const inflight = Math.max(2, Math.ceil(subs * INFLIGHT_SHARE)) * neuronsAt(m, V2_MAX_IN, V2_MAX_OUT);
+  const need = subPeak + sandbox + inflight;
+  return { subPeak, sandbox, inflight, v1On: roundUp(need / (1 - ANON_SHARE)), v1Off: roundUp(need) };
+}
+
+function budgetSliceTable() {
+  const q = [];
+  const w = (x = '') => q.push(x);
+  const n = (x) => Math.round(x).toLocaleString('en-US');
+  const usd = (budget) => '$' + Math.round(Math.max(0, budget - FREE_NEURONS_DAY) * 30 * NEURON_USD).toLocaleString('en-US');
+  w('### DAILY_NEURON_BUDGET with the guard\'s budget slices');
+  w();
+  w(`Subscriber peak day = subscribers x monthly neurons / 30 x ${PEAK_FACTOR} (usage and peak ASSUMPTION, prices MEASURED). Sandbox slice = ${SANDBOX_TESTERS} testers (ASSUMPTION) x SANDBOX_DAILY_LIMIT ${SANDBOX_DAILY} (MEASURED) x a worst-case v2 request (${n(V2_MAX_IN)} in / ${V2_MAX_OUT} out, MEASURED caps), rounded up. In-flight headroom = ${INFLIGHT_SHARE * 100}% of subscribers (at least 2, ASSUMPTION) each holding a worst-case reservation. v1 on (LEGACY_CLIENTS=1): token-less traffic may take its whole ANON_NEURON_BUDGET slice, 20% of the total (MEASURED default), so budget = (peak + sandbox + in-flight) / 0.8. v1 off: budget = peak + sandbox + in-flight. Rounded up to ${n(BUDGET_STEP)}. "$ / month max" = the most the breaker lets AI cost in 30 days after the free 10,000 a day.`);
+  w();
+  w('| Model | Subs | Usage | Subscriber peak day | Sandbox slice | In-flight headroom | DAILY_NEURON_BUDGET, v1 on | $ / month max, v1 on | DAILY_NEURON_BUDGET, v1 off | $ / month max, v1 off |');
+  w('|---|---|---|---|---|---|---|---|---|---|');
+  for (const m of Object.values(M)) for (const s of SUBS) for (const mk of Object.keys(MIX)) {
+    const b = sliceBudget(m, mk, s);
+    w(`| ${m.name} | ${n(s)} | ${MIX[mk].label} | ${n(b.subPeak)} | ${n(b.sandbox)} | ${n(b.inflight)} | **${n(b.v1On)}** | ${usd(b.v1On)} | ${n(b.v1Off)} | ${usd(b.v1Off)} |`);
+  }
+  w();
+  w('Per-request worst cases (MEASURED caps x MEASURED prices):');
+  for (const m of Object.values(M)) {
+    w(`- ${m.name}: v2 request ${n(V2_MAX_IN)} / ${V2_MAX_OUT} tokens = ${neuronsAt(m, V2_MAX_IN, V2_MAX_OUT).toFixed(1)} neurons; v1 (legacy) request ${n(LEGACY_IN)} / ${LEGACY_OUT} = ${neuronsAt(m, LEGACY_IN, LEGACY_OUT).toFixed(1)} neurons; one subscriber at 150 a day, all worst case = ${n(150 * neuronsAt(m, V2_MAX_IN, V2_MAX_OUT))} neurons a day.`);
+  }
   return q.join('\n');
 }
 

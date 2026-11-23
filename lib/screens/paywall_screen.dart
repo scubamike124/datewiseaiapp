@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../config/fair_use.dart';
 import '../services/store_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
@@ -27,6 +28,15 @@ class PaywallScreen extends StatefulWidget {
   @override
   State<PaywallScreen> createState() => _PaywallScreenState();
 }
+
+/// The paywall's fair-use line, with the limits the backend enforces
+/// ([FairUse], checked against backend/wrangler.toml by a test).
+String fairUseLine(AppLocalizations l) => l.paywallFairUse(
+      FairUse.format(FairUse.dailyReplies, l.localeName),
+      FairUse.format(FairUse.monthlyReplies, l.localeName),
+      FairUse.format(FairUse.perMinute, l.localeName),
+      FairUse.format(FairUse.concurrent, l.localeName),
+    );
 
 /// The paywall's localized message for a store error.
 String storeErrorText(AppLocalizations l, StoreError e) => switch (e) {
@@ -240,6 +250,13 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     Text(
                       price != null ? l.paywallDisclosure(l.pricePerMonth(price), price) : l.paywallDisclosureNoPrice,
                       key: const ValueKey('paywall-disclosure'),
+                      textAlign: TextAlign.center,
+                      style: AppText.small.copyWith(height: 1.45),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      fairUseLine(l),
+                      key: const ValueKey('paywall-fair-use'),
                       textAlign: TextAlign.center,
                       style: AppText.small.copyWith(height: 1.45),
                     ),

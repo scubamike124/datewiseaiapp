@@ -28,7 +28,9 @@ brand checks, and a Markdown summary. It is adapted to v2:
 | Tests | `backend/eval/model-eval.test.mjs` | `node:test`, as `backend/worker.test.mjs` does |
 | Workflow | `.github/workflows/model-eval.yml` | replaces PR #24's file; live only on a tagged push to this branch or a manual dispatch |
 
-`worker.js` and `coach_prompts.js` are imported, never changed.
+`worker.js` and `coach_prompts.js` are imported, never changed. The harness has no copy of any prompt: a test
+checks that every planned request equals `coachMessages()` output byte for byte, so a prompt change on the server
+(such as the profile wording changed in `be57af7`) reaches the comparison automatically.
 
 ## 2. The models (MEASURED)
 
@@ -90,7 +92,10 @@ Plus one **cross-language** case per coach: the English coaches get a Spanish me
 an English one, and must answer in the user's language (`coach_prompts.js` language rule).
 
 That is 40 requests per model (4 coaches x 10), with the exact messages the Worker would send:
-`coachMessages(coachId, {goals, language}, [user turn])`, `max_tokens` 800 (production cap), streamed.
+`coachMessages(coachId, {goals, language}, [user turn])`, `max_tokens` 800 (production cap for v2 subscribers), streamed.
+The harness tests the v2 path only. The token-less v1 path has smaller caps since `be57af7`
+(`LEGACY_MAX_INPUT_TOKENS` 3,000, `LEGACY_MAX_OUTPUT_TOKENS` 500, MEASURED) and its own client-side prompt, so it
+is not compared here; it uses the same `CHAT_MODEL`, so a model switch changes it too.
 
 **Automatic checks** (`checks.mjs`), on every reply:
 
@@ -146,11 +151,15 @@ expected (ASSUMPTION) and 800 worst case (200 for the load test).
 
 | Run | Calls | Expected neurons | Worst case | Expected $ at list price |
 |---|---|---|---|---|
-| `--part=1` (Ava, Ethan) | 40 | about 2,000 | 4,316 | $0.022 |
-| `--part=2` (Sofía, Diego + load test) | 60 | about 2,800 | 5,113 | $0.031 |
-| `--part=all` | 100 | **about 4,800** | 9,429 | $0.053 |
-| of which Llama 3.3 | 50 | about 4,000 | 8,101 | |
-| of which Gemma 4 | 50 | about 785 | 1,328 | |
+| `--part=1` (Ava, Ethan) | 40 | about 2,000 | 4,328 | $0.022 |
+| `--part=2` (Sofía, Diego + load test) | 60 | about 2,800 | 5,125 | $0.031 |
+| `--part=all` | 100 | **about 4,800** | 9,453 | $0.053 |
+| of which Llama 3.3 | 50 | about 4,000 | 8,118 | |
+| of which Gemma 4 | 50 | about 790 | 1,335 | |
+
+Re-run on 2026-11-23 against the base at `be57af7` (MEASURED, `--estimate-only` output; the expected column rests
+on the 300-token ASSUMPTION). The worst case rose by 12 to 24 neurons because the server's profile line is now
+longer ("uses the app in English (follow your LANGUAGE rule for replies)" instead of "prefers English").
 
 Recommended: run **part 1 and part 2 on different UTC days**, each with the default `--budget=4000`. That
 leaves at least 6,000 neurons for production on each day. `--budget` stops the run before any call whose worst
@@ -210,7 +219,34 @@ checks (LatAm Spanish, human claims, declines, safety).
 The tests also run on every pull request in `backend-test.yml` (no credentials, no neurons), and before the
 live step in `model-eval.yml`, together with a dry run.
 
-## 7. Results
+## 7. What the choice means for the daily budget
+
+The guard's breaker (`DAILY_NEURON_BUDGET`, `backend/cost_guard.js`) is counted in neurons, so the model decides
+how much traffic a budget buys. At `be57af7` (MEASURED, code): the v1 and Sandbox slices sit inside the total
+(`ANON_NEURON_BUDGET` 20% by default, `SANDBOX_NEURON_BUDGET` 1,000 in `wrangler.toml`); the v1 path is capped at
+3,000 / 500 tokens; and the guard fails closed, with fail-open **opt-in** (`FAIL_OPEN_*` 0 by default).
+
+| | Llama 3.3 70B | Gemma 4 26B | Label |
+|---|---|---|---|
+| Worst-case v2 request (6,000 in / 800 out) | 323.9 neurons | 76.4 neurons | MEASURED (caps x prices) |
+| Worst-case v1 request (3,000 in / 500 out) | 182.4 neurons | 40.9 neurons | MEASURED (caps x prices) |
+| Typical message (2,000 in / 300 out) | 114.8 neurons | 26.4 neurons | ASSUMPTION (size) |
+| Typical messages a day on Workers Free (10,000 neurons, whole service) | about 87 | about 378 | derived |
+
+Recommended `DAILY_NEURON_BUDGET` on Workers Paid, with v1 still served (all ASSUMPTION, derived; full method,
+heavy-usage rows and the v1-retired figures in `WORKERS_PAID_EVALUATION.md` section 5):
+
+| Subscribers | Llama: typical | Llama: 25% heavy | Llama: all heavy | Gemma: typical | Gemma: 25% heavy | Gemma: all heavy |
+|---|---|---|---|---|---|---|
+| 100 | 285,000 | 665,000 | 1,800,000 | 70,000 | 165,000 | 440,000 |
+| 500 | 1,245,000 | 3,135,000 | 8,810,000 | 290,000 | 755,000 | 2,150,000 |
+| 1,000 | 2,440,000 | 6,225,000 | 17,575,000 | 565,000 | 1,495,000 | 4,290,000 |
+| 5,000 | 12,020,000 | 30,940,000 | 87,695,000 | 2,765,000 | 7,420,000 | 21,385,000 |
+
+If Gemma is chosen, lower `DAILY_NEURON_BUDGET` and `SANDBOX_NEURON_BUDGET` in the same deploy as the model
+switch; if Llama stays, a Gemma-sized budget would trip early.
+
+## 8. Results
 
 **BLOCKED.** No live run has happened. Paste the live `model-eval.md` summary and the reviewer's scores here
 after the two runs.

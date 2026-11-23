@@ -300,7 +300,7 @@ void main() {
       await tester.ensureVisible(find.byKey(const ValueKey('get-started')));
       await tester.tap(find.byKey(const ValueKey('get-started')));
       await tester.pumpAndSettle();
-      expect(find.text('What would you like help with?'), findsOneWidget);
+      expect(find.text('What would you like help\u00a0with?'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('goal-profile')));
       await tester.pump();
       await tester.tap(find.byKey(const ValueKey('onboarding-continue')));

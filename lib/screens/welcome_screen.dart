@@ -6,19 +6,22 @@ import '../widgets/dw.dart';
 import 'onboarding_screen.dart';
 import '../l10n/l10n.dart';
 
-/// First screen: Ava's portrait, the promise, and "Get started". There is no
+/// First screen: a coach's portrait (Ava in English, Sofía in Spanish, so the
+/// hero follows the locale), the promise, and "Get started". There is no
 /// sign-in: DateWise keeps your data on this device.
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    const coach = Coaches.ava;
     final l = context.l10n;
+    final coach = l.localeName.startsWith('es') ? Coaches.sofia : Coaches.ava;
     final size = MediaQuery.sizeOf(context);
     final top = MediaQuery.paddingOf(context).top;
     final bottom = MediaQuery.paddingOf(context).bottom;
-    final heroHeight = (size.height * (size.height < 760 ? 0.42 : 0.5)).clamp(260.0, 500.0);
+    // iPad: the portrait may grow taller, so the page is not half empty.
+    final heroHeight = (size.height * (size.height < 760 ? 0.42 : 0.5))
+        .clamp(260.0, isTabletLayout(context) ? 680.0 : 500.0);
 
     return Scaffold(
       key: const ValueKey('welcome'),
@@ -33,7 +36,20 @@ class WelcomeScreen extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    CoachImage(coach: coach, semanticLabel: l.welcomePortrait),
+                    // Wider than the column (iPad): the portrait's sides fade
+                    // into the page instead of ending in hard edges.
+                    if (size.width > kContentMaxWidth)
+                      ShaderMask(
+                        key: const ValueKey('welcome-hero-side-fade'),
+                        blendMode: BlendMode.dstIn,
+                        shaderCallback: (rect) => const LinearGradient(
+                          colors: [Color(0x00000000), Color(0xFF000000), Color(0xFF000000), Color(0x00000000)],
+                          stops: [0, 0.14, 0.86, 1],
+                        ).createShader(rect),
+                        child: CoachImage(coach: coach, semanticLabel: l.welcomePortrait(coach.name)),
+                      )
+                    else
+                      CoachImage(coach: coach, semanticLabel: l.welcomePortrait(coach.name)),
                     const DecoratedBox(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(

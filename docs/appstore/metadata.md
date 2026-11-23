@@ -50,7 +50,7 @@ Changing it to "DateWise AI" is optional; the subtitle carries "dating coach".
 (Do not repeat the app name or category in keywords; Apple ignores them.
 Do not add competitor or other app names.)
 
-### Description (≤4000)
+### Description (≤4000; EN 2,322 and ES 2,578 characters)
 
 **EN**
 
@@ -61,7 +61,7 @@ Do not add competitor or other app names.)
 > • Ethan: a practical, laid-back strategy coach (English)
 > • Sofía: a warm, motivating confidence coach (Spanish)
 > • Diego: a practical, honest relationship coach (Spanish)
-> Switch coaches any time. Each coach keeps its own conversation on your device.
+> Switch coaches any time. Each coach keeps its own conversations on your device.
 >
 > WHAT YOU CAN DO
 > • Improve your dating profile and bio
@@ -71,7 +71,7 @@ Do not add competitor or other app names.)
 > • Follow a short weekly plan and see your progress
 >
 > VOICE PRACTICE
-> Hold the talk button to speak to your coach and hear replies read aloud. Speech recognition runs on your iPhone; only the text of your message is sent.
+> Hold the talk button to speak to your coach and hear replies read aloud. Speech recognition runs on your device; only the text of your message is sent.
 >
 > PRIVACY
 > • No account and no sign-in
@@ -87,6 +87,8 @@ Do not add competitor or other app names.)
 > DATEWISE PREMIUM
 > Chatting with the coaches requires DateWise Premium, an auto-renewing monthly subscription ($9.99/month in the U.S.; local prices vary). Payment is charged to your Apple Account at confirmation of purchase. The subscription renews automatically unless canceled at least 24 hours before the end of the current period. Manage or cancel it in Settings › [your name] › Subscriptions.
 >
+> Fair use: DateWise Premium includes generous everyday coaching for personal use, up to 150 coach replies a day and 1,500 a month (at most 12 a minute and 2 at a time). Typed and spoken messages count the same. You will see a notice in the chat when you are close to a limit. When a limit is reached, chat pauses until the next day (00:00 UTC) or the next month.
+>
 > Terms of Use: https://datewiseai.com/terms-of-service
 > Privacy Policy: https://datewiseai.com/privacy-policy
 
@@ -99,7 +101,7 @@ Do not add competitor or other app names.)
 > • Ethan: coach de estrategia, práctico y relajado (inglés)
 > • Sofía: coach de autoconfianza, cálida y motivadora (español)
 > • Diego: coach de relaciones, práctico y honesto (español)
-> Cambia de coach cuando quieras. Cada coach guarda su propia conversación en tu dispositivo.
+> Cambia de coach cuando quieras. Cada coach guarda sus propias conversaciones en tu dispositivo.
 >
 > QUÉ PUEDES HACER
 > • Mejorar tu perfil y tu biografía
@@ -109,7 +111,7 @@ Do not add competitor or other app names.)
 > • Seguir un plan semanal corto y ver tu progreso
 >
 > PRÁCTICA POR VOZ
-> Mantén presionado el botón para hablar con tu coach y escucha sus respuestas en voz alta. El reconocimiento de voz funciona en tu iPhone; solo se envía el texto de tu mensaje.
+> Mantén presionado el botón para hablar con tu coach y escucha sus respuestas en voz alta. El reconocimiento de voz funciona en tu dispositivo; solo se envía el texto de tu mensaje.
 >
 > PRIVACIDAD
 > • Sin cuenta y sin inicio de sesión
@@ -123,12 +125,14 @@ Do not add competitor or other app names.)
 > DateWise AI es para mayores de 18 años. Los coaches son IA, no personas, y pueden equivocarse. Sus consejos no son asesoría profesional, médica, legal ni de salud mental. Conoce a personas nuevas siempre en lugares públicos y prioriza tu seguridad.
 >
 > DATEWISE PREMIUM
-> Para chatear con los coaches necesitas DateWise Premium, una suscripción mensual con renovación automática (9.99 USD al mes en EE. UU.; el precio local puede variar). El pago se carga a tu Cuenta de Apple al confirmar la compra. La suscripción se renueva automáticamente salvo que la canceles al menos 24 horas antes del final del periodo actual. Adminístrala o cancélala en Configuración › [tu nombre] › Suscripciones.
+> Para chatear con los coaches necesitas DateWise Premium, una suscripción mensual con renovación automática (9.99 USD al mes en EE. UU.; el precio local puede variar). El pago se carga a tu Cuenta de Apple al confirmar la compra. La suscripción se renueva automáticamente salvo que la canceles al menos 24 horas antes de que termine el período actual. Adminístrala o cancélala en Configuración › [tu nombre] › Suscripciones.
+>
+> Uso justo: DateWise Premium incluye coaching diario generoso para uso personal, hasta 150 respuestas del coach al día y 1500 al mes (con un máximo de 12 por minuto y 2 a la vez). Los mensajes escritos y hablados cuentan igual. Verás un aviso en el chat cuando estés cerca de un límite. Al alcanzar un límite, el chat se pausa hasta el día siguiente (00:00 UTC) o el mes siguiente.
 >
 > Términos de uso: https://datewiseai.com/terms-of-service
 > Política de privacidad: https://datewiseai.com/privacy-policy
 
-### What's New in 2.0.0
+### What's New in 2.0.0 (≤4000; EN 171, ES 180 characters)
 
 **EN**
 > DateWise AI 2.0 is a full redesign: four AI coaches (two in English, two in Spanish), voice practice, a weekly plan, and DateWise Premium, one simple monthly subscription.
@@ -177,16 +181,24 @@ Matches `ios/Runner/PrivacyInfo.xcprivacy`. App Store Connect › App Privacy.
 | Data type | Collected | Linked to the user's identity | Used for tracking | Purposes |
 |--|--|--|--|--|
 | User Content › Other User Content (chat messages, optional coach memory note, coaching goals and language) | Yes | No | No | App Functionality |
-| Purchases › Purchase History | Yes | No | No | App Functionality |
-| Everything else (Contact Info, Health, Financial Info, Location, Sensitive Info, Contacts, Browsing/Search History, Identifiers, Usage Data, Diagnostics, Audio Data, Photos or Videos, Other) | No | | | |
+| Purchases › Purchase History (the App Store-signed StoreKit transaction, sent with each message and verified on the server with Apple's certificates; a refund or revocation status is stored as a hash of the transaction ID) | Yes | No | No | App Functionality |
+| Usage Data › Product Interaction (anonymous counts of coach replies for the fair-use limits, keyed by a one-way salted hash of the transaction ID; daily counts reset daily, monthly counts are kept for the current month) | Yes | No | No | App Functionality |
+| Everything else (Contact Info, Health, Financial Info, Location, Sensitive Info, Contacts, Browsing/Search History, Identifiers, other Usage Data, Diagnostics, Audio Data, Photos or Videos, Other) | No | | | |
 
-Resulting label: **Data Not Linked to You**: User Content, Purchases. No
-"Data Used to Track You", no "Data Linked to You".
+Resulting label: **Data Not Linked to You**: User Content, Purchases, Usage
+Data. No "Data Used to Track You", no "Data Linked to You".
 
 Notes for the owner:
 - This is the conservative reading. Messages are processed in real time and
   not stored (privacy policy), which Apple's definition might treat as "not
   collected"; declaring them is still correct and safe.
+- Network identifier: a one-way hash of the IP address (or IPv6 network
+  block) is used only for rate limiting and abuse protection, and the
+  rate-limit entries last about a minute; the IP address itself is not
+  stored. The privacy policy discloses it. It is not declared as a collected
+  type because it is not retained beyond that short window and is never
+  linked to the user. **OWNER:** confirm this reading when you fill in App
+  Privacy.
 - Audio: speech is recognised on the device; no audio leaves it. Do not
   declare Audio Data.
 - If a future version collects gender, age, orientation or city in the
@@ -214,6 +226,9 @@ Notes for the owner:
 >
 > AGE
 > Onboarding asks users to confirm they are 18 or older; users who say they are under 18 cannot continue.
+>
+> FAIR USE
+> DateWise Premium has fair-use limits, disclosed on the paywall, in the description and in the Terms of Use: up to 150 coach replies a day and 1,500 a month, at most 12 a minute and 2 at a time. Sandbox purchases (App Review and TestFlight) have a smaller limit of 20 replies a day. A notice appears near the limit.
 >
 > OTHER
 > No ads, no analytics, no tracking. Encryption: HTTPS only (exempt).
@@ -243,7 +258,7 @@ Create in App Store Connect › Monetization › Subscriptions (must match
 | Display name ES | DateWise Premium Mensual |
 | Description ES | Coaching por chat y voz con los cuatro coaches con IA. |
 | Review screenshot | Required: a screenshot of the paywall on an iPhone (any supported size, e.g. 1320x2868). Capture it from a TestFlight or simulator build so it shows the real StoreKit price, without the "Review build" note that only the web review build shows. |
-| Review notes | "Unlocks chat and voice with the AI coaches. Testable with a Sandbox Apple Account; no app account needed." |
+| Review notes | "Unlocks chat and voice with the AI coaches. Testable with a Sandbox Apple Account; no app account needed. Fair use: up to 150 coach replies a day and 1,500 a month (Sandbox: 20 a day), at most 12 a minute and 2 at a time." |
 
 The first subscription must be submitted **together with** app version 2.0.0
 (select it under "In-App Purchases and Subscriptions" on the version page).
@@ -266,21 +281,35 @@ The first subscription must be submitted **together with** app version 2.0.0
 
 Generated from the web review build by `tool/appstore_screenshots/generate.sh`
 (one command; see `checklist.md`). Files:
-`docs/appstore/screenshots/{en,es}/{6.9,6.5}/NN-name.png`
+`docs/appstore/screenshots/{en,es}/{6.9,6.5,ipad-13}/NN-name.png`
 
-| # | File | EN headline | ES headline |
+| # | File | EN headline / caption | ES headline / caption |
 |--|--|--|--|
-| 1 | 01-coaches | Choose your AI dating coach | Elige tu coach de citas con IA |
-| 2 | 02-home | A simple plan for your week | Un plan sencillo para tu semana |
-| 3 | 03-chat | Know what to say next | Sabrás qué escribir |
-| 4 | 04-coach | A coach who listens | Coaches en español |
-| 5 | 05-privacy | Your data, your controls | Tus datos, tu control |
+| 1 | 01-coaches | Choose your AI dating coach / Four coaches, in English and Spanish | Elige tu coach de citas con IA / Cuatro coaches, en inglés y en español |
+| 2 | 02-home | A simple plan for your week / Profile, conversations and first dates | Un plan sencillo para tu semana / Perfil, conversaciones y primeras citas |
+| 3 | 03-chat | Know what to say next / Example chat: openers and replies you can adapt | Sabrás qué escribir / Chat de ejemplo: primeros mensajes y respuestas a tu medida |
+| 4 | 04-coach | Honest, practical advice / From an AI dating coach, not a person (Welcome screen) | Coaches en español / Sofía y Diego te ayudan en tu idioma (Diego's chat) |
+| 5 | 05-privacy | Your data, your controls / Coach memory is off unless you turn it on | Tus datos, tu control / La memoria del coach está apagada salvo que la actives |
 
-Sizes: 6.9" 1320x2868 (required) and 6.5" 1284x2778. App Store Connect scales
-these down for smaller iPhones. The app also supports iPad
-(`TARGETED_DEVICE_FAMILY = 1,2`), so App Store Connect requires iPad 13"
-screenshots too: run `generate.sh --skip-build --sizes 13` and review them, or
-capture them from an iPad simulator.
+Sizes (Apple's "Screenshot specifications", App Store Connect Help,
+checked 2026-11-23):
+
+| Set | Pixels | Apple's display class | Required |
+|--|--|--|--|
+| `6.9` | 1320x2868 | iPhone 6.9" | Yes (or 6.5") |
+| `6.5` | 1284x2778 | iPhone 6.5" | Fallback for 6.9" |
+| `ipad-13` | 2064x2752 | iPad 13" | Yes: the app runs on iPad (`TARGETED_DEVICE_FAMILY = 1,2`) |
+
+App Store Connect scales these down for smaller iPhones and iPads. The iPad
+set shows the app's own iPad layout (1032x1376 points at 2x: wider columns,
+taller portraits), not a stretched phone screen.
+
+Honesty: the chats are example conversations produced by the review build's
+offline demo coach; the chat caption says "Example chat" / "Chat de
+ejemplo". Each coach is shown as a still portrait labelled "AI coach"; no
+screenshot shows or implies live video or a real person.
+The web review build's "Review build" paywall note never appears in these
+five screens.
 
 Coach portraits are placeholders until the owner supplies final portraits;
 regenerate after replacing `assets/coaches/*`.

@@ -14,54 +14,92 @@ import 'paywall_screen.dart';
 import 'shell.dart';
 import '../l10n/l10n.dart';
 
+/// Above this text scale a confirmation dialog stacks its buttons.
+const double kDialogStackAboveScale = 1.5;
+
+/// A confirmation dialog whose body scrolls, so long text at large sizes is
+/// never clipped. True when the user chose [action].
+Future<bool> _confirmDialog(BuildContext context, String title, String body, String action,
+    {Color actionColor = AppColors.danger}) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) {
+      final cancel = TextButton(
+          key: const ValueKey('confirm-cancel'),
+          onPressed: () => Navigator.pop(ctx, false),
+          child: Text(ctx.l10n.cancel, style: const TextStyle(color: AppColors.text)));
+      final confirm = TextButton(
+        key: const ValueKey('confirm-action'),
+        onPressed: () => Navigator.pop(ctx, true),
+        child: Text(action, style: TextStyle(color: actionColor, fontWeight: FontWeight.w600)),
+      );
+      // At large text the two buttons stack, full width, action first (as
+      // iOS does), and the dialog uses more of the screen width, so a label
+      // such as "Desactivar y borrar" stays on one line.
+      final stacked = MediaQuery.textScalerOf(ctx).scale(1) > kDialogStackAboveScale;
+      return AlertDialog(
+        scrollable: true,
+        insetPadding: stacked ? const EdgeInsets.symmetric(horizontal: 16, vertical: 24) : null,
+        title: Text(title),
+        content: Text(body),
+        actions: stacked
+            ? [
+                Column(
+                  key: const ValueKey('confirm-actions-stacked'),
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [confirm, cancel],
+                ),
+              ]
+            : [cancel, confirm],
+      );
+    },
+  );
+  return ok ?? false;
+}
+
 /// The "You" tab: language, coach, Coach memory, subscription, data, legal.
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
-  Future<bool> _confirm(BuildContext context, String title, String body, String action) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(body),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(ctx.l10n.cancel, style: const TextStyle(color: AppColors.text))),
-          TextButton(
-            key: const ValueKey('confirm-action'),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(action, style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
-    );
-    return ok ?? false;
-  }
+  Future<bool> _confirm(BuildContext context, String title, String body, String action) =>
+      _confirmDialog(context, title, body, action);
 
   void _pickLanguage(BuildContext context, AppState state) {
     final l = context.l10n;
     showModalBottomSheet<void>(
       context: context,
       builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final lang in CoachLanguage.values)
-              ListTile(
-                key: ValueKey('language-${lang.name}'),
-                minTileHeight: 52,
-                title: Text(lang.label, style: AppText.label),
-                subtitle: Text(l.coachesFor(lang), style: AppText.small),
-                trailing: state.language == lang ? const Icon(Icons.check_rounded, color: AppColors.gold) : null,
-                selected: state.language == lang,
-                onTap: () {
-                  state.setLanguage(lang);
-                  Navigator.pop(ctx);
-                },
+        // Scrolls at large text, where the title and both options are taller
+        // than the sheet.
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                child: Semantics(
+                  header: true,
+                  child: Text(l.languageRow,
+                      key: const ValueKey('language-sheet-title'), style: AppText.name.copyWith(fontSize: 22)),
+                ),
               ),
-            const SizedBox(height: 8),
-          ],
+              for (final lang in CoachLanguage.values)
+                ListTile(
+                  key: ValueKey('language-${lang.name}'),
+                  minTileHeight: 52,
+                  title: Text(lang.label, style: AppText.label),
+                  subtitle: Text(l.coachesFor(lang), style: AppText.small),
+                  trailing: state.language == lang ? const Icon(Icons.check_rounded, color: AppColors.gold) : null,
+                  selected: state.language == lang,
+                  onTap: () {
+                    state.setLanguage(lang);
+                    Navigator.pop(ctx);
+                  },
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );
@@ -201,6 +239,7 @@ class SettingsScreen extends StatelessWidget {
                 icon: Icons.delete_forever_outlined,
                 title: l.deleteMyData,
                 subtitle: l.deleteMyDataNote,
+                subtitleMaxLines: null,
                 destructive: true,
                 onTap: () async {
                   if (await _confirm(context, l.deleteMyDataTitle, l.deleteMyDataBody, l.deleteEverything)) {
@@ -230,7 +269,10 @@ class SettingsScreen extends StatelessWidget {
               _Row(
                 icon: Icons.mail_outline_rounded,
                 title: l.support,
-                value: AppLinks.supportEmail,
+                // The address as a subtitle, so it is never truncated and
+                // never squeezes the label at large text.
+                subtitle: AppLinks.supportEmail,
+                subtitleOneLine: true,
                 onTap: () => _open(context, 'mailto:${AppLinks.supportEmail}'),
               ),
             ]),
@@ -296,6 +338,8 @@ class _Row extends StatelessWidget {
     required this.title,
     this.value,
     this.subtitle,
+    this.subtitleMaxLines = 3,
+    this.subtitleOneLine = false,
     this.onTap,
     this.destructive = false,
   });
@@ -304,6 +348,13 @@ class _Row extends StatelessWidget {
   final String title;
   final String? value;
   final String? subtitle;
+
+  /// Null shows the whole subtitle (notes that must not be cut off).
+  final int? subtitleMaxLines;
+
+  /// Keeps the subtitle on one line, shrinking it to fit if needed, so a
+  /// value such as an email address never breaks at its dot.
+  final bool subtitleOneLine;
   final VoidCallback? onTap;
   final bool destructive;
 
@@ -328,8 +379,20 @@ class _Row extends StatelessWidget {
                     if (subtitle != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
-                        child: Text(subtitle!, maxLines: 3, overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 13, height: 1.35, color: AppColors.textMuted)),
+                        child: subtitleOneLine
+                            ? FittedBox(
+                                key: const ValueKey('row-subtitle-fitted'),
+                                fit: BoxFit.scaleDown,
+                                alignment: AlignmentDirectional.centerStart,
+                                child: Text(subtitle!,
+                                    maxLines: 1,
+                                    softWrap: false,
+                                    style: const TextStyle(fontSize: 13, height: 1.35, color: AppColors.textMuted)),
+                              )
+                            : Text(subtitle!,
+                                maxLines: subtitleMaxLines,
+                                overflow: subtitleMaxLines == null ? null : TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 13, height: 1.35, color: AppColors.textMuted)),
                       ),
                   ],
                 ),
@@ -461,9 +524,20 @@ class _MemorySheetState extends State<_MemorySheet> {
                 key: const ValueKey('memory-save'),
                 label: l.save,
                 expand: true,
-                onPressed: () {
-                  widget.state.saveMemory(_controller.text);
-                  Navigator.pop(context);
+                onPressed: () async {
+                  final state = widget.state;
+                  final text = _controller.text;
+                  // A note is kept only while Coach memory is on: saving one
+                  // while it is off asks to turn it on first.
+                  if (!state.memoryEnabled && text.trim().isNotEmpty) {
+                    if (!await _confirmDialog(context, l.memoryTurnOnTitle, l.memoryTurnOnBody, l.memoryTurnOnAction,
+                        actionColor: AppColors.text)) {
+                      return;
+                    }
+                    await state.setMemoryEnabled(true);
+                  }
+                  await state.saveMemory(text);
+                  if (context.mounted) Navigator.pop(context);
                 },
               ),
             ],

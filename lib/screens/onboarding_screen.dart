@@ -366,6 +366,8 @@ class UnderageScreen extends StatelessWidget {
                 const Align(alignment: Alignment.centerLeft, child: BrandMark()),
                 const SizedBox(height: 32),
                 LargeTitle(title: l.underageTitle, subtitle: l.underageBody),
+                const SizedBox(height: 16),
+                Text(l.underageClose, key: const ValueKey('underage-close'), style: AppText.body),
               ],
             ),
           ),

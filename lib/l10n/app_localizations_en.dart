@@ -117,7 +117,9 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get welcomePortrait => 'Ava, an AI dating coach, smiling';
+  String welcomePortrait(String name) {
+    return '$name, an AI dating coach, smiling';
+  }
 
   @override
   String get welcomeTitleLead => 'Meet your\nAI dating ';
@@ -151,7 +153,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get goalsTitle => 'What would you like help with?';
+  String get goalsTitle => 'What would you like help with?';
 
   @override
   String get goalsSubtitle =>
@@ -198,11 +200,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get underageBody => 'You need to be 18 or older to use DateWise AI.';
 
   @override
+  String get underageClose => 'You can close the app now.';
+
+  @override
   String get chooseCoachTitle => 'Choose your dating coach';
 
   @override
   String get chooseCoachSubtitle =>
-      'All four are AI coaches. Pick a style; switch any time.';
+      'All four are AI coaches. Pick a style; switch any time.';
 
   @override
   String get coachesEyebrow => 'AI dating coaches';
@@ -218,7 +223,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String homeReady(String name, String gender) {
-    return '$name is ready when you are. Your AI coach, any time.';
+    return '$name is ready when you are. Your AI coach, any time.';
   }
 
   @override
@@ -486,7 +491,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get paywallWebOnly =>
-      'Subscribe in the iPhone app. Purchases are not available on the web.';
+      'Subscribe in the app on your iPhone or iPad. Purchases are not available on the web.';
 
   @override
   String get purchasePending =>
@@ -529,6 +534,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get subscribe => 'Subscribe';
+
+  @override
+  String paywallFairUse(
+    String daily,
+    String monthly,
+    String perMinute,
+    String concurrent,
+  ) {
+    return 'Fair use: up to $daily coach replies a day and $monthly a month, at most $perMinute a minute and $concurrent at a time. Typed and spoken messages count the same. A notice appears near a limit; at the limit, chat pauses until the next day (00:00 UTC) or month.';
+  }
 
   @override
   String get paywallDisclosureNoPrice =>
@@ -667,7 +682,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get memoryOff =>
-      'Off: your note is deleted and coaches only see the current conversation.';
+      'Off: no note is kept (turning it off deletes it) and coaches only see the current conversation.';
 
   @override
   String get writeNote => 'Write your note';
@@ -690,6 +705,16 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get memoryOffBody =>
       'Your note will be deleted from this device, and coaches will only see the current conversation.';
+
+  @override
+  String get memoryTurnOnTitle => 'Turn on Coach memory?';
+
+  @override
+  String get memoryTurnOnBody =>
+      'Your note is kept only while Coach memory is on. While it is on, it is sent to your coach with each message.';
+
+  @override
+  String get memoryTurnOnAction => 'Turn on & save';
 
   @override
   String get memoryOffAction => 'Turn off & delete';
@@ -748,7 +773,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get deleteMyDataBody =>
-      'Conversations, plan, progress, Coach memory, settings and the saved subscription status will be erased from this device, and the app will start again.\n\nThis does not cancel your App Store subscription. To cancel it, go to Settings › [your name] › Subscriptions.';
+      'Conversations, plan, progress, Coach memory and settings will be erased from this device, and the app will start again.\n\nYour subscription is managed by Apple and stays active: deleting your data does not cancel it. To cancel it, go to Settings › [your name] › Subscriptions.';
 
   @override
   String get deleteEverything => 'Delete everything';

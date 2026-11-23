@@ -1,4 +1,4 @@
-// Every screen at iPhone SE, iPhone 15/16, Pro Max and desktop sizes, at
+// Every screen at iPhone SE, iPhone 15/16, Pro Max, iPad 13" and desktop sizes, at
 // text scale 1.0 and 1.3 (Dynamic Type). Any RenderFlex overflow or other
 // layout exception fails the test.
 
@@ -24,7 +24,7 @@ final Map<String, Pump> screens = {
   },
   'onboarding goals': (t, size, scale) async {
     await pumpScreen(t, const OnboardingScreen(), size: size, scale: scale);
-    expect(find.text('What would you like help with?'), findsOneWidget);
+    expect(find.text('What would you like help\u00a0with?'), findsOneWidget);
   },
   'onboarding language': (t, size, scale) async {
     await pumpScreen(t, const OnboardingScreen(initialStep: 1), size: size, scale: scale);
@@ -79,7 +79,7 @@ final Map<String, Pump> screens = {
     expect(find.text('Coach memory'), findsWidgets);
   },
   'privacy policy': (t, size, scale) async {
-    await pumpScreen(t, const LegalScreen(title: 'Privacy Policy', content: kPrivacyPolicy), size: size, scale: scale);
+    await pumpScreen(t, LegalScreen(title: 'Privacy Policy', content: kPrivacyPolicy), size: size, scale: scale);
     expect(find.text('Privacy Policy'), findsOneWidget);
   },
 };

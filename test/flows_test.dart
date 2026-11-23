@@ -22,7 +22,7 @@ void main() {
     // Goals: Continue is disabled until one is picked.
     await tester.tap(find.byKey(const ValueKey('onboarding-continue')));
     await tester.pumpAndSettle();
-    expect(find.text('What would you like help with?'), findsOneWidget);
+    expect(find.text('What would you like help\u00a0with?'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('goal-confidence')));
     await tester.tap(find.byKey(const ValueKey('goal-conversations')));
     await tester.pump();
@@ -41,7 +41,7 @@ void main() {
     // 18+ must be confirmed.
     await tester.tap(find.byKey(const ValueKey('onboarding-continue')));
     await tester.pumpAndSettle();
-    expect(find.text('DateWise es solo para adultos.'), findsOneWidget);
+    expect(find.text('DateWise es solo para\u00a0adultos.'), findsOneWidget);
     expect(find.text('Tengo 18 años o más'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('age-confirm')));
     await tester.pump();
@@ -131,9 +131,9 @@ void main() {
     expect(find.byKey(const ValueKey('composer')), findsOneWidget);
   });
 
-  testWidgets('web build without purchases says to subscribe in the iPhone app', (tester) async {
+  testWidgets('web build without purchases says to subscribe in the iPhone or iPad app', (tester) async {
     await pumpApp(tester, prefs: onboardedPrefs(), store: UnsupportedStoreService());
-    expect(find.text('Subscribe in the iPhone app. Purchases are not available on the web.'), findsOneWidget);
+    expect(find.text('Subscribe in the app on your iPhone or iPad. Purchases are not available on the web.'), findsOneWidget);
     expect(find.byKey(const ValueKey('paywall-subscribe')), findsNothing);
   });
 
@@ -224,6 +224,54 @@ void main() {
       expect(app.storage.memoryText, isEmpty);
     });
   }
+
+  for (final (lang, prefs, title, action, off) in [
+    ('en', onboardedPrefs(), 'Turn on Coach memory?', 'Turn on & save',
+        'Off: no note is kept (turning it off deletes it) and coaches only see the current conversation.'),
+    ('es', spanishPrefs(), '¿Activar la memoria del coach?', 'Activar y guardar',
+        'Desactivada: no se guarda ninguna nota (al desactivarla se borra) y los coaches solo ven la conversación actual.'),
+  ]) {
+    testWidgets('[$lang] saving a note while Coach memory is off asks to turn it on', (tester) async {
+      final app = await pumpApp(tester, prefs: prefs, tab: AppTab.you);
+      expect(app.state.memoryEnabled, isFalse);
+      expect(find.text(off), findsOneWidget);
+
+      // Declining keeps memory off and saves nothing.
+      await tester.tap(find.byKey(const ValueKey('row-memory-edit')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const ValueKey('memory-field')), 'Shy at first.');
+      await tester.tap(find.byKey(const ValueKey('memory-save')));
+      await tester.pumpAndSettle();
+      expect(find.text(title), findsOneWidget);
+      expect(find.text(action), findsOneWidget);
+      await tester.tap(find.text(lang == 'es' ? 'Cancelar' : 'Cancel'));
+      await tester.pumpAndSettle();
+      expect(app.state.memoryEnabled, isFalse);
+      expect(app.state.memoryText, isEmpty);
+      expect(app.storage.memoryText, isEmpty);
+      expect(find.byKey(const ValueKey('memory-field')), findsOneWidget, reason: 'the sheet stays open');
+
+      // Accepting turns memory on and saves the note.
+      await tester.tap(find.byKey(const ValueKey('memory-save')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('confirm-action')));
+      await tester.pumpAndSettle();
+      expect(app.state.memoryEnabled, isTrue);
+      expect(app.state.memoryText, 'Shy at first.');
+      expect(find.byKey(const ValueKey('memory-field')), findsNothing);
+      expect(find.text(off), findsNothing);
+    });
+  }
+
+  testWidgets('saving an empty note while Coach memory is off needs no confirmation', (tester) async {
+    final app = await pumpApp(tester, prefs: onboardedPrefs(), tab: AppTab.you);
+    await tester.tap(find.byKey(const ValueKey('row-memory-edit')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('memory-save')));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(app.state.memoryEnabled, isFalse);
+  });
 
   testWidgets('turning Coach memory off with no note needs no confirmation', (tester) async {
     final app = await pumpApp(tester, prefs: {...onboardedPrefs(), 'dw_memory_on': true}, tab: AppTab.you);

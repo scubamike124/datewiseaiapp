@@ -12,8 +12,10 @@
  *
  * chat-v7 (cost guard): every AI call passes cost_guard.js first (per-subscriber
  * caps, global neuron budget, StoreKit 2 JWS check), the coach system prompt is
- * built on the server (coach_prompts.js) for requests with a coachId. Requests
- * without one and without a StoreKit token come from the v1 App Store build
+ * built on the server (coach_prompts.js) for requests with a coachId, and those
+ * (v2) requests are served only with a valid StoreKit token (403
+ * SUBSCRIPTION_REQUIRED without one). Requests
+ * without a coachId and without a StoreKit token come from the v1 App Store build
  * (1.0.2): its chat and photo coach keep their chat-v6 behaviour, in the
  * anonymous caps and their budget slice, while LEGACY_CLIENTS=1. See docs/business/AI_COST_MODEL.md.
  */
@@ -33,19 +35,22 @@ function isAllowedOrigin(origin) {
   if (!origin) return false;
   if (ALLOWED_ORIGINS.has(origin)) return true;
   try {
-    const host = new URL(origin).hostname;
-    return host.endsWith('.datewiseai.pages.dev');
+    const u = new URL(origin);
+    return u.protocol === 'https:' && u.hostname.endsWith('.datewiseai.pages.dev');
   } catch {
     return false;
   }
 }
 
-// Set per-request in fetch(); default is the apex.
-let ACTIVE_CORS_ORIGIN = 'https://datewiseai.com';
+// The default allowed origin. fetch() replaces it on each response with the
+// request's own allowed origin. (It used to be a module variable set per
+// request, which a concurrent request in the same isolate could overwrite
+// between two awaits, so a response could carry another request's origin.)
+const DEFAULT_ORIGIN = 'https://datewiseai.com';
 
 function corsHeaders() {
   return {
-    'Access-Control-Allow-Origin': ACTIVE_CORS_ORIGIN,
+    'Access-Control-Allow-Origin': DEFAULT_ORIGIN,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, X-DateWise-Entitlement',
     'Access-Control-Max-Age': '86400',
@@ -545,18 +550,64 @@ async function runChatStream(env, messages, maxTokens = MAX_CHAT_TOKENS) {
 
 // Handles a coaching chat request (chat-v7). With a coachId or a StoreKit
 // token (the v2 app) the server builds the coach's system prompt (the default
-// coach when no coachId is given) and drops client system messages. Only a
+// coach when no coachId is given) and drops client system messages, and the
+// request needs a valid subscription token (403 SUBSCRIPTION_REQUIRED). Only a
 // request with neither (the v1 build, 1.0.2, which never sends the token)
 // keeps the chat-v6 behaviour, while LEGACY_CLIENTS=1, in the anonymous caps. Either way the history is trimmed to the input-token cap,
 // the request is admitted by the cost guard, and the model's reply streams
 // back unchanged as Server-Sent Events while it is metered.
+// What the v1 build (1.0.2) shows once LEGACY_CLIENTS=0. v1 has no
+// forced-update mechanism and shows only a fixed "unavailable" text for any
+// non-200 response, so the notice is sent as a normal one-message reply (SSE,
+// HTTP 200) that v1 displays in the chat. No model runs and no budget is used.
+export const LEGACY_UPDATE_NOTICE = {
+  en: 'DateWise has a new version. Please update the app in the App Store to keep chatting with your coach.',
+  es: 'DateWise tiene una nueva versión. Actualiza la app en el App Store para seguir chateando con tu coach.',
+};
+
+/**
+ * v1 sends no language field, so the hints are, in order: an explicit
+ * language/locale in the body or profile (if a build ever sends one), the
+ * Accept-Language header, then the user's last message (Spanish marks or
+ * common Spanish words). English otherwise.
+ */
+export function legacyLanguage(request, body) {
+  const explicit = [body?.language, body?.locale, body?.profile?.language, body?.profile?.locale].find((v) => typeof v === 'string');
+  if (explicit) return /^es\b/i.test(explicit) ? 'es' : 'en';
+  const accept = request.headers.get('Accept-Language') || '';
+  if (accept) return /^\s*es\b/i.test(accept) ? 'es' : 'en';
+  const msgs = Array.isArray(body?.messages) ? body.messages : [];
+  const lastUser = [...msgs].reverse().find((m) => m && m.role === 'user' && typeof m.content === 'string');
+  const text = (lastUser?.content || '').toLowerCase().slice(0, 2000);
+  if (/[ñ¿¡]/.test(text)) return 'es';
+  const words = text.match(/[a-záéíóúü]+/g) || [];
+  const es = new Set(['hola', 'que', 'qué', 'como', 'cómo', 'para', 'por', 'una', 'con', 'mi', 'quiero', 'cita', 'chica', 'chico', 'gracias', 'pero', 'es', 'el', 'la', 'los', 'las', 'tengo', 'puedo', 'ayuda', 'novia', 'novio', 'mensaje']);
+  const hits = words.filter((w) => es.has(w)).length;
+  return words.length && hits >= Math.max(1, Math.ceil(words.length * 0.2)) ? 'es' : 'en';
+}
+
+function legacyUpdateNotice(request, body) {
+  const lang = legacyLanguage(request, body);
+  const sse = `data: ${JSON.stringify({ response: LEGACY_UPDATE_NOTICE[lang] })}\n\ndata: [DONE]\n\n`;
+  return new Response(sse, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-store',
+      'Content-Language': lang,
+      'X-DateWise-Code': 'APP_UPDATE_REQUIRED',
+      'Access-Control-Expose-Headers': 'X-DateWise-Code',
+      ...corsHeaders(),
+    },
+  });
+}
+
 async function handleChat(request, env, ctx, body) {
   const cfg = guardConfig(env);
   const legacy =
     (body.coachId === undefined || body.coachId === null) && !request.headers.get('X-DateWise-Entitlement');
   let safe;
   if (legacy) {
-    if (!cfg.LEGACY_CLIENTS) return guardError('APP_UPDATE_REQUIRED', corsHeaders());
+    if (!cfg.LEGACY_CLIENTS) return legacyUpdateNotice(request, body);
     safe = sanitizeMessages(body.messages);
   } else {
     const coachId = resolveCoachId(body.coachId);
@@ -567,26 +618,36 @@ async function handleChat(request, env, ctx, body) {
   if (!safe) {
     return json({ error: 'Provide at least one user message.' }, 400);
   }
-  const maxOut = Math.min(MAX_CHAT_TOKENS, cfg.MAX_OUTPUT_TOKENS) || MAX_CHAT_TOKENS;
-  const fitted = fitToInputBudget(safe, cfg.MAX_INPUT_TOKENS);
+  // The token-less v1 path is anonymous, so it also gets the smaller legacy
+  // per-request caps: posing as v1 buys only short prompts and short replies.
+  const maxOut =
+    Math.min(MAX_CHAT_TOKENS, cfg.MAX_OUTPUT_TOKENS, legacy ? cfg.LEGACY_MAX_OUTPUT_TOKENS : Infinity) || MAX_CHAT_TOKENS;
+  const fitted = fitToInputBudget(safe, legacy ? Math.min(cfg.MAX_INPUT_TOKENS, cfg.LEGACY_MAX_INPUT_TOKENS) : cfg.MAX_INPUT_TOKENS);
   const inTokens = estimateTokens(fitted);
   const gate = await admit(request, env, corsHeaders(), {
     kind: legacy ? 'legacy-chat' : 'chat',
+    // A v2 request (coachId or token) is served only with a valid StoreKit
+    // token: 403 SUBSCRIPTION_REQUIRED otherwise, whatever REQUIRE_SUBSCRIPTION says.
+    requireToken: !legacy,
     model: CHAT_MODEL,
     inTokens,
     outTokens: maxOut,
   });
   if (gate.response) return gate.response;
   const { ticket } = gate;
+  // Degraded (opt-in fail-open while the counters are down): the smaller
+  // legacy per-request caps apply, so the outage allowance stays cheap.
+  const modelMessages = ticket.degraded ? fitToInputBudget(fitted, ticket.maxInputTokens) : fitted;
+  const modelMaxOut = ticket.degraded ? Math.min(maxOut, ticket.maxOutputTokens) : maxOut;
   let stream;
   try {
-    stream = await runChatStream(env, fitted, maxOut);
+    stream = await runChatStream(env, modelMessages, modelMaxOut);
   } catch (e) {
     ctx?.waitUntil?.(ticket.finish(0, { refund: true }));
     return json({ error: 'Workers AI error', detail: String(e) }, 502);
   }
   const metered = meterStream(stream, (m) => {
-    const actual = neuronsFor(CHAT_MODEL, m.inTokens || inTokens, m.outTokens);
+    const actual = neuronsFor(CHAT_MODEL, m.inTokens || estimateTokens(modelMessages), m.outTokens);
     // A server-side failure (the model stream broke, or ended with no reply)
     // gives the message back; a client that hangs up still uses it.
     const refund = m.outcome === 'error' || (m.outcome === 'done' && !m.produced);
@@ -615,8 +676,21 @@ function photoReserve(count) {
 export default {
   async fetch(request, env, ctx) {
     const origin = request.headers.get('Origin') || '';
-    ACTIVE_CORS_ORIGIN = isAllowedOrigin(origin) ? origin : 'https://datewiseai.com';
+    const res = await route(request, env, ctx);
+    // Per request, after every await: the response carries this request's origin.
+    if (isAllowedOrigin(origin) && origin !== DEFAULT_ORIGIN) {
+      try {
+        res.headers.set('Access-Control-Allow-Origin', origin);
+      } catch {
+        /* immutable headers: keep the default origin */
+      }
+    }
+    return res;
+  },
+};
 
+async function route(request, env, ctx) {
+  {
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders() });
     }
@@ -683,7 +757,8 @@ export default {
     // photos). Kept while LEGACY_CLIENTS=1, inside the same caps and budget,
     // reserved at its worst case and settled with the measured usage.
     if (!guardConfig(env).LEGACY_CLIENTS) {
-      return guardError('APP_UPDATE_REQUIRED', corsHeaders());
+      // v1 shows "Photo coach backend error (426): <body>", so the body says what to do.
+      return guardError('APP_UPDATE_REQUIRED', corsHeaders(), { message: 'Please update DateWise from the App Store.' });
     }
     if (tier !== 'magnet') {
       return json({ error: 'The AI Photo Coach is a Magnet-tier feature.' }, 403);
@@ -703,8 +778,8 @@ export default {
     ctx?.waitUntil?.(photoGate.ticket.finish(spent, { refund: photoResponse.status >= 500 || spent === 0 }));
     for (const [k, v] of Object.entries(photoGate.ticket.headers)) photoResponse.headers.set(k, v);
     return photoResponse;
-  },
-};
+  }
+}
 
 // The v1 photo coach, unchanged from chat-v6 (only moved into a function).
 async function handlePhoto(env, { imageBase64, images, tier, mode, userNote }) {
