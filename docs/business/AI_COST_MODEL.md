@@ -23,7 +23,7 @@ Prices were checked on **2026-11-22**. The tables are produced by `docs/business
 | Branch `origin/claude/worker-model-fallback` (chat-v8, not deployed) | Ordered `CHAT_MODELS` list. The default is Llama 3.3 70B, then `@cf/google/gemma-4-26b-a4b-it`. It also knows `@cf/qwen/qwen3.8-27b` and `@cf/deepseek-ai/deepseek-v4.1-flash-1017`, which is `paidOnly`. All four are **Workers AI** models on the same `env.AI` binding | MEASURED (code) |
 | Other AI providers | None. There is no OpenAI, Gemini, Anthropic, Groq or other key or `fetch` to an AI host in `worker.js` on `f5b0401`, `claude/datewise-v2-app` or `claude/worker-model-fallback`. Only `backend/README.md` still describes an old Gemini design. That file is stale documentation, not code | MEASURED (code, `git grep`) |
 | Keys in the app | None. The app only knows the Worker's public HTTPS URL (`lib/services/backend_ai_service.dart`, `ai_config.dart`) | MEASURED (code) |
-| Voice | Text-to-speech: `flutter_tts` (`lib/services/voice_service.dart`), which uses iOS AVSpeechSynthesizer on the device. Speech-to-text: `speech_to_text` with `onDevice: true` (`lib/services/speech_service.dart`, line 136), which uses SFSpeechRecognizer on the device. No audio is sent to the Worker, and no Workers AI audio model (Whisper, MeloTTS, Aura) is called anywhere. **Voice server cost: $0.** A dictated message costs the same as a typed one | MEASURED (code) |
+| Voice | Text-to-speech: `flutter_tts` (`lib/services/voice_service.dart`), which uses iOS AVSpeechSynthesizer on the device. Speech-to-text: `speech_to_text` with `onDevice: true` (`lib/services/speech_service.dart`, line 136), which uses SFSpeechRecognizer on the device. No audio is sent to the Worker, and no Workers AI audio model (Whisper, MeloTTS, Aura) is called anywhere, so **speech processing costs $0**. Voice is **not free per turn**, though. Every spoken turn is sent to the Worker as an ordinary chat message (`lib/screens/chat_screen.dart` `_finishListening` → `_send`), and the coach's spoken answer is that chat reply read aloud (`_voice.speak`, line 113). **A voice turn costs exactly what a typed message costs.** The chat-v7 guard counts every message the same way, whatever its source, so voice cannot get around the caps | MEASURED (code) |
 
 ### Audit: could any paid fallback ever bill?
 
@@ -35,7 +35,7 @@ Prices were checked on **2026-11-22**. The tables are produced by `docs/business
 | AI Gateway unified billing | Only if someone buys credits and routes the binding through a gateway. No code does this today | MEASURED (code) |
 | `.github/workflows/coach-monitor.yml` (chat-v8 branch, hourly once on `main`) | It sends 48 real chat requests a day, about 3,800 neurons a day: **about 38% of the free daily allowance** (the token figures are an ASSUMPTION). On Paid that is about $1.25 a month | MEASURED (code); cost is an ASSUMPTION |
 | `.github/workflows/model-eval.yml` (chat-v8 branch) | It runs 4 models x 4 coaches x 3 scenarios = 48 real calls on every PR that touches `backend/`, via the Cloudflare REST API with the account token. These use the same account allowance or bill. It is not on `claude/datewise-v2-app`, so this PR does not trigger it | MEASURED (code) |
-| Voice | No server call | MEASURED |
+| Voice | Speech processing makes no server call. Each spoken turn is one chat request, billed like a typed message (above) | MEASURED (code) |
 
 **Conclusion:** the only way money can be spent is Workers AI usage on a Workers Paid account. Moving to
 Workers Paid ($5/month) is itself a spending increase that needs the owner's authorization. The cost guard's
@@ -73,9 +73,9 @@ default global budget (Phase 2) is the free 10,000 neurons a day, so it spends $
 
 | Profile | Messages | Input tokens per message | Output tokens per message | Voice | Label |
 |---|---|---|---|---|---|
-| Light | 3 a day x 20 days = 60 a month | 1,200 (a 2,000-character system prompt plus a short history, about 4 characters per token) | 250 | any amount, $0 | ASSUMPTION |
-| Typical | 10 a day x 25 days = 250 a month | 2,000 | 300 | any amount, $0 | ASSUMPTION |
-| Heavy | 40 a day x 30 days = 1,200 a month | 3,500 (long conversations) | 400 | any amount, $0 | ASSUMPTION |
+| Light | 3 a day x 20 days = 60 a month | 1,200 (a 2,000-character system prompt plus a short history, about 4 characters per token) | 250 | counted as chat turns: about 2 turns per voice minute | ASSUMPTION |
+| Typical | 10 a day x 25 days = 250 a month | 2,000 | 300 | counted as chat turns: about 2 turns per voice minute | ASSUMPTION |
+| Heavy | 40 a day x 30 days = 1,200 a month | 3,500 (long conversations) | 400 | counted as chat turns: about 2 turns per voice minute | ASSUMPTION |
 | Worst case per request, chat-v6 | n/a | about 7,500 for English (30,000 characters). Up to the model's 24k context for text that tokenizes badly | 800 (the `max_tokens` cap) | n/a | MEASURED caps; token ratio is an ASSUMPTION |
 | Worst case per request, chat-v7 guard | n/a | 6,000 estimated tokens (`MAX_INPUT_TOKENS`, estimated as UTF-8 bytes / 3, which over-counts) | 800 (`MAX_OUTPUT_TOKENS`) | n/a | MEASURED (new code) |
 
@@ -94,7 +94,7 @@ Workers Paid $5 whenever usage exceeds 10,000 neurons a day, the Apple Developer
 | Gemma 4 26B | typical (10 msgs/day x 25 days) | 2000 / 300 | 250 | $0.00029 | 26.4 | $0.07 |
 | Gemma 4 26B | heavy (40 msgs/day x 30 days) | 3500 / 400 | 1200 | $0.00047 | 42.7 | $0.56 |
 
-All rows: AI cost = tokens x MEASURED list price; usage = ASSUMPTION. Voice adds $0 (MEASURED). The cost per customer
+All rows: AI cost = tokens x MEASURED list price; usage = ASSUMPTION. Voice is included in the message counts. At about 2 turns per voice minute (ASSUMPTION: about 10 s speaking, then about 20 s of the reply read aloud), one voice minute costs about 2 typical messages: **$0.0025 on Llama 3.3** ($0.0006 on Gemma 4). Ten voice minutes a day for 25 days is about 500 turns, $0.63 a month. The cost per customer
 including infrastructure, for 100 to 5,000 subscribers, is the "Cost/customer" column in section 5: about $0.06 (light),
 $0.32 (typical) and $2.32 (heavy) a month on Llama 3.3. At 100 subscribers the fixed $5 Workers Paid fee adds about
 $0.05 a subscriber.
@@ -192,16 +192,16 @@ Monthly net profit = subscribers x price x (1 - commission) x (1 - 3% refunds) -
 | 5000 | heavy | $103021.27 | $84841.05 | $11563.86 | $8.45 | $2.316 | $91440.71 | $73260.49 | 86.4% |
 
 ### Break-even, affordable AI cost and allowances per price point
-| Price | Commission | Net per subscriber after refunds | Break-even subscribers (heavy usage, Workers Paid + Apple fee) | Max AI+infra per subscriber at 70% gross margin | Sustainable msgs/month at worst-case $0.00356/msg | Sustainable msgs/month at heavy $0.00193/msg with 1.5x safety |
-|---|---|---|---|---|---|---|
-| $9.99 | 15% | $8.24 | 3 | $2.47 | 694 | 855 |
-| $9.99 | 30% | $6.78 | 3 | $2.03 | 571 | 704 |
-| $14.99 | 15% | $12.36 | 2 | $3.71 | 1041 | 1282 |
-| $14.99 | 30% | $10.18 | 2 | $3.05 | 857 | 1056 |
-| $19.99 | 15% | $16.48 | 1 | $4.94 | 1388 | 1710 |
-| $19.99 | 30% | $13.57 | 2 | $4.07 | 1143 | 1408 |
-| $24.99 | 15% | $20.60 | 1 | $6.18 | 1736 | 2138 |
-| $24.99 | 30% | $16.97 | 1 | $5.09 | 1429 | 1761 |
+| Price | Commission | Net per subscriber after refunds | Break-even subscribers (heavy usage, Workers Paid + Apple fee) | Max AI+infra per subscriber at 70% gross margin | Sustainable msgs/month at worst-case $0.00356/msg | Sustainable msgs/month at heavy $0.00193/msg with 1.5x safety | Voice-only equivalent, minutes/month (2 turns/min, ASSUMPTION) |
+|---|---|---|---|---|---|---|---|
+| $9.99 | 15% | $8.24 | 3 | $2.47 | 694 | 855 | 347 to 427 |
+| $9.99 | 30% | $6.78 | 3 | $2.03 | 571 | 704 | 285 to 352 |
+| $14.99 | 15% | $12.36 | 2 | $3.71 | 1041 | 1282 | 520 to 641 |
+| $14.99 | 30% | $10.18 | 2 | $3.05 | 857 | 1056 | 428 to 528 |
+| $19.99 | 15% | $16.48 | 1 | $4.94 | 1388 | 1710 | 694 to 855 |
+| $19.99 | 30% | $13.57 | 2 | $4.07 | 1143 | 1408 | 571 to 704 |
+| $24.99 | 15% | $20.60 | 1 | $6.18 | 1736 | 2138 | 868 to 1069 |
+| $24.99 | 30% | $16.97 | 1 | $5.09 | 1429 | 1761 | 714 to 880 |
 
 Worst-case capped message: $0.00356 (6,000 input + 800 output tokens). Heavy message: $0.00193.
 
@@ -212,9 +212,11 @@ Notes:
 - **Target margin:** 70% gross margin after commission and refunds. AI plus infrastructure may use at most 30% of net
   proceeds. This target is an ASSUMPTION the owner can change.
 - **Sustainable allowances:** the "worst-case" column assumes every message is the largest allowed request (6,000 in,
-  800 out). The "heavy" column uses the heavy profile with a 1.5x safety factor. Voice allowance: **unlimited by
-  cost**, because voice is on the device and costs $0 (MEASURED). It is still described as fair use, never
-  "unlimited", per the business rules.
+  800 out). The "heavy" column uses the heavy profile with a 1.5x safety factor. Voice allowance: voice turns
+  **share the message allowance**. Speech recognition and synthesis are free (on the device, MEASURED), but each
+  spoken turn is a chat message. At about 2 turns per voice minute (ASSUMPTION), the sustainable message figures
+  in the table above equal about half as many voice minutes. For example, 600 to 700 messages at $9.99 is about 300 to 350 voice
+  minutes a month if a subscriber only talks. It is described as fair use, never "unlimited".
 - Recommended allowance at $9.99 (published as fair use, not as a number): about 600 to 700 messages a month is
   sustainable at 70% margin even at 30% commission. The hard anti-abuse cap of 1,500 a month only guarantees no loss on
   any one subscriber. At $14.99 the sustainable figure is about 850 to 1,050, at $19.99 about 1,150 to 1,400, and at
@@ -241,7 +243,7 @@ wrangler variable. The defaults are generous and **provisional**, and the global
 Policy text, for the support page and App Store description. It does not say "unlimited":
 > DateWise Premium includes generous everyday coaching for personal use. To keep the service fast and fair for
 > everyone, very high automated or shared use may be paused until the next day. You will see a notice before you
-> reach the daily limit. Voice features run on your iPhone and do not count toward any limit.
+> reach the daily limit. Spoken and typed messages count the same.
 
 | Limit (wrangler var) | Provisional default | Why | Label |
 |---|---|---|---|
@@ -278,3 +280,17 @@ When real numbers exist (from the guard's count-only logs: messages, estimated n
   storage resets nothing on the server. MEASURED (Apple docs: `originalID` "Identify one or more renewals for the same subscription").
 - **Cost of the guard itself:** 4 Durable Object requests per message, $0 on Free up to about 25,000 messages a day.
   On Paid it is $2.55 a month at 5,000 heavy subscribers. Included in the tables above.
+
+## 9. chat-v7 (Phase 2, not deployed)
+
+- `backend/cost_guard.js`: the guard and the `UsageGuard` Durable Object.
+- `backend/apple_jws.js`: offline StoreKit 2 JWS verification.
+- `backend/coach_prompts.js`: server-side coach system prompts. Client system messages are dropped, so the Worker is
+  no longer a general-purpose model proxy.
+- The v1 photo coach is off unless `PHOTO_COACH_ENABLED=1`, and then it requires a verified subscription.
+- Every limit is a variable in `backend/wrangler.toml`.
+- Deploying chat-v7 needs a new pinned hash for `backend/worker.js` in Amber's redeploy tool and the owner's
+  approval. chat-v6 (`f5b0401`) stays the approved deploy.
+
+Once deployed, the count-only usage logs (`event: usage`) give measured messages per subscriber and neurons per
+message. Replace the ASSUMPTION rows in section 3 with them and re-run `ai_cost_model.mjs`.

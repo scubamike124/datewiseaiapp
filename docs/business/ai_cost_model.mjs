@@ -65,8 +65,8 @@ for (const price of PRICES) {
 }
 
 p('### Break-even, affordable AI cost and allowances per price point');
-p('| Price | Commission | Net per subscriber after refunds | Break-even subscribers (heavy usage, Workers Paid + Apple fee) | Max AI+infra per subscriber at 70% gross margin | Sustainable msgs/month at worst-case $0.00356/msg | Sustainable msgs/month at heavy $0.00193/msg with 1.5x safety |');
-p('|---|---|---|---|---|---|---|');
+p('| Price | Commission | Net per subscriber after refunds | Break-even subscribers (heavy usage, Workers Paid + Apple fee) | Max AI+infra per subscriber at 70% gross margin | Sustainable msgs/month at worst-case $0.00356/msg | Sustainable msgs/month at heavy $0.00193/msg with 1.5x safety | Voice-only equivalent, minutes/month (2 turns/min, ASSUMPTION) |');
+p('|---|---|---|---|---|---|---|---|');
 const WORST = (6000 * 0.293 + 800 * 2.253) / 1e6; // capped request
 const HEAVY = usdPerMsg(M.llama, U.heavy);
 for (const price of PRICES) for (const c of COMMS) {
@@ -74,7 +74,7 @@ for (const price of PRICES) for (const c of COMMS) {
   const heavyCost = HEAVY * U.heavy.msgsMonth;
   const be = Math.ceil((WORKERS_PAID + APPLE_FEE_MONTH) / (net - heavyCost));
   const maxAi = net * 0.3;
-  p(`| $${price.toFixed(2)} | ${c * 100}% | ${f(net)} | ${be} | ${f(maxAi)} | ${Math.floor(maxAi / WORST)} | ${Math.floor(maxAi / (HEAVY * 1.5))} |`);
+  p(`| $${price.toFixed(2)} | ${c * 100}% | ${f(net)} | ${be} | ${f(maxAi)} | ${Math.floor(maxAi / WORST)} | ${Math.floor(maxAi / (HEAVY * 1.5))} | ${Math.floor(maxAi / WORST / 2)} to ${Math.floor(maxAi / (HEAVY * 1.5) / 2)} |`);
 }
 p();
 p(`Worst-case capped message: $${WORST.toFixed(5)} (6,000 input + 800 output tokens). Heavy message: $${HEAVY.toFixed(5)}.`);

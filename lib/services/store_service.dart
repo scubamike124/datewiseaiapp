@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_storekit/store_kit_2_wrappers.dart';
 
+import 'coach_usage.dart';
+
 /// DateWise has exactly one product: an auto-renewable monthly subscription.
 /// No free plan, no trial, no annual plan.
 class StoreConfig {
@@ -245,7 +247,10 @@ class AppStoreService extends StoreService {
   Future<void> _refreshEntitlement() async {
     if (_isIOS) {
       final current = await SK2Transaction.currentEntitlements();
-      _entitled = current.any((t) => t.productId == StoreConfig.productId);
+      final mine = current.where((t) => t.productId == StoreConfig.productId);
+      _entitled = mine.isNotEmpty;
+      // The signed transaction (JWS) the coach backend verifies; null when not entitled.
+      EntitlementToken.update(mine.isEmpty ? null : mine.first.receiptData);
     } else {
       // Google Play re-delivers active purchases through purchaseStream.
       await _iap.restorePurchases();
@@ -260,6 +265,7 @@ class AppStoreService extends StoreService {
         case PurchaseStatus.restored:
           _entitled = true;
           _error = null;
+          EntitlementToken.updateIfJws(p.verificationData.serverVerificationData);
           _finishPending(PurchaseResult.purchased);
         case PurchaseStatus.pending:
           _finishPending(PurchaseResult.pending);

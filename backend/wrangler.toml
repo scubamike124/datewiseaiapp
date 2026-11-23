@@ -4,3 +4,57 @@ compatibility_date = "2024-11-01"
 
 [ai]
 binding = "AI"
+
+# chat-v7 cost guard: per-subscriber counters and the global neuron budget.
+# SQLite-backed Durable Objects are available on Workers Free
+# (developers.cloudflare.com/durable-objects/platform/pricing, checked 2026-11-22).
+# Without this binding the Worker refuses AI requests (fails closed).
+[[durable_objects.bindings]]
+name = "USAGE_GUARD"
+class_name = "UsageGuard"
+
+[[migrations]]
+tag = "v1-usage-guard"
+new_sqlite_classes = ["UsageGuard"]
+
+# All limits are PROVISIONAL defaults (docs/business/AI_COST_MODEL.md, section 7).
+# The global budget is the main protection. Change values here or in the dashboard.
+[vars]
+# Global circuit breaker, neurons per UTC day for the whole service.
+# 10000 = the Workers AI free daily allowance, so $0 of spending. Raising it
+# needs Workers Paid and the owner's approval.
+DAILY_NEURON_BUDGET = "10000"
+# Optional monthly ceiling in neurons ("0" = off).
+MONTHLY_NEURON_BUDGET = "0"
+# Per subscriber (keyed by a salted hash of the App Store originalTransactionId).
+DAILY_MESSAGE_LIMIT = "150"
+MONTHLY_MESSAGE_LIMIT = "1500"
+SOFT_NOTICE_PERCENT = "80"
+PER_MINUTE_LIMIT = "12"
+MAX_CONCURRENT = "2"
+# Per request.
+MAX_INPUT_TOKENS = "6000"
+MAX_OUTPUT_TOKENS = "800"
+# Abuse protection per client IP (best effort, per Worker isolate; also uses
+# a RATE_LIMITER binding when one is configured).
+IP_PER_MINUTE_LIMIT = "60"
+# Requests without a StoreKit token (app builds older than the client hook).
+# Set REQUIRE_SUBSCRIPTION = "1" once the app version that sends the token is
+# widely installed. Until then, these requests share a per-IP bucket.
+REQUIRE_SUBSCRIPTION = "0"
+ANON_DAILY_LIMIT = "60"
+ANON_MONTHLY_LIMIT = "600"
+# Subscription checks (offline StoreKit 2 JWS verification against Apple Root CA - G3).
+APPLE_BUNDLE_ID = "com.datewise.datewiseAi"
+APPLE_PRODUCT_ID = "datewise_premium_monthly"
+# TestFlight and App Review purchases are Sandbox transactions.
+ALLOW_SANDBOX = "1"
+# Minutes accepted after expiresDate while a renewal reaches the device.
+EXPIRY_LEEWAY_MINUTES = "60"
+# Match App Store Connect's Billing Grace Period (0, 3, 16 or 28 days for monthly plans).
+BILLING_GRACE_DAYS = "0"
+# App Store Server Notifications v2 at POST /apple/notifications (REFUND/REVOKE). Off by default.
+ASSN_ENABLED = "0"
+# The v1 photo coach (the v2 app sends no photos).
+PHOTO_COACH_ENABLED = "0"
+# ID_HASH_SALT: set as a secret (wrangler secret put ID_HASH_SALT), not here.

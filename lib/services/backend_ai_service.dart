@@ -9,15 +9,22 @@ import '../models/coach.dart';
 import '../models/tier.dart';
 import '../models/user_profile.dart';
 import 'ai_service.dart';
+import 'coach_usage.dart';
 import 'persona.dart';
 
 /// Thrown when the coach backend cannot produce a reply: network error,
 /// timeout, a non-200 response or an empty stream. The chat shows a friendly,
 /// localized notice with "Try again"; the user's message is kept.
 class CoachUnavailableException implements Exception {
-  const CoachUnavailableException(this.reason, {this.statusCode});
+  const CoachUnavailableException(this.reason, {this.statusCode, this.code, this.retryAfter});
   final String reason;
   final int? statusCode;
+
+  /// The backend's refusal code (chat-v7), e.g. `DAILY_LIMIT`; see [CoachLimitCode].
+  final String? code;
+
+  /// Seconds until a retry can succeed, from `Retry-After`, when given.
+  final int? retryAfter;
   @override
   String toString() => 'CoachUnavailableException($reason${statusCode == null ? '' : ', HTTP $statusCode'})';
 }
@@ -83,6 +90,8 @@ class BackendAIService implements AIService {
           ..headers['Content-Type'] = 'application/json'
           ..headers['Accept'] = 'text/event-stream'
           ..body = payload;
+        final entitlement = EntitlementToken.current;
+        if (entitlement != null) req.headers['X-DateWise-Entitlement'] = entitlement;
         final http.StreamedResponse res;
         try {
           res = await c.send(req).timeout(connectTimeout);
@@ -95,9 +104,15 @@ class BackendAIService implements AIService {
 
         if (res.statusCode != 200) {
           // Read (a bounded amount of) the error body so the connection is freed.
-          await res.stream.drain<void>().timeout(const Duration(seconds: 5), onTimeout: () {});
-          throw CoachUnavailableException('http', statusCode: res.statusCode);
+          final body = await res.stream
+              .bytesToString()
+              .timeout(const Duration(seconds: 5), onTimeout: () => '');
+          throw CoachUnavailableException('http',
+              statusCode: res.statusCode,
+              code: errorCodeFrom(body),
+              retryAfter: int.tryParse(res.headers['retry-after'] ?? ''));
         }
+        CoachUsage.state.value = CoachUsageState.fromHeaders(res.headers);
 
         var emitted = false;
         try {
@@ -150,6 +165,17 @@ class BackendAIService implements AIService {
       final token = tokenFrom(data);
       if (token != null && token.isNotEmpty) yield token;
     }
+  }
+
+  /// The `code` of a chat-v7 refusal body (`{"error": …, "code": "DAILY_LIMIT"}`), or null.
+  @visibleForTesting
+  static String? errorCodeFrom(String body) {
+    if (body.length > 4096) return null;
+    try {
+      final obj = jsonDecode(body);
+      if (obj is Map && obj['code'] is String) return obj['code'] as String;
+    } catch (_) {}
+    return null;
   }
 
   /// The text in one SSE `data:` payload, or null for keep-alives and
