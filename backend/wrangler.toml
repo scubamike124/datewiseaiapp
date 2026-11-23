@@ -69,9 +69,16 @@ REQUIRE_SUBSCRIPTION = "0"
 ANON_DAILY_LIMIT = "60"
 ANON_MONTHLY_LIMIT = "600"
 # v1 App Store build (1.0.2: no coachId, no token): chat with its own prompt and the
-# photo coach, counted per network and on ANON_NEURON_BUDGET. Set "0" when v1 is retired
-# (requests then get 426 APP_UPDATE_REQUIRED).
+# photo coach, counted per network and on ANON_NEURON_BUDGET. Anyone can pose as v1
+# (drop coachId and the token), so this path is the anonymous allowance: see
+# docs/qa/SUBSCRIPTION_RESILIENCE.md, section 2. Set "0" the day v2 is live in the
+# App Store: v1 chat then shows an "update the app" reply (no model call) and the
+# v1 photo coach gets 426 APP_UPDATE_REQUIRED.
 LEGACY_CLIENTS = "1"
+# Per-request caps for that v1 path only (v2 subscribers keep MAX_INPUT_TOKENS /
+# MAX_OUTPUT_TOKENS), so posing as v1 buys only short prompts and short replies.
+LEGACY_MAX_INPUT_TOKENS = "3000"
+LEGACY_MAX_OUTPUT_TOKENS = "500"
 # Subscription checks (offline StoreKit 2 JWS verification against Apple Root CA - G3).
 APPLE_BUNDLE_ID = "com.datewise.datewiseAi"
 APPLE_PRODUCT_ID = "datewise_premium_monthly"
@@ -79,14 +86,27 @@ APPLE_PRODUCT_ID = "datewise_premium_monthly"
 # own small daily cap. A missing or "Xcode" environment is refused.
 ALLOW_SANDBOX = "1"
 SANDBOX_DAILY_LIMIT = "20"
+# Sandbox has its own slice of DAILY_NEURON_BUDGET, so TestFlight testers cannot use
+# up the subscribers' budget and v1 traffic cannot starve App Review. Unset or "-1" = 10%.
+SANDBOX_NEURON_BUDGET = "1000"
 # Minutes accepted after expiresDate while a renewal reaches the device.
 EXPIRY_LEEWAY_MINUTES = "60"
 # Must equal App Store Connect's Billing Grace Period (0, 3, 16 or 28 days for
 # monthly plans). The recommendation is grace OFF, so 0; if it is turned on in
 # App Store Connect, set the same number of days here (docs/appstore/checklist.md, step 12a).
 BILLING_GRACE_DAYS = "0"
-# App Store Server Notifications v2 at POST /apple/notifications (REFUND/REVOKE). Off by default.
+# App Store Server Notifications v2 at POST /apple/notifications. Recommended ON at
+# launch (docs/appstore/ASSN_SETUP.md): refunds and revocations close at once, a
+# confirmed renewal keeps a device's older token working, and Apple's Billing Grace
+# Period is followed automatically. Verified offline (JWS), so an Apple outage never
+# blocks chat. "1" only after the URL is set in App Store Connect.
 ASSN_ENABLED = "0"
+# When the Durable Object (counters, budget) cannot be reached, a subscriber whose
+# Production token verifies offline still gets this many messages per Worker
+# isolate per hour, up to FAIL_OPEN_PER_ISOLATE in total per isolate per hour.
+# Sandbox and v1 requests always fail closed. "0" = fail closed for everyone.
+FAIL_OPEN_PER_SUBSCRIBER = "5"
+FAIL_OPEN_PER_ISOLATE = "50"
 # ID_HASH_SALT: set as a secret (wrangler secret put ID_HASH_SALT), not here.
 # Rotating it resets every counter and the revoked list. Without it, a public
 # default salt is used and logs carry no `who`.

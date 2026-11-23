@@ -63,6 +63,10 @@ TestFlight builds are 101 and up, see step 19).
 
 ## 4. App Store Connect: subscription product
 
+11a. **Before creating anything:** Monetization › Subscriptions and In-App
+    Purchases. Write down every existing product id and its status. If one was
+    ever approved and sold, stop and follow `docs/qa/SUBSCRIPTION_RESILIENCE.md`
+    §5 (its subscribers do not move to a new id). Product ids can never be reused.
 12. Monetization › Subscriptions › create group **DateWise Premium**, then the
     subscription `datewise_premium_monthly` exactly as in `metadata.md` §5
     (1 month, USD 9.99, no introductory offer, EN + ES localizations).
@@ -75,6 +79,12 @@ TestFlight builds are 101 and up, see step 19).
     succeeds). If you turn grace on, set `BILLING_GRACE_DAYS` to the same
     number of days (3, 16 or 28) and redeploy the Worker before release, or
     subscribers in grace would be refused.
+13a. **App Store Server Notifications (recommended):** App Information › App
+    Store Server Notifications › Production and Sandbox Server URL =
+    `https://<worker-host>/apple/notifications`, Version 2, then
+    `ASSN_ENABLED = "1"` (`docs/appstore/ASSN_SETUP.md`). With it, refunds take
+    effect at once and Apple's grace period is followed even if
+    `BILLING_GRACE_DAYS` is not matched.
 14. Status should become "Ready to Submit". It is submitted together with the
     2.0.0 version (step 26), not on its own.
 15. Optional: create a **Sandbox Apple Account** (Users and Access › Sandbox)
