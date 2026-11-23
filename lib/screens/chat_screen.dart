@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../avatar/coach_stage_avatar.dart';
+import '../avatar/lip_sync.dart';
 import '../models/chat_message.dart';
 import '../models/coach.dart';
 import '../models/reply_options.dart';
@@ -57,6 +59,9 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Bumped on every start/stop so a late start result is ignored.
   int _listenGen = 0;
 
+  /// The composer / talk dock, so snackbars float above it, not over it.
+  final _dockKey = GlobalKey();
+
   late final AppState _state;
   late final AppLifecycleListener _lifecycle;
   late final VoiceService _voice;
@@ -69,6 +74,13 @@ class _ChatScreenState extends State<ChatScreen> {
     _voice = context.read<VoiceService>();
     _speech = context.read<SpeechService>();
     _state.addListener(_onState);
+    // Back from the paywall that interrupted the chat: what the user was
+    // typing or saying is in the composer again (never sent by itself).
+    final draft = _state.takeDraft();
+    if (draft != null) {
+      _input.text = draft;
+      _input.selection = TextSelection.collapsed(offset: draft.length);
+    }
     // Back from Settings after denying the microphone: check again, so the
     // voice button returns once access is allowed.
     _lifecycle = AppLifecycleListener(onResume: () async {
@@ -85,6 +97,10 @@ class _ChatScreenState extends State<ChatScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _consumePending());
     }
     if (!widget.active && old.active) {
+      // Chat snackbars (Undo, Open Settings, voice notes) do not follow the
+      // user to other tabs. After the frame: this runs during build.
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      WidgetsBinding.instance.addPostFrameCallback((_) => messenger?.clearSnackBars());
       if (_voiceMode) _exitVoice();
       // Leaving the chat stops a reply that is still streaming (the HTTP
       // stream is closed); the message is kept and can be retried.
@@ -94,6 +110,15 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    // A lapsed subscription swapped the tabs for the paywall: keep what was
+    // typed, plus whatever was recognized so far, for when the chat reopens.
+    // Listening stops below (the microphone is released). Not after "Delete
+    // my data" (no longer onboarded), which must leave nothing behind.
+    if (_state.onboarded && !_state.canChat) {
+      final draft = _input.text.trimRight();
+      final words = _listening ? _partial.trim() : '';
+      _state.keepDraft(draft.isEmpty || words.isEmpty ? '$draft$words' : '$draft $words');
+    }
     _state.cancelReply();
     _state.removeListener(_onState);
     _lifecycle.dispose();
@@ -140,6 +165,8 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _send(String text, {bool fromComposer = false, bool fromVoice = false}) async {
     if (text.trim().isEmpty) return;
     if (!_state.canChat) {
+      // A lapsed subscription: what was said waits in the composer.
+      if (fromVoice) _keepTranscript(text, note: false);
       showPaywall(context);
       return;
     }
@@ -151,20 +178,47 @@ class _ChatScreenState extends State<ChatScreen> {
     final sent = await _state.sendMessage(text, onAccepted: () {
       if (fromComposer && mounted && _input.text == text) _input.clear();
     });
-    if (!sent && fromVoice && mounted && _state.canChat) _keepTranscript(text);
+    if (!sent && fromVoice && mounted) _keepTranscript(text, note: _state.canChat);
   }
 
   /// Puts a voice transcript that could not be sent into the composer (after
-  /// any draft already there), so what the user said is never lost.
-  void _keepTranscript(String text) {
+  /// any draft already there), so what the user said is never lost. [note]
+  /// says so ("still replying"); not when the paywall explains instead.
+  void _keepTranscript(String text, {bool note = true}) {
     if (!mounted) return;
     final words = text.trim();
     final draft = _input.text.trimRight();
     _input.text = draft.isEmpty ? words : '$draft $words';
     _input.selection = TextSelection.collapsed(offset: _input.text.length);
+    if (!note) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       key: const ValueKey('voice-kept-in-composer'),
+      behavior: SnackBarBehavior.floating,
+      margin: _aboveDock(),
       content: Text(context.l10n.voiceKeptInComposer),
+    ));
+  }
+
+  /// How long a chat snackbar with an action stays up. It never persists:
+  /// SnackBars with an action do by default, covering the composer.
+  static const snackBarDuration = Duration(seconds: 5);
+
+  /// A floating snackbar's margin that keeps it above the composer (or the
+  /// talk dock) instead of over it; at most a third of the screen up.
+  EdgeInsets _aboveDock() {
+    final box = _dockKey.currentContext?.findRenderObject() as RenderBox?;
+    final dock = box != null && box.hasSize ? box.size.height : 0.0;
+    final lift = dock.clamp(0.0, MediaQuery.sizeOf(context).height / 3);
+    return EdgeInsets.fromLTRB(15, 5, 15, 10 + lift);
+  }
+
+  /// "I didn't catch that": listening ended with nothing heard.
+  void _showNoSpeech() {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      key: const ValueKey('voice-no-speech'),
+      behavior: SnackBarBehavior.floating,
+      margin: _aboveDock(),
+      content: Text(context.l10n.voiceNoSpeech),
     ));
   }
 
@@ -273,6 +327,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Recognition ended by itself (silence timeout, no match): what was
   /// heard is sent; nothing heard leaves "Listening…" with a gentle note.
+  /// A permission error ends it as a denial (Open Settings).
   void _listenEnded(String words) {
     final text = words.trim().isNotEmpty ? words : _partial;
     _listenGen++;
@@ -284,11 +339,10 @@ class _ChatScreenState extends State<ChatScreen> {
     });
     if (text.trim().isNotEmpty) {
       _send(text, fromVoice: true);
+    } else if (_speech.permissionDenied) {
+      _showPermissionNeeded();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        key: const ValueKey('voice-no-speech'),
-        content: Text(context.l10n.voiceNoSpeech),
-      ));
+      _showNoSpeech();
     }
   }
 
@@ -298,6 +352,10 @@ class _ChatScreenState extends State<ChatScreen> {
     final l = context.l10n;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       key: const ValueKey('voice-permission-snackbar'),
+      persist: false,
+      duration: snackBarDuration,
+      behavior: SnackBarBehavior.floating,
+      margin: _aboveDock(),
       content: Text(l.voicePermissionNeeded),
       action: _speech.canOpenSettings
           ? SnackBarAction(key: const ValueKey('voice-open-settings'), label: l.openSettings, onPressed: _speech.openSettings)
@@ -335,7 +393,12 @@ class _ChatScreenState extends State<ChatScreen> {
       _listening = false;
       _partial = '';
     });
-    if (text.trim().isNotEmpty) await _send(text, fromVoice: true);
+    if (text.trim().isNotEmpty) {
+      await _send(text, fromVoice: true);
+    } else {
+      // Released having said nothing: the same gentle note as a timeout.
+      _showNoSpeech();
+    }
   }
 
   String get _elapsed {
@@ -499,13 +562,22 @@ class _ChatScreenState extends State<ChatScreen> {
     final messenger = ScaffoldMessenger.of(context);
     final l = context.l10n;
     final wasOpen = _state.activeThread?.id == id;
+    final margin = _aboveDock();
     final removed = await _state.deleteThread(id);
     if (removed == null) return;
     messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
         key: const ValueKey('conversation-deleted'),
-        content: Text(l.conversationDeleted),
+        // Closes by itself and floats above the composer; Undo is refused
+        // after "Delete all conversations" or "Delete my data".
+        persist: false,
+        duration: snackBarDuration,
+        behavior: SnackBarBehavior.floating,
+        margin: margin,
+        // Whole words at large text ("Conversación eliminada." never breaks
+        // inside a word).
+        content: WholeWordsText(l.conversationDeleted, key: const ValueKey('conversation-deleted-text')),
         action: SnackBarAction(
           key: const ValueKey('undo-delete'),
           label: l.undo,
@@ -563,6 +635,9 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: _Stage(
                       coach: coach,
                       speaking: speaking,
+                      mood: CoachStageAvatar.moodFor(
+                          speaking: speaking, listening: _listening, responding: state.isResponding),
+                      lipSync: _voice is LipSyncSource ? (_voice as LipSyncSource).lipSync : null,
                       elapsed: _elapsed,
                       captions: _captions,
                       caption: _currentCaption(state),
@@ -585,6 +660,7 @@ class _ChatScreenState extends State<ChatScreen> {
             if (entitled) const ContentWidth(child: _UsageNotice()),
             if (entitled)
               ContentWidth(
+                key: _dockKey,
                 child: _voiceMode
                     ? _VoiceDock(
                         coach: coach,
@@ -699,12 +775,16 @@ class _Header extends StatelessWidget {
   }
 }
 
-/// Voice-mode stage: the coach's still portrait (a soft glow while speaking;
-/// no video, no lip-sync), the session timer and the live captions.
+/// Voice-mode stage: the coach as an animated portrait (lib/avatar/:
+/// on-device frame compositing with lip-sync to the device's speech; the
+/// still portrait under Reduce Motion), a soft glow while speaking, the
+/// session timer and the live captions. Not video.
 class _Stage extends StatelessWidget {
   const _Stage({
     required this.coach,
     required this.speaking,
+    required this.mood,
+    required this.lipSync,
     required this.elapsed,
     required this.captions,
     required this.caption,
@@ -713,6 +793,8 @@ class _Stage extends StatelessWidget {
 
   final Coach coach;
   final bool speaking;
+  final AvatarMood mood;
+  final LipSyncDriver? lipSync;
   final String elapsed;
   final bool captions;
   final String caption;
@@ -735,14 +817,17 @@ class _Stage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(
-            // A shorter portrait at large text leaves room for the captions.
-            height: MediaQuery.textScalerOf(context).scale(1) > 1.3 ? 110 : 170,
-            child: Stack(
+          LayoutBuilder(
+            // The portrait's height follows the stage width (about 2:1), so
+            // the face and mouth keep their place on iPad and at large text.
+            builder: (context, box) => SizedBox(
+              height: CoachStageAvatar.stageHeight(box.maxWidth,
+                  largeText: MediaQuery.textScalerOf(context).scale(1) > 1.3),
+              child: Stack(
               fit: StackFit.expand,
               children: [
-                CoachImage(coach: coach, semanticLabel: l.coachPortraitStill(coach.name)),
-                const FadeToBackground(stops: [0.6, 1], color: AppColors.surface),
+                CoachStageAvatar(coach: coach, mood: mood, lipSync: lipSync),
+                const FadeToBackground(stops: [CoachStageAvatar.fadeStart, 1], color: AppColors.surface),
                 Positioned(top: 12, left: 12, child: GlassChip(key: const ValueKey('voice-timer'), label: l.voiceSession(elapsed))),
                 Positioned(
                   top: 6,
@@ -755,6 +840,7 @@ class _Stage extends StatelessWidget {
                   ),
                 ),
               ],
+              ),
             ),
           ),
           if (captions)

@@ -267,10 +267,17 @@ change both together.
 | `SANDBOX_DAILY_LIMIT` | 20 a day | For TestFlight and App Review Sandbox transactions. A missing or `Xcode` environment is refused | ASSUMPTION |
 | `LEGACY_CLIENTS` | 1 | Keeps the v1 chat and photo paths. Set it to 0 60 to 90 days after v2 ships: v1 chat then gets an in-chat "please update" reply (HTTP 200 SSE, EN/ES, no model call), the v1 photo coach a 426 `APP_UPDATE_REQUIRED` | n/a |
 | `LEGACY_MAX_INPUT_TOKENS` / `LEGACY_MAX_OUTPUT_TOKENS` | 3,000 / 500 | Per-request caps on the token-less v1 chat only, so posing as v1 buys short prompts and replies | ASSUMPTION |
-| `SANDBOX_NEURON_BUDGET` | 10% of the daily budget (1,000) | TestFlight / App Review slice | ASSUMPTION |
+| `SANDBOX_NEURON_BUDGET` | 10% of the daily budget (1,000) | TestFlight / App Review slice. **Pre-launch on Workers Free:** set it to 6,000 for the App Review window (about 50 typical Llama replies a day, at least 18 at the worst-case request size; more than one reviewer's 20-a-day Sandbox cap at typical size), then back to 1,000 after approval. On Workers Paid: 35,000 (Llama) or 10,000 (Gemma). The `wrangler.toml` default stays 1,000; changing it is the owner's deploy-time setting (release checklist A4) | ASSUMPTION |
 | `FAIL_OPEN_PER_SUBSCRIBER` / `FAIL_OPEN_PER_ISOLATE` / `FAIL_OPEN_MAX_MINUTES` | 0 / 0 (off: fail closed) / 15 | Opt-in: messages a verified Production subscriber may still send while a Durable Object call throws. If enabled, 3 / 10 recommended, with the required dedicated `FAILOPEN_LIMITER` binding (per Cloudflare location; no fallback to `RATE_LIMITER`) and the legacy per-request caps. Exposure math in SUBSCRIPTION_RESILIENCE.md §4 | ASSUMPTION |
-| `DAILY_NEURON_BUDGET` | **10,000** | The free allowance, so $0 of spending. Raise it only with the owner's approval and Workers Paid. Suggested once approved: about 1.5 x (subscribers x 10 msgs x 115 neurons), for example 175,000 for 100 subscribers, which is at most $1.82 a day above the free 10,000 | MEASURED (price); suggestion is an ASSUMPTION |
+| `DAILY_NEURON_BUDGET` | **10,000** | The free allowance, so $0 of spending. Raise it only with the owner's approval and Workers Paid. Suggested start once approved, with v1 still served (typical usage, 2x peak day, Sandbox slice, in-flight headroom, divided by 0.8 for the anonymous slice): **Llama 285,000 / Gemma 70,000** at 100 subscribers, 1,245,000 / 290,000 at 500, 2,440,000 / 565,000 at 1,000, 12,020,000 / 2,765,000 at 5,000 (`WORKERS_PAID_EVALUATION.md` section 5, PR #30) | ASSUMPTION, derived from MEASURED prices |
 | `MONTHLY_NEURON_BUDGET` | unset (off) | An optional second ceiling | n/a |
+
+How the slices combine (MEASURED, `backend/cost_guard.js` `budget()`): every request counts against
+`DAILY_NEURON_BUDGET`. Sandbox requests are also capped by `SANDBOX_NEURON_BUDGET`, and token-less v1 requests by
+`ANON_NEURON_BUDGET`. The slices are ceilings inside the total, not reservations: with Sandbox at 6,000 and the
+anonymous slice at 2,000, at least 2,000 of the free 10,000 stays for Production subscribers, and v1 traffic cannot use
+the Sandbox's room. Production traffic has no slice of its own and can use any unspent room, so the large Sandbox slice
+is safe only before launch, when there are no Production subscribers.
 
 Heavy-user protection: the per-subscriber hard caps above. Safety margin: the global breaker trips at the configured
 budget no matter how many subscribers there are. Requests whose worst-case reservation would exceed the budget are refused
@@ -320,7 +327,7 @@ When real numbers exist (from the guard's count-only logs: messages, estimated n
   subscribers keep the other 8,000 neurons. The owner's options:
   - **(a)** Keep the default and ship v2 quickly.
   - **(b)** Raise `ANON_NEURON_BUDGET`, up to the whole daily budget. That removes the subscribers' protection.
-  - **(c)** Raise `DAILY_NEURON_BUDGET` on Workers Paid; the anonymous slice grows with it (20% of 175,000 is 35,000, about 300 v1 messages a day).
+  - **(c)** Raise `DAILY_NEURON_BUDGET` on Workers Paid; the anonymous slice grows with it only if `ANON_NEURON_BUDGET` is also raised or set to `-1` (20% of the total; `wrangler.toml` pins it at 2,000). 20% of the 285,000 Llama start at 100 subscribers is 57,000, about 490 typical v1 messages a day; ASSUMPTION).
   - **(d)** Set `LEGACY_CLIENTS=0` **60 to 90 days after v2 ships** (recommended rollout). 1.0.2 then gets a normal
     HTTP 200 streamed reply in its own format saying "DateWise has a new version. Please update the app in the App Store
     to keep chatting with your coach." (Spanish when the request looks Spanish), which v1 displays in the chat; no model
@@ -335,8 +342,10 @@ When real numbers exist (from the guard's count-only logs: messages, estimated n
 - `ID_HASH_SALT` (secret): rotating it resets every counter and the revoked list. Without it, a public default salt is
   used and the logs leave out `who`.
 - Every limit is a variable in `backend/wrangler.toml`.
-- Deploying chat-v7 needs a new pinned hash for `backend/worker.js` in Amber's redeploy tool and the owner's
-  approval. chat-v6 (`f5b0401`) stays the approved deploy (not yet live: production is still chat-v5 as of 2026-11-23).
+- chat-v7 deploys **only** through the reviewed workflow `.github/workflows/deploy-worker.yml`, with the owner's
+  approval in the `production-worker` environment (`docs/launch/WORKER_DEPLOY_RUNBOOK.md`). An owner-internal redeploy
+  tool outside this repo uploads a single pinned file and cannot deploy it. chat-v6 (`f5b0401`) is the approved v1
+  stop-gap (not yet live: production is still chat-v5 as of 2026-11-23).
 
 Once deployed, the count-only usage logs (`event: usage`) give measured messages per subscriber and neurons per
 message. Replace the ASSUMPTION rows in section 3 with them and re-run `ai_cost_model.mjs`.

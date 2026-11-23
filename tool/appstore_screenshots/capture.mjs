@@ -102,7 +102,9 @@ async function withoutCutRows(page) {
   await page.mouse.move(width / 2, height / 2);
   let lastSig = null;
   let still = 0;
-  for (let i = 0; i < 600; i++) {
+  // Wheel steps move the list only a fraction of a point each, and the next
+  // clean position can be a full row (about 53 points) past the title.
+  for (let i = 0; i < 1500; i++) {
     const nodes = await measure();
     const l = layout(nodes);
     const by = scrolledBy(l.items);

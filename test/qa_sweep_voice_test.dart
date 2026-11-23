@@ -14,8 +14,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
+import 'package:datewise_ai/screens/paywall_screen.dart';
 import 'package:datewise_ai/screens/shell.dart';
 import 'package:datewise_ai/services/speech_service.dart';
+import 'package:datewise_ai/services/store_service.dart';
 
 import 'helpers.dart';
 
@@ -84,6 +86,7 @@ class _Speech implements SpeechService {
   SpeechStart nextResult = SpeechStart.started;
   void Function()? onUnsupported;
   void Function(String)? onEnded;
+  void Function(String)? onWords;
   int starts = 0, stops = 0, cancels = 0;
 
   @override
@@ -115,6 +118,7 @@ class _Speech implements SpeechService {
     starts++;
     this.onUnsupported = onUnsupported;
     this.onEnded = onEnded;
+    this.onWords = onWords;
     if (holdStart) {
       pendingStart = Completer<SpeechStart>();
       return pendingStart!.future;
@@ -253,6 +257,22 @@ void main() {
       stt.onStatus!(SpeechToText.doneStatus);
       expect(unsupported, 1);
       expect(ended, isEmpty);
+    });
+
+    test('Android error_permission mid-session is a permission denial, not a normal end', () async {
+      final stt = _Stt();
+      final s = DeviceSpeechService.withRecognizer(stt);
+      final ended = <String>[];
+      var unsupported = 0;
+      await start(s, onEnded: ended.add, onUnsupported: () => unsupported++);
+      stt.onStatus!(SpeechToText.listeningStatus);
+      expect(s.permissionDenied, isFalse);
+      stt.onError!(SpeechRecognitionError('error_permission', true));
+      stt.onStatus!(SpeechToText.doneStatus);
+      expect(s.permissionDenied, isTrue);
+      expect(s.available, isFalse, reason: 'voice hides until access is allowed again');
+      expect(ended, [''], reason: 'the session ends once');
+      expect(unsupported, 0);
     });
 
     test('Open Settings is offered on iOS only', () {
@@ -455,6 +475,122 @@ void main() {
       expect(speech.stops, 0);
       await g.up();
       expect(t.takeException(), isNull);
+    });
+
+    testWidgets('a permission error mid-session shows the permission note, not "didn\'t catch that"', (t) async {
+      final speech = await _openVoice(t, _Speech());
+      final g = await t.startGesture(t.getCenter(_talk));
+      await t.pump();
+      expect(find.text('Listening…'), findsOneWidget);
+      speech
+        ..available = false
+        ..denied = true;
+      speech.onEnded!('');
+      await t.pump();
+      expect(find.text('Listening…'), findsNothing);
+      expect(find.text(_permissionNeeded), findsOneWidget);
+      expect(find.text("I didn't catch that. Hold the button and try again."), findsNothing);
+      await g.up();
+      await t.pumpAndSettle(const Duration(seconds: 6));
+    });
+
+    testWidgets('the permission snackbar with Open Settings closes by itself', (t) async {
+      final speech = _Speech()..denyOnReady = true;
+      await pumpApp(t, prefs: onboardedPrefs(), tab: AppTab.chat, speech: speech);
+      await t.pumpAndSettle();
+      await t.tap(find.byKey(const ValueKey('voice-mode')));
+      await t.pumpAndSettle();
+      final bar = t.widget<SnackBar>(find.byKey(const ValueKey('voice-permission-snackbar')));
+      expect(bar.persist, isFalse);
+      await t.pump(const Duration(seconds: 6));
+      await t.pumpAndSettle();
+      expect(find.byKey(const ValueKey('voice-permission-snackbar')), findsNothing);
+    });
+
+    testWidgets('releasing the talk button having said nothing shows "didn\'t catch that"', (t) async {
+      final speech = await _openVoice(t, _Speech());
+      final g = await t.startGesture(t.getCenter(_talk));
+      await t.pump();
+      expect(find.text('Listening…'), findsOneWidget);
+      await g.up();
+      await t.pump();
+      await t.pump();
+      expect(speech.stops, 1);
+      expect(find.text('Listening…'), findsNothing);
+      expect(find.byKey(const ValueKey('voice-no-speech')), findsOneWidget);
+      expect(find.text("I didn't catch that. Hold the button and try again."), findsOneWidget);
+      await t.pumpAndSettle(const Duration(seconds: 6));
+    });
+
+    testWidgets('a transcript after the subscription lapsed waits in the composer behind the paywall', (t) async {
+      final speech = _Speech();
+      final store = FakeStoreService(entitled: true);
+      final app = await pumpApp(t, prefs: onboardedPrefs(), tab: AppTab.chat, speech: speech, store: store);
+      await t.pumpAndSettle();
+      await t.tap(find.byKey(const ValueKey('voice-mode')));
+      await t.pumpAndSettle();
+      final g = await t.startGesture(t.getCenter(_talk));
+      await t.pump();
+      expect(find.text('Listening…'), findsOneWidget);
+      // The paywall was closed earlier this session, so the app stays in
+      // the tabs (chat locked) when the subscription lapses.
+      app.state.dismissPaywall();
+      store.expire();
+      await t.pump();
+      speech.onEnded!('Ask her out for coffee');
+      await t.pumpAndSettle();
+      await g.up();
+      expect(find.byType(PaywallScreen), findsOneWidget);
+      expect(app.state.activeThread?.messages.where((m) => m.isUser), anyOf(isNull, isEmpty), reason: 'nothing sent');
+      // Subscribed again: what was said is in the message box.
+      final bought = store.buy();
+      await t.pump(const Duration(milliseconds: 20));
+      await bought;
+      await t.pumpAndSettle();
+      if (find.byType(PaywallScreen).evaluate().isNotEmpty) {
+        Navigator.of(t.element(find.byType(PaywallScreen))).pop();
+        await t.pumpAndSettle();
+      }
+      if (find.byTooltip('Type instead').evaluate().isNotEmpty) {
+        await t.tap(find.byTooltip('Type instead'));
+        await t.pumpAndSettle();
+      }
+      expect(t.widget<TextField>(find.byKey(const ValueKey('composer'))).controller!.text, 'Ask her out for coffee');
+    });
+
+    testWidgets('speaking when a lapse swaps in the paywall: listening stops, the words wait in the composer', (t) async {
+      final speech = _Speech();
+      final store = FakeStoreService(entitled: true);
+      final app = await pumpApp(t, prefs: onboardedPrefs(), tab: AppTab.chat, speech: speech, store: store);
+      await t.pumpAndSettle();
+      await t.tap(find.byKey(const ValueKey('voice-mode')));
+      await t.pumpAndSettle();
+      final g = await t.startGesture(t.getCenter(_talk));
+      await t.pump();
+      expect(find.text('Listening…'), findsOneWidget);
+      speech.onWords!('Should I text her');
+      await t.pump();
+      // The paywall was not closed this session: it replaces the tabs.
+      store.expire();
+      await t.pumpAndSettle();
+      expect(find.byType(PaywallScreen), findsOneWidget);
+      expect(find.byKey(const ValueKey('composer')), findsNothing);
+      expect(speech.cancels, greaterThanOrEqualTo(1), reason: 'recognition stopped, microphone released');
+      // A late result from the recognizer is ignored (nothing listens behind the paywall).
+      speech.onEnded?.call('Should I text her tonight');
+      await g.up();
+      await t.pumpAndSettle();
+      expect(find.text('Listening…'), findsNothing);
+      expect(app.state.activeThread?.messages.where((m) => m.isUser), anyOf(isNull, isEmpty), reason: 'nothing sent');
+      await t.ensureVisible(find.byKey(const ValueKey('paywall-subscribe')));
+      await t.pumpAndSettle();
+      await t.tap(find.byKey(const ValueKey('paywall-subscribe')));
+      await t.pump(const Duration(milliseconds: 20));
+      await t.pumpAndSettle();
+      expect(find.byType(PaywallScreen), findsNothing);
+      expect(t.widget<TextField>(find.byKey(const ValueKey('composer'))).controller!.text, 'Should I text her');
+      expect(app.state.activeThread?.messages.where((m) => m.isUser), anyOf(isNull, isEmpty), reason: 'never sent by itself');
+      expect(app.state.isResponding, isFalse);
     });
   });
 }

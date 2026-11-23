@@ -77,6 +77,8 @@ void main() {
       'gold eyebrow on background': (AppColors.gold, AppColors.background),
       'gold on surface': (AppColors.gold, AppColors.surface),
       'gold ink on gold button': (AppColors.goldInk, AppColors.gold2),
+      'rose ink on rose button (top)': (AppColors.roseInk, AppColors.roseTop),
+      'rose ink on rose button (middle)': (AppColors.roseInk, Color.lerp(AppColors.roseTop, AppColors.roseBottom, 0.5)!),
       'rose ink on rose button (bottom)': (AppColors.roseInk, AppColors.roseBottom),
       'rose error text on background': (AppColors.rose, AppColors.background),
       'danger on surface': (AppColors.danger, AppColors.surface),

@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../app_links.dart';
+import '../dev/entitlement_export.dart';
 import '../models/coach.dart';
 import '../services/store_service.dart';
 import '../state/app_state.dart';
@@ -12,6 +14,7 @@ import '../widgets/dw.dart';
 import 'legal_screen.dart';
 import 'paywall_screen.dart';
 import 'shell.dart';
+import '../avatar/premium_voice_tip.dart';
 import '../l10n/l10n.dart';
 
 /// The "You" tab: language, coach, Coach memory, subscription, data, legal.
@@ -108,6 +111,12 @@ class SettingsScreen extends StatelessWidget {
                 value: state.selectedCoach.name,
                 onTap: () => context.read<ShellController>().go(AppTab.coaches),
               ),
+              _Row(
+                key: const ValueKey('row-voice-quality'),
+                icon: Icons.record_voice_over_outlined,
+                title: l.voiceQualityRow,
+                onTap: () => showPremiumVoiceTip(context),
+              ),
             ]),
             _SectionLabel(l.sectionMemory),
             _Group(children: [
@@ -190,6 +199,8 @@ class SettingsScreen extends StatelessWidget {
                 destructive: true,
                 onTap: () async {
                   if (await _confirm(context, l.deleteAllConversationsTitle, l.deleteAllConversationsBody, l.delete)) {
+                    // A pending "Conversation deleted · Undo" goes too.
+                    if (context.mounted) ScaffoldMessenger.of(context).clearSnackBars();
                     state.deleteAllConversations();
                   }
                 },
@@ -203,6 +214,8 @@ class SettingsScreen extends StatelessWidget {
                 destructive: true,
                 onTap: () async {
                   if (await _confirm(context, l.deleteMyDataTitle, l.deleteMyDataBody, l.deleteEverything)) {
+                    // A pending "Conversation deleted · Undo" goes too.
+                    if (context.mounted) ScaffoldMessenger.of(context).clearSnackBars();
                     state.deleteMyData();
                   }
                 },
@@ -236,6 +249,12 @@ class SettingsScreen extends StatelessWidget {
                 onTap: () => _open(context, 'mailto:${AppLinks.supportEmail}'),
               ),
             ]),
+            // Debug builds only (kDebugMode is a compile-time constant, so release
+            // builds, TestFlight included, never contain this row): see lib/dev/entitlement_export.dart.
+            if (kDebugMode && DevEntitlementExport.enabled) ...[
+              const _SectionLabel('Developer'),
+              const _Group(children: [DevEntitlementRow()]),
+            ],
             const SizedBox(height: 18),
             FutureBuilder<PackageInfo>(
               future: PackageInfo.fromPlatform().catchError((Object _) => PackageInfo(appName: '', packageName: '', version: '', buildNumber: '')),

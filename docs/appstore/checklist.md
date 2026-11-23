@@ -21,8 +21,7 @@ Who does it:
 
 Numbers below are copied from `backend/wrangler.toml` and the linked docs.
 Where two docs disagree, this list names the one that wins. Docs marked
-"(PR #30)" are on branch `claude/datewise-model-eval`; docs marked "(avatar
-branch)" are on `claude/datewise-talking-avatars` until it is merged.
+"(PR #30)" are on branch `claude/datewise-model-eval` until that PR is merged.
 
 [runbook]: ../launch/WORKER_DEPLOY_RUNBOOK.md
 [cfsep]: ../launch/CLOUDFLARE_ACCOUNT_SEPARATION_PLAN.md
@@ -36,9 +35,10 @@ branch)" are on `claude/datewise-talking-avatars` until it is merged.
 [meta]: metadata.md
 [prov]: ../legal/ASSET_PROVENANCE.md
 [handoff]: ../review/FINAL_REVIEW_HANDOFF.md
-[avatar]: https://github.com/scubamike124/datewiseaiapp/blob/claude/datewise-talking-avatars/docs/avatar/TALKING_AVATARS.md
-[avtool]: https://github.com/scubamike124/datewiseaiapp/blob/claude/datewise-talking-avatars/tool/avatar/README.md
-[bakeoff]: https://github.com/scubamike124/datewiseaiapp/blob/claude/datewise-talking-avatars/docs/avatar/PAID_PROVIDER_BAKEOFF.md
+[avatar]: ../avatar/TALKING_AVATARS.md
+[avtool]: ../../tool/avatar/README.md
+[bakeoff]: ../avatar/PAID_PROVIDER_BAKEOFF.md
+[live]: ../qa/LIVE_AI_TEST_PLAN.md
 
 ### A. Owner decisions
 
@@ -46,12 +46,12 @@ branch)" are on `claude/datewise-talking-avatars` until it is merged.
 |---|---|---|---|---|
 | A1 | **Final price.** Configured: one plan, `datewise_premium_monthly`, **$9.99/month** (StoreKit file, metadata, sandbox plan). Proposed: **$19.99/month** (configured nowhere). If $19.99 is chosen, set it in App Store Connect and update `ios/Runner/DateWise.storekit`, [metadata.md][meta] §5 and the expected price in [sandbox test][sandbox] P1 in one reviewed PR; set Mexico and Spain prices by hand. The app and legal text show StoreKit's price string, so no other text changes | Owner-only | The price fixes the margin and the fair-use allowance the business can carry | [cost] §5–6, [paid] §4 (PR #30), [resil] §1 |
 | A2 | **Chat model:** Llama 3.3 70B fp8-fast (current) or Gemma 4 26B, chosen after the live comparison (needs B5). Change the model, `DAILY_NEURON_BUDGET` and `SANDBOX_NEURON_BUDGET` in the same deploy | Owner-only | Budgets are in neurons: a typical message is about 115 neurons on Llama and about 26 on Gemma, so a budget sized for one model is wrong for the other | [models] §7 (PR #30) |
-| A3 | **Workers Paid and `DAILY_NEURON_BUDGET`.** Today: Workers Free, `DAILY_NEURON_BUDGET = "10000"` ($0), about 87 typical Llama messages a day for the whole service (about 378 on Gemma). Workers Paid is **$5 a month** plus $0.011 per 1,000 neurons above the free 10,000 a day, with **no hard spending cap**, so the budget is the cap. Suggested start on Paid while v1 is still served: **Llama 285,000 / Gemma 70,000** at 100 subscribers (1,245,000 / 290,000 at 500; 2,440,000 / 565,000 at 1,000). Then `MONTHLY_NEURON_BUDGET` at about 30 x the average day | Owner-only (spending) | 10,000 neurons a day is too little for App Review plus launch traffic; the handoff asks for this decision before App Review | [paid] §2–5 (PR #30; it supersedes the older per-subscriber figures in [cfsep] §6.2 and the 175,000 example in [cost] §7) |
-| A4 | **`SANDBOX_NEURON_BUDGET` for App Review.** `wrangler.toml` sets **1,000** (10% of 10,000). On Workers Paid: at least **35,000** on Llama or **10,000** on Gemma. On Workers Free, 1,000 fits only about 7 typical Llama Sandbox messages a day (about 37 on Gemma), fewer than one reviewer's `SANDBOX_DAILY_LIMIT` of 20, so give Sandbox a larger share of the 10,000 for the review window | Owner-only | A refused reply during App Review reads as a broken app; the slice also keeps TestFlight from draining subscribers' budget | [paid] §5 (PR #30), `backend/wrangler.toml` |
+| A3 | **Workers Paid and `DAILY_NEURON_BUDGET`.** Today: Workers Free, `DAILY_NEURON_BUDGET = "10000"` ($0), about 87 typical Llama messages a day for the whole service (about 378 on Gemma). Workers Paid is **$5 a month** plus $0.011 per 1,000 neurons above the free 10,000 a day, with **no hard spending cap**, so the budget is the cap. Suggested start on Paid while v1 is still served: **Llama 285,000 / Gemma 70,000** at 100 subscribers (1,245,000 / 290,000 at 500; 2,440,000 / 565,000 at 1,000; 12,020,000 / 2,765,000 at 5,000), ASSUMPTION derived from MEASURED prices. Then `MONTHLY_NEURON_BUDGET` at about 30 x the average day | Owner-only (spending) | 10,000 neurons a day is too little for App Review plus launch traffic; the handoff asks for this decision before App Review | [paid] §2–5 (PR #30; [cfsep] §6.2 and [cost] §7 use the same figures) |
+| A4 | **`SANDBOX_NEURON_BUDGET` for App Review.** `wrangler.toml` sets **1,000** (10% of 10,000). On Workers Paid: at least **35,000** on Llama or **10,000** on Gemma. On Workers Free, 1,000 fits only about 7 typical Llama Sandbox messages a day (about 37 on Gemma), fewer than one reviewer's `SANDBOX_DAILY_LIMIT` of 20. **Recommendation on Workers Free (pre-launch):** set `SANDBOX_NEURON_BUDGET = "6000"` for the App Review window (about 50 typical Llama replies a day, 6,000 / 115, and at least 18 even at the worst-case request size; about 230 on Gemma), then lower it back to **1,000** after approval. Before launch there are no v2 Production subscribers, so Sandbox can take most of the 10,000. How the slices combine (`backend/cost_guard.js`, `budget()`): every request counts against `DAILY_NEURON_BUDGET`; Sandbox requests are also capped by `SANDBOX_NEURON_BUDGET` and token-less v1 requests by `ANON_NEURON_BUDGET` (2,000). The slices are ceilings, not reservations, so 6,000 + 2,000 = 8,000 leaves at least 2,000 of the 10,000 that only Production subscribers can use, and v1 traffic cannot eat into the Sandbox slice. Production traffic has no cap of its own and could still use the Sandbox's room, which is why the large slice is only for the pre-launch window. This is an owner deploy-time setting: `wrangler.toml` keeps 1,000 until the owner changes it in the D1 PR | Owner-only | A refused reply during App Review reads as a broken app; the slice also keeps TestFlight from draining subscribers' budget | [paid] §5 (PR #30), [cost] §7, `backend/wrangler.toml`, `backend/cost_guard.js` |
 | A5 | **App Store Server Notifications on.** Code done and tested; `ASSN_ENABLED = "0"` until the URLs are set (B16), then `"1"` in a reviewed PR and a redeploy (D5) | Owner-only | Refunds and revocations take effect at once, Apple's grace period is followed, and a renewal that has not reached the device does not lock a subscriber out. Chat works without it | [assn], [resil] §3 |
 | A6 | **Fail-open stays off.** `FAIL_OPEN_PER_SUBSCRIBER = FAIL_OPEN_PER_ISOLATE = "0"` and `FAILOPEN_LIMITER` commented out. If the owner ever opts in: 3 / 10 and the `FAILOPEN_LIMITER` binding with its own namespace_id | Done in code | Failing open removes the budget breaker; leave it off until logs show Durable Object outages actually happen | [resil] §4 (L6) |
 | A7 | **`LEGACY_CLIENTS` timeline** (now `"1"`). Separate account (B6): the new v2-only Worker sets `LEGACY_CLIENTS = "0"` and `ANON_NEURON_BUDGET = "0"` from day one; the old Worker keeps chat-v6 for v1 until R+90 days (then a no-AI "please update" responder) and is deleted at R+180. Same account: keep `"1"` for **60 to 90 days** after v2 ships, then `"0"`. If App Store Connect version history shows 1.0.2 never shipped, `"0"` at launch | Owner-only | Anyone can pose as v1, so the token-less path is an anonymous allowance (`ANON_NEURON_BUDGET` 2,000 a day); retiring it stops that and cuts the budget needed by about 20% | [resil] §2, [v1], [cfsep] §3.3 |
-| A8 | **Paid avatar provider bake-off** (Simli and Anam free tiers; LiveAvatar and Tavus optional). Approve or decline: free accounts (no card), uploading the four approved portraits, then vendor, plan and privacy changes | Owner-only | Not needed for 2.0: the on-device avatar costs $0 and sends nothing out. A paid vendor costs per minute and receives the coach's reply audio | [bakeoff] (avatar branch) |
+| A8 | **Paid avatar provider bake-off** (Simli and Anam free tiers; LiveAvatar and Tavus optional). Approve or decline: free accounts (no card), uploading the four approved portraits, then vendor, plan and privacy changes | Owner-only | Not needed for 2.0: the on-device avatar costs $0 and sends nothing out. A paid vendor costs per minute and receives the coach's reply audio | [bakeoff] |
 | A9 | **Minimum iOS stays 15.** iOS 12–14 users keep the last v1 build their device supports (see B20) | Done in code | Xcode 26 (required for uploads since 2026-04-28) and Flutter 3.47 both set iOS 15 as the floor, and StoreKit 2 (the subscription check) needs iOS 15. Every iPhone that runs iOS 13/14 can install iOS 15 (to be checked against Apple's list before public text) | [v1] |
 
 ### B. Owner accounts and settings
@@ -105,7 +105,7 @@ branch)" are on `claude/datewise-talking-avatars` until it is merged.
 | C1 | **The 8 final portraits**: `{ava,ethan,sofia,diego}-{hero,avatar}.jpg`, hero portrait at least 1024×1400, avatar at least 1024 on the short side, and each meeting the portrait requirements below | Owner-only | The current eight are interim (landscape, hero = avatar, Ava and Sofía look alike) and fail the size rules | [prov] |
 | C2 | **Provenance**: generation date(s), the account used, the original files, and your approval date | Owner-only | Apple can ask; the record must show the faces are illustrations, not real people | [prov] |
 | C3 | **Run `portrait_intake`** (identity, size and pair-distance check; kept outside the repository), then re-check `heroFocus` / `avatarFocus` in `lib/models/coach.dart` | Agent, after owner | Catches swapped or too-similar faces before anything is generated from them | [prov] |
-| C4 | **Run `tool/avatar/regenerate.sh`** (all four coaches), then `flutter test test/avatar_widget_test.dart`, and review the sheets in `build/avatar-review/` | Agent, after owner | Avatar frames are cut from the portrait; a new portrait without new frames falls back to a still image (a same-size replacement is not detected) | [avtool] (avatar branch) |
+| C4 | **Run `tool/avatar/regenerate.sh`** (all four coaches), then `flutter test test/avatar_widget_test.dart`, and review the sheets in `build/avatar-review/` | Agent, after owner | Avatar frames are cut from the portrait; a new portrait without new frames falls back to a still image (a same-size replacement is not detected) | [avtool] |
 | C5 | **Regenerate the screenshots** (`tool/appstore_screenshots/generate.sh`): iPhone 6.9" and 6.5" and iPad 13" (2064x2752), EN and ES; the owner reviews every image | Agent, after owner | The store images must show the final faces; the iPad set is required because the app supports iPad | Details step 11, [meta] §7 |
 
 **Portrait requirements** (each of the 8 files):
@@ -119,9 +119,9 @@ branch)" are on `claude/datewise-talking-avatars` until it is merged.
 ### D. Deploy sequence (chat-v7)
 
 chat-v7 is deployed **only** through the reviewed workflow
-(`.github/workflows/deploy-worker.yml`). A single-file redeploy tool, including
-Amber's, cannot deploy it (this supersedes the "new pinned hash in Amber" note
-in [handoff] §8 and [cost] §9).
+(`.github/workflows/deploy-worker.yml`, see [runbook]). A single-file
+redeploy tool, such as an owner-internal redeploy tool outside this repo,
+cannot deploy it ([handoff] §8 and [cost] §9 say the same).
 
 | # | Step | Who | Why | Detail |
 |---|---|---|---|---|
@@ -132,21 +132,24 @@ in [handoff] §8 and [cost] §9).
 | D4 | **Post-deploy checks**: `?version` = `chat-v7-cost-guard`; a token-less `POST /` returns 403 `SUBSCRIPTION_REQUIRED`; then one real v2 chat from TestFlight returns `x-datewise-*` headers (the first real use of the Durable Object) | Owner-only | The 403 check does not prove the Durable Object; only a real chat does | [runbook] §4 step 7, §5 |
 | D5 | **Turn on ASSN**: B16, then `ASSN_ENABLED = "1"` (reviewed PR, redeploy); a Sandbox purchase logs `kind: assn` `SUBSCRIBED` | Owner-only | A5 | [assn] |
 | D6 | **Rollback if needed**: `npx wrangler@4.158.0 rollback <version-id>` or the dashboard; secrets survive | Owner-only | Return to the previous version in minutes | [runbook] §6 |
+| D8 | **Staging Worker for the live AI test** (after D1, independent of D2–D7): confirm rate-limit namespace `740221` is unused on the account, then dispatch target `chat-v7-staging` (dry run, then `dry_run` off) and approve in `production-worker`. It deploys only `datewise-coach-staging` (`wrangler deploy --env staging`) and checks `?version` and 403 `SUBSCRIPTION_REQUIRED`. Same security as production (verified StoreKit JWS, Sandbox allowed, v1 and ASSN off), test-sized limits (`SANDBOX_DAILY_LIMIT` 40, `SANDBOX_NEURON_BUDGET` 3000, `DAILY_NEURON_BUDGET` 4000). **No production variable changes, nothing to restore.** Tear down after E6: `cd backend && npx wrangler@4.158.0 delete --env staging`. Cost $0 (free allowance) | Owner-only | The 36-request live test needs more Sandbox room than production's 20 a day / 1,000 neurons, without touching production | [runbook] §9, [live] §1 |
 | D7 | **App backend URL PR** to the new Worker (`lib/services/ai_config.dart` `productionUrl`, `test/backend_chat_test.dart`, `scripts/production-e2e-probe.mjs`) before the build used for submission | Agent, after owner | The URL is compiled into the app; until then use `--dart-define=COACH_BACKEND_URL=…` on test builds | [cfsep] §3.1 |
 
 ### E. Device testing (BLOCKED until TestFlight)
 
 Nothing here has run: it needs a signed build on TestFlight (Details steps
-19–21) and chat-v7 live (D3).
+19–21) and chat-v7 live (D3). The scripted live AI test (E6, first part) needs
+only the staging Worker (D8) and a Sandbox token from a debug build.
 
 | # | Test | Who | Why | Detail |
 |---|---|---|---|---|
 | E1 | **StoreKit Sandbox test plan** P1–X4 (purchase, restore, renewal, expiry, refund, billing retry, grace). A FAIL in P1, R1, N1, E1, F1 or B1 blocks submission | Owner-only | Subscription bugs are the most likely rejection and the most costly lockout | [sandbox] |
 | E2 | **Voice and speech-to-text in EN and ES** (hold to talk, timeout, a transcript during a streaming reply) | Owner-only | On-device recognition cannot be tested in CI | Details step 22 |
 | E3 | **Permission prompts** for microphone and speech recognition, EN and ES; the denied path offers Open Settings | Owner-only | App Review checks the purpose strings and the denied path | Details step 22 |
-| E4 | **Avatar word timing per voice tier**: default, Enhanced and Premium voices; native audio path on iOS 15/16 (loudness only) and iOS 17+ (word markers), and the fallback; tune A/V sync | Owner-only | Lip sync was measured only on a host, never on an iPhone | [avatar] "Blocked / to do" (avatar branch) |
-| E5 | **Frame time and memory** in a profile build on the voice stage | Owner-only | Must not drop frames or grow memory on older iPhones | [avatar] (avatar branch) |
-| E6 | **Live AI tests for the four coaches** (Ava, Ethan, Sofía, Diego) in EN and ES: replies, language, limit notices, usage headers; plus onboarding and the 18+ gate, Delete my data, and the iPad layout | Owner-only | The model has not been called from a v2 build yet | Details step 22, [models] (PR #30) |
+| E4 | **Avatar word timing per voice tier**: default, Enhanced and Premium voices; native audio path on iOS 15/16 (loudness only) and iOS 17+ (word markers), and the fallback; tune A/V sync | Owner-only | Lip sync was measured only on a host, never on an iPhone | [avatar] "Blocked / to do" |
+| E5 | **Frame time and memory** in a profile build on the voice stage | Owner-only | Must not drop frames or grow memory on older iPhones | [avatar](../avatar/TALKING_AVATARS.md) |
+| E7 | **Avatar native audio path** (only if it should ship): run `iOS build` by hand with `signed_build`, `upload_testflight` and `avatar_audio_path` ticked. That build is marked "AVATAR AUDIO-PATH TEST BUILD" in the run summary and gets a build number 5000 higher (e.g. 5150 instead of 150): **never submit a 5000+ build for review**. Upload the App Store build of a version before any 5000+ test build of that same version (or give test builds their own version, e.g. 2.0.1), because App Store Connect can reject a lower build number after a higher one; the ranges would also overlap once run numbers pass about 4,900. Test playback, ducking and release, a call/Siri interruption, unplugging headphones, backgrounding, and the fallback. Release builds keep the flag off (flutter_tts path) until this passes | Owner-only | The native path cannot be tested off-device | [avatar](../avatar/TALKING_AVATARS.md) |
+| E6 | **Live AI tests for the four coaches** (Ava, Ethan, Sofía, Diego) in EN and ES. (a) The scripted 36-request test (`tool/live/live_chat_test.mjs --mode live`) against the **staging Worker** URL from D8 (`https://datewise-coach-staging.<subdomain>.workers.dev`), with a Sandbox token in `DW_TEST_JWS`: replies, language, limits, streaming, usage headers. No production var changes; the kit refuses the production URL. Then tear down staging (D8). (b) On a TestFlight build against production (after D3): onboarding and the 18+ gate, limit notices, Delete my data, and the iPad layout | Owner-only | The model has not been called from a v2 build yet | [live], Details step 22, [models] (PR #30) |
 
 ### F. Submission
 
@@ -160,7 +163,7 @@ Nothing here has run: it needs a signed build on TestFlight (Details steps
 | F6 | **Select the build, attach `datewise_premium_monthly`, manual release with a 7-day phased release, Submit for Review** | Owner-only | The subscription is submitted together with 2.0.0 | Details steps 26–28 |
 | F7 | **After approval**: release, a real production purchase, 1.0.2 users update cleanly; check App Analytics at R+30 | Owner-only | Confirms production before the phased release widens | Details step 29, [v1] |
 
-**Count:** 51 Owner-only items, 2 Done in code (A6, A9), 4 Agent, after owner (C3, C4, C5, D7).
+**Count:** 53 Owner-only items, 2 Done in code (A6, A9), 4 Agent, after owner (C3, C4, C5, D7).
 
 ---
 

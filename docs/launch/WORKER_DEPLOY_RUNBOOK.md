@@ -9,6 +9,7 @@ owner's approval click.
 |---|---|---|---|
 | `chat-v7-cost-guard` | Multi-module Worker (`worker.js`, `cost_guard.js`, `coach_prompts.js`, `apple_jws.js`), Durable Object `USAGE_GUARD` with migration `v1-usage-guard`, rate-limit binding `RATE_LIMITER`, secret `ID_HASH_SALT` | `backend/` at a commit that is **already on `main`** | The v2 release |
 | `chat-v6` | Single file, `AI` binding only | Always commit `f5b0401`, and `worker.js` must hash to `de390ddb…3d23837` | Fixing today's v1 HTTP 502 (production runs chat-v5 on a retired model) |
+| `chat-v7-staging` | The chat-v7 code, deployed with `wrangler deploy --env staging` to the **separate** Worker `datewise-coach-staging` (`[env.staging]`: own Durable Object, rate-limit namespace `740221`, random salt, test-sized limits) | `backend/` at a commit **already on `main`**, never `f5b0401` | The live AI test (`docs/qa/LIVE_AI_TEST_PLAN.md`), without touching production (section 9) |
 
 **What the workflow guarantees.** The workflow refuses to run unless **the
 commit it runs from** (the dispatched branch head, or the tagged commit, which
@@ -148,6 +149,10 @@ they end in `-deploy`.**
 | Dry run by tag | `git tag worker-v7-2026-11-24 <commit> && git push origin worker-v7-2026-11-24` | `worker-v6-2026-11-24` |
 | Deploy by tag (still waits for your approval) | `worker-v7-2026-11-24-deploy` | `worker-v6-2026-11-24-deploy` |
 
+**Staging** (`chat-v7-staging`) is **dispatch only**: Run workflow, target `chat-v7-staging`, optional `ref` (on `main`),
+`dry_run`. There is no staging tag form, and tag names containing `staging` are refused (a `worker-v7-staging-…` tag
+would otherwise mean production chat-v7).
+
 - The tagged or dispatched commit must be on `main` and contain this workflow
   file, for both targets. This PR targets `claude/datewise-v2-app`, so
   nothing can run until the workflow reaches `main` (see "Consequences" above).
@@ -175,15 +180,28 @@ they end in `-deploy`.**
    - the Worker name, and `main = "worker.js"`;
    - no placeholder `[vars]` values (empty, `REPLACE`, `CHANGEME`, `TODO`, `<…>`, …).
 
-   chat-v7 also needs:
+   chat-v7 and chat-v7-staging also need:
    - an integer `[[ratelimits]] namespace_id`;
    - the `USAGE_GUARD` Durable Object binding and the `UsageGuard` migration;
    - every budget and cap a whole number, with `DAILY_NEURON_BUDGET > 0` and
      `ANON_NEURON_BUDGET <= DAILY_NEURON_BUDGET`.
+
+   `[env.staging]`, whenever it exists (on every run, and required for chat-v7-staging), is checked on its own, because
+   Wrangler environments inherit no bindings or vars: name `datewise-coach-staging` (never the production name), no
+   `main`/`route(s)`/`workers_dev`, its own `AI`, `USAGE_GUARD`, `UsageGuard` migration and `RATE_LIMITER` with a
+   namespace_id that is not production's (`740219`, `740220`); every production var declared, no placeholders; the same
+   app/product ids, expiry leeway and grace as production; `ALLOW_SANDBOX = "1"`, `LEGACY_CLIENTS = "0"`,
+   `REQUIRE_SUBSCRIPTION = "1"`, ASSN and fail-open off; `SANDBOX_DAILY_LIMIT` and `SANDBOX_NEURON_BUDGET` above 0,
+   `DAILY_NEURON_BUDGET` from 1 to 4000. Any other `[env.*]` is refused. The `build`-key check (step 3) already walks the
+   whole file, `[env.staging]` included.
 6. `wrangler@4.158.0 deploy --dry-run --outdir`. For chat-v7, the binding list
    it prints must contain `AI`, `USAGE_GUARD (UsageGuard)`, `RATE_LIMITER` and
-   the budget variables.
-7. Loads the bundle in Node, and `GET /?version` must report the target version.
+   the budget variables. chat-v7-staging runs `deploy --env staging --dry-run`, and its list must also show
+   `SANDBOX_DAILY_LIMIT ("40")`, `SANDBOX_NEURON_BUDGET ("3000")`, `DAILY_NEURON_BUDGET` at most 4000,
+   `ALLOW_SANDBOX ("1")`, `LEGACY_CLIENTS ("0")`, `REQUIRE_SUBSCRIPTION ("1")`, `ASSN_ENABLED ("0")` and the product id.
+   With `[env.staging]` in the file, Wrangler warns that no environment was named on the production runs; that is
+   expected (no `--env` = the top-level, production config).
+7. Loads the bundle in Node, and `GET /?version` must report the target version (`chat-v7-cost-guard` for chat-v7-staging).
 8. Uploads the bundle as a run artifact. The summary shows the **exact commit SHA**
    and a link to it. The deploy job's name also carries the target and SHA.
    **Approve only if that is the commit you mean to deploy.**
@@ -282,3 +300,58 @@ One deploy path per Worker version stops the systems from drifting apart.
     allowance is billed per 1,000 neurons.
   - Raise `DAILY_NEURON_BUDGET` only with the owner's approval.
 - A separate Cloudflare account costs nothing on the Free plan.
+
+## 9. Staging Worker for the live AI test
+
+The live AI test (`docs/qa/LIVE_AI_TEST_PLAN.md`, 36 requests) needs more Sandbox room than production allows
+(`SANDBOX_DAILY_LIMIT` 20, `SANDBOX_NEURON_BUDGET` 1000). Instead of changing production variables, it runs against a
+separate staging Worker, so production is never touched and there is nothing to restore.
+
+| | Production | Staging |
+|---|---|---|
+| Worker | `datewise-photo-coach` | `datewise-coach-staging` (`[env.staging]`) |
+| Deploy | `wrangler deploy` (target `chat-v7-cost-guard`) | `wrangler deploy --env staging` (target `chat-v7-staging`, dispatch only) |
+| Durable Object | `USAGE_GUARD` (own namespace) | `USAGE_GUARD` (own namespace: separate counters and budget) |
+| Rate limit | `RATE_LIMITER`, namespace `740219` | `RATE_LIMITER`, namespace `740221` |
+| `ID_HASH_SALT` | `production-worker` secret or set on the Worker | a random one the workflow sets if the staging Worker has none; never production's |
+| Limits | `[vars]` | same caps; `SANDBOX_DAILY_LIMIT` 40, `SANDBOX_NEURON_BUDGET` 3000, `DAILY_NEURON_BUDGET` 4000, no v1 |
+| Security | v2 needs a verified StoreKit JWS; Sandbox allowed | the same; also `LEGACY_CLIENTS = "0"`, `REQUIRE_SUBSCRIPTION = "1"`; ASSN and fail-open off |
+
+**What the workflow guarantees for staging.** The same protections as production: the run's commit and the code commit
+must be on `main`; the deploy job runs in `production-worker` (your approval; deployment branches `main` and
+`worker-v*` tags, unchanged), with the same environment secrets. On top of that, the target fixes the environment
+(`--env staging`), the Worker name and the expected version in the workflow itself, never from input; it refuses the
+`f5b0401` commit and `force_v6_over_unknown`; the deploy job re-checks that `[env.staging] name` is
+`datewise-coach-staging`; the URL is always the staging Worker's own workers.dev host (the `WORKER_URL` variable is
+ignored for staging); and the wrangler command differs from production's only by `--env staging`.
+
+**Post-deploy checks (staging, no AI):** `?version` = `chat-v7-cost-guard`; a v2 `POST /` without a token returns
+**403 `SUBSCRIPTION_REQUIRED`**; with a malformed token **403 `SUBSCRIPTION_INVALID`**; a v1-shaped request gets the
+no-model `APP_UPDATE_REQUIRED` notice (which also shows it is the staging config: production still serves v1).
+
+**Owner steps:**
+1. Merge chat-v7 and this staging config to `main` through a reviewed PR (as for any chat-v7 deploy).
+2. Confirm rate-limit namespace `740221` is not used by another Worker on the account (each Worker, Settings,
+   Bindings). If it is, change it in a reviewed PR first.
+3. Actions, Deploy coach Worker, Run workflow from `main`: target `chat-v7-staging`, `dry_run` on. Check the summary
+   says **STAGING** and the commit.
+4. Run again with `dry_run` off and approve `production-worker`. Note the staging URL in the summary
+   (`https://datewise-coach-staging.<subdomain>.workers.dev`).
+5. Run the live test against that URL (`docs/qa/LIVE_AI_TEST_PLAN.md`, sections 1 to 3).
+6. **Teardown:** `cd backend && npx wrangler@4.158.0 delete --env staging` (Wrangler signed in to the account; check it
+   names `datewise-coach-staging`), or the dashboard (Worker, Settings, Delete). This deletes the staging Worker, its
+   Durable Object data and its salt only.
+
+Checked locally on 2026-11-23 with wrangler 4.158.0 (`cd backend && npx wrangler@4.158.0 deploy --env staging
+--dry-run --outdir /tmp/x`, no credentials): 72.03 KiB (21.74 KiB gzip); bindings `USAGE_GUARD (UsageGuard)` Durable
+Object, `AI`, `RATE_LIMITER (60 requests/60s)` and the 31 vars with the staging values; the bundle reports
+`chat-v7-cost-guard`. The production dry run's binding list and bundle are byte-identical to before the staging section
+was added. CI repeats the staging dry run on every pull request (Backend tests, job `staging-dry-run`).
+
+No new GitHub environment, secret or variable is needed. Rollback of a staging deploy:
+`cd backend && npx wrangler@4.158.0 rollback <version-id> --env staging -m "rollback"`.
+
+**Cost:** $0. Workers Free covers the extra Worker, its SQLite Durable Object and the rate-limit binding; the deploy
+checks use no neurons. The test uses about 1,839 neurons (stopped at 3,000 by `SANDBOX_NEURON_BUDGET`, and the
+staging Worker as a whole at 4,000), inside the account's free 10,000-neuron daily allowance, which staging and
+production share on the test day (on Workers Free, use past the allowance fails rather than bills).

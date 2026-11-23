@@ -164,6 +164,15 @@ class DeviceSpeechService implements SpeechService {
   /// Locale ids the recognizer supports on this device (read once).
   List<String>? _locales;
 
+  /// Recognizer errors that mean microphone or speech access is missing.
+  /// speech_to_text's Android permission error code (and its iOS
+  /// equivalents that name the permission explicitly); not any message that
+  /// merely mentions the word.
+  static bool _isPermissionError(String msg) {
+    final m = msg.toLowerCase().trim();
+    return m == 'error_permission' || m.startsWith('error_permission') || m.contains('permission denied') || m.contains('not authorized');
+  }
+
   /// Recognizer errors that mean the language cannot be recognized here.
   static bool _isUnsupported(String msg) {
     final m = msg.toLowerCase();
@@ -176,7 +185,12 @@ class DeviceSpeechService implements SpeechService {
     try {
       _ready = await _stt.initialize(
         onError: (e) {
-          if (_isUnsupported(e.errorMsg)) {
+          if (_isPermissionError(e.errorMsg)) {
+            // Android's "error_permission" (access revoked or never given):
+            // a denial, not a normal end. Voice hides until a recheck.
+            _denied = true;
+            _endedBySelf();
+          } else if (_isUnsupported(e.errorMsg)) {
             final cb = _onUnsupported;
             _onEnded = null;
             cb?.call();

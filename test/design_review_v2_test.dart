@@ -39,6 +39,8 @@ void main() {
 
     testWidgets('[$lang 2.0] delete-data and memory-off dialogs scroll, nothing overflows', (t) async {
       await pumpApp(t, scale: scale, prefs: {...prefs, 'dw_memory_on': true, 'dw_memory_text': 'Shy at first.'}, tab: AppTab.you);
+      await t.ensureVisible(find.byKey(const ValueKey('row-memory')));
+      await t.pumpAndSettle();
       await t.tap(find.byKey(const ValueKey('row-memory')));
       await t.pumpAndSettle();
       expect(t.widget<AlertDialog>(find.byType(AlertDialog)).scrollable, isTrue);

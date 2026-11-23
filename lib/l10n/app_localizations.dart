@@ -1494,6 +1494,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Your coach is still replying. What you said is in the message box.'**
   String get voiceKeptInComposer;
+
+  /// Voice stage: accessibility label of the moving coach portrait (idle). Approved wording.
+  ///
+  /// In en, this message translates to:
+  /// **'{name}, animated AI coach'**
+  String avatarAnimated(String name);
+
+  /// Voice stage: moving coach portrait while the reply is read aloud. Approved wording.
+  ///
+  /// In en, this message translates to:
+  /// **'{name}, animated AI coach, speaking'**
+  String avatarSpeaking(String name);
+
+  /// Voice stage: moving coach portrait while the user talks. Approved wording.
+  ///
+  /// In en, this message translates to:
+  /// **'{name}, animated AI coach, listening'**
+  String avatarListening(String name);
+
+  /// Voice stage: moving coach portrait while the reply is being written. Approved wording.
+  ///
+  /// In en, this message translates to:
+  /// **'{name}, animated AI coach, thinking'**
+  String avatarThinking(String name);
+
+  /// Settings row that opens the Premium-voice tip.
+  ///
+  /// In en, this message translates to:
+  /// **'More natural coach voices'**
+  String get voiceQualityRow;
+
+  /// Premium-voice tip: title.
+  ///
+  /// In en, this message translates to:
+  /// **'Get more natural voices'**
+  String get voiceQualityTitle;
+
+  /// Premium-voice tip: steps (iOS Settings path).
+  ///
+  /// In en, this message translates to:
+  /// **'Coaches speak with your iPhone\'s own voices, on your device. For the most natural sound, download one of Apple\'s Premium or Enhanced voices:\n\n1. Open the Settings app › Accessibility › Spoken Content › Voices.\n2. Choose English or Spanish.\n3. Download a voice marked Premium or Enhanced (for example Ava or Zoe, Evan or Nathan, Paulina or Juan).\n\nDateWise uses it automatically the next time a coach speaks. Each coach keeps a distinct voice when several are installed.'**
+  String get voiceQualityBody;
+
+  /// Premium-voice tip: close button.
+  ///
+  /// In en, this message translates to:
+  /// **'Got it'**
+  String get voiceQualityDone;
 }
 
 class _AppLocalizationsDelegate

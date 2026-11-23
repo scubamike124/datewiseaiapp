@@ -19,7 +19,7 @@ Overlap resolved: #3 (coach roster) was closed as superseded by #21, so Amber do
 ## 2. AI integration
 
 ### A1. Restore the live coach (owner approval, no cost)
-Merge and deploy #17 (`wrangler deploy` from `backend/`). Then check:
+Merge and deploy #17 (chat-v6 at `f5b0401`, using a deploy path from `docs/launch/WORKER_DEPLOY_RUNBOOK.md` §7; release checklist D0). Then check:
 1. `GET <worker>/?version` returns `chat-v6`.
 2. A chat request streams `data: {"response": …}` lines.
 3. In the app, a coach answers.

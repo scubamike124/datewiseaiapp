@@ -4,6 +4,7 @@
 // iPhone is BLOCKED (physical device) — see docs/qa/AI_VOICE_REPORT.md.
 
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -53,11 +54,23 @@ void main() {
       }
 
       expect(Coaches.all.map(d).toList(), [
-        'ava:en-US>en-GB>en-AU>en:1.05:0.5',
-        'ethan:en-US>en-GB>en-AU>en:0.92:0.47',
-        'sofia:es-MX>es-US>es-ES>es:1.08:0.49',
-        'diego:es-MX>es-US>es-ES>es:0.9:0.46',
+        // Same-gender pairs apart in rate and pitch (a shared voice still
+        // sounds like two people): Ava/Sofía 16% and 2 semitones,
+        // Ethan/Diego 8% and about 1.3 semitones.
+        'ava:en-US>en-GB>en-AU>en:0.98:0.54',
+        'ethan:en-US>en-GB>en-AU>en:0.91:0.49',
+        'sofia:es-MX>es-US>es-ES>es:1.1:0.46',
+        'diego:es-MX>es-US>es-ES>es:0.88:0.45',
       ]);
+    });
+
+    test('same-gender pairs sound apart even on one shared voice', () {
+      double semis(double a, double b) => 12 * math.log(a / b) / math.ln2;
+      final ava = CoachVoiceProfile.of(Coaches.ava), sofia = CoachVoiceProfile.of(Coaches.sofia);
+      final ethan = CoachVoiceProfile.of(Coaches.ethan), diego = CoachVoiceProfile.of(Coaches.diego);
+      expect((ava.rate - sofia.rate).abs() / 0.5, greaterThanOrEqualTo(0.16 - 1e-9));
+      expect(semis(sofia.pitch, ava.pitch).abs(), closeTo(2, 0.1));
+      expect((ethan.rate - diego.rate).abs() / 0.5, greaterThanOrEqualTo(0.08 - 1e-9));
     });
 
     test('female coaches never get a known male name first, and vice versa', () {
@@ -159,12 +172,18 @@ void main() {
     });
   });
 
-  group('copy honesty: still portraits + voice, no animation or lip-sync claims', () {
+  // The voice stage animates the portrait on the device (lib/avatar/), but
+  // until that is measured on an iPhone the only approved mentions are the
+  // VoiceOver labels below. Nothing else (store text, legal text, other
+  // strings) may claim animation, lip-sync, video or a live/talking avatar.
+  group('copy honesty: no animation, lip-sync or video claims outside the approved labels', () {
     final banned = RegExp(
       r'animat|lip[- ]?sync|lip sync|lips move|video call|videollamada|live avatar|talking avatar|'
       r'avatar animado|avatar que habla|sincroniza|labios|moving portrait|facetime|face[- ]to[- ]face|cara a cara',
       caseSensitive: false,
     );
+    // The approved sentences: the voice stage's accessibility labels.
+    final approved = RegExp(r'^\s*"@?(avatarAnimated|avatarSpeaking|avatarListening|avatarThinking)": ');
     final files = [
       'lib/l10n/app_en.arb',
       'lib/l10n/app_es.arb',
@@ -178,7 +197,7 @@ void main() {
             .readAsLinesSync()
             .asMap()
             .entries
-            .where((e) => banned.hasMatch(e.value))
+            .where((e) => banned.hasMatch(e.value) && !approved.hasMatch(e.value))
             .map((e) => '$f:${e.key + 1}: ${e.value.trim()}')
             .toList();
         expect(hits, isEmpty);

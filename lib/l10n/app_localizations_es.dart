@@ -126,7 +126,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get welcomeTitleLead => 'Conoce a tu\ncoach de citas ';
 
   @override
-  String get welcomeTitleAccent => 'con IA.';
+  String get welcomeTitleAccent => 'con IA.';
 
   @override
   String get welcomeBody =>
@@ -194,7 +194,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get ageUnder => 'Tengo menos de 18 años';
 
   @override
-  String get underageTitle => 'Lo sentimos, DateWise es solo para adultos.';
+  String get underageTitle => 'Lo sentimos, DateWise es solo para adultos.';
 
   @override
   String get underageBody =>
@@ -211,7 +211,7 @@ class AppLocalizationsEs extends AppLocalizations {
       'Los cuatro son coaches con IA. Elige un estilo y cámbialo cuando quieras.';
 
   @override
-  String get coachesEyebrow => 'Coaches de citas con IA';
+  String get coachesEyebrow => 'Coaches de citas con IA';
 
   @override
   String get greetingMorning => 'Buenos días.';
@@ -882,7 +882,7 @@ class AppLocalizationsEs extends AppLocalizations {
       'DateWise es solo para adultos. Si lo confirmas, la app quedará bloqueada en este dispositivo.';
 
   @override
-  String get ageUnderConfirmAction => 'Sí, tengo menos de 18';
+  String get ageUnderConfirmAction => 'Sí, tengo menos de 18';
 
   @override
   String voicePermissionDeniedNote(String name) {
@@ -899,4 +899,37 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get voiceKeptInComposer =>
       'Tu coach todavía está respondiendo. Lo que dijiste está en el cuadro de mensaje.';
+
+  @override
+  String avatarAnimated(String name) {
+    return 'Retrato animado de $name, coach con IA';
+  }
+
+  @override
+  String avatarSpeaking(String name) {
+    return 'Retrato animado de $name, coach con IA, hablando';
+  }
+
+  @override
+  String avatarListening(String name) {
+    return 'Retrato animado de $name, coach con IA, escuchando';
+  }
+
+  @override
+  String avatarThinking(String name) {
+    return 'Retrato animado de $name, coach con IA, pensando';
+  }
+
+  @override
+  String get voiceQualityRow => 'Voces más naturales para tu coach';
+
+  @override
+  String get voiceQualityTitle => 'Consigue voces más naturales';
+
+  @override
+  String get voiceQualityBody =>
+      'Los coaches hablan con las voces de tu iPhone, en tu dispositivo. Para un sonido más natural, descarga una voz Premium o Mejorada de Apple:\n\n1. Abre la app Configuración › Accesibilidad › Contenido leído › Voces.\n2. Elige Español o Inglés.\n3. Descarga una voz marcada como Premium o Mejorada (por ejemplo Paulina o Juan, Ava o Evan).\n\nDateWise la usa automáticamente la próxima vez que hable tu coach. Cada coach conserva una voz distinta si tienes varias instaladas.';
+
+  @override
+  String get voiceQualityDone => 'Entendido';
 }

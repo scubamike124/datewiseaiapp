@@ -302,6 +302,14 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Bumped by [deleteAllConversations] and [deleteMyData]: a conversation
+  /// deleted before a bulk delete can never be brought back by Undo.
+  int _dataEpoch = 0;
+
+  /// The [_dataEpoch] each conversation deleted by [deleteThread] was
+  /// deleted under (what [restoreThread] may still put back).
+  final Map<String, int> _deletedEpoch = {};
+
   /// Deletes a conversation (from the device too) and returns it, so the
   /// caller can offer Undo ([restoreThread]); null when there was none.
   Future<ChatThread?> deleteThread(String id) async {
@@ -309,6 +317,7 @@ class AppState extends ChangeNotifier {
     final i = _threads.indexWhere((t) => t.id == id);
     if (i < 0) return null;
     final removed = _threads.removeAt(i);
+    _deletedEpoch[id] = _dataEpoch;
     if (_activeThreadId == id) _activeThreadId = latestThreadFor(selectedCoach)?.id;
     await _persist();
     notifyListeners();
@@ -317,15 +326,45 @@ class AppState extends ChangeNotifier {
 
   /// Undo for [deleteThread]: puts the conversation back (saved again) in
   /// its place by date; [reopen] opens it again when it was the open one.
-  Future<void> restoreThread(ChatThread thread, {bool reopen = false}) async {
-    if (_threads.any((t) => t.id == thread.id)) return;
+  /// Refused (returns false) once "Delete all conversations" or "Delete my
+  /// data" has run since the delete: deleted data never comes back.
+  Future<bool> restoreThread(ChatThread thread, {bool reopen = false}) async {
+    final epoch = _deletedEpoch.remove(thread.id);
+    if (epoch == null || epoch != _dataEpoch) return false;
+    if (_threads.any((t) => t.id == thread.id)) return false;
     _threads
       ..add(thread)
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     if (reopen && thread.coachId == selectedCoach.id) _activeThreadId = thread.id;
     await _persist();
     notifyListeners();
+    return true;
   }
+
+  // --- Composer drafts ----------------------------------------------------
+
+  /// What the user was typing or saying when a lapsed subscription swapped
+  /// the tabs for the paywall (which closes the chat), per coach and
+  /// conversation. In memory only: never saved on the device and never
+  /// sent; it goes back into the composer once the chat reopens, and is
+  /// cleared by "Delete all conversations" and "Delete my data".
+  final Map<String, String> _drafts = {};
+
+  String get _draftKey => '${selectedCoach.id}/${activeThread?.id ?? ''}';
+
+  /// Whether a draft is waiting for the chat to reopen.
+  bool get hasDraft => _drafts.isNotEmpty;
+
+  /// Keeps [text] for the open conversation (nothing when it is blank). No
+  /// listeners are notified: the chat calls this as it closes.
+  void keepDraft(String text) {
+    final t = text.trim();
+    if (t.isEmpty) return;
+    _drafts[_draftKey] = t;
+  }
+
+  /// The draft kept for the open conversation, removed once taken.
+  String? takeDraft() => _drafts.remove(_draftKey);
 
   // --- Messaging ----------------------------------------------------------
 
@@ -541,7 +580,17 @@ class AppState extends ChangeNotifier {
 
   // --- Deleting -----------------------------------------------------------
 
+  /// Invalidates every pending Undo (see [restoreThread]) and drops any kept
+  /// composer draft; called before anything is awaited, so an Undo tapped
+  /// meanwhile is refused too.
+  void _bumpDataEpoch() {
+    _dataEpoch++;
+    _deletedEpoch.clear();
+    _drafts.clear();
+  }
+
   Future<void> deleteAllConversations() async {
+    _bumpDataEpoch();
     await cancelReply();
     _threads.clear();
     _activeThreadId = null;
@@ -555,6 +604,11 @@ class AppState extends ChangeNotifier {
   /// Store subscription itself is managed by Apple and is not canceled;
   /// Restore Purchases brings an active one back.
   Future<void> deleteMyData() async {
+    _bumpDataEpoch();
+    // Drop the in-memory threads before any await, so a persist that runs
+    // during the deletion can never write the old list back.
+    _threads.clear();
+    _activeThreadId = null;
     await cancelReply();
     await _storage.clearAll();
     _threads.clear();

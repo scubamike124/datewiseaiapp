@@ -81,6 +81,33 @@ void main() {
     expect(DeviceVoiceService.pickVoice(voices, Coaches.ava)!['quality'], 'premium');
   });
 
+  test('a downloaded Premium/Enhanced voice beats a default voice, even one with a better-known name', () {
+    final voices = [
+      v('Samantha', 'en-US', gender: 'female'),
+      v('Zoe', 'en-US', gender: 'female', quality: 'premium'),
+      v('Juan', 'es-MX', gender: 'male'),
+      v('Diego', 'es-MX', gender: 'male', quality: 'enhanced'),
+    ];
+    expect(pick(voices, Coaches.ava), 'Zoe');
+    expect(pick(voices, Coaches.diego), 'Diego');
+  });
+
+  test('a coach speaking the other language gets a different voice from that language\'s own coach when one exists', () {
+    final voices = [
+      v('Paulina', 'es-MX', gender: 'female', quality: 'enhanced'),
+      v('Marisol', 'es-MX', gender: 'female'),
+      v('Juan', 'es-MX', gender: 'male'),
+      v('Ava', 'en-US', gender: 'female'),
+      v('Evan', 'en-US', gender: 'male'),
+      v('Tom', 'en-US', gender: 'male'),
+    ];
+    String? d(Coach c, CoachLanguage l) => DeviceVoiceService.pickVoiceDistinct(voices, c, l)?['name'];
+    expect(d(Coaches.sofia, CoachLanguage.es), 'Paulina');
+    expect(d(Coaches.ava, CoachLanguage.es), 'Marisol', reason: 'not Sofía\'s Paulina');
+    expect(d(Coaches.diego, CoachLanguage.en), 'Tom', reason: 'not Ethan\'s Evan');
+    expect(d(Coaches.ethan, CoachLanguage.es), 'Juan', reason: 'only one Spanish male voice: shared, pitch differs');
+  });
+
   test('a single voice per language: both coaches use it; pitch and rate tell them apart', () {
     final voices = [v('Samantha', 'en-US', gender: 'female'), v('Paulina', 'es-MX', gender: 'female')];
     expect(pick(voices, Coaches.ethan), 'Samantha', reason: 'last resort: right language, other gender');

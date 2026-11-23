@@ -9,6 +9,7 @@ import '../screens/onboarding_screen.dart';
 import '../screens/shell.dart';
 import '../services/ai_service.dart';
 import '../services/backend_ai_service.dart';
+import '../services/coach_usage.dart';
 import '../services/store_service.dart';
 import '../state/app_state.dart';
 
@@ -17,7 +18,7 @@ import '../state/app_state.dart';
 /// design can be reviewed on the web. Never active in a release build
 /// without those flags.
 ///
-/// `?screen=welcome|onboarding|paywall|home|coaches|chat|chat-error|progress|settings`
+/// `?screen=welcome|onboarding|paywall|home|coaches|chat|chat-error|chat-limit|progress|settings`
 /// `&step=1..4` (onboarding) `&lang=en|es` (UI language, and a Spanish coach).
 class ReviewMode {
   ReviewMode._();
@@ -39,8 +40,15 @@ class ReviewMode {
     return OnboardingScreen(initialStep: (step - 1).clamp(0, 3));
   }
 
-  /// The coach backend stand-in for `screen=chat-error` (always unreachable).
-  static AIService? aiFor(String? screen) => screen == 'chat-error' ? _UnreachableCoach() : null;
+  /// The coach backend stand-in for `screen=chat-error` (always unreachable)
+  /// and `screen=chat-limit` (always refuses with a limit code whose notice
+  /// offers the paywall).
+  static AIService? aiFor(String? screen) => switch (screen) {
+        'chat-error' => _UnreachableCoach(),
+        'chat-limit' => _UnreachableCoach(
+            error: CoachUnavailableException('http', statusCode: 403, code: CoachLimitCode.subscriptionRevoked)),
+        _ => null,
+      };
 
   /// Seeds the state for [screen] and returns the tab to open.
   static Future<AppTab> seed(String screen, AppState state, StoreService store) async {
@@ -61,7 +69,7 @@ class ReviewMode {
     await state.sendMessage(es ? 'Dame un buen primer mensaje' : 'Give me a strong opener');
     return switch (screen) {
       'coaches' => AppTab.coaches,
-      'chat' || 'chat-error' => AppTab.chat,
+      'chat' || 'chat-error' || 'chat-limit' => AppTab.chat,
       'progress' => AppTab.progress,
       'settings' || 'you' => AppTab.you,
       _ => AppTab.home,
@@ -70,6 +78,9 @@ class ReviewMode {
 }
 
 class _UnreachableCoach implements AIService {
+  _UnreachableCoach({this.error = const CoachUnavailableException('http', statusCode: 502)});
+  final CoachUnavailableException error;
+
   @override
   String get providerLabel => 'review: unreachable coach';
 
@@ -80,5 +91,5 @@ class _UnreachableCoach implements AIService {
     UserProfile? profile,
     Coach? coach,
   }) =>
-      Stream.error(const CoachUnavailableException('http', statusCode: 502));
+      Stream.error(error);
 }

@@ -29,7 +29,8 @@ Added in commit `0037076` (2026-11-22).
   are illustrations of the coach characters").
 - **No stock photography.** The former stock photo (`images/hero.jpg`) was
   removed from the app in `b36b0eb`; a test checks that only the coach
-  portraits, the icon and the fonts are bundled.
+  portraits, the avatar patches derived from them (`assets/avatar/`, see
+  below), the icon and the fonts are bundled.
 - **OWNER to record:** the generation date(s) and the account used, and keep
   the original reference files.
 
@@ -41,8 +42,10 @@ Added in commit `0037076` (2026-11-22).
    model-loading library. Run locally; no image was sent to any service.
 3. Saved as JPEG. Hero and avatar are currently the same file per coach.
 
-No face swap, retouching of identity, or generative editing was applied after
-the upscale.
+No face swap, retouching of identity, or generative editing was applied to
+the portraits after the upscale. The only generated derivatives are the
+avatar patches (mouth shapes, blinks, a glance; "Animated frames" below),
+which are separate files: the portraits themselves are unchanged.
 
 ## Identity check
 
@@ -61,13 +64,31 @@ least 1024). Same-language pairs look alike (Ava↔Sofía about 0.71,
 Ethan↔Diego about 0.68); the finals should differ in hair, wardrobe,
 accessories and background, with cross-coach similarity below 0.5.
 
+## Animated frames (derived from the portraits)
+
+- `assets/avatar/<coach>/*.jpg` are small patches generated offline from
+  each `-hero.jpg`: 16 mouth shapes, two blink stages and a sideways glance
+  (19 per coach, 76 in all; no whole-head frames). Made with LivePortrait (MIT
+  code and weights; InsightFace replaced by YuNet, MIT), sharpness and grain
+  matched to the portrait (unsharp mask plus luma noise; no face
+  restoration), and gated by SFace identity and iris-colour checks. Outside
+  each patch's mask the pixels are the original portrait, and the mouth mask
+  stops at the jaw line (a hand under the chin is never altered). They are
+  derivatives of the portraits above and follow their status. Pipeline and
+  licences: `tool/avatar/README.md`.
+- The app draws them on the device, timed to the device's own speech;
+  nothing is sent to an avatar provider. Not described in the store text
+  until it has been tested on an iPhone.
+- When the finals arrive, run `tool/avatar/regenerate.sh` after the intake
+  check.
+
 ## Final portraits (pending)
 
 - The owner supplies eight finals: `{ava,ethan,sofia,diego}-{hero,avatar}.jpg`,
   hero at least 1024×1400 portrait, avatar at least 1024 on the short side.
 - Run the identity and size check on them, re-check `heroFocus` /
-  `avatarFocus` in `lib/models/coach.dart`, and regenerate the App Store
-  screenshots.
+  `avatarFocus` in `lib/models/coach.dart`, regenerate the animated frames
+  (`tool/avatar/regenerate.sh`) and the App Store screenshots.
 - Then update this file: per-file source, generation date and account,
   processing, and the owner's approval date.
 
