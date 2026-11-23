@@ -153,5 +153,12 @@ void main() {
       expect(s, contains(r"""need 'env\.SANDBOX_NEURON_BUDGET \("3000"\)' 'SANDBOX_NEURON_BUDGET 3000'"""));
       expect(s, contains('EXPECT: \${{ steps.plan.outputs.expect }}'));
     });
+
+    test('the deploy step pins CLOUDFLARE_ENV: empty for production, staging only for chat-v7-staging', () {
+      final step = deployJob.substring(deployJob.indexOf('- name: Deploy with Wrangler'), deployJob.indexOf('- name: Remove the salt file'));
+      expect(step, contains("        env:\n"));
+      expect(step, contains("          CLOUDFLARE_ENV: \${{ needs.check.outputs.target == 'chat-v7-staging' && 'staging' || '' }}\n"));
+      expect('CLOUDFLARE_ENV:'.allMatches(s).length, 1, reason: 'set nowhere else');
+    });
   });
 }

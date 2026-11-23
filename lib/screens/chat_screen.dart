@@ -63,6 +63,9 @@ class _ChatScreenState extends State<ChatScreen> {
   final _dockKey = GlobalKey();
 
   late final AppState _state;
+
+  /// The [AppState.dataEpoch] the composer was last checked against.
+  late int _dataEpoch;
   late final AppLifecycleListener _lifecycle;
   late final VoiceService _voice;
   late final SpeechService _speech;
@@ -73,6 +76,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _state = context.read<AppState>();
     _voice = context.read<VoiceService>();
     _speech = context.read<SpeechService>();
+    _dataEpoch = _state.dataEpoch;
     _state.addListener(_onState);
     // Back from the paywall that interrupted the chat: what the user was
     // typing or saying is in the composer again (never sent by itself).
@@ -131,8 +135,14 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  /// Reads a finished reply aloud during a voice session.
+  /// Reads a finished reply aloud during a voice session; clears the
+  /// composer (a restored draft too) after "Delete all conversations" or
+  /// "Delete my data".
   void _onState() {
+    if (_state.dataEpoch != _dataEpoch) {
+      _dataEpoch = _state.dataEpoch;
+      _input.clear();
+    }
     final responding = _state.isResponding;
     if (_wasResponding && !responding && _voiceMode && _readAloud) {
       final last = _state.activeThread?.messages.lastOrNull;

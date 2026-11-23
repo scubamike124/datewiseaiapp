@@ -163,6 +163,47 @@ test('live mode refuses the production Worker as --base-url unless --allow-produ
   assert.deepEqual(calls, [`${PRODUCTION_URL}/?version`]);
 });
 
+test('live mode refuses the host in DW_PRODUCTION_WORKER_URL (custom domain) unless --allow-production-worker', async () => {
+  const never = async () => { throw new Error('no request may be sent'); };
+  for (const productionWorkerUrl of ['https://api.datewise.test', 'https://API.datewise.test/v2/', 'api.datewise.test']) {
+    for (const baseUrl of ['https://api.datewise.test', 'https://Api.DateWise.test/']) {
+      await assert.rejects(
+        runKit({ mode: 'live', jws: fakeToken(), confirmLive: true, baseUrl, productionWorkerUrl, fetchImpl: never, log: quiet }),
+        /production Worker.*staging Worker/,
+      );
+    }
+  }
+  await assert.rejects(
+    runKit({ mode: 'live', jws: fakeToken(), confirmLive: true, baseUrl: 'https://api.datewise.test', productionWorkerUrl: 'https://[bad', fetchImpl: never, log: quiet }),
+    /DW_PRODUCTION_WORKER_URL is not a URL/,
+  );
+  const calls = [];
+  const fetchImpl = async (url) => {
+    calls.push(url);
+    return new Response(JSON.stringify({ version: 'chat-v5' }), { headers: { 'Content-Type': 'application/json' } });
+  };
+  // Another host is still accepted, and the custom domain only on purpose.
+  const staging = `https://${STAGING_WORKER}.scubamike124.workers.dev`;
+  await runKit({ mode: 'live', jws: fakeToken(), confirmLive: true, baseUrl: staging, productionWorkerUrl: 'api.datewise.test', fetchImpl, write: false, log: quiet });
+  await runKit({ mode: 'live', jws: fakeToken(), confirmLive: true, allowProductionWorker: true, baseUrl: 'https://api.datewise.test', productionWorkerUrl: 'api.datewise.test', fetchImpl, write: false, log: quiet });
+  assert.deepEqual(calls, [`${staging}/?version`, 'https://api.datewise.test/?version']);
+});
+
+test('the CLI passes DW_PRODUCTION_WORKER_URL to the production-Worker refusal', async () => {
+  const err = [];
+  const write = process.stderr.write;
+  process.stderr.write = (s) => { err.push(String(s)); return true; };
+  let code;
+  try {
+    code = await main(['--mode', 'live', '--confirm-live', '--base-url', 'https://api.datewise.test'],
+      { DW_TEST_JWS: fakeToken(), DW_PRODUCTION_WORKER_URL: 'https://api.datewise.test' });
+  } finally {
+    process.stderr.write = write;
+  }
+  assert.notEqual(code, 0);
+  assert.match(err.join(''), /production Worker/);
+});
+
 test('live mode stops after the version check when the Worker is not chat-v7 (production runs chat-v5)', async () => {
   const jws = fakeToken();
   const calls = [];

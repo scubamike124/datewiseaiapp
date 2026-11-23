@@ -149,10 +149,58 @@ void main() {
       app.state.keepDraft('only on this device');
       expect({for (final k in prefs.getKeys()) k: prefs.get(k)}, before, reason: 'nothing written to storage');
       await app.state.selectCoach('sofia');
+      expect(app.state.hasDraft, isFalse, reason: 'a draft under another coach does not count');
       expect(app.state.takeDraft(), isNull, reason: 'another coach has its own draft');
       await app.state.selectCoach('ava');
+      expect(app.state.hasDraft, isTrue);
       expect(app.state.takeDraft(), 'only on this device');
       expect(app.state.takeDraft(), isNull, reason: 'taken once');
+    });
+
+    test('a draft under another conversation does not count as waiting', () async {
+      final app = await makeState(prefs: onboardedPrefs());
+      app.state.keepDraft('for the new chat');
+      expect(app.state.hasDraft, isTrue);
+      await app.state.createThread();
+      expect(app.state.hasDraft, isFalse, reason: 'kept for another conversation');
+      expect(app.state.takeDraft(), isNull);
+    });
+
+    testWidgets('a stale draft under another coach does not force the Chat tab', (t) async {
+      final store = FakeStoreService(entitled: true);
+      final (app, _) = await _pump(t, store, tab: AppTab.home);
+      app.state.keepDraft('left with another coach');
+      await app.state.selectCoach('sofia');
+      // RootGate rebuilds (the coach changed): it must stay on Home.
+      await t.pumpAndSettle();
+      final tabs = t.widget<IndexedStack>(find.byType(IndexedStack).first);
+      expect(tabs.index, AppTab.home.index);
+      expect(app.state.hasDraft, isFalse);
+    });
+
+    testWidgets('Delete all conversations clears a restored draft from the open composer', (t) async {
+      final store = FakeStoreService(entitled: true);
+      final (app, _) = await _pump(t, store);
+      await t.enterText(_composer, 'A restored private draft');
+      await t.pump();
+      store.expire();
+      await t.pumpAndSettle();
+      await _buy(t, store);
+      expect(_composerText(t), 'A restored private draft', reason: 'restored into the composer');
+      await app.state.deleteAllConversations();
+      await t.pumpAndSettle();
+      expect(_composerText(t), isEmpty, reason: 'deleted data leaves nothing in the composer');
+      expect(app.state.hasDraft, isFalse);
+    });
+
+    testWidgets('Delete all conversations clears typed text from the open composer', (t) async {
+      final store = FakeStoreService(entitled: true);
+      final (app, _) = await _pump(t, store);
+      await t.enterText(_composer, 'Something private');
+      await t.pump();
+      await app.state.deleteAllConversations();
+      await t.pumpAndSettle();
+      expect(_composerText(t), isEmpty);
     });
 
     testWidgets('Delete my data while a kept draft is in the closing chat leaves nothing behind', (t) async {

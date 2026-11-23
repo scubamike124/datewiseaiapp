@@ -173,6 +173,10 @@ test('workflow check: a broken staging section fails (on staging and production 
     [broken('FAIL_OPEN_MAX_MINUTES = "15"\n', ''), /lacks FAIL_OPEN_MAX_MINUTES/],
     [broken('name = "datewise-coach-staging"', 'routes = ["api.example.net/*"]\nname = "datewise-coach-staging"'), /must not set routes/],
     [`${toml}\n[env.other]\nname = "x"\n`, /only \[env\.staging\] is allowed/],
+    [broken('name = "USAGE_GUARD"\nclass_name = "UsageGuard"', 'name = "USAGE_GUARD"\nclass_name = "UsageGuard"\nscript_name = "datewise-photo-coach"'), /must not set script_name/],
+    [`${toml}\n[[env.staging.services]]\nbinding = "PROD"\nservice = "datewise-photo-coach"\n`, /must not set services/],
+    [`${toml}\n[[env.staging.tail_consumers]]\nservice = "datewise-photo-coach"\n`, /must not set tail_consumers/],
+    [`legacy_env = false\n${toml}`, /legacy_env must not be set \(top level\)/],
   ];
   for (const [bad, why] of cases) {
     for (const target of ['chat-v7-staging', 'chat-v7-cost-guard']) {
