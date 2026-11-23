@@ -132,15 +132,20 @@ class _ChatScreenState extends State<ChatScreen> {
     if (prompt != null) _send(prompt);
   }
 
-  Future<void> _send(String text) async {
+  /// Sends [text]. From the composer ([fromComposer]), the field is cleared
+  /// only once the message is accepted: while a reply is still streaming
+  /// nothing is sent and the text stays in the field.
+  Future<void> _send(String text, {bool fromComposer = false}) async {
     if (text.trim().isEmpty) return;
     if (!_state.canChat) {
       showPaywall(context);
       return;
     }
-    _input.clear();
+    if (_state.isResponding) return;
     await _voice.stop();
-    await _state.sendMessage(text);
+    await _state.sendMessage(text, onAccepted: () {
+      if (fromComposer && mounted && _input.text == text) _input.clear();
+    });
   }
 
   // --- Voice session ------------------------------------------------------
@@ -485,7 +490,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         focus: _focus,
                         hint: context.l10n.messageHint(coach.name),
                         busy: state.isResponding,
-                        onSend: () => _send(_input.text),
+                        onSend: () => _send(_input.text, fromComposer: true),
                         onStop: _state.cancelReply,
                         onVoice: _speech.available ? _enterVoice : null,
                       ),
@@ -830,7 +835,7 @@ class _Bubble extends StatelessWidget {
                       : failed
                           ? _FailedReply(
                               partial: parsed.body,
-                              stopped: message.status == MessageStatus.stopped,
+                              status: message.status,
                               failure: message.failure,
                               code: message.failedCode,
                               onRetry: onRetry,
@@ -991,7 +996,12 @@ class _Composer extends StatelessWidget {
                 maxLines: 5,
                 textCapitalization: TextCapitalization.sentences,
                 textInputAction: TextInputAction.send,
-                onSubmitted: (_) => onSend(),
+                // While a reply streams, Enter does nothing: the text and the
+                // keyboard stay, ready to send once the reply is done.
+                onSubmitted: (_) {
+                  if (!busy) onSend();
+                },
+                onEditingComplete: busy ? () {} : null,
                 style: const TextStyle(fontSize: 15.5, color: AppColors.text, height: 1.35),
                 decoration: InputDecoration(
                   hintText: hint,
@@ -1207,13 +1217,15 @@ class _Locked extends StatelessWidget {
 class _FailedReply extends StatelessWidget {
   const _FailedReply(
       {required this.partial,
-      required this.stopped,
+      required this.status,
       required this.onRetry,
       this.failure,
       this.code,
       this.showPaywallAction = false});
   final String partial;
-  final bool stopped;
+
+  /// Failed, stopped (by the user) or interrupted (the app restarted).
+  final MessageStatus status;
   final ReplyFailure? failure;
 
   /// The backend's refusal code (chat-v7); a known one shows its limit notice.
@@ -1226,7 +1238,7 @@ class _FailedReply extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
-    final paywall = showPaywallAction && !stopped && CoachLimitCode.paywallAction.contains(code);
+    final paywall = showPaywallAction && status == MessageStatus.failed && CoachLimitCode.paywallAction.contains(code);
     return Column(
       key: const ValueKey('reply-failed'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1246,15 +1258,17 @@ class _FailedReply extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                stopped
-                    ? l.chatErrorStopped
-                    : coachLimitMessage(l, code) ??
-                        switch (failure) {
-                          ReplyFailure.busy => l.chatErrorBusy,
-                          ReplyFailure.offline => l.chatErrorOffline,
-                          ReplyFailure.server => l.chatErrorServer,
-                          null => l.chatErrorUnavailable,
-                        },
+                switch (status) {
+                  MessageStatus.stopped => l.chatErrorStopped,
+                  MessageStatus.interrupted => l.chatErrorInterrupted,
+                  _ => coachLimitMessage(l, code) ??
+                      switch (failure) {
+                        ReplyFailure.busy => l.chatErrorBusy,
+                        ReplyFailure.offline => l.chatErrorOffline,
+                        ReplyFailure.server => l.chatErrorServer,
+                        null => l.chatErrorUnavailable,
+                      },
+                },
                 key: const ValueKey('reply-failed-notice'),
                 style: const TextStyle(fontSize: 14, height: 1.4, color: AppColors.text),
               ),

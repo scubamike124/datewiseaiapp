@@ -1434,6 +1434,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'You\'re close to this month\'s fair-use limit.'**
   String get coachUsageNoticeMonthly;
+
+  /// No description provided for @chatErrorInterrupted.
+  ///
+  /// In en, this message translates to:
+  /// **'The reply was interrupted when the app closed. Your message is saved.'**
+  String get chatErrorInterrupted;
+
+  /// No description provided for @conversationDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation deleted.'**
+  String get conversationDeleted;
+
+  /// No description provided for @undo.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get undo;
+
+  /// No description provided for @ageUnderConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you under 18?'**
+  String get ageUnderConfirmTitle;
+
+  /// No description provided for @ageUnderConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'DateWise is only for adults. If you confirm, the app stays locked on this device.'**
+  String get ageUnderConfirmBody;
+
+  /// No description provided for @ageUnderConfirmAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Yes, I\'m under 18'**
+  String get ageUnderConfirmAction;
+
+  /// No description provided for @voicePermissionDeniedNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Microphone or speech recognition access is turned off for DateWise. Allow it in Settings to talk with {name}, or type instead.'**
+  String voicePermissionDeniedNote(String name);
+
+  /// No description provided for @openSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Settings'**
+  String get openSettings;
+
+  /// No description provided for @voiceNoSpeech.
+  ///
+  /// In en, this message translates to:
+  /// **'I didn\'t catch that. Hold the button and try again.'**
+  String get voiceNoSpeech;
 }
 
 class _AppLocalizationsDelegate

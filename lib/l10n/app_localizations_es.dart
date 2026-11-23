@@ -863,4 +863,36 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get coachUsageNoticeMonthly =>
       'Te estás acercando al límite de uso justo de este mes.';
+
+  @override
+  String get chatErrorInterrupted =>
+      'La respuesta se interrumpió al cerrarse la app. Tu mensaje está guardado.';
+
+  @override
+  String get conversationDeleted => 'Conversación eliminada.';
+
+  @override
+  String get undo => 'Deshacer';
+
+  @override
+  String get ageUnderConfirmTitle => '¿Tienes menos de 18 años?';
+
+  @override
+  String get ageUnderConfirmBody =>
+      'DateWise es solo para adultos. Si lo confirmas, la app quedará bloqueada en este dispositivo.';
+
+  @override
+  String get ageUnderConfirmAction => 'Sí, tengo menos de 18';
+
+  @override
+  String voicePermissionDeniedNote(String name) {
+    return 'El acceso al micrófono o al reconocimiento de voz está desactivado para DateWise. Permítelo en Configuración para hablar con $name, o escríbele.';
+  }
+
+  @override
+  String get openSettings => 'Abrir Configuración';
+
+  @override
+  String get voiceNoSpeech =>
+      'No te escuché. Mantén presionado el botón e inténtalo de nuevo.';
 }

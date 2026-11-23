@@ -221,5 +221,14 @@
   "coachLimitVerify": "No pudimos confirmar tu suscripción. Toca Restaurar compras.",
   "coachLimitUpdateApp": "Actualiza DateWise a la última versión para seguir chateando con tu coach.",
   "coachUsageNoticeDaily": "Te estás acercando al límite de uso justo de hoy.",
-  "coachUsageNoticeMonthly": "Te estás acercando al límite de uso justo de este mes."
+  "coachUsageNoticeMonthly": "Te estás acercando al límite de uso justo de este mes.",
+  "chatErrorInterrupted": "La respuesta se interrumpió al cerrarse la app. Tu mensaje está guardado.",
+  "conversationDeleted": "Conversación eliminada.",
+  "undo": "Deshacer",
+  "ageUnderConfirmTitle": "¿Tienes menos de 18 años?",
+  "ageUnderConfirmBody": "DateWise es solo para adultos. Si lo confirmas, la app quedará bloqueada en este dispositivo.",
+  "ageUnderConfirmAction": "Sí, tengo menos de 18",
+  "voicePermissionDeniedNote": "El acceso al micrófono o al reconocimiento de voz está desactivado para DateWise. Permítelo en Configuración para hablar con {name}, o escríbele.",
+  "openSettings": "Abrir Configuración",
+  "voiceNoSpeech": "No te escuché. Mantén presionado el botón e inténtalo de nuevo."
 }
