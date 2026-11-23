@@ -111,7 +111,7 @@ Coaching chat requires DateWise Premium, an auto-renewable monthly subscription.
 DateWise Premium includes generous everyday coaching for personal use. To keep the service fast and fair for everyone, each subscription includes up to ${_n(FairUse.dailyReplies, 'en')} coach replies a day and ${_n(FairUse.monthlyReplies, 'en')} a month, at most ${FairUse.perMinute} a minute and ${FairUse.concurrent} at a time. Typed and spoken messages count the same. You will see a notice in the chat when you are close to the daily or monthly limit. When a limit is reached, chat pauses until the next day (00:00 UTC) or the next month.
 
 # Acceptable use
-Don't upload content you don't have the right to share, and don't use the service for unlawful purposes.
+Don't send content you don't have the right to share, and don't use the service for unlawful purposes.
 
 # Your content
 You keep ownership of the content you submit. You grant us permission to process it solely to provide the service.
@@ -212,7 +212,7 @@ El chat de coaching requiere DateWise Premium, una suscripción mensual de renov
 DateWise Premium incluye coaching diario generoso para uso personal. Para que el servicio sea rápido y justo para todos, cada suscripción incluye hasta ${_n(FairUse.dailyReplies, 'es')} respuestas del coach al día y ${_n(FairUse.monthlyReplies, 'es')} al mes, con un máximo de ${FairUse.perMinute} por minuto y ${FairUse.concurrent} a la vez. Los mensajes escritos y hablados cuentan igual. Verás un aviso en el chat cuando estés cerca del límite diario o mensual. Al alcanzar un límite, el chat se pausa hasta el día siguiente (00:00 UTC) o el mes siguiente.
 
 # Uso aceptable
-No compartas contenido que no tengas derecho a compartir y no uses el servicio con fines ilegales.
+No envíes contenido que no tengas derecho a compartir y no uses el servicio con fines ilegales.
 
 # Tu contenido
 Conservas la propiedad del contenido que envías. Nos das permiso para procesarlo únicamente para prestarte el servicio.

@@ -370,9 +370,11 @@ test('anonymous traffic has its own slice of the budget, so it cannot starve sub
   const ai = fakeAi();
   const env = makeEnv({ DAILY_NEURON_BUDGET: '1000', ANON_NEURON_BUDGET: '250', ANON_DAILY_LIMIT: '100' }, { ai });
   const anon = [];
-  for (let i = 0; i < 6; i++) anon.push(await send(env, { ip: freshIp(), body: { coachId: undefined } }));
+  for (let i = 0; i < 10; i++) anon.push(await send(env, { ip: freshIp(), body: { coachId: undefined } }));
   const anonOk = anon.filter((r) => r.res.status === 200).length;
-  const reserve = neuronsFor(LLAMA, estimateTokens(ai.calls[0].input.messages), 800);
+  // The v1 path reserves with the legacy output cap (LEGACY_MAX_OUTPUT_TOKENS, 500).
+  assert.equal(ai.calls[0].input.max_tokens, 500);
+  const reserve = neuronsFor(LLAMA, estimateTokens(ai.calls[0].input.messages), 500);
   assert.equal(anonOk, Math.floor((250 - reserve) / 27) + 1);
   assert.equal(anon.at(-1).json().code, 'SERVICE_BUDGET_EXHAUSTED');
   // A subscriber is still served from the rest of the budget.
@@ -406,13 +408,14 @@ test('a refused budget gives the subscriber their message back', async () => {
   assert.equal(env.USAGE_GUARD.objects.get(key).data.get('u').dayCount, 0);
 });
 
-test('fails closed: no guard binding or a failing guard means no model call (no paid fallback)', async () => {
+test('fails closed (fail-open off): no guard binding or a failing guard means no model call (no paid fallback)', async () => {
+  // The bounded fail-open for verified subscribers is tested in subscription_resilience.test.mjs.
   const jws = await pki.sign(txPayload({ originalTransactionId: otid() }));
-  const noBinding = { AI: fakeAi() };
+  const noBinding = { AI: fakeAi(), FAIL_OPEN_PER_SUBSCRIBER: '0' };
   const r1 = await send(noBinding, { jws });
   assert.equal(r1.res.status, 503);
   assert.equal(r1.json().code, 'GUARD_UNAVAILABLE');
-  const broken = makeEnv({}, { ns: fakeDoNamespace({ fail: true }) });
+  const broken = makeEnv({ FAIL_OPEN_PER_ISOLATE: '0' }, { ns: fakeDoNamespace({ fail: true }) });
   const r2 = await send(broken, { jws });
   assert.equal(r2.json().code, 'GUARD_UNAVAILABLE');
   assert.equal(noBinding.AI.calls.length + broken.AI.calls.length, 0);
@@ -512,9 +515,15 @@ test('v1 App Store build (no coachId): chat-v6 behaviour inside the anonymous ca
   assert.equal(env.AI.calls[0].input.messages[0].content, 'You are DateWise AI, a dating coach.');
   assert.equal((await v1({ messages: [{ role: 'user', content: 'again' }] })).res.status, 200);
   assert.equal((await v1({ messages: [{ role: 'user', content: 'third' }] })).json().code, 'DAILY_LIMIT');
-  const off = await send(makeEnv({ LEGACY_CLIENTS: '0' }), { body: { coachId: undefined } });
-  assert.equal(off.res.status, 426);
-  assert.equal(off.json().code, 'APP_UPDATE_REQUIRED');
+  // LEGACY_CLIENTS=0: v1 shows only a fixed text for a non-200 reply, so the
+  // update notice comes as a normal one-message reply that v1 displays. No model runs.
+  const offEnv = makeEnv({ LEGACY_CLIENTS: '0' });
+  const off = await send(offEnv, { body: { coachId: undefined } });
+  assert.equal(off.res.status, 200);
+  assert.equal(off.res.headers.get('X-DateWise-Code'), 'APP_UPDATE_REQUIRED');
+  assert.match(off.text, /update the app in the App Store/);
+  assert.match(off.text, /data: \[DONE\]/);
+  assert.equal(offEnv.AI.calls.length, 0);
 });
 
 test('v1 photo coach: works for the old build, reserved at worst case and settled with measured usage', async () => {
@@ -613,7 +622,7 @@ test('notifications: bundleId required, inner transaction checked, REFUND_REVERS
     return worker.fetch(new Request('https://example.workers.dev/apple/notifications', { method: 'POST', body: JSON.stringify({ signedPayload }) }), env, ctx());
   };
   const inner = async (over = {}) => pki.sign({ ...tx, revocationDate: Date.now() - 500, filler: pad, ...over });
-  const renewal = await pki.sign({ originalTransactionId: o, autoRenewStatus: 0, signedDate: Date.now() - 1000, filler: pad });
+  const renewal = await pki.sign({ originalTransactionId: o, autoRenewStatus: 0, signedDate: Date.now() - 1000, environment: 'Production', filler: pad });
   const full = { bundleId: tx.bundleId, environment: 'Production', signedTransactionInfo: await inner(), signedRenewalInfo: renewal };
   assert.ok(JSON.stringify(full).length > 16_000);
   // Missing or wrong bundleId, or an inner transaction from another app or environment: rejected.

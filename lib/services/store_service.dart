@@ -165,6 +165,8 @@ class AppStoreService extends StoreService {
     InAppPurchase? iap,
     this.restoreSettle = const Duration(seconds: 2),
     this.purchaseRereadDelay = const Duration(seconds: 1),
+    this.launchRereadDelay = const Duration(seconds: 1),
+    this.launchReadTimeout = const Duration(seconds: 4),
   })
       : _iap = iap ?? InAppPurchase.instance {
     EntitlementToken.refresher = refresh;
@@ -180,6 +182,15 @@ class AppStoreService extends StoreService {
   /// Pause before the second StoreKit re-read after a purchase the user
   /// started, when the first re-read failed.
   final Duration purchaseRereadDelay;
+
+  /// Pause before the second StoreKit entitlement read at launch, when the
+  /// first one failed or timed out (so a subscriber is not shown the paywall
+  /// because of one slow read).
+  final Duration launchRereadDelay;
+
+  /// Longest wait for one StoreKit entitlement read at launch (two reads and
+  /// the pause stay inside the 10-second launch limit).
+  final Duration launchReadTimeout;
 
   /// Set while an Android refresh waits for Play to re-deliver purchases.
   Completer<void>? _restoreWait;
@@ -224,9 +235,18 @@ class AppStoreService extends StoreService {
 
   Future<void> _init() async {
     try {
-      _available = await _iap.isAvailable();
+      try {
+        _available = await _iap.isAvailable();
+      } catch (_) {
+        _available = false;
+      }
       if (!_available) {
         _error = StoreError.storeUnavailable;
+        // iOS: purchases may be unavailable (Screen Time "In-App Purchases:
+        // Don't Allow", a StoreKit hiccup) while the subscription is still
+        // active. Transaction.currentEntitlements is local, so read it anyway:
+        // a subscriber keeps chat and sees no paywall.
+        if (_isIOS) await _readEntitlementAtLaunch();
         notifyListeners();
         return;
       }
@@ -234,18 +254,38 @@ class AppStoreService extends StoreService {
         _error = StoreError.purchaseFailed;
         _finishPending(PurchaseResult.failed);
       });
-      await _loadProduct();
-      // The entitlement is read even when the product could not be loaded:
-      // a subscriber keeps chat although the price is unavailable.
-      try {
-        await _refreshEntitlement();
-      } catch (_) {
-        _error ??= StoreError.storeUnreachable;
+      // The entitlement first (local on iOS), then the product (network): a
+      // slow product query can neither delay nor time out the subscriber's
+      // unlock, and a subscriber keeps chat although the price is unavailable.
+      if (_isIOS) {
+        await _readEntitlementAtLaunch();
+        await _loadProduct();
+      } else {
+        await _loadProduct();
+        try {
+          await _refreshEntitlement();
+        } catch (_) {
+          _error ??= StoreError.storeUnreachable;
+        }
       }
     } catch (_) {
       _error = StoreError.storeUnreachable;
     }
     notifyListeners();
+  }
+
+  /// Reads the iOS entitlement at launch, twice if the first read fails or
+  /// times out. If both fail the user sees the paywall with "Could not reach
+  /// the App Store" and Restore purchases; the next resume reads it again.
+  Future<void> _readEntitlementAtLaunch() async {
+    for (var attempt = 0; attempt < 2; attempt++) {
+      if (attempt > 0) await Future<void>.delayed(launchRereadDelay);
+      try {
+        await _refreshEntitlement().timeout(launchReadTimeout);
+        return;
+      } catch (_) {}
+    }
+    _error ??= StoreError.storeUnreachable;
   }
 
   /// Loads the subscription product (price, title). Failure leaves
@@ -255,7 +295,9 @@ class AppStoreService extends StoreService {
       final res = await _iap.queryProductDetails({StoreConfig.productId});
       if (res.productDetails.isNotEmpty) {
         _product = res.productDetails.first;
-        if (_error == StoreError.productUnavailable || _error == StoreError.storeUnreachable) _error = null;
+        // Only the product error is cleared: a failed entitlement read
+        // (storeUnreachable) still needs to be shown.
+        if (_error == StoreError.productUnavailable) _error = null;
       } else {
         _error = StoreError.productUnavailable;
       }
@@ -264,13 +306,52 @@ class AppStoreService extends StoreService {
     }
   }
 
+  /// Incremented by every entitlement read; only the newest read's result is
+  /// applied, so a slow, stale read that finishes late cannot overwrite a
+  /// newer state (for example a launch read finishing after a resume read).
+  int _entitlementGen = 0;
+
+  void _applyEntitlement(bool entitled) {
+    if (_entitled == entitled) return;
+    _entitled = entitled;
+    notifyListeners();
+  }
+
+  /// The newest read, which superseded callers wait for (see [_refreshEntitlement]).
+  Future<void>? _latestEntitlementRead;
+
+  /// Reads the entitlement. If a newer read starts while this one runs, this
+  /// one's result is discarded and the caller waits for the newest read
+  /// instead of returning early, so it always sees the newest state: a
+  /// purchase whose re-read overlaps a resume refresh is not reported as
+  /// failed. An error from a superseded read is ignored; the newest read's
+  /// error is what the caller gets.
   Future<void> _refreshEntitlement() async {
+    var gen = ++_entitlementGen;
+    var read = _latestEntitlementRead = _readEntitlement(gen);
+    while (true) {
+      try {
+        await read;
+      } catch (_) {
+        if (gen == _entitlementGen) rethrow;
+      }
+      if (gen == _entitlementGen) return;
+      gen = _entitlementGen;
+      read = _latestEntitlementRead!;
+    }
+  }
+
+  Future<void> _readEntitlement(int gen) async {
     if (_isIOS) {
       final current = await SK2Transaction.currentEntitlements();
-      final mine = current.where((t) => t.productId == StoreConfig.productId);
-      _entitled = mine.isNotEmpty;
-      // The signed transaction (JWS) the coach backend verifies; null when not entitled.
-      EntitlementToken.update(mine.isEmpty ? null : mine.first.receiptData);
+      if (gen != _entitlementGen) return; // a newer read started: its result wins (callers wait for it)
+      // Any other product id (for example an IAP created before v2) never
+      // unlocks chat; stray transactions are finished in [_onPurchases].
+      final mine = current.where((t) => t.productId == StoreConfig.productId).toList();
+      // The signed transaction (JWS) the coach backend verifies; null when not
+      // entitled. With more than one (rare), the latest-expiring one is sent.
+      EntitlementToken.update(mine.isEmpty ? null : latestExpiring(mine).receiptData);
+      _applyEntitlement(mine.isNotEmpty);
     } else {
       // Google Play re-delivers active purchases through purchaseStream.
       // Wait for that batch (or [restoreSettle]) and take the result as the
@@ -282,7 +363,7 @@ class AppStoreService extends StoreService {
       try {
         await _iap.restorePurchases();
         await wait.future.timeout(restoreSettle, onTimeout: () {});
-        _entitled = _restoreSeen;
+        if (gen == _entitlementGen) _applyEntitlement(_restoreSeen);
       } finally {
         if (identical(_restoreWait, wait)) _restoreWait = null;
       }
@@ -391,16 +472,39 @@ class AppStoreService extends StoreService {
     return result;
   }
 
+  /// The transaction with the latest expiration date (StoreKit 2 reports it
+  /// in milliseconds since the epoch; a missing date counts as oldest).
+  @visibleForTesting
+  static SK2Transaction latestExpiring(List<SK2Transaction> list) {
+    num expiry(SK2Transaction t) => num.tryParse(t.expirationDate ?? '') ?? -1;
+    return list.reduce((a, b) => expiry(b) > expiry(a) ? b : a);
+  }
+
   @override
   Future<bool> restore() async {
-    if (!_available) return false;
+    // iOS can read its local entitlements even when purchases are unavailable.
+    if (!_available && !_isIOS) return false;
     _busy = true;
     notifyListeners();
     try {
-      // iOS: AppStore.sync, then read currentEntitlements. Android: the
+      // iOS: AppStore.sync, then read currentEntitlements. A failed sync
+      // (offline, Apple ID sign-in canceled) does not hide a subscription
+      // StoreKit already holds, so the local read still happens. Android: the
       // refresh itself asks Play to re-deliver and waits for the result.
-      if (_isIOS) await _iap.restorePurchases();
+      var syncFailed = false;
+      if (_isIOS) {
+        try {
+          await _iap.restorePurchases();
+        } catch (_) {
+          syncFailed = true;
+        }
+      }
       await _refreshEntitlement();
+      if (_entitled) {
+        _error = null;
+      } else if (syncFailed) {
+        _error = StoreError.restoreFailed;
+      }
     } catch (_) {
       _error = StoreError.restoreFailed;
     }
@@ -417,16 +521,19 @@ class AppStoreService extends StoreService {
       try {
         _available = await _iap.isAvailable().timeout(const Duration(seconds: 10));
       } catch (_) {
+        _available = false;
+      }
+      if (_available) {
+        _error = null;
+        _sub ??= _iap.purchaseStream.listen(_onPurchases, onError: (Object e) {
+          _error = StoreError.purchaseFailed;
+          _finishPending(PurchaseResult.failed);
+        });
+      } else if (!_isIOS) {
         return;
       }
-      if (!_available) return;
-      _error = null;
-      _sub ??= _iap.purchaseStream.listen(_onPurchases, onError: (Object e) {
-        _error = StoreError.purchaseFailed;
-        _finishPending(PurchaseResult.failed);
-      });
     }
-    if (_product == null) {
+    if (_available && _product == null) {
       try {
         await _loadProduct().timeout(const Duration(seconds: 10));
       } catch (_) {}

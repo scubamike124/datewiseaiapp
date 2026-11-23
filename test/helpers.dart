@@ -16,11 +16,12 @@ import 'package:datewise_ai/state/app_state.dart';
 import 'package:datewise_ai/theme/app_theme.dart';
 
 /// Logical sizes every screen must fit: iPhone SE, iPhone 15/16,
-/// iPhone Pro Max, and a desktop browser window.
+/// iPhone Pro Max, iPad 13" (portrait) and a desktop browser window.
 const sizes = {
   '375x667': Size(375, 667),
   '390x844': Size(390, 844),
   '430x932': Size(430, 932),
+  '1032x1376': Size(1032, 1376),
   '1280x800': Size(1280, 800),
 };
 

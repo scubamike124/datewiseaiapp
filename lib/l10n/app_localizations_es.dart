@@ -509,7 +509,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get paywallWebOnly =>
-      'Suscríbete desde la app para iPhone. Las compras no están disponibles en la web.';
+      'Suscríbete desde la app en tu iPhone o iPad. Las compras no están disponibles en la web.';
 
   @override
   String get purchasePending =>
@@ -732,7 +732,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get memoryTurnOnBody =>
-      'Tu nota solo se guarda mientras la memoria del coach está activada. Entonces se enviará a tu coach con cada mensaje.';
+      'Tu nota solo se guarda mientras la memoria del coach está activada. Mientras esté activada, se enviará a tu coach con cada mensaje.';
 
   @override
   String get memoryTurnOnAction => 'Activar y guardar';
@@ -826,11 +826,11 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get coachLimitDaily =>
-      'Llegaste al límite de coaching de hoy. Se renueva a la medianoche (UTC).';
+      'Llegaste al límite de coaching de hoy. Se restablece a la medianoche (UTC).';
 
   @override
   String get coachLimitMonthly =>
-      'Llegaste al límite de uso justo de este mes. Se renueva el día 1.';
+      'Llegaste al límite de uso justo de este mes. Se restablece el día 1.';
 
   @override
   String get coachLimitSlowDown =>
@@ -838,7 +838,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get coachLimitBusy =>
-      'El coaching está muy ocupado en este momento. Inténtalo más tarde.';
+      'Hay mucha demanda de coaching en este momento. Inténtalo más tarde.';
 
   @override
   String get coachLimitSubscriptionInactive =>

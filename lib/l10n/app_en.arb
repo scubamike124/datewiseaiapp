@@ -372,7 +372,7 @@
       }
     }
   },
-  "paywallWebOnly": "Subscribe in the iPhone app. Purchases are not available on the web.",
+  "paywallWebOnly": "Subscribe in the app on your iPhone or iPad. Purchases are not available on the web.",
   "purchasePending": "Your purchase is pending approval. Chat unlocks as soon as it is approved.",
   "purchaseFailed": "Purchase failed. Please try again.",
   "purchasesUnavailable": "Purchases are not available right now.",
@@ -506,7 +506,7 @@
   "memoryOffTitle": "Turn off Coach memory?",
   "memoryOffBody": "Your note will be deleted from this device, and coaches will only see the current conversation.",
   "memoryTurnOnTitle": "Turn on Coach memory?",
-  "memoryTurnOnBody": "Your note is kept only while Coach memory is on. It will then be sent to your coach with each message.",
+  "memoryTurnOnBody": "Your note is kept only while Coach memory is on. While it is on, it is sent to your coach with each message.",
   "memoryTurnOnAction": "Turn on & save",
   "@memoryTurnOnAction": {
     "description": "Confirm button when saving a Coach memory note while memory is off: turns memory on and saves."

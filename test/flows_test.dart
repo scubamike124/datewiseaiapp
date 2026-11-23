@@ -131,9 +131,9 @@ void main() {
     expect(find.byKey(const ValueKey('composer')), findsOneWidget);
   });
 
-  testWidgets('web build without purchases says to subscribe in the iPhone app', (tester) async {
+  testWidgets('web build without purchases says to subscribe in the iPhone or iPad app', (tester) async {
     await pumpApp(tester, prefs: onboardedPrefs(), store: UnsupportedStoreService());
-    expect(find.text('Subscribe in the iPhone app. Purchases are not available on the web.'), findsOneWidget);
+    expect(find.text('Subscribe in the app on your iPhone or iPad. Purchases are not available on the web.'), findsOneWidget);
     expect(find.byKey(const ValueKey('paywall-subscribe')), findsNothing);
   });
 

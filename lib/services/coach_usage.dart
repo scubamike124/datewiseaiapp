@@ -52,6 +52,11 @@ class CoachLimitCode {
   /// Codes that an immediate retry cannot fix, so the chat offers none:
   /// the daily and monthly caps, a refunded purchase and an outdated app.
   static const noInstantRetry = {dailyLimit, monthlyLimit, subscriptionRevoked, appUpdateRequired};
+
+  /// Codes whose chat notice also offers the paywall (Subscribe and Restore
+  /// purchases): the subscription is not active, was refunded or revoked, or
+  /// could not be confirmed.
+  static const paywallAction = {subscriptionExpired, subscriptionRequired, subscriptionRevoked, subscriptionInvalid};
 }
 
 /// The fair-use state reported with the last successful reply.

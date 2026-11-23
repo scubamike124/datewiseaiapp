@@ -19,7 +19,9 @@ class WelcomeScreen extends StatelessWidget {
     final size = MediaQuery.sizeOf(context);
     final top = MediaQuery.paddingOf(context).top;
     final bottom = MediaQuery.paddingOf(context).bottom;
-    final heroHeight = (size.height * (size.height < 760 ? 0.42 : 0.5)).clamp(260.0, 500.0);
+    // iPad: the portrait may grow taller, so the page is not half empty.
+    final heroHeight = (size.height * (size.height < 760 ? 0.42 : 0.5))
+        .clamp(260.0, isTabletLayout(context) ? 680.0 : 500.0);
 
     return Scaffold(
       key: const ValueKey('welcome'),
@@ -34,7 +36,20 @@ class WelcomeScreen extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    CoachImage(coach: coach, semanticLabel: l.welcomePortrait(coach.name)),
+                    // Wider than the column (iPad): the portrait's sides fade
+                    // into the page instead of ending in hard edges.
+                    if (size.width > kContentMaxWidth)
+                      ShaderMask(
+                        key: const ValueKey('welcome-hero-side-fade'),
+                        blendMode: BlendMode.dstIn,
+                        shaderCallback: (rect) => const LinearGradient(
+                          colors: [Color(0x00000000), Color(0xFF000000), Color(0xFF000000), Color(0x00000000)],
+                          stops: [0, 0.14, 0.86, 1],
+                        ).createShader(rect),
+                        child: CoachImage(coach: coach, semanticLabel: l.welcomePortrait(coach.name)),
+                      )
+                    else
+                      CoachImage(coach: coach, semanticLabel: l.welcomePortrait(coach.name)),
                     const DecoratedBox(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(

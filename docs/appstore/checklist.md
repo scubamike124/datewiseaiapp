@@ -12,8 +12,10 @@ TestFlight builds are 101 and up, see step 19).
 **Still open for the owner** (details in the numbered steps):
 - Interim coach portraits: the current `assets/coaches/` images are interim;
   replace them with the final, licensed portraits and record them (step 10).
-- iPad 13" screenshots: required because the app supports iPad; generate and
-  review them, then upload with the iPhone sets (steps 11 and 24).
+- iPad 13" screenshots (2064x2752) are generated in
+  `docs/appstore/screenshots/{en,es}/ipad-13/`; review them and upload them
+  with the iPhone sets (steps 11 and 24). Regenerate after replacing the
+  portraits.
 - Live legal and support URLs: deploy the website so
   `https://datewiseai.com/privacy-policy` and `/terms-of-service` show the v2
   pages (served by `web/_redirects` on Netlify or `web/.htaccess` on Apache),
@@ -54,15 +56,21 @@ TestFlight builds are 101 and up, see step 19).
 11. Regenerate the screenshots (one command, needs Flutter, Python 3, Node):
     ```bash
     (cd tool/appstore_screenshots && npm install && npx playwright install chromium)
-    tool/appstore_screenshots/generate.sh            # builds web, writes docs/appstore/screenshots/
-    tool/appstore_screenshots/generate.sh --skip-build --sizes 13   # iPad 13" set
+    tool/appstore_screenshots/generate.sh   # builds web, writes every set to docs/appstore/screenshots/
+    tool/appstore_screenshots/generate.sh --skip-build --sizes ipad-13   # only the iPad 13" set
     ```
-    Review every image. Apple requires iPad screenshots too, because the app
-    supports iPad (`TARGETED_DEVICE_FAMILY = 1,2`; removing iPad support from
-    an app that already shipped on iPad is not allowed).
+    It writes iPhone 6.9" (1320x2868), iPhone 6.5" (1284x2778) and iPad 13"
+    (2064x2752) sets in English and Spanish. Review every image. Apple
+    requires the iPad set because the app supports iPad
+    (`TARGETED_DEVICE_FAMILY = 1,2`; removing iPad support from an app that
+    already shipped on iPad is not allowed).
 
 ## 4. App Store Connect: subscription product
 
+11a. **Before creating anything:** Monetization › Subscriptions and In-App
+    Purchases. Write down every existing product id and its status. If one was
+    ever approved and sold, stop and follow `docs/qa/SUBSCRIPTION_RESILIENCE.md`
+    §5 (its subscribers do not move to a new id). Product ids can never be reused.
 12. Monetization › Subscriptions › create group **DateWise Premium**, then the
     subscription `datewise_premium_monthly` exactly as in `metadata.md` §5
     (1 month, USD 9.99, no introductory offer, EN + ES localizations).
@@ -75,6 +83,12 @@ TestFlight builds are 101 and up, see step 19).
     succeeds). If you turn grace on, set `BILLING_GRACE_DAYS` to the same
     number of days (3, 16 or 28) and redeploy the Worker before release, or
     subscribers in grace would be refused.
+13a. **App Store Server Notifications (recommended):** App Information › App
+    Store Server Notifications › Production and Sandbox Server URL =
+    `https://<worker-host>/apple/notifications`, Version 2, then
+    `ASSN_ENABLED = "1"` (`docs/appstore/ASSN_SETUP.md`). With it, refunds take
+    effect at once and Apple's grace period is followed even if
+    `BILLING_GRACE_DAYS` is not matched.
 14. Status should become "Ready to Submit". It is submitted together with the
     2.0.0 version (step 26), not on its own.
 15. Optional: create a **Sandbox Apple Account** (Users and Access › Sandbox)
@@ -153,7 +167,8 @@ to 100 + the run number so each upload is unique.
 ## 9. Store listing and submit
 
 24. Version 2.0.0 page: paste metadata (EN + ES) from `metadata.md` §1,
-    upload screenshots (6.9", 6.5", iPad 13") for each language.
+    upload screenshots for each language: `6.9` (iPhone 6.9"), optionally
+    `6.5`, and `ipad-13` (iPad 13" display).
 25. App Information: category Lifestyle, age rating questionnaire (§2, target
     18+), App Privacy answers (§3), privacy policy URL.
 26. Version page: select build 2.0.0 (100, or the CI build you tested in

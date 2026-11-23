@@ -1,4 +1,4 @@
-// Every screen at iPhone SE, iPhone 15/16, Pro Max and desktop sizes, at
+// Every screen at iPhone SE, iPhone 15/16, Pro Max, iPad 13" and desktop sizes, at
 // text scale 1.0 and 1.3 (Dynamic Type). Any RenderFlex overflow or other
 // layout exception fails the test.
 

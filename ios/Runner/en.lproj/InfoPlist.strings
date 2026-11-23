@@ -1,4 +1,4 @@
 /* English usage strings (same text as Info.plist). */
 "CFBundleDisplayName" = "DateWise AI";
 "NSMicrophoneUsageDescription" = "DateWise AI uses the microphone only while you hold the talk button (or, with VoiceOver, until you tap it again) so you can talk with your AI coach.";
-"NSSpeechRecognitionUsageDescription" = "DateWise AI turns what you say into text on your iPhone so it can be sent to your AI coach as a message.";
+"NSSpeechRecognitionUsageDescription" = "DateWise AI turns what you say into text on your device so it can be sent to your AI coach as a message.";

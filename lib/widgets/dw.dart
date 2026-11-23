@@ -12,8 +12,18 @@ bool reduceMotion(BuildContext context) =>
 /// [d], or zero when [reduceMotion] is on.
 Duration motion(BuildContext context, Duration d) => reduceMotion(context) ? Duration.zero : d;
 
-/// Max content width, so phone layouts stay readable on iPad / desktop.
-const double kContentMaxWidth = 560;
+/// Max content width, so phone layouts stay readable on iPad / desktop:
+/// about 75 characters of body text. Phones (at most 440 points wide) never
+/// reach it.
+const double kContentMaxWidth = 640;
+
+/// Wider column for the picture-led screens (Coaches, Home) on iPad, so
+/// their cards fill the screen instead of floating in a phone-sized strip.
+const double kWideContentMaxWidth = 760;
+
+/// iPad-sized window (shortest side at least 600 points): every iPad in
+/// either orientation, and a desktop browser window. Never an iPhone.
+bool isTabletLayout(BuildContext context) => MediaQuery.sizeOf(context).shortestSide >= 600;
 
 /// Centers [child] and caps its width at [kContentMaxWidth].
 class ContentWidth extends StatelessWidget {
