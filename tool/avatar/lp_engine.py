@@ -26,12 +26,17 @@ torch.set_num_threads(max(1, os.cpu_count() or 4))
 
 
 def yunet_5pt(img_bgr):
+    # YuNet misses very large faces (a 1024 px face in a 2400 px portrait):
+    # detect on a copy at most 1280 px, then map the box and points back.
     h, w = img_bgr.shape[:2]
-    det = cv2.FaceDetectorYN.create(YUNET, "", (w, h), 0.8, 0.3, 5000)
-    _, f = det.detect(img_bgr)
+    scale = min(1.0, 1280 / max(h, w))
+    small = img_bgr if scale == 1.0 else cv2.resize(img_bgr, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+    det = cv2.FaceDetectorYN.create(YUNET, "", (small.shape[1], small.shape[0]), 0.8, 0.3, 5000)
+    _, f = det.detect(small)
     if f is None or len(f) == 0:
         raise RuntimeError("no face found")
-    f = max(f, key=lambda x: x[2] * x[3])
+    f = max(f, key=lambda x: x[2] * x[3]).copy()
+    f[:14] /= scale
     # YuNet order: right eye (image left), left eye, nose, right mouth corner, left mouth corner
     return f[4:14].reshape(5, 2).astype(np.float32), f
 

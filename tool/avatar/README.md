@@ -23,8 +23,13 @@ loading by default). `regenerate.sh` exits non-zero if any frame fails the
 identity or eye-colour gate, and writes review sheets to
 `build/avatar-review/`. Look at the sheets before committing.
 
+Frames are made on the portrait scaled to at most 1080 px wide
+(`--max-width`); the app decodes the portrait at that size on the voice stage,
+so a large final portrait does not raise its memory use (the test keeps it
+under 20 MB per coach). `manifest.json` records both sizes.
+
 If a portrait changes and the frames are **not** regenerated, the app notices
-(the portrait's pixel size no longer matches `manifest.json`) and falls back
+(the portrait file's pixel size no longer matches `manifest.json`) and falls back
 to the still portrait. A same-size replacement is not detected, so always
 regenerate.
 
@@ -58,6 +63,17 @@ pixels on the mouth than LivePortrait's default 2.3x), then:
    Outside the mask the pixels are the original ones. Only the mask's
    bounding box is saved (JPEG q88).
 
+Mouth-shape settings (`VISEMES` in `gen_frames.py`) assume a master with
+closed, relaxed lips (the candidate final portraits). The earlier values
+were tuned against a broad toothy smile (negative smile, strong purse) and
+turned O and U into a pout on a neutral mouth; if a master with a smile is
+ever used again, re-check the review sheets.
+
+Large portraits: YuNet misses faces of roughly 700 px and up, so
+`lp_engine.py` and `verify.py` detect on a copy at most 1280 px on the long
+side and map the box and points back (detection only; the frames are
+rendered from the full-size portrait).
+
 ## Gate (verify.py)
 
 Every frame must pass, or it is not written:
@@ -69,6 +85,10 @@ Every frame must pass, or it is not written:
 * iris colour (CIELAB chroma/lightness of each iris) within 5 / 15 of the
   portrait's; a brown-to-blue or brown-to-green recolour is rejected
   (checked with a synthetic recolour test). Not applied to blink frames.
+  The iris is sampled at the master's eye points: YuNet's points can jump
+  20-30 px on an open-mouth frame, which sampled lids instead of the iris
+  and flagged unchanged eye pixels. The gaze frame, which moves the irises,
+  is sampled at its own points.
 
 No face restoration (GFPGAN, CodeFormer) is used anywhere.
 

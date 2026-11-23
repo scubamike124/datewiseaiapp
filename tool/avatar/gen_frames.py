@@ -31,22 +31,25 @@ COACHES = ["ava", "ethan", "sofia", "diego"]
 # `rest` has no patch: it is the approved portrait itself. Vowels have a full
 # (stressed) and a half (unstressed) opening.
 VISEMES = {
-    "mbp": dict(lip=0.0, smile=-0.1),               # M, B, P: lips pressed
-    "a": dict(lip=0.48),                            # A (father, casa), stressed; open, not a shout
-    "a2": dict(lip=0.34),                           # A, unstressed / half open
-    "e": dict(lip=0.3, grin=8),                     # E (bed, mesa)
-    "e2": dict(lip=0.17, grin=6),
-    "i": dict(lip=0.15, grin=10),                   # I (see, sí)
-    "i2": dict(lip=0.07, grin=8),
-    "o": dict(lip=0.32, smile=-0.45, purse=14),     # O (go, oso): rounded, not a toothy grimace
-    "o2": dict(lip=0.27, smile=-0.3, purse=8),
-    "u": dict(lip=0.12, smile=-0.3, purse=15),      # U / W (you, luna)
-    "u2": dict(lip=0.05, smile=-0.3, purse=18),
-    "fv": dict(lip=0.05, purse=5),                  # F, V
-    "l": dict(lip=0.35, smile=-0.1),                # L
-    "th": dict(lip=0.2),                            # TH (and Spanish soft d)
-    "cons": dict(lip=0.18, grin=4),                 # T D N S K G R ...
-    "sh": dict(lip=0.16, smile=-0.25, purse=6),     # SH CH J (lips forward)
+    # Tuned for masters with closed, relaxed lips (the candidate finals). The
+    # earlier values compensated for a broad toothy smile in the source
+    # (smile < 0, strong purse); on a neutral mouth they made O/U a pout.
+    "mbp": dict(lip=0.0, smile=-0.05),              # M, B, P: lips pressed
+    "a": dict(lip=0.6, smile=0.15),                 # A (father, casa), stressed: jaw open, not a shout
+    "a2": dict(lip=0.42, smile=0.1),                # A, unstressed / half open
+    "e": dict(lip=0.32, grin=4, smile=0.2),         # E (bed, mesa)
+    "e2": dict(lip=0.2, grin=3, smile=0.1),
+    "i": dict(lip=0.14, grin=6),                    # I (see, si)
+    "i2": dict(lip=0.07, grin=4),
+    "o": dict(lip=0.38, smile=-0.1, purse=6),       # O (go, oso): rounded and open
+    "o2": dict(lip=0.3, smile=-0.05, purse=4),
+    "u": dict(lip=0.14, smile=-0.1, purse=8),       # U / W (you, luna)
+    "u2": dict(lip=0.07, smile=-0.1, purse=9),
+    "fv": dict(lip=0.05, purse=2),                  # F, V
+    "l": dict(lip=0.38),                            # L
+    "th": dict(lip=0.22),                           # TH (and Spanish soft d)
+    "cons": dict(lip=0.2, grin=2),                  # T D N S K G R ...
+    "sh": dict(lip=0.16, smile=-0.1, purse=3),      # SH CH J (lips forward)
 }
 # Eye patches: two blink stages and the thinking glance (eyes up and aside).
 # Head motion (nods, tilts) is a whole-image transform in the app, not a
@@ -184,6 +187,8 @@ def main():
     ap.add_argument("--review", default=None, help="also write full frames and a contact sheet here")
     ap.add_argument("--coaches", default=",".join(COACHES))
     ap.add_argument("--quality", type=int, default=88)
+    ap.add_argument("--max-width", type=int, default=1080,
+                    help="frames are made on the portrait scaled to at most this width (decoded-memory budget)")
     ap.add_argument("--crop-scale", type=float, default=1.9,
                     help="LivePortrait crop size relative to the face (smaller = more pixels on the mouth)")
     args = ap.parse_args()
@@ -201,6 +206,12 @@ def main():
         bgr = cv2.imread(src)
         if bgr is None:
             sys.exit(f"missing portrait {src}")
+        src_h, src_w = bgr.shape[:2]
+        if bgr.shape[1] > args.max_width:
+            # The app decodes the portrait at the manifest size (lib/avatar/avatar_frames.dart),
+            # so a large final portrait costs no more memory on the voice stage than this.
+            h = round(bgr.shape[0] * args.max_width / bgr.shape[1])
+            bgr = cv2.resize(bgr, (args.max_width, h), interpolation=cv2.INTER_AREA)
         rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
         st = eng.prepare(rgb)
         reg = regions(st["face"], rgb.shape, st["lmk203"])
@@ -215,6 +226,8 @@ def main():
             "source": os.path.basename(src),
             "width": rgb.shape[1],
             "height": rgb.shape[0],
+            "source_width": src_w,
+            "source_height": src_h,
             "generator": "LivePortrait (MIT) + YuNet (MIT); tool/avatar/gen_frames.py",
             "crop_scale": args.crop_scale,
             "frames": {},
@@ -237,7 +250,8 @@ def main():
             full = match_detail(full, rgb, mask)
             comp = blend(rgb, full, mask)
             comp_bgr = cv2.cvtColor(comp, cv2.COLOR_RGB2BGR)
-            res = verify.check_frame(comp_bgr, coach, refs, master, eyes_closed=name.startswith("blink"))
+            res = verify.check_frame(comp_bgr, coach, refs, master, eyes_closed=name.startswith("blink"),
+                                     eyes_moved=name == "gaze")
             res["frame"] = name
             if not res["ok"]:
                 failures.append(f"{coach}/{name}: {'; '.join(res['notes'])}")

@@ -159,6 +159,24 @@ void main() {
       expect(maxDy, greaterThan(2));
     });
 
+    test('a stressed open vowel gets an emphasis nod of up to 2.8 px with a slight tilt, within the limits', () {
+      final a = AvatarAnimator(seed: 3);
+      // Speaking already (no phrase-start nod), then a stressed A.
+      for (var t = 0.0; t < 2; t += 1 / 60) {
+        a.frame(t, AvatarMood.speaking, const VisemeSample(Viseme.e2, Viseme.e2, 1));
+      }
+      var maxDy = 0.0, maxRot = 0.0;
+      for (var t = 2.0; t < 2.4; t += 1 / 60) {
+        final p = a.frame(t, AvatarMood.speaking, const VisemeSample(Viseme.e2, Viseme.a, 1));
+        maxDy = math.max(maxDy, p.dy);
+        maxRot = math.max(maxRot, p.rotation.abs());
+        expect(p.dy.abs(), lessThanOrEqualTo(AvatarPose.maxDy));
+        expect(p.rotation.abs(), lessThanOrEqualTo(AvatarPose.maxRotation));
+      }
+      expect(maxDy, greaterThan(2.2), reason: 'a visible emphasis nod (2.8 px plus breathing)');
+      expect(maxRot, greaterThan(0.004), reason: 'with a slight tilt');
+    });
+
     test('the first blink comes at a random moment between 1.5 and 4 s', () {
       final firsts = <double>{};
       for (var seed = 0; seed < 20; seed++) {
