@@ -129,7 +129,10 @@ class DwButton extends StatelessWidget {
           Padding(padding: const EdgeInsets.only(left: 6), child: Icon(trailing, size: fontSize + 2, color: fg)),
       ],
     );
+    // Its own semantics node (container): next to a text, as in a failed
+    // reply's notice + "Try again", the text is not merged into the button.
     return Semantics(
+      container: true,
       button: true,
       enabled: enabled,
       child: Opacity(
