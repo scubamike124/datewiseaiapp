@@ -20,7 +20,9 @@ class AppColors {
   static const goldInk = Color(0xFF1C120D);
   static const rose = Color(0xFFE2899E);
   static const roseDeep = Color(0xFF8E3550);
-  static const roseTop = Color(0xFFC4587A);
+  // Darkened from #C4587A so the 12.5pt "Chat with …" label (roseInk) is
+  // at least 4.5:1 across the whole gradient, top included.
+  static const roseTop = Color(0xFFBE466C);
   static const roseBottom = Color(0xFFA23E5F);
   static const roseInk = Color(0xFFFFF4F6);
   static const ok = Color(0xFF8CC9A3);
