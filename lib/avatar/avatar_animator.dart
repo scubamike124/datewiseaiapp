@@ -69,7 +69,10 @@ class AvatarPose {
 class AvatarAnimator {
   /// [seed] decides the blink and nod schedule. The app seeds it per coach
   /// and session, so the coaches never blink in unison or repeat a pattern.
-  AvatarAnimator({required int seed}) : _rng = math.Random(seed);
+  AvatarAnimator({required int seed}) : _rng = math.Random(seed) {
+    // The first blink comes at a random moment, not at a fixed time.
+    _nextBlink = 1.5 + _rng.nextDouble() * 2.5;
+  }
 
   final math.Random _rng;
   double _nextBlink = 2.2;
@@ -145,6 +148,9 @@ class AvatarAnimator {
         // Emphasis on a stressed open vowel.
         _gesture(t, 0.3, 2.0, 0);
         _lastEmphasis = t;
+      } else if (!rest && (mouth.to == Viseme.e || mouth.to == Viseme.o) && t - _gestureStart > 0.7) {
+        // A small tilt on other stressed vowels (about 0.4 degrees).
+        _gesture(t, 0.35, 1.0, (_rng.nextBool() ? 1 : -1) * 0.007);
       }
       _wasRest = rest;
     } else {

@@ -159,6 +159,21 @@ void main() {
       expect(maxDy, greaterThan(2));
     });
 
+    test('the first blink comes at a random moment between 1.5 and 4 s', () {
+      final firsts = <double>{};
+      for (var seed = 0; seed < 20; seed++) {
+        final a = AvatarAnimator(seed: seed);
+        for (var t = 0.0; t < 6; t += 1 / 60) {
+          if (a.frame(t, AvatarMood.idle, VisemeSample.rest).layers.any((l) => l.patch.startsWith('blink'))) {
+            expect(t, inInclusiveRange(1.5, 4.05));
+            firsts.add((t * 10).roundToDouble());
+            break;
+          }
+        }
+      }
+      expect(firsts.length, greaterThan(5), reason: 'not a fixed time');
+    });
+
     test('never more than a double blink; blink schedules differ by seed', () {
       for (final seed in [1, 7, 42, 'ava'.hashCode, 'sofia'.hashCode]) {
         final a = AvatarAnimator(seed: seed);

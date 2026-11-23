@@ -87,8 +87,13 @@ class VisemeTimeline {
   /// Openness jump above which a transition goes through a middle shape.
   static const double bridgeJump = 0.4;
 
-  /// Length of that middle shape, seconds.
-  static const double bridgeLength = 0.035;
+  /// Length of that middle shape, seconds: at least two frames at 60 Hz,
+  /// so it is never a one-frame flicker.
+  static const double bridgeLength = 0.034;
+
+  /// A middle shape is only inserted if the shape after it still lasts this
+  /// long; otherwise the change is a plain switch.
+  static const double minAfterBridge = 0.05;
 
   static double lettersPerSecond(double rate) => lettersPerSecondAtHalfRate * (rate.clamp(0.1, 1.0) / 0.5);
 
@@ -218,7 +223,10 @@ class VisemeTimeline {
           steps.add(mid);
           cur = mid;
         }
-        final len = math.min(bridgeLength, c.duration / 3);
+        const len = bridgeLength;
+        while (steps.isNotEmpty && c.duration - steps.length * len < minAfterBridge) {
+          steps.removeLast();
+        }
         var t = c.start;
         for (final m in steps) {
           out.add(VisemeCue(m, t, t + len));
@@ -380,11 +388,12 @@ class LipSyncDriver extends ChangeNotifier {
 
   double get _audioTime => _now - _startNow;
 
-  /// Audio started.
-  void started() {
+  /// Audio started. [latency]: how much later than now it is heard (the
+  /// native path reports the output route's latency).
+  void started({double latency = 0}) {
     if (_timeline == null) return;
     _anchorPlan = 0;
-    _anchorNow = _now;
+    _anchorNow = _now + latency;
     _startNow = _anchorNow;
     if (!_active) {
       _active = true;
@@ -462,8 +471,13 @@ class LipSyncDriver extends ChangeNotifier {
     final a = _audio;
     if (a == null || !a.hasLevels) return _timeline!.sample(t + VisemeTimeline.lead);
     final s = _timeline!.sample(t + audioLead);
-    final lvl = a.level(_audioTime + audioLead);
+    final at = _audioTime + audioLead;
+    final lvl = a.level(at);
+    // Lip closures sit on the dips of the loudness (closed lips silence the
+    // voice); a planned closure that missed its dip shows parted lips.
+    if (a.inClosure(at)) return const VisemeSample(Viseme.mbp, Viseme.mbp, 1);
     Viseme pick(Viseme v) {
+      if (v == Viseme.mbp) return Viseme.i2;
       // Never the still resting face while the audio is audible.
       if (v == Viseme.rest) return lvl > audibleLevel ? Viseme.cons : v;
       if (!v.isVowel) return v;
@@ -495,7 +509,9 @@ class LipSyncDriver extends ChangeNotifier {
     if (t == null || tl == null) return 0;
     final a = _audio;
     if (a != null && a.hasLevels) {
-      final lvl = a.level(_audioTime + audioLead);
+      final at = _audioTime + audioLead;
+      if (a.inClosure(at)) return 0;
+      final lvl = a.level(at);
       return ((lvl - 0.08) / 0.75).clamp(0.0, 1.0);
     }
     return tl.jawAt(t + VisemeTimeline.lead);

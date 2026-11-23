@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 // Talking avatar: spelling-to-mouth-shape rules (EN/ES), the timeline, and
 // the driver that follows the synthesizer's word events.
 
@@ -101,7 +103,8 @@ void main() {
           final a = tl.cues[i - 1], b = tl.cues[i];
           expect(b.start, closeTo(a.end, 1e-9));
           // Crossfaded (open-to-open) transitions stay small; closed lips snap.
-          if (b.viseme != Viseme.rest && a.viseme != Viseme.rest && !a.viseme.closed && !b.viseme.closed && b.duration > 0.07) {
+          if (b.viseme != Viseme.rest && a.viseme != Viseme.rest && !a.viseme.closed && !b.viseme.closed &&
+              b.duration >= VisemeTimeline.bridgeLength + VisemeTimeline.minAfterBridge) {
             expect((a.viseme.openness - b.viseme.openness).abs(), lessThanOrEqualTo(0.6),
                 reason: 'big jumps go through a middle shape: $a -> $b');
           }
@@ -136,6 +139,8 @@ void main() {
         final tl = VisemeTimeline.plan(e.key == CoachLanguage.en ? e.value : e.value, e.key, rate: 0.5);
         for (var i = 1; i < tl.cues.length; i++) {
           final a = tl.cues[i - 1].viseme, b = tl.cues[i].viseme;
+          // Too short to fit a middle shape of two frames: a plain switch.
+          if (tl.cues[i].duration < VisemeTimeline.bridgeLength + VisemeTimeline.minAfterBridge) continue;
           if (a.closed != b.closed) {
             final open = a.closed ? b : a;
             expect(open == Viseme.rest || open.openness > 0.3, isFalse,
@@ -169,8 +174,13 @@ void main() {
       const text = 'Be clear about it';
       final tl = VisemeTimeline.fromTimedWords(text, CoachLanguage.en, [(0, 2, 0.1, 0.3), (3, 8, 0.35, 0.8), (9, 14, 0.9, 1.3), (15, 17, 1.35, 1.5)]);
       expect(tl.words.map((w) => w.start), [0.1, 0.35, 0.9, 1.35]);
-      expect(tl.sample(0.1 + 0.01).to, Viseme.i2, reason: 'from the smiling rest, lips part slightly first');
-      expect(tl.sample(0.1 + 0.06).to, Viseme.mbp);
+      expect(tl.sample(0.1 + 0.01).to, anyOf(Viseme.i2, Viseme.mbp));
+      final long = VisemeTimeline.fromTimedWords('Mmm', CoachLanguage.en, [(0, 3, 0.1, 0.5)]);
+      expect(long.sample(0.1 + 0.01).to, Viseme.i2, reason: 'from the smiling rest, lips part slightly first');
+      expect(long.sample(0.1 + 0.06).to, Viseme.mbp);
+      for (final c in long.cues.where((c) => c.viseme == Viseme.i2)) {
+        expect(c.duration, greaterThanOrEqualTo(0.033), reason: 'no one-frame flicker');
+      }
       expect(tl.sample(0.05).viseme, Viseme.rest);
       const es2 = 'gran paso';
       final t2 = VisemeTimeline.fromTimedWords(es2, CoachLanguage.es, [(0, 4, 0, 0.3), (5, 9, 0.3, 0.7)]);
@@ -336,6 +346,55 @@ void main() {
       a.complete();
       expect(sw.elapsedMilliseconds, lessThan(3000));
       expect(a.planTime(60), isNotNull);
+    });
+
+    test('levels arriving in 100 ms chunks: each call stays cheap (UI isolate)', () {
+      final text = List.filled(12, 'Esta es una frase de prueba, con pausas y palabras largas.').join(' ');
+      final tl = VisemeTimeline.plan(text, CoachLanguage.es);
+      final a = AudioAlignment(tl);
+      final n = (tl.duration / 0.01).ceil();
+      final all = [for (var i = 0; i < n; i++) (i ~/ 25).isEven ? 0.5 : 0.0];
+      var worst = 0;
+      for (var i = 0; i < n; i += 10) {
+        final sw = Stopwatch()..start();
+        a.addLevels(i * 0.01, 0.01, all.sublist(i, math.min(n, i + 10)));
+        worst = math.max(worst, sw.elapsedMicroseconds);
+      }
+      final sw = Stopwatch()..start();
+      a.complete();
+      worst = math.max(worst, sw.elapsedMicroseconds);
+      // Debug-mode test VM; release builds are several times faster.
+      // ignore: avoid_print
+      print('AudioAlignment worst call: ${(worst / 1000).toStringAsFixed(1)} ms (${tl.duration.toStringAsFixed(0)} s reply)');
+      expect(worst, lessThan(150000), reason: 'worst call ${worst ~/ 1000} ms');
+    });
+
+    test('lip closures snap to the nearest loudness dip (within 120 ms)', () {
+      const text = 'mamá';
+      final tl = VisemeTimeline.fromTimedWords(text, CoachLanguage.es, [(0, 4, 0.0, 0.8)]);
+      final a = AudioAlignment(tl);
+      // Loud, with dips at 0.05 s and 0.40 s (the two m's), 0.8 s long.
+      a.addLevels(0, 0.01, [for (var i = 0; i < 80; i++) (i - 5).abs() < 3 || (i - 40).abs() < 3 ? 0.02 : 0.5]);
+      a.complete();
+      final cl = a.closures();
+      expect(cl, hasLength(tl.cues.where((c) => c.viseme == Viseme.mbp).length));
+      for (final (s0, e0) in cl) {
+        final mid = (s0 + e0) / 2;
+        expect([0.05, 0.40].any((d) => (mid - d).abs() <= 0.03), isTrue, reason: 'closure centred at $mid');
+      }
+      expect(a.inClosure(0.40), isTrue);
+      expect(a.inClosure(0.25), isFalse);
+    });
+
+    test('markers past the audio or out of order are ignored (unit mistakes)', () {
+      const text = 'one two three';
+      final tl = VisemeTimeline.plan(text, CoachLanguage.en);
+      final a = AudioAlignment(tl);
+      a.addLevels(0, 0.01, List.filled(150, 0.3));
+      a.addMarker(0, 0.2);
+      a.addMarker(4, 9.0); // seconds computed from bytes as samples: far past 1.5 s
+      a.complete();
+      expect(a.planTime(0.9), isNot(closeTo(tl.words[1].start, 1e-9)));
     });
 
     test('word markers (iOS 17) take precedence and map exactly', () {
