@@ -204,6 +204,9 @@ class AppTheme {
       snackBarTheme: const SnackBarThemeData(
         backgroundColor: AppColors.surface2,
         contentTextStyle: TextStyle(color: AppColors.text, fontFamily: AppFonts.sans),
+        // "Undo" / "Deshacer" and other actions: gold on the dark surface
+        // (the default primary-on-inverse was about 1.1:1).
+        actionTextColor: AppColors.gold,
         behavior: SnackBarBehavior.floating,
       ),
       switchTheme: SwitchThemeData(

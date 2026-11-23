@@ -507,7 +507,9 @@ class _ChatScreenState extends State<ChatScreen> {
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
         key: const ValueKey('conversation-deleted'),
-        content: Text(l.conversationDeleted),
+        // Whole words at large text ("Conversación eliminada." never breaks
+        // inside a word).
+        content: WholeWordsText(l.conversationDeleted, key: const ValueKey('conversation-deleted-text')),
         action: SnackBarAction(
           key: const ValueKey('undo-delete'),
           label: l.undo,
@@ -746,14 +748,17 @@ class _Stage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(
-            // A shorter portrait at large text leaves room for the captions.
-            height: MediaQuery.textScalerOf(context).scale(1) > 1.3 ? 110 : 170,
-            child: Stack(
+          LayoutBuilder(
+            // The portrait's height follows the stage width (about 2:1), so
+            // the face and mouth keep their place on iPad and at large text.
+            builder: (context, box) => SizedBox(
+              height: CoachStageAvatar.stageHeight(box.maxWidth,
+                  largeText: MediaQuery.textScalerOf(context).scale(1) > 1.3),
+              child: Stack(
               fit: StackFit.expand,
               children: [
                 CoachStageAvatar(coach: coach, mood: mood, lipSync: lipSync),
-                const FadeToBackground(stops: [0.6, 1], color: AppColors.surface),
+                const FadeToBackground(stops: [CoachStageAvatar.fadeStart, 1], color: AppColors.surface),
                 Positioned(top: 12, left: 12, child: GlassChip(key: const ValueKey('voice-timer'), label: l.voiceSession(elapsed))),
                 Positioned(
                   top: 6,
@@ -766,6 +771,7 @@ class _Stage extends StatelessWidget {
                   ),
                 ),
               ],
+              ),
             ),
           ),
           if (captions)

@@ -109,6 +109,12 @@ class SettingsScreen extends StatelessWidget {
                 value: state.selectedCoach.name,
                 onTap: () => context.read<ShellController>().go(AppTab.coaches),
               ),
+              _Row(
+                key: const ValueKey('row-voice-quality'),
+                icon: Icons.record_voice_over_outlined,
+                title: l.voiceQualityRow,
+                onTap: () => showPremiumVoiceTip(context),
+              ),
             ]),
             _SectionLabel(l.sectionMemory),
             _Group(children: [
@@ -235,12 +241,6 @@ class SettingsScreen extends StatelessWidget {
                 subtitle: AppLinks.supportEmail,
                 subtitleOneLine: true,
                 onTap: () => _open(context, 'mailto:${AppLinks.supportEmail}'),
-              ),
-              _Row(
-                key: const ValueKey('row-voice-quality'),
-                icon: Icons.record_voice_over_outlined,
-                title: l.voiceQualityRow,
-                onTap: () => showPremiumVoiceTip(context),
               ),
             ]),
             const SizedBox(height: 18),

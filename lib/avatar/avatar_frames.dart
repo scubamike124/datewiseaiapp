@@ -46,6 +46,17 @@ class AvatarManifest {
   static String dir(String coachId) => 'assets/avatar/$coachId';
   String assetFor(String patch) => '${dir(coachId)}/$patch.jpg';
 
+  static final Map<String, Future<AvatarManifest?>> _manifests = {};
+
+  /// Just the manifest (small JSON, cached): enough to place the still
+  /// portrait like the animated one, without decoding any frame.
+  static Future<AvatarManifest?> load(Coach coach, {AssetBundle? bundle}) => _manifests.putIfAbsent(
+      coach.id,
+      () => (bundle ?? rootBundle)
+          .loadString('${dir(coach.id)}/manifest.json')
+          .then<AvatarManifest?>((j) => parse(coach.id, j))
+          .catchError((Object _) => null));
+
   static AvatarManifest parse(String coachId, String json) {
     final m = jsonDecode(json) as Map<String, dynamic>;
     final frames = (m['frames'] as Map<String, dynamic>? ?? const {});

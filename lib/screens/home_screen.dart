@@ -125,7 +125,11 @@ class HomeScreen extends StatelessWidget {
                           children: [
                             Semantics(
                               header: true,
-                              child: Text(l.greetingFor(DateTime.now()),
+                              // Whole words only: at large text "Good morning."
+                              // shrinks to fit instead of breaking inside a word.
+                              child: WholeWordsText(l.greetingFor(DateTime.now()),
+                                  key: const ValueKey('home-greeting'),
+                                  maxWidth: tablet ? 340 : 240,
                                   style: AppText.display.copyWith(fontSize: tablet ? 42 : 34, height: 1.05)),
                             ),
                             const SizedBox(height: 10),

@@ -326,8 +326,12 @@ class _HeartPainter extends CustomPainter {
 /// A coach portrait from `assets/coaches/{id}-hero.jpg` or `-avatar.jpg`,
 /// cover-cropped around the coach's focal point.
 class CoachImage extends StatelessWidget {
-  const CoachImage({super.key, required this.coach, this.avatar = false, this.semanticLabel, this.displaySize});
+  const CoachImage(
+      {super.key, required this.coach, this.avatar = false, this.semanticLabel, this.displaySize, this.alignment});
   final Coach coach;
+
+  /// Overrides the coach's focus point (the voice stage places the mouth).
+  final Alignment? alignment;
   final bool avatar;
   final String? semanticLabel;
 
@@ -358,7 +362,7 @@ class CoachImage extends StatelessWidget {
     return Image(
       image: provider,
       fit: BoxFit.cover,
-      alignment: avatar ? coach.avatarFocus : coach.heroFocus,
+      alignment: alignment ?? (avatar ? coach.avatarFocus : coach.heroFocus),
       semanticLabel: semanticLabel,
       excludeFromSemantics: semanticLabel == null,
       gaplessPlayback: true,
@@ -516,11 +520,12 @@ Future<bool> showConfirmDialog(BuildContext context, String title, String body, 
       final cancel = TextButton(
           key: const ValueKey('confirm-cancel'),
           onPressed: () => Navigator.pop(ctx, false),
-          child: Text(ctx.l10n.cancel, style: const TextStyle(color: AppColors.text)));
+          child: Text(ctx.l10n.cancel, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.text)));
       final confirm = TextButton(
         key: const ValueKey('confirm-action'),
         onPressed: () => Navigator.pop(ctx, true),
-        child: Text(action, style: TextStyle(color: actionColor, fontWeight: FontWeight.w600)),
+        child: Text(action,
+            textAlign: TextAlign.center, style: TextStyle(color: actionColor, fontWeight: FontWeight.w600)),
       );
       // At large text the two buttons stack, full width, action first (as
       // iOS does), and the dialog uses more of the screen width, so a label
@@ -540,6 +545,11 @@ Future<bool> showConfirmDialog(BuildContext context, String title, String body, 
                 ),
               ]
             : [cancel, confirm],
+        // When the two do not fit on one row (a long label such as "Sí,
+        // tengo menos de 18"), they stack with the action on top, like the
+        // large-text layout.
+        actionsOverflowDirection: VerticalDirection.up,
+        actionsOverflowAlignment: OverflowBarAlignment.center,
       );
     },
   );

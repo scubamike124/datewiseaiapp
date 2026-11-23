@@ -126,7 +126,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get welcomeTitleLead => 'Conoce a tu\ncoach de citas ';
 
   @override
-  String get welcomeTitleAccent => 'con IA.';
+  String get welcomeTitleAccent => 'con IA.';
 
   @override
   String get welcomeBody =>
@@ -211,7 +211,7 @@ class AppLocalizationsEs extends AppLocalizations {
       'Los cuatro son coaches con IA. Elige un estilo y cámbialo cuando quieras.';
 
   @override
-  String get coachesEyebrow => 'Coaches de citas con IA';
+  String get coachesEyebrow => 'Coaches de citas con IA';
 
   @override
   String get greetingMorning => 'Buenos días.';

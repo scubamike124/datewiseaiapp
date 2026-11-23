@@ -78,10 +78,27 @@ class TalkingAvatarState extends State<TalkingAvatar> with SingleTickerProviderS
   @visibleForTesting
   ValueListenable<AvatarPose> get pose => _pose;
 
+  AvatarManifest? _manifest;
+
+  void _loadManifest() {
+    final id = widget.coach.id;
+    AvatarManifest.load(widget.coach, bundle: widget.bundle).then((m) {
+      if (mounted && widget.coach.id == id && m != null) setState(() => _manifest = m);
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadManifest();
+  }
+
   @override
   void didUpdateWidget(TalkingAvatar oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.coach.id != widget.coach.id) {
+      _manifest = null;
+      _loadManifest();
       _release();
       _animator = _newAnimator();
       _timeBase = 0;
@@ -175,7 +192,18 @@ class TalkingAvatarState extends State<TalkingAvatar> with SingleTickerProviderS
     // Disposed by another holder (e.g. a second stage switched coach): the
     // still portrait rather than an empty stage.
     if (frames == null || _still || frames.isDisposed) {
-      return CoachImage(coach: widget.coach, semanticLabel: widget.stillLabel);
+      // The still portrait (Reduce Motion, loading) is placed like the
+      // animated one: mouth at [AvatarPainter.mouthAt] of the height.
+      final m = _manifest;
+      if (m?.mouth == null) return CoachImage(coach: widget.coach, semanticLabel: widget.stillLabel);
+      return LayoutBuilder(builder: (context, box) {
+        final img = Size(m!.width.toDouble(), m.height.toDouble());
+        final fit = applyBoxFit(BoxFit.cover, img, box.biggest).source;
+        double align(double slack, double offset) => slack <= 0 ? 0 : (2 * offset / slack - 1).clamp(-1.0, 1.0);
+        final y = align(img.height - fit.height, m.mouth!.dy - AvatarPainter.mouthAt * fit.height);
+        final x = align(img.width - fit.width, m.mouth!.dx - fit.width / 2);
+        return CoachImage(coach: widget.coach, semanticLabel: widget.stillLabel, alignment: Alignment(x, y));
+      });
     }
     return Semantics(
       label: widget.label,
@@ -207,6 +235,27 @@ class AvatarPainter extends CustomPainter {
   /// Largest jaw drop, as a fraction of the mouth width.
   static const double jawDrop = 0.12;
 
+  /// Where the mouth sits on the stage (fraction of its height): high
+  /// enough to stay clear of the caption fade at the bottom.
+  static const double mouthAt = 0.55;
+
+  /// The part of the portrait ([image] size) shown in a [box]: cover-fitted
+  /// and placed so the [mouth] (portrait pixels) lands at [mouthAt] of the
+  /// height and centered across. If the portrait has too little room below
+  /// or above the mouth for that, it is zoomed in just enough. Without a
+  /// mouth position, [focus] places it as before.
+  static Rect sourceRect(Size image, Size box, Offset? mouth, Alignment focus) {
+    final fitted = applyBoxFit(BoxFit.cover, image, box).source;
+    if (mouth == null || box.isEmpty) return focus.inscribe(fitted, Offset.zero & image);
+    var h = fitted.height;
+    h = math.min(h, (image.height - mouth.dy) / (1 - mouthAt));
+    h = math.min(h, mouth.dy / mouthAt);
+    final w = h * box.width / box.height;
+    final top = (mouth.dy - mouthAt * h).clamp(0.0, math.max(0.0, image.height - h)).toDouble();
+    final left = (mouth.dx - w / 2).clamp(0.0, math.max(0.0, image.width - w)).toDouble();
+    return Rect.fromLTWH(left, top, w, h);
+  }
+
   /// The zoom that keeps the portrait covering a [size] box whatever the
   /// head motion ([AvatarPose.maxDx], [AvatarPose.maxDy],
   /// [AvatarPose.maxRotation]) and breathing do; computed for each stage
@@ -228,8 +277,7 @@ class AvatarPainter extends CustomPainter {
     final p = pose.value;
     final base = frames.base;
     final src = Size(base.width.toDouble(), base.height.toDouble());
-    final fitted = applyBoxFit(BoxFit.cover, src, size);
-    final srcRect = focus.inscribe(fitted.source, Offset.zero & src);
+    final srcRect = sourceRect(src, size, frames.manifest.mouth, focus);
     final dstRect = Offset.zero & size;
     final sx = dstRect.width / srcRect.width, sy = dstRect.height / srcRect.height;
     Rect toDst(Rect r) => Rect.fromLTWH((r.left - srcRect.left) * sx, (r.top - srcRect.top) * sy, r.width * sx, r.height * sy);
