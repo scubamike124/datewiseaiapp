@@ -4,6 +4,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:datewise_ai/avatar/lip_sync.dart';
+import 'package:datewise_ai/avatar/speech_audio.dart';
 import 'package:datewise_ai/avatar/viseme.dart';
 import 'package:datewise_ai/models/coach.dart';
 
@@ -127,16 +128,36 @@ void main() {
       expect(slow.duration, greaterThan(fast.duration));
     });
 
-    test('open shapes crossfade over 30 ms', () {
-      final tl = VisemeTimeline.fromTimedWords('ella', CoachLanguage.es, [(0, 4, 0.0, 0.4)]);
-      final k = tl.cues.indexWhere((c) => c.viseme == Viseme.a2 || c.viseme == Viseme.a);
-      final c = tl.cues[k];
-      final s = tl.sample(c.start + 0.015);
-      expect(s.to, c.viseme);
-      expect(s.mix, closeTo(0.5, 0.01));
-      expect(tl.sample(c.start + 0.031).mix, 1);
-      expect(tl.sample(-1).viseme, Viseme.rest);
-      expect(tl.sample(5).viseme, Viseme.rest);
+    test('every change is a hard switch; closed lips never sit next to an open mouth', () {
+      for (final e in {
+        CoachLanguage.en: "I'm Ava. Mmm, okay! Maybe a bigger, bolder opener: be playful.",
+        CoachLanguage.es: 'Mamá, ¿me ayudas? Un beso, gran paso, envía un mensaje ya.',
+      }.entries) {
+        final tl = VisemeTimeline.plan(e.key == CoachLanguage.en ? e.value : e.value, e.key, rate: 0.5);
+        for (var i = 1; i < tl.cues.length; i++) {
+          final a = tl.cues[i - 1].viseme, b = tl.cues[i].viseme;
+          if (a.closed != b.closed) {
+            final open = a.closed ? b : a;
+            expect(open == Viseme.rest || open.openness > 0.3, isFalse,
+                reason: 'closed lips next to $open (${e.key.name}): no half-open step');
+          }
+        }
+        for (var t = 0.0; t < tl.duration; t += 0.004) {
+          expect(tl.sample(t).mix, 1, reason: 'no crossfade at $t');
+        }
+      }
+      expect(VisemeTimeline.blend, 0);
+      expect(VisemeTimeline.needsBridge(Viseme.mbp, Viseme.a), isTrue);
+      expect(VisemeTimeline.needsBridge(Viseme.rest, Viseme.mbp), isTrue, reason: 'smiling rest shows teeth');
+      expect(VisemeTimeline.smallestOpen(Viseme.mbp, Viseme.a), Viseme.i2);
+    });
+
+    test('jaw envelope rises and falls within every vowel (movement while speaking)', () {
+      final tl = VisemeTimeline.fromTimedWords('casa', CoachLanguage.es, [(0, 4, 0.0, 0.6)]);
+      final v = tl.cues.firstWhere((c) => c.viseme.isVowel);
+      final mid = tl.jawAt((v.start + v.end) / 2), edge = tl.jawAt(v.start + 0.001);
+      expect(mid, greaterThan(edge + 0.1));
+      expect(tl.jawAt(-1), 0);
     });
 
     test('middle shape is half-open, and rounded next to a rounded shape', () {
@@ -148,7 +169,8 @@ void main() {
       const text = 'Be clear about it';
       final tl = VisemeTimeline.fromTimedWords(text, CoachLanguage.en, [(0, 2, 0.1, 0.3), (3, 8, 0.35, 0.8), (9, 14, 0.9, 1.3), (15, 17, 1.35, 1.5)]);
       expect(tl.words.map((w) => w.start), [0.1, 0.35, 0.9, 1.35]);
-      expect(tl.sample(0.12).to, Viseme.mbp);
+      expect(tl.sample(0.1 + 0.01).to, Viseme.i2, reason: 'from the smiling rest, lips part slightly first');
+      expect(tl.sample(0.1 + 0.06).to, Viseme.mbp);
       expect(tl.sample(0.05).viseme, Viseme.rest);
       const es2 = 'gran paso';
       final t2 = VisemeTimeline.fromTimedWords(es2, CoachLanguage.es, [(0, 4, 0, 0.3), (5, 9, 0.3, 0.7)]);
@@ -238,12 +260,105 @@ void main() {
       expect(VisemeTimeline.lead, closeTo(0.08, 1e-9));
     });
 
-    test('ends by itself 1 s after the plan if no completion callback arrives', () {
+    test('ends by itself 1 s after the plan once the pace is confirmed by a word event', () {
       d.begin('Short one', CoachLanguage.en);
       d.started();
+      d.word(0, 5);
       now = Duration(microseconds: ((d.timeline!.duration + 1.1) * 1e6).round());
       expect(d.sample().viseme, Viseme.rest);
       expect(d.active, isFalse);
+    });
+
+    test('without any word event it waits up to twice the plan before giving up (slow voices)', () {
+      d.begin('A voice that never sends word events at all', CoachLanguage.en);
+      d.started();
+      final dur = d.timeline!.duration;
+      now = Duration(microseconds: ((dur + 1.5) * 1e6).round());
+      d.sample();
+      expect(d.active, isTrue, reason: 'still speaking, maybe slower than planned');
+      now = Duration(microseconds: ((dur * 2 + 2.1) * 1e6).round());
+      d.sample();
+      expect(d.active, isFalse);
+    });
+
+    test('with real loudness: the jaw follows it, vowels open fully only when loud, no rest while audible', () {
+      const text = 'Hola, soy Diego.';
+      d.begin(text, CoachLanguage.es);
+      d.started();
+      // 1 s of audio: loud from 0.1 to 0.5 s, quiet 0.5-0.7 s, loud 0.7-1.0 s.
+      final v = [for (var i = 0; i < 100; i++) (i >= 10 && i < 50) || i >= 70 ? 0.5 : (i >= 50 && i < 70 ? 0.0 : 0.0)];
+      d.addLevels(0, 0.01, v);
+      expect(d.hasAudio, isTrue);
+      now = const Duration(milliseconds: 250);
+      expect(d.jaw(), greaterThan(0.5));
+      now = const Duration(milliseconds: 600);
+      expect(d.jaw(), lessThan(0.1));
+      now = const Duration(milliseconds: 200);
+      final s = d.sample();
+      expect(s.to, isNot(Viseme.rest));
+      if (s.to.isVowel) expect(s.to, s.to.full);
+    });
+  });
+
+  group('audio alignment', () {
+    test('the loudness is warped onto the plan: phrases line up with the speech, pauses with silence', () {
+      const text = 'Hola, soy Diego. Sé claro con lo que buscas.';
+      final tl = VisemeTimeline.plan(text, CoachLanguage.es);
+      final a = AudioAlignment(tl);
+      // Synthetic audio at 0.8x the planned pace, with the plan's pauses:
+      // speech wherever the plan has a word, silence elsewhere.
+      const speed = 0.8;
+      final n = (tl.duration * speed / 0.01).ceil();
+      final v = [
+        for (var i = 0; i < n; i++)
+          tl.words.any((w) => w.start <= i * 0.01 / speed && i * 0.01 / speed <= w.end) ? 0.4 : 0.0,
+      ];
+      a.addLevels(0, 0.01, v);
+      a.complete();
+      var sum = 0.0;
+      for (final w in tl.words) {
+        final err = (a.planTime(w.start * speed)! - w.start).abs();
+        expect(err, lessThan(0.12), reason: w.text);
+        sum += err;
+      }
+      expect(sum / tl.words.length, lessThan(0.06));
+      expect(a.level(tl.words.first.start * speed + 0.05), closeTo(1, 1e-9));
+    });
+
+    test('a long reply is warped in bounded time and memory', () {
+      final text = List.filled(40, 'Esta es una frase de prueba bastante larga, con pausas.').join(' ');
+      final tl = VisemeTimeline.plan(text, CoachLanguage.es);
+      expect(tl.duration, greaterThan(120));
+      final a = AudioAlignment(tl);
+      final n = (tl.duration / 0.01).ceil();
+      final sw = Stopwatch()..start();
+      a.addLevels(0, 0.01, [for (var i = 0; i < n; i++) (i ~/ 30).isEven ? 0.5 : 0.0]);
+      a.complete();
+      expect(sw.elapsedMilliseconds, lessThan(3000));
+      expect(a.planTime(60), isNotNull);
+    });
+
+    test('word markers (iOS 17) take precedence and map exactly', () {
+      const text = 'one two three';
+      final tl = VisemeTimeline.plan(text, CoachLanguage.en);
+      final a = AudioAlignment(tl);
+      a.addMarker(0, 0.2);
+      a.addMarker(4, 0.9);
+      a.addMarker(8, 1.5);
+      expect(a.planTime(0.9), closeTo(tl.words[1].start, 1e-9));
+      expect(a.planTime(1.2), closeTo((tl.words[1].start + tl.words[2].start) / 2, 1e-9));
+    });
+
+    test('channel events parse', () {
+      expect(SpeechAudioEvent.parse({'e': 'start'}), isA<SpeechAudioStarted>());
+      final l = SpeechAudioEvent.parse({'e': 'levels', 't0': 0.5, 'hop': 0.01, 'v': [0.1, 0.2]}) as SpeechAudioLevels;
+      expect((l.t0, l.hop), (0.5, 0.01));
+      expect(l.values, [0.1, 0.2]);
+      final m = SpeechAudioEvent.parse({'e': 'marker', 'start': 3, 'end': 7, 't': 1.25}) as SpeechAudioMarker;
+      expect((m.charStart, m.charEnd, m.t), (3, 7, 1.25));
+      expect(SpeechAudioEvent.parse({'e': 'error', 'message': 'x', 'started': true}), isA<SpeechAudioError>());
+      expect(SpeechAudioEvent.parse({'e': 'synthesized'}), isA<SpeechAudioSynthesized>());
+      expect(SpeechAudioEvent.parse('junk'), isNull);
     });
   });
 }

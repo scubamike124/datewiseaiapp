@@ -22,7 +22,14 @@ class AvatarPatch {
 /// `assets/avatar/<coach>/manifest.json`, written by tool/avatar/gen_frames.py.
 @immutable
 class AvatarManifest {
-  const AvatarManifest({required this.coachId, required this.width, required this.height, required this.patches});
+  const AvatarManifest({
+    required this.coachId,
+    required this.width,
+    required this.height,
+    required this.patches,
+    this.mouth,
+    this.mouthWidth,
+  });
 
   final String coachId;
 
@@ -31,16 +38,24 @@ class AvatarManifest {
   final int height;
   final Map<String, AvatarPatch> patches;
 
+  /// Center of the lips and their width in the portrait (pixels), for the
+  /// jaw drop; null in manifests from older generator versions.
+  final ui.Offset? mouth;
+  final double? mouthWidth;
+
   static String dir(String coachId) => 'assets/avatar/$coachId';
   String assetFor(String patch) => '${dir(coachId)}/$patch.jpg';
 
   static AvatarManifest parse(String coachId, String json) {
     final m = jsonDecode(json) as Map<String, dynamic>;
     final frames = (m['frames'] as Map<String, dynamic>? ?? const {});
+    final mouth = m['mouth'] as List?;
     return AvatarManifest(
       coachId: coachId,
       width: (m['width'] as num).toInt(),
       height: (m['height'] as num).toInt(),
+      mouth: mouth == null ? null : ui.Offset((mouth[0] as num).toDouble(), (mouth[1] as num).toDouble()),
+      mouthWidth: (m['mouth_width'] as num?)?.toDouble(),
       patches: {
         for (final e in frames.entries)
           e.key: AvatarPatch(
@@ -115,9 +130,20 @@ class AvatarFrames {
 
   bool get isDisposed => _disposed;
 
+  final Map<ui.Image, ui.ImageShader> _shaders = {};
+  static final _identity = Float64List.fromList(const [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+
+  /// A texture shader for [image] (cached), for the jaw-drop mesh.
+  ui.ImageShader shaderFor(ui.Image image) => _shaders.putIfAbsent(
+      image, () => ui.ImageShader(image, ui.TileMode.clamp, ui.TileMode.clamp, _identity, filterQuality: ui.FilterQuality.medium));
+
   void _dispose() {
     if (_disposed) return;
     _disposed = true;
+    for (final sh in _shaders.values) {
+      sh.dispose();
+    }
+    _shaders.clear();
     base.dispose();
     for (final i in images.values) {
       i.dispose();

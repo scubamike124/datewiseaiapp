@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -51,7 +52,7 @@ class TalkingAvatarState extends State<TalkingAvatar> with SingleTickerProviderS
   AvatarFrames? _frames;
   String? _held; // coach id whose frames this widget holds
   late final Ticker _ticker = createTicker(_tick);
-  AvatarAnimator _animator = AvatarAnimator();
+  late AvatarAnimator _animator = _newAnimator();
   final _pose = ValueNotifier<AvatarPose>(AvatarPose.still);
   Set<String> _available = const {};
   bool _still = false;
@@ -69,6 +70,11 @@ class TalkingAvatarState extends State<TalkingAvatar> with SingleTickerProviderS
   @visibleForTesting
   AvatarFrames? get frames => _frames;
 
+  /// Seeded per coach and per session: the coaches never blink in unison,
+  /// and the schedule differs every time.
+  AvatarAnimator _newAnimator() =>
+      AvatarAnimator(seed: widget.coach.id.hashCode ^ DateTime.now().microsecondsSinceEpoch);
+
   @visibleForTesting
   ValueListenable<AvatarPose> get pose => _pose;
 
@@ -77,8 +83,9 @@ class TalkingAvatarState extends State<TalkingAvatar> with SingleTickerProviderS
     super.didUpdateWidget(oldWidget);
     if (oldWidget.coach.id != widget.coach.id) {
       _release();
-      _animator = AvatarAnimator();
+      _animator = _newAnimator();
       _timeBase = 0;
+      _lastPose = -1;
       _syncFrames();
     }
   }
@@ -137,12 +144,20 @@ class TalkingAvatarState extends State<TalkingAvatar> with SingleTickerProviderS
   }
 
   void _tick(Duration elapsed) {
+    if (_frames?.isDisposed ?? false) {
+      // Freed by another holder: show the still portrait.
+      _ticker.stop();
+      setState(() {});
+      return;
+    }
     final t = _timeBase + elapsed.inMicroseconds / 1e6;
     final speaking = widget.mood == AvatarMood.speaking;
     if (!speaking && t - _lastPose < 1 / idleFps) return;
     _lastPose = t;
-    final mouth = speaking ? (widget.lipSync?.sample() ?? VisemeSample.rest) : VisemeSample.rest;
-    _pose.value = _animator.frame(t, widget.mood, mouth, available: _available);
+    final lip = widget.lipSync;
+    final mouth = speaking ? (lip?.sample() ?? VisemeSample.rest) : VisemeSample.rest;
+    final jaw = speaking ? (lip?.jaw() ?? 0.0) : 0.0;
+    _pose.value = _animator.frame(t, widget.mood, mouth, available: _available, jaw: jaw);
   }
 
   @override
@@ -157,7 +172,9 @@ class TalkingAvatarState extends State<TalkingAvatar> with SingleTickerProviderS
   @override
   Widget build(BuildContext context) {
     final frames = _frames;
-    if (frames == null || _still) {
+    // Disposed by another holder (e.g. a second stage switched coach): the
+    // still portrait rather than an empty stage.
+    if (frames == null || _still || frames.isDisposed) {
       return CoachImage(coach: widget.coach, semanticLabel: widget.stillLabel);
     }
     return Semantics(
@@ -187,6 +204,23 @@ class AvatarPainter extends CustomPainter {
 
   static final _paint = Paint()..filterQuality = FilterQuality.medium;
 
+  /// Largest jaw drop, as a fraction of the mouth width.
+  static const double jawDrop = 0.12;
+
+  /// The zoom that keeps the portrait covering a [size] box whatever the
+  /// head motion ([AvatarPose.maxDx], [AvatarPose.maxDy],
+  /// [AvatarPose.maxRotation]) and breathing do; computed for each stage
+  /// size (the short large-text stage and the wide iPad stage differ).
+  static double coverZoom(Size size) {
+    if (size.isEmpty) return 1;
+    const th = AvatarPose.maxRotation;
+    final c = math.cos(th), s = math.sin(th);
+    const dx = AvatarPose.maxDx, dy = AvatarPose.maxDy;
+    final zx = (size.width * c + size.height * s + 2 * (dx * c + dy * s)) / size.width;
+    final zy = (size.width * s + size.height * c + 2 * (dx * s + dy * c)) / size.height;
+    return math.max(zx, zy) / 0.996; // breathing dips to 0.996
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     final sw = kReleaseMode ? null : (Stopwatch()..start());
@@ -198,28 +232,40 @@ class AvatarPainter extends CustomPainter {
     final srcRect = focus.inscribe(fitted.source, Offset.zero & src);
     final dstRect = Offset.zero & size;
     final sx = dstRect.width / srcRect.width, sy = dstRect.height / srcRect.height;
+    Rect toDst(Rect r) => Rect.fromLTWH((r.left - srcRect.left) * sx, (r.top - srcRect.top) * sy, r.width * sx, r.height * sy);
 
     canvas.save();
     canvas.clipRect(dstRect);
-    // Micro-motion about the center.
+    // Head motion about the center, zoomed just enough to hide the edges.
     final c = dstRect.center;
     canvas.translate(c.dx + p.dx, c.dy + p.dy);
     canvas.rotate(p.rotation);
-    canvas.scale(p.scale);
+    canvas.scale(p.scale * coverZoom(size));
     canvas.translate(-c.dx, -c.dy);
 
     canvas.drawImageRect(base, srcRect, dstRect, _paint);
+    var mouthDrawn = false;
     for (final layer in p.layers) {
       final hit = frames.patch(layer.patch);
       if (hit == null || layer.opacity <= 0) continue;
       final (img, patch) = hit;
-      final r = patch.rect;
-      final dst = Rect.fromLTWH((r.left - srcRect.left) * sx, (r.top - srcRect.top) * sy, r.width * sx, r.height * sy);
+      final dst = toDst(patch.rect);
       if (!dst.overlaps(dstRect)) continue;
+      if (patch.region == AvatarRegion.mouth && p.jaw > 0.01) {
+        _drawJaw(canvas, img, Offset.zero & Size(img.width.toDouble(), img.height.toDouble()), patch.rect, dst, p.jaw, layer.opacity);
+        mouthDrawn = true;
+        continue;
+      }
+      if (patch.region == AvatarRegion.mouth) mouthDrawn = true;
       final paint = Paint()
         ..filterQuality = FilterQuality.medium
         ..color = Color.fromRGBO(0, 0, 0, layer.opacity.clamp(0.0, 1.0));
       canvas.drawImageRect(img, Offset.zero & Size(img.width.toDouble(), img.height.toDouble()), dst, paint);
+    }
+    // The portrait's own mouth (rest) still drops its jaw while audible.
+    if (!mouthDrawn && p.jaw > 0.01) {
+      final region = frames.patch('mbp')?.$2.rect;
+      if (region != null) _drawJaw(canvas, base, region, region, toDst(region), p.jaw, 1);
     }
     canvas.restore();
     if (sw != null) {
@@ -227,6 +273,47 @@ class AvatarPainter extends CustomPainter {
       list.add(sw.elapsedMicroseconds);
       if (list.length > 600) list.removeRange(0, list.length - 600);
     }
+  }
+
+  /// Draws [src] of [img] (whose portrait-space rect is [portraitRect]) into
+  /// [dst] as a mesh whose lower lip and chin are pulled down by [jaw]. The
+  /// displacement is zero on the patch border, so it joins the portrait
+  /// without a seam.
+  void _drawJaw(Canvas canvas, ui.Image img, Rect src, Rect portraitRect, Rect dst, double jaw, double opacity) {
+    final m = frames.manifest;
+    final mouthY = m.mouth?.dy ?? (portraitRect.top + portraitRect.height * 0.35);
+    final mw = m.mouthWidth ?? portraitRect.width * 0.45;
+    final lineV = ((mouthY - portraitRect.top) / portraitRect.height).clamp(0.1, 0.7);
+    final peakV = ((mouthY + 0.45 * mw - portraitRect.top) / portraitRect.height).clamp(lineV + 0.08, 0.88);
+    final dropPx = jaw * jawDrop * mw * (dst.height / portraitRect.height);
+    const nx = 8, ny = 12;
+    double wy(double v) {
+      double smooth(double x) => x * x * (3 - 2 * x);
+      if (v <= lineV) return 0;
+      if (v <= peakV) return smooth((v - lineV) / (peakV - lineV));
+      return smooth((1 - v) / (1 - peakV));
+    }
+
+    final pos = <Offset>[], tex = <Offset>[];
+    Offset at(int i, int j) {
+      final u = i / nx, v = j / ny;
+      final d = dropPx * math.sin(math.pi * u) * wy(v);
+      return Offset(dst.left + u * dst.width, dst.top + v * dst.height + d);
+    }
+
+    Offset uv(int i, int j) => Offset(src.left + i / nx * src.width, src.top + j / ny * src.height);
+    for (var j = 0; j < ny; j++) {
+      for (var i = 0; i < nx; i++) {
+        for (final (a, b) in const [(0, 0), (1, 0), (1, 1), (0, 0), (1, 1), (0, 1)]) {
+          pos.add(at(i + a, j + b));
+          tex.add(uv(i + a, j + b));
+        }
+      }
+    }
+    final paint = Paint()
+      ..shader = frames.shaderFor(img)
+      ..color = Color.fromRGBO(0, 0, 0, opacity.clamp(0.0, 1.0));
+    canvas.drawVertices(ui.Vertices(ui.VertexMode.triangles, pos, textureCoordinates: tex), BlendMode.srcOver, paint);
   }
 
   @override

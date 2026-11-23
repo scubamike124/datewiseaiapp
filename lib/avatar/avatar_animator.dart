@@ -37,7 +37,7 @@ class AvatarLayer {
 /// Everything the painter needs for one frame.
 @immutable
 class AvatarPose {
-  const AvatarPose({required this.layers, this.scale = 1, this.dx = 0, this.dy = 0, this.rotation = 0});
+  const AvatarPose({required this.layers, this.scale = 1, this.dx = 0, this.dy = 0, this.rotation = 0, this.jaw = 0});
   static const still = AvatarPose(layers: []);
 
   /// Patches in paint order (head expressions, then eyes, then mouth).
@@ -48,6 +48,14 @@ class AvatarPose {
   final double dx;
   final double dy;
   final double rotation;
+
+  /// Jaw drop, 0..1: the painter stretches the lower lip and chin of the
+  /// mouth region down by up to [AvatarPainter.jawDrop] of the mouth width.
+  final double jaw;
+
+  /// Largest |dx|, |dy| (logical px) and |rotation| (radians) the animator
+  /// produces; the painter zooms just enough to keep the frame edges hidden.
+  static const double maxDx = 1.2, maxDy = 3.8, maxRotation = 0.016;
 }
 
 /// Turns time, mood and the lip-sync sample into an [AvatarPose].
@@ -59,7 +67,9 @@ class AvatarPose {
 /// shows the iris through the lids). Head motion is a small whole-image
 /// transform (a few pixels, under a degree), so nothing is warped.
 class AvatarAnimator {
-  AvatarAnimator({int seed = 7}) : _rng = math.Random(seed);
+  /// [seed] decides the blink and nod schedule. The app seeds it per coach
+  /// and session, so the coaches never blink in unison or repeat a pattern.
+  AvatarAnimator({required int seed}) : _rng = math.Random(seed);
 
   final math.Random _rng;
   double _nextBlink = 2.2;
@@ -77,6 +87,7 @@ class AvatarAnimator {
   double _restSince = 0;
   bool _wasRest = true;
   double _lastEmphasis = -10;
+  bool _secondOfDouble = false;
 
   /// A blink: half-closed 40 ms, shut 60 ms, half-open 50 ms (150 ms).
   static const double blinkLength = 0.15;
@@ -108,13 +119,13 @@ class AvatarAnimator {
     _gestureTilt = tilt;
   }
 
-  AvatarPose frame(double t, AvatarMood mood, VisemeSample mouth, {Set<String>? available}) {
+  AvatarPose frame(double t, AvatarMood mood, VisemeSample mouth, {Set<String>? available, double jaw = 0}) {
     _lastT = t;
     if (mood != _mood) {
       _mood = mood;
       _moodSince = t;
       _nextNod = t + 0.5;
-      if (mood == AvatarMood.thinking) _gesture(t, 0.6, 1.5, 0.012);
+      if (mood == AvatarMood.thinking) _gesture(t, 0.6, 1.5, 0);
     }
     bool has(String n) => available == null || available.contains(n);
     final layers = <AvatarLayer>[];
@@ -146,7 +157,15 @@ class AvatarAnimator {
     if (t >= _nextBlink) {
       _blinkStart = t;
       final base = mood == AvatarMood.listening ? 2.2 : 2.8;
-      _nextBlink = _rng.nextDouble() < doubleBlinkChance ? t + blinkLength + 0.12 : t + base + _rng.nextDouble() * 3.2;
+      // A double blink at most: the second blink of a pair never starts
+      // another one.
+      if (!_secondOfDouble && _rng.nextDouble() < doubleBlinkChance) {
+        _nextBlink = t + blinkLength + 0.12;
+        _secondOfDouble = true;
+      } else {
+        _nextBlink = t + base + _rng.nextDouble() * 3.2;
+        _secondOfDouble = false;
+      }
     }
     final blink = blinkFrame(t - _blinkStart);
     if (blink != null && has(blink)) {
@@ -168,11 +187,12 @@ class AvatarAnimator {
     final live = mood == AvatarMood.speaking ? 1.0 : 0.7;
     return AvatarPose(
       layers: layers,
-      // 5% zoom keeps the frame edges hidden during sway, nods and tilts.
-      scale: 1.05 + 0.004 * math.sin(2 * math.pi * t / 4.2),
+      // Breathing; the painter adds the zoom that hides the frame edges.
+      scale: 1 + 0.004 * math.sin(2 * math.pi * t / 4.2),
       dx: 1.2 * live * math.sin(2 * math.pi * t / 7.3),
       dy: 0.8 * live * math.sin(2 * math.pi * t / 5.1 + 1) + _gestureDepth * g,
       rotation: 0.003 * live * math.sin(2 * math.pi * t / 6.1) + _gestureTilt * g + holdTilt,
+      jaw: mood == AvatarMood.speaking ? jaw.clamp(0.0, 1.0) : 0,
     );
   }
 

@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 
 import '../models/coach.dart';
+import 'speech_audio.dart';
 import 'viseme.dart';
 
 /// A word of the utterance: its character range in the spoken text and its
@@ -67,10 +70,10 @@ class VisemeTimeline {
   /// about 165 words a minute). Scaled linearly with the rate.
   static const double lettersPerSecondAtHalfRate = 13.5;
 
-  /// Crossfade between two open mouth shapes, seconds. Short, so teeth
-  /// never ghost through lips; shapes with closed lips ([Viseme.closed])
-  /// switch without a crossfade at all.
-  static const double blend = 0.03;
+  /// Crossfade between mouth shapes, seconds. Zero: every change is a hard
+  /// switch between two whole photos (a crossfade shows teeth through lips
+  /// for a frame), and large changes go through a middle shape instead.
+  static const double blend = 0.0;
 
   /// How far the mouth runs ahead of the word timing, seconds. Lips form a
   /// sound slightly before it is heard; the offline measurement showed the
@@ -203,12 +206,25 @@ class VisemeTimeline {
     for (var k = 0; k < cues.length; k++) {
       final c = cues[k];
       final prev = out.isEmpty ? null : out.last;
-      if (prev != null &&
-          (prev.viseme.openness - c.viseme.openness).abs() > bridgeJump &&
-          c.duration > bridgeLength * 2) {
-        final mid = middle(prev.viseme, c.viseme);
-        out.add(VisemeCue(mid, c.start, c.start + bridgeLength));
-        out.add(VisemeCue(c.viseme, c.start + bridgeLength, c.end));
+      if (prev != null && needsBridge(prev.viseme, c.viseme)) {
+        // Always, however short the cue (the steps take at most 2/3 of it):
+        // closed lips first part to the smallest opening, then to a middle
+        // opening if the jump is still large.
+        final steps = <Viseme>[];
+        var cur = prev.viseme;
+        while (steps.length < 2 && needsBridge(cur, c.viseme)) {
+          final mid = (cur.closed || c.viseme.closed) ? smallestOpen(cur, c.viseme) : middle(cur, c.viseme);
+          if (mid == cur || mid == c.viseme) break;
+          steps.add(mid);
+          cur = mid;
+        }
+        final len = math.min(bridgeLength, c.duration / 3);
+        var t = c.start;
+        for (final m in steps) {
+          out.add(VisemeCue(m, t, t + len));
+          t += len;
+        }
+        out.add(VisemeCue(c.viseme, t, c.end));
       } else {
         out.add(c);
       }
@@ -216,10 +232,29 @@ class VisemeTimeline {
     return out;
   }
 
+  /// Closed lips next to an open (or teeth-showing) mouth, or a large jump in
+  /// openness: such a change goes through a middle shape.
+  static bool needsBridge(Viseme a, Viseme b) {
+    if (a == b) return false;
+    if (a.closed != b.closed) {
+      // The just-parted shapes (i2, sh) are the step itself; the smiling
+      // rest shows teeth, so it is bridged too.
+      final open = a.closed ? b : a;
+      return open == Viseme.rest || open.openness > 0.3;
+    }
+    return (a.openness - b.openness).abs() > bridgeJump;
+  }
+
+  /// The first opening step from closed lips: just parted (rounded if
+  /// either side is rounded).
+  @visibleForTesting
+  static Viseme smallestOpen(Viseme a, Viseme b) => (a.rounded || b.rounded) ? Viseme.sh : Viseme.i2;
+
   /// The shape between [a] and [b]: half-open, rounded if either is rounded.
   @visibleForTesting
   static Viseme middle(Viseme a, Viseme b) {
     final target = (a.openness + b.openness) / 2;
+    // Never a closed shape (the bridge is the half-open step between).
     final pool = (a.rounded || b.rounded)
         ? const [Viseme.u, Viseme.o2, Viseme.sh]
         : const [Viseme.i2, Viseme.e2, Viseme.cons, Viseme.a2, Viseme.e];
@@ -251,12 +286,24 @@ class VisemeTimeline {
     final k = _cueIndex(t);
     final cue = cues[k];
     final prev = k > 0 ? cues[k - 1].viseme : Viseme.rest;
-    if (prev.closed || cue.viseme.closed || prev == Viseme.rest || cue.viseme == Viseme.rest) {
+    if (blend <= 0 || prev.closed || cue.viseme.closed || prev == Viseme.rest || cue.viseme == Viseme.rest) {
       return VisemeSample(prev, cue.viseme, 1);
     }
     final b = blend < cue.duration * 0.5 ? blend : cue.duration * 0.5;
     final mix = b <= 0 ? 1.0 : ((t - cue.start) / b).clamp(0.0, 1.0);
     return VisemeSample(prev, cue.viseme, mix);
+  }
+
+  /// Synthetic jaw opening at time [t] when no audio loudness is known:
+  /// within each vowel a bump from 0 up to the vowel's openness and back;
+  /// consonants keep a slight opening; rest is closed.
+  double jawAt(double t) {
+    if (cues.isEmpty || t < 0 || t >= duration) return 0;
+    final c = cues[_cueIndex(t)];
+    if (c.viseme == Viseme.rest) return 0;
+    if (!c.viseme.isVowel) return 0.15 * c.viseme.openness;
+    final phase = ((t - c.start) / c.duration).clamp(0.0, 1.0);
+    return c.viseme.openness * (0.35 + 0.65 * math.sin(math.pi * phase));
   }
 
   /// Index of the word starting at [charStart] (or containing it), else -1.
@@ -298,6 +345,10 @@ class LipSyncDriver extends ChangeNotifier {
   double _speed = 1;
   int _anchorWord = -1;
 
+  // Audio path (lib/avatar/speech_audio.dart): loudness and audio timing.
+  AudioAlignment? _audio;
+  double _startNow = 0;
+
   /// True between [started] and [end].
   bool get active => _active;
   VisemeTimeline? get timeline => _timeline;
@@ -310,13 +361,31 @@ class LipSyncDriver extends ChangeNotifier {
     _sawWord = false;
     _anchorWord = -1;
     _speed = 1;
+    _audio = AudioAlignment(_timeline!);
   }
+
+  /// Loudness of the audio being played (from the native audio path),
+  /// [hop] seconds per value from audio time [t0]. Audio time 0 is [started].
+  void addLevels(double t0, double hop, List<double> values) => _audio?.addLevels(t0, hop, values);
+
+  /// A word marker from the native audio path (iOS 17): the word at
+  /// [charStart] starts at audio time [t].
+  void addMarker(int charStart, double t) => _audio?.addMarker(charStart, t);
+
+  /// All of the utterance's loudness has arrived.
+  void audioComplete() => _audio?.complete();
+
+  /// True once loudness from the real audio is available.
+  bool get hasAudio => _audio?.hasLevels ?? false;
+
+  double get _audioTime => _now - _startNow;
 
   /// Audio started.
   void started() {
     if (_timeline == null) return;
     _anchorPlan = 0;
     _anchorNow = _now;
+    _startNow = _anchorNow;
     if (!_active) {
       _active = true;
       notifyListeners();
@@ -360,12 +429,18 @@ class LipSyncDriver extends ChangeNotifier {
     final tl = _timeline;
     if (!_active || tl == null) return null;
     var t = _anchorPlan + (_now - _anchorNow) * _speed;
-    if (t > tl.duration + 1.0) {
-      // The completion callback never came (interrupted audio session):
-      // stop instead of freezing on a half-open mouth.
+    // The completion callback never came (interrupted audio session): stop
+    // instead of freezing on a half-open mouth. Until a word event or the
+    // real audio confirms the pace, the plan is only an estimate, so allow
+    // up to twice its length before giving up.
+    final confirmed = _sawWord || hasAudio;
+    final limit = confirmed ? tl.duration + 1.0 : tl.duration * 2 + 2.0;
+    if (t > limit) {
       end();
       return null;
     }
+    final audioPlan = _audio?.planTime(_audioTime);
+    if (audioPlan != null) return audioPlan;
     if (_sawWord && _anchorWord >= 0) {
       // Never run more than a little past the current word's end before
       // the next word event arrives: hold a closing mouth instead.
@@ -378,11 +453,52 @@ class LipSyncDriver extends ChangeNotifier {
   }
 
   /// The mouth shape for this display frame, [VisemeTimeline.lead] ahead
-  /// of the word timing.
+  /// of the word timing. With the real audio, the loudness picks the vowel's
+  /// opening (full when loud, half when soft), and the mouth never shows
+  /// rest while the audio is audible.
   VisemeSample sample() {
     final t = planTime();
     if (t == null) return VisemeSample.rest;
-    return _timeline!.sample(t + VisemeTimeline.lead);
+    final a = _audio;
+    if (a == null || !a.hasLevels) return _timeline!.sample(t + VisemeTimeline.lead);
+    final s = _timeline!.sample(t + audioLead);
+    final lvl = a.level(_audioTime + audioLead);
+    Viseme pick(Viseme v) {
+      // Never the still resting face while the audio is audible.
+      if (v == Viseme.rest) return lvl > audibleLevel ? Viseme.cons : v;
+      if (!v.isVowel) return v;
+      return lvl > loudLevel ? v.full : v.half;
+    }
+    return VisemeSample(pick(s.from), pick(s.to), s.mix);
+  }
+
+  /// Loudness (fraction of the utterance's peak) above which a vowel gets
+  /// its full opening.
+  static const double loudLevel = 0.45;
+
+  /// Loudness above which the audio counts as audible.
+  static const double audibleLevel = 0.15;
+
+  /// Lead of the mouth over the audio when it follows the real audio,
+  /// seconds. Smaller than [VisemeTimeline.lead] (which compensates the
+  /// estimated word timing): the offline simulation put the mouth 56 ms
+  /// ahead of the loudness with the 80 ms lead.
+  static const double audioLead = 0.03;
+
+  /// How far the jaw drops for this display frame, 0..1: the loudness of the
+  /// audio when the native audio path provides it, else a per-syllable
+  /// envelope from the plan (rises and falls within every vowel), so the
+  /// mouth always visibly moves while speaking.
+  double jaw() {
+    final t = planTime();
+    final tl = _timeline;
+    if (t == null || tl == null) return 0;
+    final a = _audio;
+    if (a != null && a.hasLevels) {
+      final lvl = a.level(_audioTime + audioLead);
+      return ((lvl - 0.08) / 0.75).clamp(0.0, 1.0);
+    }
+    return tl.jawAt(t + VisemeTimeline.lead);
   }
 }
 
