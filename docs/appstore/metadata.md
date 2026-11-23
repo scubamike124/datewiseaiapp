@@ -87,6 +87,8 @@ Do not add competitor or other app names.)
 > DATEWISE PREMIUM
 > Chatting with the coaches requires DateWise Premium, an auto-renewing monthly subscription ($9.99/month in the U.S.; local prices vary). Payment is charged to your Apple Account at confirmation of purchase. The subscription renews automatically unless canceled at least 24 hours before the end of the current period. Manage or cancel it in Settings › [your name] › Subscriptions.
 >
+> Fair use: DateWise Premium includes generous everyday coaching for personal use, up to 150 coach replies a day and 1,500 a month (at most 12 a minute and 2 at a time). Typed and spoken messages count the same. You will see a notice in the chat when you are close to a limit. When a limit is reached, chat pauses until the next day (00:00 UTC) or the next month.
+>
 > Terms of Use: https://datewiseai.com/terms-of-service
 > Privacy Policy: https://datewiseai.com/privacy-policy
 
@@ -124,6 +126,8 @@ Do not add competitor or other app names.)
 >
 > DATEWISE PREMIUM
 > Para chatear con los coaches necesitas DateWise Premium, una suscripción mensual con renovación automática (9.99 USD al mes en EE. UU.; el precio local puede variar). El pago se carga a tu Cuenta de Apple al confirmar la compra. La suscripción se renueva automáticamente salvo que la canceles al menos 24 horas antes del final del periodo actual. Adminístrala o cancélala en Configuración › [tu nombre] › Suscripciones.
+>
+> Uso justo: DateWise Premium incluye coaching diario generoso para uso personal, hasta 150 respuestas del coach al día y 1500 al mes (con un máximo de 12 por minuto y 2 a la vez). Los mensajes escritos y hablados cuentan igual. Verás un aviso en el chat cuando estés cerca de un límite. Al alcanzar un límite, el chat se pausa hasta el día siguiente (00:00 UTC) o el mes siguiente.
 >
 > Términos de uso: https://datewiseai.com/terms-of-service
 > Política de privacidad: https://datewiseai.com/privacy-policy
@@ -177,16 +181,24 @@ Matches `ios/Runner/PrivacyInfo.xcprivacy`. App Store Connect › App Privacy.
 | Data type | Collected | Linked to the user's identity | Used for tracking | Purposes |
 |--|--|--|--|--|
 | User Content › Other User Content (chat messages, optional coach memory note, coaching goals and language) | Yes | No | No | App Functionality |
-| Purchases › Purchase History | Yes | No | No | App Functionality |
-| Everything else (Contact Info, Health, Financial Info, Location, Sensitive Info, Contacts, Browsing/Search History, Identifiers, Usage Data, Diagnostics, Audio Data, Photos or Videos, Other) | No | | | |
+| Purchases › Purchase History (the App Store-signed StoreKit transaction, sent with each message and verified on the server with Apple's certificates; a refund or revocation status is stored as a hash of the transaction ID) | Yes | No | No | App Functionality |
+| Usage Data › Product Interaction (anonymous counts of coach replies for the fair-use limits, keyed by a one-way salted hash of the transaction ID; daily counts reset daily, monthly counts are kept for the current month) | Yes | No | No | App Functionality |
+| Everything else (Contact Info, Health, Financial Info, Location, Sensitive Info, Contacts, Browsing/Search History, Identifiers, other Usage Data, Diagnostics, Audio Data, Photos or Videos, Other) | No | | | |
 
-Resulting label: **Data Not Linked to You**: User Content, Purchases. No
-"Data Used to Track You", no "Data Linked to You".
+Resulting label: **Data Not Linked to You**: User Content, Purchases, Usage
+Data. No "Data Used to Track You", no "Data Linked to You".
 
 Notes for the owner:
 - This is the conservative reading. Messages are processed in real time and
   not stored (privacy policy), which Apple's definition might treat as "not
   collected"; declaring them is still correct and safe.
+- Network identifier: a one-way hash of the IP address (or IPv6 network
+  block) is used only for rate limiting and abuse protection, and the
+  rate-limit entries last about a minute; the IP address itself is not
+  stored. The privacy policy discloses it. It is not declared as a collected
+  type because it is not retained beyond that short window and is never
+  linked to the user. **OWNER:** confirm this reading when you fill in App
+  Privacy.
 - Audio: speech is recognised on the device; no audio leaves it. Do not
   declare Audio Data.
 - If a future version collects gender, age, orientation or city in the
@@ -214,6 +226,9 @@ Notes for the owner:
 >
 > AGE
 > Onboarding asks users to confirm they are 18 or older; users who say they are under 18 cannot continue.
+>
+> FAIR USE
+> DateWise Premium has fair-use limits, disclosed on the paywall, in the description and in the Terms of Use: up to 150 coach replies a day and 1,500 a month, at most 12 a minute and 2 at a time. Sandbox purchases (App Review and TestFlight) have a smaller limit of 20 replies a day. A notice appears near the limit.
 >
 > OTHER
 > No ads, no analytics, no tracking. Encryption: HTTPS only (exempt).
@@ -243,7 +258,7 @@ Create in App Store Connect › Monetization › Subscriptions (must match
 | Display name ES | DateWise Premium Mensual |
 | Description ES | Coaching por chat y voz con los cuatro coaches con IA. |
 | Review screenshot | Required: a screenshot of the paywall on an iPhone (any supported size, e.g. 1320x2868). Capture it from a TestFlight or simulator build so it shows the real StoreKit price, without the "Review build" note that only the web review build shows. |
-| Review notes | "Unlocks chat and voice with the AI coaches. Testable with a Sandbox Apple Account; no app account needed." |
+| Review notes | "Unlocks chat and voice with the AI coaches. Testable with a Sandbox Apple Account; no app account needed. Fair use: up to 150 coach replies a day and 1,500 a month (Sandbox: 20 a day), at most 12 a minute and 2 at a time." |
 
 The first subscription must be submitted **together with** app version 2.0.0
 (select it under "In-App Purchases and Subscriptions" on the version page).

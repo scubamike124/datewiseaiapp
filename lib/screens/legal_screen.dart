@@ -155,10 +155,10 @@ class LegalScreen extends StatelessWidget {
   /// (e.g. "Account information (optional): ...") for scannability.
   Widget _bulletText(ThemeData theme, String text) {
     final base = theme.textTheme.bodyMedium?.copyWith(height: 1.5);
-    final colon = text.indexOf(':');
-    if (colon > 0 && colon <= 42 && colon + 1 < text.length) {
-      final label = text.substring(0, colon + 1);
-      final rest = text.substring(colon + 1);
+    final lead = legalLeadIn(text);
+    if (lead > 0) {
+      final label = text.substring(0, lead);
+      final rest = text.substring(lead);
       return Text.rich(
         TextSpan(
           style: base,

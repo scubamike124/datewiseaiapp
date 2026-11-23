@@ -974,6 +974,17 @@ abstract class AppLocalizations {
   /// **'Subscribe'**
   String get subscribe;
 
+  /// Paywall line next to the disclosure. Numbers come from lib/config/fair_use.dart (the backend limits).
+  ///
+  /// In en, this message translates to:
+  /// **'Fair use: up to {daily} coach replies a day and {monthly} a month, at most {perMinute} a minute and {concurrent} at a time. Typed and spoken messages count the same. A notice appears near a limit; at the limit, chat pauses until the next day (00:00 UTC) or month.'**
+  String paywallFairUse(
+    String daily,
+    String monthly,
+    String perMinute,
+    String concurrent,
+  );
+
   /// No description provided for @paywallDisclosureNoPrice.
   ///
   /// In en, this message translates to:

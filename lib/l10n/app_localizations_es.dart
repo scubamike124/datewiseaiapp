@@ -552,6 +552,16 @@ class AppLocalizationsEs extends AppLocalizations {
   String get subscribe => 'Suscribirme';
 
   @override
+  String paywallFairUse(
+    String daily,
+    String monthly,
+    String perMinute,
+    String concurrent,
+  ) {
+    return 'Uso justo: hasta $daily respuestas del coach al día y $monthly al mes, con un máximo de $perMinute por minuto y $concurrent a la vez. Los mensajes escritos y hablados cuentan igual. Verás un aviso cerca de un límite; al alcanzarlo, el chat se pausa hasta el día siguiente (00:00 UTC) o el mes siguiente.';
+  }
+
+  @override
   String get paywallDisclosureNoPrice =>
       'Suscripción mensual al precio indicado por el App Store. El pago se carga a tu Cuenta de Apple al confirmar la compra. La suscripción se renueva automáticamente cada mes a ese precio, a menos que la canceles al menos 24 horas antes de que termine el período actual. Cancela cuando quieras en Configuración › [tu nombre] › Suscripciones.';
 

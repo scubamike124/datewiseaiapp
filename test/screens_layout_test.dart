@@ -79,7 +79,7 @@ final Map<String, Pump> screens = {
     expect(find.text('Coach memory'), findsWidgets);
   },
   'privacy policy': (t, size, scale) async {
-    await pumpScreen(t, const LegalScreen(title: 'Privacy Policy', content: kPrivacyPolicy), size: size, scale: scale);
+    await pumpScreen(t, LegalScreen(title: 'Privacy Policy', content: kPrivacyPolicy), size: size, scale: scale);
     expect(find.text('Privacy Policy'), findsOneWidget);
   },
 };

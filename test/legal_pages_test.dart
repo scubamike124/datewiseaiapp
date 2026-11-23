@@ -24,4 +24,21 @@ void main() {
       }
     }
   });
+
+  test('bullet lead-ins are bold on the web pages too (ES Coach memory included)', () {
+    final es = File('web/privacy-es.html').readAsStringSync();
+    expect(es, contains('<strong>Memoria del coach (opcional, desactivada por defecto):</strong>'));
+    expect(File('web/privacy.html').readAsStringSync(), contains('<strong>Coach memory (optional, off by default):</strong>'));
+  });
+
+  test('the portraits are described as AI-generated images of fictional characters', () {
+    expect(File('web/terms.html').readAsStringSync(),
+        contains('AI-generated images of fictional coach characters; they do not depict real people'));
+    expect(File('web/terms-es.html').readAsStringSync(),
+        contains('imágenes generadas por IA de personajes ficticios; no representan a personas reales'));
+    for (final f in ['web/terms.html', 'web/terms-es.html']) {
+      expect(File(f).readAsStringSync(), isNot(contains('ilustraciones')));
+      expect(File(f).readAsStringSync(), isNot(contains('illustrations')));
+    }
+  });
 }

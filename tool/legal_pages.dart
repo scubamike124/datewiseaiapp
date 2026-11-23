@@ -42,7 +42,7 @@ class LegalPage {
   final String rights;
 }
 
-const legalPages = [
+final legalPages = [
   LegalPage(
     file: 'web/privacy.html',
     lang: 'en',
@@ -137,7 +137,9 @@ String renderBody(String text, String updated) {
     if (list.isNotEmpty) {
       out.writeln('      <ul>');
       for (final li in list) {
-        out.writeln('        <li>${_inline(li)}</li>');
+        final lead = legalLeadIn(li);
+        final label = lead > 0 ? '<strong>${_inline(li.substring(0, lead))}</strong>' : '';
+        out.writeln('        <li>$label${_inline(li.substring(lead))}</li>');
       }
       out.writeln('      </ul>');
       list.clear();

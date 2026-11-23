@@ -211,7 +211,7 @@ void main() {
     final metadata = File('docs/appstore/metadata.md').readAsStringSync();
     final body = manifest.replaceAll(RegExp(r'<!--[\s\S]*?-->'), '');
 
-    test('PrivacyInfo.xcprivacy: no tracking, two collected types, UserDefaults CA92.1', () {
+    test('PrivacyInfo.xcprivacy: no tracking, three collected types (none linked), UserDefaults CA92.1', () {
       expect(RegExp(r'<key>NSPrivacyTracking</key>\s*<false/>').hasMatch(body), isTrue);
       expect(RegExp(r'<key>NSPrivacyTrackingDomains</key>\s*<array/>').hasMatch(body), isTrue);
       final types = RegExp(r'<string>(NSPrivacyCollectedDataType\w+)</string>')
@@ -219,7 +219,11 @@ void main() {
           .map((m) => m[1])
           .where((t) => !t!.startsWith('NSPrivacyCollectedDataTypePurpose'))
           .toSet();
-      expect(types, {'NSPrivacyCollectedDataTypeOtherUserContent', 'NSPrivacyCollectedDataTypePurchaseHistory'});
+      expect(types, {
+        'NSPrivacyCollectedDataTypeOtherUserContent',
+        'NSPrivacyCollectedDataTypePurchaseHistory',
+        'NSPrivacyCollectedDataTypeProductInteraction',
+      });
       expect(RegExp(r'<key>NSPrivacyCollectedDataTypeLinked</key>\s*<true/>').hasMatch(body), isFalse);
       expect(RegExp(r'<key>NSPrivacyCollectedDataTypeTracking</key>\s*<true/>').hasMatch(body), isFalse);
       final purposes = RegExp(r'<string>(NSPrivacyCollectedDataTypePurpose\w+)</string>').allMatches(body).map((m) => m[1]).toSet();
@@ -232,8 +236,11 @@ void main() {
 
     test('App Store privacy answers match the manifest', () {
       expect(metadata, contains('| User Content › Other User Content'));
-      expect(metadata, contains('| Purchases › Purchase History | Yes | No | No | App Functionality |'));
-      expect(metadata, contains('**Data Not Linked to You**: User Content, Purchases'));
+      expect(metadata, contains('| Purchases › Purchase History (the App Store-signed StoreKit transaction'));
+      expect(metadata, contains('| Usage Data › Product Interaction (anonymous counts of coach replies'));
+      expect(RegExp(r'\| Purchases › Purchase History [^\n]*\| Yes \| No \| No \| App Functionality \|').hasMatch(metadata), isTrue);
+      expect(RegExp(r'\| Usage Data › Product Interaction [^\n]*\| Yes \| No \| No \| App Functionality \|').hasMatch(metadata), isTrue);
+      expect(metadata, contains('**Data Not Linked to You**: User Content, Purchases, Usage\nData.'));
       expect(metadata, contains('Audio Data'), reason: 'audio is explicitly not collected');
     });
 
@@ -245,6 +252,35 @@ void main() {
         expect(policy, contains('aged 18 and over'));
       }
       expect(kPrivacyPolicyEs, contains('no contiene publicidad, analítica ni rastreo'));
+      // What the server receives and keeps (chat-v7 cost guard), in both languages.
+      for (final phrase in [
+        "Apple's signed proof of your subscription (the StoreKit transaction)",
+        "verifies it with Apple's certificates",
+        "one-way salted hash of the subscription's transaction ID",
+        'not linked to your identity',
+        'hash of your network identifier',
+        'status as a hash',
+        'No conversation content is stored',
+        'daily reply counts reset every day',
+        'monthly counts are kept for the current month only',
+        'rate-limit entries are short-lived',
+      ]) {
+        expect(kPrivacyPolicy, contains(phrase), reason: phrase);
+      }
+      for (final phrase in [
+        'prueba firmada por Apple de tu suscripción (la transacción de StoreKit)',
+        'certificados de Apple',
+        'hash unidireccional con sal del ID de transacción',
+        'no están vinculados a tu identidad',
+        'identificador de red',
+        'como un hash del ID de transacción',
+        'No guardamos ningún contenido de tus conversaciones',
+        'se reinician cada día',
+        'solo durante el mes en curso',
+        'duran poco',
+      ]) {
+        expect(kPrivacyPolicyEs, contains(phrase), reason: phrase);
+      }
       expect(kTermsOfService, contains('Coaching chat is available only with this paid subscription.'));
       expect(kTermsOfService, contains('auto-renewable monthly subscription'));
       // Nothing beyond what the policy lists is sent (see the identifiers test).

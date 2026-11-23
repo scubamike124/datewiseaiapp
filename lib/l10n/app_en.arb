@@ -386,6 +386,28 @@
   },
   "priceFromAppStore": "Price shown by the App Store",
   "subscribe": "Subscribe",
+  "paywallFairUse": "Fair use: up to {daily} coach replies a day and {monthly} a month, at most {perMinute} a minute and {concurrent} at a time. Typed and spoken messages count the same. A notice appears near a limit; at the limit, chat pauses until the next day (00:00 UTC) or month.",
+  "@paywallFairUse": {
+    "description": "Paywall line next to the disclosure. Numbers come from lib/config/fair_use.dart (the backend limits).",
+    "placeholders": {
+      "daily": {
+        "type": "String",
+        "example": "150"
+      },
+      "monthly": {
+        "type": "String",
+        "example": "1,500"
+      },
+      "perMinute": {
+        "type": "String",
+        "example": "12"
+      },
+      "concurrent": {
+        "type": "String",
+        "example": "2"
+      }
+    }
+  },
   "paywallDisclosureNoPrice": "Monthly subscription at the price shown by the App Store. Payment is charged to your Apple Account at confirmation of purchase. The subscription renews automatically every month at that price unless you cancel it at least 24 hours before the end of the current period. Cancel any time in Settings › [your name] › Subscriptions.",
   "tapToSend": "Stop and send",
   "tapToTalkHint": "Double-tap to start talking, then double-tap again to send",

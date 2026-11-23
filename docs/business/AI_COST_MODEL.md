@@ -245,6 +245,12 @@ Policy text, for the support page and App Store description. It does not say "un
 > everyone, very high automated or shared use may be paused until the next day. You will see a notice before you
 > reach the daily limit. Spoken and typed messages count the same.
 
+Shipped wording (2.0.0) states the actual numbers: up to 150 coach replies a day and 1,500 a month, at most 12 a minute
+and 2 at a time; a notice near a limit; chat pauses until the next day (00:00 UTC) or month. It appears on the paywall
+(`paywallFairUse`), in the Terms of Use ("Fair use") and in the App Store description and review notes. The numbers come
+from `lib/config/fair_use.dart`, and `test/fair_use_test.dart` fails if they differ from `backend/wrangler.toml`, so
+change both together.
+
 | Limit (wrangler var) | Provisional default | Why | Label |
 |---|---|---|---|
 | `DAILY_MESSAGE_LIMIT` | 150 a subscriber a day | Almost 4x the heavy profile (40). Nobody chatting by hand reaches it | ASSUMPTION (policy) |
