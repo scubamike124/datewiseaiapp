@@ -255,8 +255,7 @@ export class UsageGuard {
       settle: () => this.settle(body),
       budget: () => this.budget(body),
       'budget-settle': () => this.budgetSettle(body),
-      revoke: () => this.revoke(body),
-      unrevoke: () => this.unrevoke(body),
+      'set-revoked': () => this.setRevoked(body),
     };
     if (!Object.hasOwn(ops, op)) return new Response('not found', { status: 404 });
     return new Response(JSON.stringify(await ops[op]()), { headers: { 'Content-Type': 'application/json' } });
@@ -269,13 +268,13 @@ export class UsageGuard {
     if (s.day !== day) Object.assign(s, { day, dayCount: 0 });
     if (s.month !== month) Object.assign(s, { month, monthCount: 0 });
     s.inflight = Object.fromEntries(Object.entries(s.inflight || {}).filter(([, exp]) => exp > now));
-    s.revoked = s.revoked || [];
+    s.rev = s.rev || {};
     return s;
   }
 
   async reserve({ now, txHash: tx, limits }) {
     const s = await this.load(now);
-    if (tx && s.revoked.includes(tx)) return { ok: false, code: 'SUBSCRIPTION_REVOKED' };
+    if (tx && s.rev[tx]?.revoked) return { ok: false, code: 'SUBSCRIPTION_REVOKED' };
     if (s.dayCount >= limits.daily) {
       return { ok: false, code: 'DAILY_LIMIT', resetAt: nextDay(now), retryAfter: (nextDay(now) - now) / 1000 };
     }
@@ -323,19 +322,23 @@ export class UsageGuard {
     return { ok: true };
   }
 
-  async revoke({ txHash: tx }) {
+  /**
+   * Records a revocation (REFUND/REVOKE, or a revoked copy seen in a request)
+   * or a reinstatement (REFUND_REVERSED) for one hashed transaction id. Apple
+   * may deliver notifications out of order, so the state with the latest
+   * `signedDate` wins; an older one is ignored.
+   */
+  async setRevoked({ txHash: tx, revoked, at }) {
     const s = (await this.storage.get('u')) || {};
-    s.revoked = [...new Set([...(s.revoked || []), String(tx)])].slice(-50);
+    s.rev = s.rev || {};
+    const prev = s.rev[tx];
+    if (prev && prev.at >= at) return { ok: true, applied: false };
+    s.rev[tx] = { revoked: Boolean(revoked), at };
+    // Keep the 50 most recent entries.
+    const keys = Object.keys(s.rev).sort((a, b) => s.rev[b].at - s.rev[a].at);
+    for (const k of keys.slice(50)) delete s.rev[k];
     await this.storage.put('u', s);
-    return { ok: true };
-  }
-
-  /** REFUND_REVERSED: Apple reinstated the transaction. */
-  async unrevoke({ txHash: tx }) {
-    const s = (await this.storage.get('u')) || {};
-    s.revoked = (s.revoked || []).filter((x) => x !== String(tx));
-    await this.storage.put('u', s);
-    return { ok: true };
+    return { ok: true, applied: true };
   }
 
   async budget({ now, neurons, daily, monthly, anon, anonDaily }) {
@@ -356,10 +359,14 @@ export class UsageGuard {
     return { ok: true, day, spent: s.spent };
   }
 
-  /** Replaces a worst-case reservation with the measured amount (only ever gives back). */
+  /**
+   * Replaces a reservation with the measured amount: gives back what was not
+   * used, or charges an overage (a measured cost above the estimate), so the
+   * budget always reflects real usage.
+   */
   async budgetSettle({ day, reserved, actual, anon }) {
     const s = (await this.storage.get('g')) || {};
-    const delta = Math.min(0, actual - reserved);
+    const delta = actual - reserved;
     if (s.day === day) {
       s.spent = Math.max(0, s.spent + delta);
       if (anon) s.anonSpent = Math.max(0, (s.anonSpent || 0) + delta);
@@ -430,7 +437,11 @@ export async function admit(request, env, cors, { kind, model, inTokens, outToke
       if (r.code === 'SUBSCRIPTION_REVOKED' && r.tx) {
         // Remember the refund so an older saved copy of this transaction is refused too.
         try {
-          await callDo(env, await subscriberKey(cfg, r.tx), 'revoke', { txHash: await txHash(cfg, r.tx.transactionId) });
+          await callDo(env, await subscriberKey(cfg, r.tx), 'set-revoked', {
+            txHash: await txHash(cfg, r.tx.transactionId),
+            revoked: true,
+            at: Number(r.tx.signedDate) || now,
+          });
         } catch {
           /* best effort */
         }
@@ -499,7 +510,7 @@ export async function admit(request, env, cors, { kind, model, inTokens, outToke
   const finish = async (actualNeurons, { refund = false } = {}) => {
     if (finished) return;
     finished = true;
-    const actual = Math.min(reserveNeurons, Math.max(0, Math.ceil(actualNeurons)));
+    const actual = Math.max(0, Math.ceil(actualNeurons));
     await Promise.all([
       releaseSub(refund),
       callDo(env, 'global', 'budget-settle', { day: budget.day, reserved: reserveNeurons, actual, anon }).catch(() => {}),
@@ -634,14 +645,23 @@ export async function handleAppleNotification(request, env) {
     const n = await verifyAppleJws(body?.signedPayload, verifyOpts(now, { maxLength: 64_000 }));
     const data = n.data || {};
     if (data.bundleId !== cfg.APPLE_BUNDLE_ID) throw new JwsError('notification_bundle');
-    if (!environmentAllowed(cfg, data.environment)) throw new JwsError('notification_environment');
+    // Valid, but not for this deployment (for example Sandbox with ALLOW_SANDBOX=0):
+    // acknowledge it so Apple does not retry, and change nothing.
+    if (!environmentAllowed(cfg, data.environment)) {
+      logUsage({ kind: 'assn', outcome: 'ignored', reason: 'environment' });
+      return new Response('ignored', { status: 200 });
+    }
     const type = n.notificationType;
     if ((type === 'REFUND' || type === 'REVOKE' || type === 'REFUND_REVERSED') && data.signedTransactionInfo) {
       const tx = await verifyAppleJws(data.signedTransactionInfo, verifyOpts(now));
       if (tx.bundleId !== cfg.APPLE_BUNDLE_ID || tx.environment !== data.environment) throw new JwsError('transaction_mismatch');
-      const op = type === 'REFUND_REVERSED' ? 'unrevoke' : 'revoke';
-      await callDo(env, await subscriberKey(cfg, tx), op, { txHash: await txHash(cfg, tx.transactionId) });
-      logUsage({ kind: 'assn', outcome: type });
+      const r = await callDo(env, await subscriberKey(cfg, tx), 'set-revoked', {
+        txHash: await txHash(cfg, tx.transactionId),
+        revoked: type !== 'REFUND_REVERSED',
+        // Per transaction, the latest signed state wins (out-of-order delivery).
+        at: Number(tx.signedDate) || Number(n.signedDate) || now,
+      });
+      logUsage({ kind: 'assn', outcome: r.applied ? type : 'stale' });
     }
     return new Response('ok', { status: 200 });
   } catch (e) {

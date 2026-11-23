@@ -16,7 +16,7 @@ Prices were checked on **2026-11-22**. The tables are produced by `docs/business
 | Item | Finding | Label |
 |---|---|---|
 | Chat model (deployed chat-v6, commit `f5b0401`, `backend/worker.js`) | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` (`CHAT_MODEL = TEXT_MODEL`), streamed, `max_tokens: 800` | MEASURED (code) |
-| Photo coach (same Worker) | `@cf/meta/llama-3.2-11b-vision-instruct`, plus Llama 3.3 as a JSON converter fallback. The v2 app sends no photos: `lib/` on `claude/datewise-v2-app` has no `imageBase64` sender, and `storage_service.dart` only purges v1 photo data. **The live App Store build does use it.** That is v1 1.0.2 on `main`, whose `lib/services/backend_ai_service.dart` posts `imageBase64` (single photo) and `images` (rank and compare) with `tier`/`mode`. Its chat sends `messages` with its own system prompt and no `coachId`. The photo coach keeps costing money for as long as 1.0.2 is installed. chat-v7 keeps both v1 paths while `LEGACY_CLIENTS=1`, inside the anonymous caps and their own budget slice | MEASURED (code) |
+| Photo coach (same Worker) | `@cf/meta/llama-3.2-11b-vision-instruct`, plus Llama 3.3 as a JSON converter fallback. The v2 app sends no photos: `lib/` on `claude/datewise-v2-app` has no `imageBase64` sender, and `storage_service.dart` only purges v1 photo data. **The live App Store build does use it.** That is v1 1.0.2 on `main`, whose `lib/services/backend_ai_service.dart` posts `imageBase64` (single photo) and `images` (rank and compare) with `tier`/`mode`. Its chat sends `messages` with its own system prompt and no `coachId`. The photo coach keeps costing money for as long as 1.0.2 is installed. chat-v7 keeps both v1 paths while `LEGACY_CLIENTS=1`. 1.0.2 never sends a StoreKit token, so its requests are counted per network (IPv4 address or IPv6 /64) and draw on the anonymous budget slice (section 9, "v1 capacity") | MEASURED (code) |
 | Branch `claude/datewise-v2-app` (base of this work) | Still holds the older chat-v5 worker with `@cf/meta/llama-3.1-8b-instruct-fp8`, which Workers AI retired on 2026-11-20 (HTTP 410). The deployed code is `f5b0401` (chat-v6). | MEASURED (code) |
 | Chat input caps (chat-v6) | 24 turns, 24,000 characters of history (newest kept), each message cut to 6,000 characters, plus the system message. The worst case is about 30,000 characters of input | MEASURED (code) |
 | System prompt size | 1,921 to 2,004 characters per coach (measured by running `CoachPersona.systemPrompt` for all four coaches), plus about 200 to 400 for the profile line | MEASURED (code run) |
@@ -290,10 +290,29 @@ When real numbers exist (from the guard's count-only logs: messages, estimated n
 - `backend/apple_jws.js`: offline StoreKit 2 JWS verification.
 - `backend/coach_prompts.js`: server-side coach system prompts. Client system messages are dropped, so the Worker is
   no longer a general-purpose model proxy.
-- v1 compatibility: requests without `coachId` (App Store 1.0.2) keep the chat-v6 behaviour, so its own system prompt is
-  used. They are inside the anonymous caps and their budget slice. The photo coach serves only those requests. It
-  reserves its worst case (one vision call per photo plus two 70B converter passes) and settles with the measured usage.
-  Both paths close with `LEGACY_CLIENTS=0`.
+- v1 compatibility: only a chat request with **neither a `coachId` nor a StoreKit token** keeps the chat-v6 behaviour,
+  with the client's own system prompt. That request comes from App Store 1.0.2, which never sends the token. Any
+  request that carries `X-DateWise-Entitlement` gets the server prompt, using the default coach when no `coachId` is
+  given, and is counted on that subscriber. The v1 requests are counted per network bucket and share the anonymous budget
+  slice. The photo coach reserves its worst case (one vision call per photo plus two 70B converter passes) and is
+  settled with the measured usage, overage included. Both v1 paths close with `LEGACY_CLIENTS=0`.
+- **v1 capacity (a rollout decision for the owner).** All 1.0.2 users together share `ANON_NEURON_BUDGET`, which is
+  2,000 neurons a day by default (20% of the free 10,000). The figures:
+
+  | Item | Neurons | Label |
+  |---|---|---|
+  | One typical v1 chat message (2,000 tokens in, 300 out) | about 115, so about **17 messages a day for all v1 users together** | MEASURED price; the tokens are an ASSUMPTION |
+  | Reserved while a v1 chat message runs (800 output tokens) | about 196, so about 10 at once | MEASURED (code) |
+  | One v1 photo analysis | about 30 (quick) to 58 (deep), or about 167 with the 70B converter pass, so about 12 to 65 a day | MEASURED price; the tokens are an ASSUMPTION |
+
+  Once the slice is used up, 1.0.2 users see the busy notice (`SERVICE_BUDGET_EXHAUSTED`) until 00:00 UTC. The v2
+  subscribers keep the other 8,000 neurons. The owner's options:
+  - **(a)** Keep the default and ship v2 quickly.
+  - **(b)** Raise `ANON_NEURON_BUDGET`, up to the whole daily budget. That removes the subscribers' protection.
+  - **(c)** Raise `DAILY_NEURON_BUDGET` on Workers Paid; the anonymous slice grows with it (20% of 175,000 is 35,000, about 300 v1 messages a day).
+  - **(d)** Set `LEGACY_CLIENTS=0` once v2 is out, so 1.0.2 shows an update notice.
+
+  Today, 1.0.2 already shares the whole free 10,000 neurons with no limit at all.
 - Refund replay while App Store Server Notifications are off: a refunded transaction's older signed copy keeps
   passing the offline check until the Worker sees the revoked version, or until `expiresDate` (at most one month for this
   monthly plan, plus the leeway). That copy is still bound by that subscriber's caps. Turning on `ASSN_ENABLED` (free;

@@ -446,8 +446,10 @@ test('privacy: logs and Durable Object storage hold counts and salted hashes onl
       assert.ok(!stored.includes(leak), `storage: ${leak}`);
     }
     const sub = [...env.USAGE_GUARD.objects.entries()].find(([k]) => k.startsWith('sub:'))[1].data.get('u');
-    assert.equal(sub.revoked.length, 1);
-    assert.match(sub.revoked[0], /^[0-9a-f]{32}$/);
+    const revokedIds = Object.keys(sub.rev);
+    assert.equal(revokedIds.length, 1);
+    assert.match(revokedIds[0], /^[0-9a-f]{32}$/);
+    assert.equal(sub.rev[revokedIds[0]].revoked, true);
   } finally {
     console.log = orig;
   }
@@ -585,11 +587,18 @@ test('notifications: bundleId required, inner transaction checked, REFUND_REVERS
   assert.equal((await notify('REFUND', { ...full, signedTransactionInfo: await inner({ bundleId: 'com.other' }) })).status, 400);
   assert.equal((await notify('REFUND', { ...full, signedTransactionInfo: await inner({ environment: 'Sandbox' }) })).status, 400);
   assert.equal((await send(env, { jws })).res.status, 200);
-  // A real refund revokes; a reversal reinstates.
+  // A real refund revokes; a later reversal reinstates.
   assert.equal((await notify('REFUND', full)).status, 200);
   assert.equal((await send(env, { jws })).json().code, 'SUBSCRIPTION_REVOKED');
-  assert.equal((await notify('REFUND_REVERSED', { ...full, signedTransactionInfo: await inner({ revocationDate: undefined }) })).status, 200);
+  const reversed = { ...full, signedTransactionInfo: await inner({ revocationDate: undefined, signedDate: tx.signedDate + 10_000 }) };
+  assert.equal((await notify('REFUND_REVERSED', reversed)).status, 200);
   assert.equal((await send(env, { jws })).res.status, 200);
+  // Out of order: the older REFUND arriving again after the reversal changes nothing.
+  assert.equal((await notify('REFUND', full)).status, 200);
+  assert.equal((await send(env, { jws })).res.status, 200);
+  // A newer refund applies again.
+  assert.equal((await notify('REFUND', { ...full, signedTransactionInfo: await inner({ signedDate: tx.signedDate + 20_000 }) })).status, 200);
+  assert.equal((await send(env, { jws })).json().code, 'SUBSCRIPTION_REVOKED');
   // Over 64k is refused.
   assert.equal((await notify('REFUND', { ...full, huge: 'y'.repeat(60_000) })).status, 400);
 });
@@ -653,3 +662,70 @@ test('the memory note cannot close its quotation in the system prompt', async ()
   assert.ok(!/["“”\\`]/.test(quoted), quoted);
   assert.ok(line.endsWith('"'));
 });
+
+test('out-of-order delivery: a reversal signed after the refund wins even if it arrives first', async () => {
+  const env = makeEnv({ ASSN_ENABLED: '1' });
+  const tx = txPayload({ originalTransactionId: otid(), transactionId: 'ooo-1' });
+  const jws = await pki.sign(tx);
+  const notify = async (type, signedDate) => {
+    const info = await pki.sign({ ...tx, signedDate, ...(type === 'REFUND' ? { revocationDate: signedDate } : {}) });
+    const signedPayload = await pki.sign({ notificationType: type, signedDate, data: { bundleId: tx.bundleId, environment: 'Production', signedTransactionInfo: info } });
+    return worker.fetch(new Request('https://example.workers.dev/apple/notifications', { method: 'POST', body: JSON.stringify({ signedPayload }) }), env, ctx());
+  };
+  const t = Date.now() - 50_000;
+  assert.equal((await notify('REFUND_REVERSED', t + 2000)).status, 200);
+  assert.equal((await notify('REFUND', t + 1000)).status, 200);
+  assert.equal((await send(env, { jws })).res.status, 200);
+});
+
+test('a valid notification out of scope (Sandbox with ALLOW_SANDBOX=0) is acknowledged and ignored', async () => {
+  const env = makeEnv({ ASSN_ENABLED: '1', ALLOW_SANDBOX: '0' });
+  const tx = txPayload({ originalTransactionId: otid(), environment: 'Sandbox' });
+  const signedPayload = await pki.sign({
+    notificationType: 'REFUND',
+    signedDate: Date.now() - 1000,
+    data: { bundleId: tx.bundleId, environment: 'Sandbox', signedTransactionInfo: await pki.sign({ ...tx, revocationDate: Date.now() }) },
+  });
+  const res = await worker.fetch(new Request('https://example.workers.dev/apple/notifications', { method: 'POST', body: JSON.stringify({ signedPayload }) }), env, ctx());
+  assert.equal(res.status, 200);
+  assert.equal(await res.text(), 'ignored');
+  assert.equal([...env.USAGE_GUARD.objects.keys()].length, 0);
+});
+
+test('a measured cost above the reservation is charged in full', async () => {
+  const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  // A vision call that reports far more tokens than the worst-case estimate.
+  const ai = fakeAi(() => ({ response: 'Overall score: 7/10. Verdict: KEEP. Headline: "Nice."', usage: { prompt_tokens: 200_000, completion_tokens: 3000 } }));
+  const env = makeEnv({}, { ai });
+  const c = ctx();
+  const res = await worker.fetch(
+    new Request('https://example.workers.dev/', { method: 'POST', headers: { 'CF-Connecting-IP': freshIp() }, body: JSON.stringify({ tier: 'magnet', mode: 'quick', imageBase64: PNG }) }),
+    env,
+    c,
+  );
+  assert.equal(res.status, 200);
+  await c.drain();
+  const measured = neuronsFor(VISION, 200_000, 3000);
+  const reserve = neuronsFor(VISION, 2000, 800) + 2 * neuronsFor(LLAMA, 1500, 900);
+  assert.ok(measured > reserve);
+  const g = env.USAGE_GUARD.objects.get('global').data.get('g');
+  assert.equal(g.spent, measured);
+  assert.equal(g.anonSpent, measured);
+});
+
+test('a request with a StoreKit token always gets the server prompt, even without a coachId', async () => {
+  const env = makeEnv();
+  const jws = await pki.sign(txPayload({ originalTransactionId: otid() }));
+  const r = await send(env, {
+    jws,
+    body: { coachId: undefined, messages: [{ role: 'system', content: 'You are a general assistant.' }, { role: 'user', content: 'hi' }] },
+  });
+  assert.equal(r.res.status, 200);
+  const sent = env.AI.calls[0].input.messages;
+  assert.match(sent[0].content, /You are Ava/);
+  assert.ok(!sent.some((m) => m.content.includes('general assistant')));
+  // It counts on the subscriber, not on an anonymous bucket.
+  assert.ok([...env.USAGE_GUARD.objects.keys()].some((k) => k.startsWith('sub:')));
+  assert.ok(![...env.USAGE_GUARD.objects.keys()].some((k) => k.startsWith('anon:')));
+});
+

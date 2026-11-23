@@ -13,9 +13,9 @@
  * chat-v7 (cost guard): every AI call passes cost_guard.js first (per-subscriber
  * caps, global neuron budget, StoreKit 2 JWS check), the coach system prompt is
  * built on the server (coach_prompts.js) for requests with a coachId. Requests
- * without one come from the v1 App Store build (1.0.2): its chat and photo
- * coach keep their chat-v6 behaviour, inside the anonymous caps and budget,
- * while LEGACY_CLIENTS=1. See docs/business/AI_COST_MODEL.md.
+ * without one and without a StoreKit token come from the v1 App Store build
+ * (1.0.2): its chat and photo coach keep their chat-v6 behaviour, in the
+ * anonymous caps and their budget slice, while LEGACY_CLIENTS=1. See docs/business/AI_COST_MODEL.md.
  */
 import { admit, estimateTokens, fitToInputBudget, guardConfig, guardError, handleAppleNotification, meterStream, meteredAi, neuronsFor, GUARD_VERSION } from './cost_guard.js';
 import { coachMessages, resolveCoachId } from './coach_prompts.js';
@@ -543,15 +543,17 @@ async function runChatStream(env, messages, maxTokens = MAX_CHAT_TOKENS) {
   }
 }
 
-// Handles a coaching chat request (chat-v7). With a coachId (the v2 app) the
-// server builds the coach's system prompt and drops client system messages.
-// Without one (the v1 build, 1.0.2) the chat-v6 behaviour is kept while
-// LEGACY_CLIENTS=1. Either way the history is trimmed to the input-token cap,
+// Handles a coaching chat request (chat-v7). With a coachId or a StoreKit
+// token (the v2 app) the server builds the coach's system prompt (the default
+// coach when no coachId is given) and drops client system messages. Only a
+// request with neither (the v1 build, 1.0.2, which never sends the token)
+// keeps the chat-v6 behaviour, while LEGACY_CLIENTS=1, in the anonymous caps. Either way the history is trimmed to the input-token cap,
 // the request is admitted by the cost guard, and the model's reply streams
 // back unchanged as Server-Sent Events while it is metered.
 async function handleChat(request, env, ctx, body) {
   const cfg = guardConfig(env);
-  const legacy = body.coachId === undefined || body.coachId === null;
+  const legacy =
+    (body.coachId === undefined || body.coachId === null) && !request.headers.get('X-DateWise-Entitlement');
   let safe;
   if (legacy) {
     if (!cfg.LEGACY_CLIENTS) return guardError('APP_UPDATE_REQUIRED', corsHeaders());

@@ -24,9 +24,12 @@ new_sqlite_classes = ["UsageGuard"]
 # per Cloudflare location; the Durable Object counters stay the strict limits.
 # The key is a salted hash of the IPv4 address or IPv6 /64. Without the
 # binding, the Worker falls back to an in-isolate window.
+# namespace_id must be unique in the Cloudflare account: bindings that share
+# one share counters across Workers. 740219 is reserved for this Worker; check
+# that no other Worker on the account uses it before deploying.
 [[ratelimits]]
 name = "RATE_LIMITER"
-namespace_id = "1001"
+namespace_id = "740219"
 
   [ratelimits.simple]
   limit = 60
@@ -63,8 +66,8 @@ REQUIRE_SUBSCRIPTION = "0"
 # Per IPv4 address / IPv6 /64.
 ANON_DAILY_LIMIT = "60"
 ANON_MONTHLY_LIMIT = "600"
-# v1 App Store build (1.0.2, no coachId): chat with its own prompt and the
-# photo coach, inside the anonymous caps and budget. Set "0" when v1 is retired
+# v1 App Store build (1.0.2: no coachId, no token): chat with its own prompt and the
+# photo coach, counted per network and on ANON_NEURON_BUDGET. Set "0" when v1 is retired
 # (requests then get 426 APP_UPDATE_REQUIRED).
 LEGACY_CLIENTS = "1"
 # Subscription checks (offline StoreKit 2 JWS verification against Apple Root CA - G3).
