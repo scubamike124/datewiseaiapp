@@ -79,6 +79,24 @@ test('GET ?version names the fix', async () => {
   assert.equal(body.version, 'chat-v7-cost-guard');
 });
 
+test('GET ?agree=1 never runs the model unless ALLOW_AGREE is "1"', async () => {
+  for (const extra of [{}, { ALLOW_AGREE: '0' }, { ALLOW_AGREE: 'true' }]) {
+    const f = fakeEnv(() => ({ response: 'ok' }));
+    const res = await worker.fetch(new Request('https://example.workers.dev/?agree=1'), { ...f.env, ...extra });
+    assert.equal(res.status, 405);
+    assert.equal(f.calls.length, 0, `model called with ${JSON.stringify(extra)}`);
+  }
+  // Opt-in for a new account's one-time licence acceptance still works.
+  const f = fakeEnv(() => ({ response: 'ok' }));
+  const res = await worker.fetch(new Request('https://example.workers.dev/?agree=1'), { ...f.env, ALLOW_AGREE: '1' });
+  assert.equal(res.status, 200);
+  assert.equal(f.calls.length, 1);
+});
+
+test('the committed configs never set ALLOW_AGREE', () => {
+  assert.ok(!readFileSync(new URL('./wrangler.toml', import.meta.url), 'utf8').includes('ALLOW_AGREE'));
+});
+
 test('coach chat streams from the text model and forwards the SSE body unchanged', async () => {
   const sse = 'data: {"response":"Hola"}\n\ndata: {"response":"!"}\n\ndata: [DONE]\n\n';
   const f = fakeEnv((model, input) => {

@@ -324,7 +324,8 @@ void main() {
     test('no logging, no storage bindings, no third-party calls', () {
       expect(RegExp(r'console\.(log|info|warn|error|debug)').hasMatch(worker), isFalse);
       final bindings = RegExp(r'env\.([A-Z_][A-Z0-9_]*)').allMatches(worker).map((m) => m[1]).toSet();
-      expect(bindings, {'AI'}, reason: 'only the Workers AI binding: no KV, D1, R2, Queues or Analytics Engine');
+      // ALLOW_AGREE is a plain text variable (off unless set by hand), not a storage binding.
+      expect(bindings, {'AI', 'ALLOW_AGREE'}, reason: 'only the Workers AI binding: no KV, D1, R2, Queues or Analytics Engine');
       expect(RegExp(r'\bfetch\(\s*["`h]').hasMatch(worker), isFalse, reason: 'no outbound fetch to another service');
       for (final k in ['kv_namespaces', 'd1_databases', 'r2_buckets', 'queues', 'analytics_engine', 'logpush', 'observability']) {
         expect(wrangler.contains(k), isFalse, reason: k);
