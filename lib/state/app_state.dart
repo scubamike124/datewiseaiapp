@@ -345,7 +345,17 @@ class AppState extends ChangeNotifier {
     // Claimed before anything is awaited, so a second send cannot slip in.
     _isResponding = true;
 
-    final thread = activeThread ?? await createThread();
+    final ChatThread thread;
+    try {
+      thread = activeThread ?? await createThread();
+    } catch (e) {
+      // Storage failed while starting a conversation: nothing was sent, and
+      // the app must not stay "responding" (the composer would stay locked).
+      _isResponding = false;
+      notifyListeners();
+      debugPrint('sendMessage: could not start a conversation: $e');
+      return false;
+    }
     final now = _clock();
     thread.messages.add(ChatMessage(
       id: _uuid.v4(),
@@ -368,7 +378,12 @@ class AppState extends ChangeNotifier {
   Future<void>? _stopping;
 
   Future<void> _streamCoachReply(ChatThread thread) {
-    final task = _runReply(thread);
+    late final Future<void> task;
+    // Cleared when this reply ends, however it ends (normally [_runReply]
+    // clears it; this covers a reply that fails before it streams).
+    task = _runReply(thread).whenComplete(() {
+      if (identical(_replyTask, task)) _replyTask = null;
+    });
     _replyTask = task;
     return task;
   }
@@ -389,8 +404,28 @@ class AppState extends ChangeNotifier {
     // starts: if the app closes or restarts mid-reply, the conversation
     // reloads with an interrupted reply and "Try again" (a reply still
     // streaming is saved as interrupted; see ChatMessage.toJson).
-    await _persist();
-    await _recordActiveDay();
+    var saved = false;
+    try {
+      await _persist();
+      await _recordActiveDay();
+      saved = true;
+    } catch (e) {
+      debugPrint('reply: could not save before the request: $e');
+    } finally {
+      if (!saved) {
+        // Storage failed: no request is made. The reply shows as failed with
+        // "Try again", and the app is no longer "responding", so the user is
+        // never stuck behind a spinner.
+        coachMsg
+          ..isStreaming = false
+          ..status = MessageStatus.failed;
+        if (identical(_replyMsg, coachMsg)) _replyMsg = null;
+        _replyTask = null;
+        _isResponding = false;
+        notifyListeners();
+      }
+    }
+    if (!saved) return;
 
     final done = Completer<void>();
     _replyDone = done;

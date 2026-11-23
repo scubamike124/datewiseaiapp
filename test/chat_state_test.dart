@@ -83,7 +83,70 @@ Future<(AppState, StorageService)> make(AIService ai, {Map<String, Object> prefs
   return (AppState(storage: storage, ai: ai, store: FakeStoreService(entitled: true)), storage);
 }
 
+/// Storage whose conversation and active-day writes can be made to fail
+/// (a full disk, a corrupt preferences store).
+class ThrowingStorage extends StorageService {
+  ThrowingStorage(super.prefs);
+  bool failThreads = false;
+  bool failActiveDays = false;
+
+  @override
+  Future<void> saveThreads(threads) =>
+      failThreads ? Future.error(StateError('disk full')) : super.saveThreads(threads);
+
+  @override
+  Future<void> saveActiveDays(days) =>
+      failActiveDays ? Future.error(StateError('disk full')) : super.saveActiveDays(days);
+}
+
 void main() {
+  group('a storage error before the reply streams', () {
+    Future<(AppState, ThrowingStorage, ScriptedAI)> setUpState() async {
+      SharedPreferences.setMockInitialValues({});
+      final storage = ThrowingStorage(await SharedPreferences.getInstance());
+      final ai = ScriptedAI([ScriptedAI.ok(['Hi ', 'there.'])]);
+      final state = AppState(storage: storage, ai: ai, store: FakeStoreService(entitled: true));
+      await state.selectCoach('ava');
+      return (state, storage, ai);
+    }
+
+    for (final which in ['threads', 'activeDays']) {
+      test('saving $which fails: not stuck "responding", the reply can be retried', () async {
+        final (state, storage, ai) = await setUpState();
+        await state.createThread();
+        storage
+          ..failThreads = which == 'threads'
+          ..failActiveDays = which == 'activeDays';
+        expect(await state.sendMessage('Help me reply'), isTrue);
+        expect(state.isResponding, isFalse);
+        expect(ai.calls, isEmpty, reason: 'no request when the reply could not be saved first');
+        final last = state.activeThread!.messages.last;
+        expect(last.status, MessageStatus.failed);
+        expect(last.isStreaming, isFalse);
+        // Nothing is left over: Stop is a no-op, and once storage works the reply is retried.
+        await state.cancelReply();
+        storage
+          ..failThreads = false
+          ..failActiveDays = false;
+        expect(state.canRetry, isTrue);
+        expect(await state.retryLastReply(), isTrue);
+        expect(state.activeThread!.messages.last.text, 'Hi there.');
+        expect(state.isResponding, isFalse);
+      });
+    }
+
+    test('starting a new conversation fails: nothing sent, not stuck "responding"', () async {
+      final (state, storage, ai) = await setUpState();
+      storage.failThreads = true;
+      expect(await state.sendMessage('Help me reply'), isFalse);
+      expect(state.isResponding, isFalse);
+      expect(ai.calls, isEmpty);
+      storage.failThreads = false;
+      expect(await state.sendMessage('Help me reply'), isTrue);
+      expect(state.activeThread!.messages.last.text, 'Hi there.');
+    });
+  });
+
   group('failed reply', () {
     test('keeps the user message, marks the reply failed, and retry replaces it', () async {
       final ai = ScriptedAI([ScriptedAI.fail(), ScriptedAI.ok(['Here ', 'you go.'])]);
