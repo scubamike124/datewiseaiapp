@@ -58,6 +58,7 @@ final class SpeechAudioChannel: NSObject, FlutterStreamHandler {
   private var sampleRate: Double = 0
   private var bytesPerFrame: Double = 0
   private var pendingMarkers: [(Int, Int, Int)] = []  // (start, end, byteSampleOffset)
+  private var ownsSession = false  // this channel activated the audio session
 
   func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
     sink = events
@@ -167,6 +168,7 @@ final class SpeechAudioChannel: NSObject, FlutterStreamHandler {
       try session.setCategory(.playback, mode: .spokenAudio,
                               options: [.mixWithOthers, .duckOthers, .allowBluetoothA2DP])
       try session.setActive(true)
+      ownsSession = true
     } catch {
       result(FlutterError(code: "session", message: error.localizedDescription, details: nil))
       return
@@ -316,7 +318,12 @@ final class SpeechAudioChannel: NSObject, FlutterStreamHandler {
     send(["e": "error", "message": message, "started": wasStarted])
   }
 
+  /// Releases the audio session, only if this channel activated it (so a
+  /// stop never deactivates a session that flutter_tts or speech
+  /// recognition is using).
   private func deactivateSession() {
+    guard ownsSession else { return }
+    ownsSession = false
     try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
   }
 

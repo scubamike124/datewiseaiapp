@@ -248,6 +248,13 @@ jobs:
           # CFBundleVersion: derive the build number from the run (the +100
           # offset keeps it above pubspec's +N and any earlier uploads).
           BUILD_NUMBER=$((100 + GITHUB_RUN_NUMBER))
+          if [ "$AVATAR_AUDIO_PATH" = "true" ]; then
+            # A device-test build of the avatar's native audio path: its own
+            # build-number range (+5000) so it is never mistaken for, or
+            # promoted as, an App Store candidate.
+            BUILD_NUMBER=$((5000 + BUILD_NUMBER))
+            echo "### ⚠️ AVATAR AUDIO-PATH TEST BUILD (DW_AVATAR_AUDIO_PATH=true): TestFlight device test only, do NOT submit for App Store review" >> "$GITHUB_STEP_SUMMARY"
+          fi
           echo "Build number: $BUILD_NUMBER" >> "$GITHUB_STEP_SUMMARY"
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
           # The avatar's native audio path stays off unless this run is a

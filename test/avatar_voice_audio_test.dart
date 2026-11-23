@@ -144,7 +144,44 @@ void main() {
     expect(audio.stops, greaterThan(0), reason: 'the native attempt is stopped');
     // A late "start" from the abandoned attempt changes nothing.
     audio.controller.add(const SpeechAudioStarted());
+    expect(s.speaking.value, isFalse);
+    expect(s.lipSync.hasAudio, isFalse);
+    // One timeout does not turn the native path off (a cold voice can be slow)...
+    await s.speak('Second reply.', Coaches.ava);
+    expect(audio.spoken, hasLength(2));
+    // ...but a second one in a row does.
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    await s.speak('Third reply.', Coaches.ava);
+    expect(audio.spoken, hasLength(2), reason: 'off after two consecutive timeouts');
     await s.dispose();
+  });
+
+  test('a timeout followed by a successful start resets the count', () async {
+    DeviceVoiceService.audioStartTimeout = const Duration(milliseconds: 50);
+    addTearDown(() => DeviceVoiceService.audioStartTimeout = const Duration(seconds: 3));
+    final audio = FakeAudio();
+    final s = DeviceVoiceService.forTesting(FlutterTts(), voices, audio: audio);
+    await s.speak('One.', Coaches.ava);
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    await s.speak('Two.', Coaches.ava);
+    audio.controller.add(const SpeechAudioStarted());
+    audio.controller.add(const SpeechAudioDone());
+    await s.speak('Three.', Coaches.ava);
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    await s.speak('Four.', Coaches.ava);
+    expect(audio.spoken, hasLength(4), reason: 'never two timeouts in a row');
+    await s.dispose();
+  });
+
+  test('dispose cancels a pending watchdog', () async {
+    DeviceVoiceService.audioStartTimeout = const Duration(milliseconds: 50);
+    addTearDown(() => DeviceVoiceService.audioStartTimeout = const Duration(seconds: 3));
+    final audio = FakeAudio();
+    final s = DeviceVoiceService.forTesting(FlutterTts(), voices, audio: audio);
+    await s.speak('Hi.', Coaches.ava);
+    await s.dispose();
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    expect(calls.where((c) => c == 'speak'), isEmpty, reason: 'no fallback after dispose');
   });
 
   test('the watchdog does not fire once playback started', () async {

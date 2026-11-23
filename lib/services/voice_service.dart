@@ -68,13 +68,14 @@ class CoachVoiceProfile {
 
   // When two coaches of the same gender share the only installed voice of
   // a language (Ava answering in Spanish with Sofía's voice, Ethan with
-  // Diego's), they differ by about 8% in speaking rate as well as in pitch.
+  // Diego's), rate and pitch keep them apart: Ava and Sofía about 16% in
+  // rate and 2 semitones in pitch, Ethan and Diego about 8% and 1.3.
   static const ava = CoachVoiceProfile(
-      locales: _enLocales, preferredNames: _enFemale, otherGenderNames: _enMale, pitch: 1.02, rate: 0.52);
+      locales: _enLocales, preferredNames: _enFemale, otherGenderNames: _enMale, pitch: 0.98, rate: 0.54);
   static const ethan = CoachVoiceProfile(
       locales: _enLocales, preferredNames: _enMale, otherGenderNames: _enFemale, pitch: 0.95, rate: 0.49);
   static const sofia = CoachVoiceProfile(
-      locales: _esLocales, preferredNames: _esFemale, otherGenderNames: _esMale, pitch: 1.1, rate: 0.48);
+      locales: _esLocales, preferredNames: _esFemale, otherGenderNames: _esMale, pitch: 1.1, rate: 0.46);
   static const diego = CoachVoiceProfile(
       locales: _esLocales, preferredNames: _esMale, otherGenderNames: _esFemale, pitch: 0.88, rate: 0.45);
 
@@ -127,6 +128,12 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
   static Duration audioStartTimeout = const Duration(seconds: 3);
   Timer? _audioWatchdog;
 
+  /// Consecutive replies whose playback did not start in time. A cold
+  /// Premium voice can be slow once, so the path is turned off only after
+  /// [maxStartTimeouts] in a row.
+  int _startTimeouts = 0;
+  static const int maxStartTimeouts = 2;
+
   final SpeechAudioBackend? _audio;
   StreamSubscription<SpeechAudioEvent>? _audioSub;
   bool _audioFailed = false;
@@ -141,7 +148,10 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
   /// Stops listening to the native audio path (tests; the app keeps one
   /// service while it runs).
   @visibleForTesting
-  Future<void> dispose() async => _audioSub?.cancel();
+  Future<void> dispose() async {
+    _audioWatchdog?.cancel();
+    await _audioSub?.cancel();
+  }
 
   void _wireTts() {
     final lip = lipSync;
@@ -171,6 +181,7 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
     switch (e) {
       case SpeechAudioStarted(:final latency):
         _audioWatchdog?.cancel();
+        _startTimeouts = 0;
         _fallback = null;
         _speaking.value = true;
         lipSync.started(latency: latency);
@@ -373,7 +384,7 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
       // Nothing heard within the timeout (a silent failure): fall back.
       _audioWatchdog?.cancel();
       _audioWatchdog = Timer(audioStartTimeout, () {
-        if (_audioGeneration == _generation && _fallback != null) _audioFailure(replay: true);
+        if (_audioGeneration == _generation && _fallback != null) _audioFailure(replay: true, timeout: true);
       });
       try {
         await _audio!.speak(
@@ -396,11 +407,19 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
   }
 
   /// The native path failed: stop it, clear the speaking state, and (when
-  /// nothing was heard yet) speak the same reply through flutter_tts. The
-  /// native path stays off for the rest of the session.
-  void _audioFailure({required bool replay}) {
+  /// nothing was heard yet) speak the same reply through flutter_tts. After
+  /// an error the native path stays off for the session; after a start
+  /// timeout only this reply falls back, unless it happens twice in a row.
+  void _audioFailure({required bool replay, bool timeout = false}) {
     _audioWatchdog?.cancel();
-    _audioFailed = true;
+    // Late events of this attempt (a "start" after the timeout) are ignored.
+    _audioGeneration = -1;
+    if (timeout) {
+      _startTimeouts++;
+      if (_startTimeouts >= maxStartTimeouts) _audioFailed = true;
+    } else {
+      _audioFailed = true;
+    }
     _speaking.value = false;
     lipSync.end();
     final fallback = _fallback;

@@ -169,6 +169,8 @@ class AudioAlignment {
   /// whole audio maps onto the whole plan).
   void complete() {
     _complete = true;
+    _mk = null;
+    _closures = null;
     _warp((_levels.length * _hop / step).floor());
   }
 
@@ -263,10 +265,10 @@ class AudioAlignment {
         }(),
     ];
     _mappedSteps = steps;
-    _closures = null;
   }
 
   List<(double, double)>? _closures;
+  double _closuresBuiltAt = 0;
 
   /// How far a planned lip closure may move to meet a clear dip in the
   /// loudness. Kept small: in the offline evaluation a wider search (120 ms)
@@ -280,7 +282,10 @@ class AudioAlignment {
   /// where the plan puts it). Empty until a mapping exists.
   List<(double, double)> closures() {
     final cached = _closures;
-    if (cached != null) return cached;
+    final len0 = _levels.length * _hop;
+    // Rebuilt at most once per second of new audio (and on complete).
+    if (cached != null && (_complete || len0 - _closuresBuiltAt < 1.0)) return cached;
+    _closuresBuiltAt = len0;
     final out = <(double, double)>[];
     final len = _levels.length * _hop;
     if (len <= 0) return out;
@@ -288,11 +293,21 @@ class AudioAlignment {
     final steps = (len / step).ceil();
     final dense = [for (var i = 0; i < steps; i++) planTime(i * step) ?? -1.0];
     if (dense.every((p) => p < 0)) return out;
+    // The mapping never goes backwards: binary search.
+    for (var i = 1; i < dense.length; i++) {
+      if (dense[i] < dense[i - 1]) dense[i] = dense[i - 1];
+    }
     double audioAt(double plan) {
-      for (var i = 0; i < dense.length; i++) {
-        if (dense[i] >= plan) return i * step;
+      var lo = 0, hi = dense.length;
+      while (lo < hi) {
+        final mid = (lo + hi) >> 1;
+        if (dense[mid] >= plan) {
+          hi = mid;
+        } else {
+          lo = mid + 1;
+        }
       }
-      return len;
+      return lo >= dense.length ? len : lo * step;
     }
 
     double smooth(int i) {
@@ -342,22 +357,29 @@ class AudioAlignment {
     final k = timeline.wordAtChar(charStart);
     if (k >= 0 && t >= 0) {
       _markers[k] = t;
+      _mk = null;
       _closures = null;
     }
   }
 
+  // Valid markers as sorted arrays (word index, audio time), rebuilt only
+  // when markers arrive or the audio length is final.
+  List<int>? _mk;
+  List<double>? _mt;
+
   /// Markers that make sense: in word order, and not past the audio
   /// (a unit mistake would put them there); otherwise none are used.
-  Map<int, double> _validMarkers() {
-    if (_markers.isEmpty) return const {};
+  void _rebuildMarkers() {
     final ks = _markers.keys.toList()..sort();
     final audioLen = _levels.length * _hop;
-    for (var i = 0; i < ks.length; i++) {
+    var ok = true;
+    for (var i = 0; i < ks.length && ok; i++) {
       final t = _markers[ks[i]]!;
-      if (i > 0 && t < _markers[ks[i - 1]]!) return const {};
-      if (_complete && t > audioLen + 0.1) return const {};
+      if (i > 0 && t < _markers[ks[i - 1]]!) ok = false;
+      if (_complete && t > audioLen + 0.1) ok = false;
     }
-    return _markers;
+    _mk = ok ? ks : const [];
+    _mt = ok ? [for (final k in ks) _markers[k]!] : const [];
   }
 
   /// Loudness at audio time [t], 0..1 relative to the utterance's peak.
@@ -372,23 +394,28 @@ class AudioAlignment {
 
   /// Plan time for audio time [t], or null when nothing maps yet.
   double? planTime(double t) {
-    final markers = _validMarkers();
-    if (markers.length >= 2 || (markers.isNotEmpty && _map.isEmpty)) {
-      final ks = markers.keys.toList()..sort();
-      int? prev;
-      for (final k in ks) {
-        if (markers[k]! <= t) prev = k;
+    if (_mk == null) _rebuildMarkers();
+    final ks = _mk!, ts = _mt!;
+    if (ks.length >= 2 || (ks.isNotEmpty && _map.isEmpty)) {
+      // Last marker at or before t (binary search).
+      var lo = 0, hi = ts.length - 1, prev = -1;
+      while (lo <= hi) {
+        final mid = (lo + hi) >> 1;
+        if (ts[mid] <= t) {
+          prev = mid;
+          lo = mid + 1;
+        } else {
+          hi = mid - 1;
+        }
       }
-      if (prev != null) {
-        final i = ks.indexOf(prev);
-        final w = timeline.words[prev];
-        if (i + 1 < ks.length) {
-          final next = ks[i + 1];
-          final t0 = markers[prev]!, t1 = markers[next]!;
-          final p1 = timeline.words[next].start;
+      if (prev >= 0) {
+        final w = timeline.words[ks[prev]];
+        if (prev + 1 < ks.length) {
+          final t0 = ts[prev], t1 = ts[prev + 1];
+          final p1 = timeline.words[ks[prev + 1]].start;
           if (t1 > t0) return w.start + (t - t0) / (t1 - t0) * (p1 - w.start);
         }
-        return w.start + (t - markers[prev]!);
+        return w.start + (t - ts[prev]);
       }
     }
     if (_map.isEmpty || t < 0) return null;
