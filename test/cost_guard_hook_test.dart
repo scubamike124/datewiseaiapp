@@ -120,6 +120,72 @@ void main() {
     expect(refreshes, 0);
   });
 
+  group('the transient retry and the refresh retry share one budget of 2 requests', () {
+    late List<(int, String)> answers;
+    late int requests;
+    late int refreshes;
+    late BackendAIService svc;
+    setUp(() {
+      requests = 0;
+      refreshes = 0;
+      EntitlementToken.update('old.jws.token');
+      EntitlementToken.refresher = () async => refreshes++;
+      svc = BackendAIService(
+        endpoint: 'https://example.workers.dev',
+        retryDelay: Duration.zero,
+        clientFactory: () => MockClient.streaming((req, _) async {
+          requests++;
+          final (status, body) = answers.isEmpty ? (200, 'data: {"response":"Hi"}\n\ndata: [DONE]\n\n') : answers.removeAt(0);
+          return http.StreamedResponse(Stream.value(utf8.encode(body)), status);
+        }),
+      );
+    });
+    Future<List<String>> reply() => svc.streamReply(history: history, tier: SubscriptionTier.values.last).toList();
+    final expired = (403, '{"code":"SUBSCRIPTION_EXPIRED"}');
+
+    test('503, then SUBSCRIPTION_EXPIRED: no refresh, no third request', () async {
+      answers = [(503, ''), expired];
+      await expectLater(reply(), throwsA(isA<CoachUnavailableException>().having((e) => e.code, 'code', CoachLimitCode.subscriptionExpired)));
+      expect(requests, 2);
+      expect(refreshes, 0);
+    });
+
+    test('SUBSCRIPTION_EXPIRED, refresh, then 503: no transient retry on top', () async {
+      answers = [expired, (503, '')];
+      await expectLater(reply(), throwsA(isA<CoachUnavailableException>().having((e) => e.statusCode, 'statusCode', 503)));
+      expect(requests, 2);
+      expect(refreshes, 1);
+    });
+
+    test('SUBSCRIPTION_EXPIRED, refresh, then a network error: no third request', () async {
+      var n = 0;
+      svc = BackendAIService(
+        endpoint: 'https://example.workers.dev',
+        retryDelay: Duration.zero,
+        clientFactory: () => MockClient.streaming((req, _) async {
+          requests++;
+          if (n++ == 0) return http.StreamedResponse(Stream.value(utf8.encode(expired.$2)), 403);
+          throw http.ClientException('offline');
+        }),
+      );
+      await expectLater(reply(), throwsA(isA<CoachUnavailableException>()));
+      expect(requests, 2);
+      expect(refreshes, 1);
+    });
+
+    test('a bare 503 is retried once and can succeed', () async {
+      answers = [(503, '')];
+      expect(await reply(), ['Hi']);
+      expect(requests, 2);
+    });
+
+    test('a coded 503 (SERVICE_BUDGET_EXHAUSTED) is not retried', () async {
+      answers = [(503, '{"code":"SERVICE_BUDGET_EXHAUSTED"}')];
+      await expectLater(reply(), throwsA(isA<CoachUnavailableException>().having((e) => e.code, 'code', CoachLimitCode.serviceBudgetExhausted)));
+      expect(requests, 1);
+    });
+  });
+
   test('every refusal code has an English and a Spanish message', () {
     const codes = [
       CoachLimitCode.dailyLimit,
