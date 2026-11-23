@@ -11,221 +11,221 @@
   "mbp": {
    "region": "mouth",
    "rect": [
-    319,
+    318,
     597,
     442,
-    321
+    322
    ],
-   "identity": 0.625,
-   "master": 0.942
+   "identity": 0.626,
+   "master": 0.932
   },
   "a": {
    "region": "mouth",
    "rect": [
-    319,
+    318,
     597,
     442,
-    321
+    322
    ],
-   "identity": 0.524,
-   "master": 0.799
+   "identity": 0.53,
+   "master": 0.796
   },
   "a2": {
    "region": "mouth",
    "rect": [
-    319,
+    318,
     597,
     442,
-    321
+    322
    ],
-   "identity": 0.546,
-   "master": 0.819
+   "identity": 0.575,
+   "master": 0.815
   },
   "e": {
    "region": "mouth",
    "rect": [
-    319,
+    318,
     597,
     442,
-    321
+    322
    ],
-   "identity": 0.563,
-   "master": 0.826
+   "identity": 0.562,
+   "master": 0.814
   },
   "e2": {
    "region": "mouth",
    "rect": [
-    319,
+    318,
     597,
     442,
-    321
+    322
    ],
-   "identity": 0.601,
-   "master": 0.853
+   "identity": 0.593,
+   "master": 0.859
   },
   "i": {
    "region": "mouth",
    "rect": [
-    319,
+    318,
     597,
     442,
-    321
+    322
    ],
-   "identity": 0.617,
-   "master": 0.884
+   "identity": 0.621,
+   "master": 0.874
   },
   "i2": {
    "region": "mouth",
    "rect": [
-    319,
+    318,
     597,
     442,
-    321
+    322
    ],
-   "identity": 0.644,
-   "master": 0.925
+   "identity": 0.634,
+   "master": 0.924
   },
   "o": {
    "region": "mouth",
    "rect": [
-    319,
+    318,
     597,
     442,
-    321
+    322
    ],
-   "identity": 0.559,
-   "master": 0.818
+   "identity": 0.534,
+   "master": 0.802
   },
   "o2": {
    "region": "mouth",
    "rect": [
-    319,
+    318,
     597,
     442,
-    321
+    322
    ],
-   "identity": 0.545,
-   "master": 0.839
+   "identity": 0.598,
+   "master": 0.834
   },
   "u": {
    "region": "mouth",
    "rect": [
-    319,
+    318,
     597,
     442,
-    321
+    322
    ],
-   "identity": 0.608,
-   "master": 0.888
+   "identity": 0.605,
+   "master": 0.891
   },
   "u2": {
    "region": "mouth",
    "rect": [
-    319,
+    318,
     597,
     442,
-    321
+    322
    ],
-   "identity": 0.646,
-   "master": 0.905
+   "identity": 0.603,
+   "master": 0.892
   },
   "fv": {
    "region": "mouth",
    "rect": [
-    319,
+    318,
     597,
     442,
-    321
+    322
    ],
-   "identity": 0.672,
-   "master": 0.936
+   "identity": 0.658,
+   "master": 0.945
   },
   "l": {
    "region": "mouth",
    "rect": [
-    319,
+    318,
     597,
     442,
-    321
+    322
    ],
-   "identity": 0.573,
-   "master": 0.835
+   "identity": 0.579,
+   "master": 0.832
   },
   "th": {
    "region": "mouth",
    "rect": [
-    319,
+    318,
     597,
     442,
-    321
+    322
    ],
-   "identity": 0.597,
-   "master": 0.868
+   "identity": 0.593,
+   "master": 0.86
   },
   "cons": {
    "region": "mouth",
    "rect": [
-    319,
+    318,
     597,
     442,
-    321
+    322
    ],
-   "identity": 0.605,
-   "master": 0.858
+   "identity": 0.606,
+   "master": 0.866
   },
   "sh": {
    "region": "mouth",
    "rect": [
-    319,
+    318,
     597,
     442,
-    321
+    322
    ],
-   "identity": 0.613,
-   "master": 0.892
+   "identity": 0.62,
+   "master": 0.885
   },
   "blink_half": {
    "region": "eyes",
    "rect": [
-    318,
-    408,
+    317,
+    407,
     489,
     193
    ],
-   "identity": 0.701,
-   "master": 0.864
+   "identity": 0.692,
+   "master": 0.877
   },
   "blink_closed": {
    "region": "eyes",
    "rect": [
-    318,
-    408,
+    317,
+    407,
     489,
     193
    ],
    "identity": 0.691,
-   "master": 0.859
+   "master": 0.86
   },
   "gaze": {
    "region": "eyes",
    "rect": [
-    318,
-    408,
+    317,
+    407,
     489,
     193
    ],
-   "identity": 0.67,
-   "master": 0.866
+   "identity": 0.662,
+   "master": 0.876
   }
  },
  "mouth": [
-  553.2,
-  745.9
+  552.2,
+  746.1
  ],
- "mouth_width": 229.6,
- "chin": 904.1,
+ "mouth_width": 230.2,
+ "chin": 905.3,
  "blink_half_openings": [
-  0.39,
-  0.41
+  0.37,
+  0.42
  ]
 }

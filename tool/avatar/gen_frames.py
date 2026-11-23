@@ -41,16 +41,25 @@ VISEMES = {
     "e2": dict(lip=0.2, grin=3, smile=0.1),
     "i": dict(lip=0.14, grin=6),                    # I (see, si)
     "i2": dict(lip=0.07, grin=4),
-    "o": dict(lip=0.38, smile=-0.1, purse=6),       # O (go, oso): rounded and open
-    "o2": dict(lip=0.3, smile=-0.05, purse=4),
-    "u": dict(lip=0.14, smile=-0.1, purse=8),       # U / W (you, luna)
-    "u2": dict(lip=0.07, smile=-0.1, purse=9),
+    "o": dict(lip=0.3, smile=-0.1, purse=9),        # O (go, oso): rounded, teeth mostly hidden
+    "o2": dict(lip=0.24, smile=-0.05, purse=7),
+    "u": dict(lip=0.08, smile=-0.1, purse=11),      # U / W (you, luna)
+    "u2": dict(lip=0.04, smile=-0.1, purse=12),
     "fv": dict(lip=0.05, purse=2),                  # F, V
     "l": dict(lip=0.38),                            # L
     "th": dict(lip=0.22),                           # TH (and Spanish soft d)
     "cons": dict(lip=0.2, grin=2),                  # T D N S K G R ...
-    "sh": dict(lip=0.16, smile=-0.1, purse=3),      # SH CH J (lips forward)
+    "sh": dict(lip=0.14, smile=-0.1, purse=5),      # SH CH J (lips forward)
 }
+# Per-coach offsets added to every mouth shape, so speech keeps the smile of
+# the rest pose (Ava's master smiles softly; without this her visemes lost the
+# smile, and the mouth "pumped" between smiling and neutral while she spoke).
+COACH_MOUTH = {"ava": dict(smile=0.3)}
+# Per-coach eye-frame overrides. Diego's full glance moved the iris far
+# enough that the gate's iris sample caught the lid (chroma 5.1 > 5); a
+# slightly smaller glance reads the same and keeps the gate unchanged.
+COACH_EYES = {"diego": {"gaze": dict(gaze_x=7, gaze_y=10)}}
+
 # Eye patches: two blink stages and the thinking glance (eyes up and aside).
 # Head motion (nods, tilts) is a whole-image transform in the app, not a
 # generated frame, so nothing warps the hair, hands or background.
@@ -175,6 +184,21 @@ def match_detail(gen, orig, mask):
     return np.clip(out, 0, 255).astype(np.uint8)
 
 
+def teeth_tone(gen, orig, mask):
+    """Teeth come out of the renderer slightly grey or cyan. Inside the mouth
+    mask, pixels that are teeth in the frame (light, low chroma) but not in
+    the portrait are moved toward a warm, natural tooth colour. Only the teeth
+    change; lips, skin and the rest of the frame are untouched."""
+    lab = cv2.cvtColor(gen, cv2.COLOR_RGB2LAB).astype(np.float32)
+    lab0 = cv2.cvtColor(orig, cv2.COLOR_RGB2LAB).astype(np.float32)
+    L, a, b = lab[..., 0] * 100 / 255, lab[..., 1] - 128, lab[..., 2] - 128
+    teeth = (L > 55) & (np.hypot(a, b) < 22) & (a < 12) & (mask > 0.3) & (np.abs(lab[..., 0] - lab0[..., 0]) > 12)
+    w = cv2.GaussianBlur(teeth.astype(np.float32), (0, 0), 1.2) * 0.75
+    lab[..., 1] = 128 + a + w * (2.0 - a)
+    lab[..., 2] = 128 + b + w * (9.0 - b)
+    return cv2.cvtColor(np.clip(lab, 0, 255).astype(np.uint8), cv2.COLOR_LAB2RGB)
+
+
 def blend(orig, gen, mask):
     m = mask[..., None]
     return np.clip(gen.astype(np.float32) * m + orig.astype(np.float32) * (1 - m), 0, 255).astype(np.uint8)
@@ -233,8 +257,9 @@ def main():
             "frames": {},
         }
         review = {}
-        jobs = [(n, kw, "mouth") for n, kw in VISEMES.items()] + \
-               [(n, kw, "eyes") for n, kw in EYES.items()]
+        extra = COACH_MOUTH.get(coach, {})
+        jobs = [(n, {k: kw.get(k, 0.0) + extra.get(k, 0.0) for k in {**kw, **extra}}, "mouth") for n, kw in VISEMES.items()] + \
+               [(n, COACH_EYES.get(coach, {}).get(n, kw), "eyes") for n, kw in EYES.items()]
         lips = st["lmk203"][LIPS]
         manifest["mouth"] = [round(float(lips[:, 0].mean()), 1), round(float(lips[:, 1].mean()), 1)]
         manifest["mouth_width"] = round(float(lips[:, 0].max() - lips[:, 0].min()), 1)
@@ -248,6 +273,8 @@ def main():
             else:
                 _, full = eng.render(st, **kw)
             full = match_detail(full, rgb, mask)
+            if region == "mouth":
+                full = teeth_tone(full, rgb, mask)
             comp = blend(rgb, full, mask)
             comp_bgr = cv2.cvtColor(comp, cv2.COLOR_RGB2BGR)
             res = verify.check_frame(comp_bgr, coach, refs, master, eyes_closed=name.startswith("blink"),
