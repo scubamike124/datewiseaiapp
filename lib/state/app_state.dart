@@ -578,6 +578,10 @@ class AppState extends ChangeNotifier {
   /// Restore Purchases brings an active one back.
   Future<void> deleteMyData() async {
     _bumpDataEpoch();
+    // Drop the in-memory threads before any await, so a persist that runs
+    // during the deletion can never write the old list back.
+    _threads.clear();
+    _activeThreadId = null;
     await cancelReply();
     await _storage.clearAll();
     _threads.clear();
