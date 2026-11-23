@@ -29,6 +29,7 @@ class ChatMessage {
     this.isStreaming = false,
     this.status = MessageStatus.ok,
     this.failedStatus,
+    this.failedCode,
     this.failure,
   });
 
@@ -51,6 +52,11 @@ class ChatMessage {
 
   /// The HTTP status of a failed reply, when there was one. Persisted.
   int? failedStatus;
+
+  /// The coach backend's refusal code (chat-v7, e.g. `DAILY_LIMIT`; see
+  /// `CoachLimitCode`) of a failed reply, when it gave one. Persisted like
+  /// [failedStatus]; it picks the localized limit notice.
+  String? failedCode;
 
   /// See [ReplyFailure]. Persisted.
   ReplyFailure? failure;
@@ -76,6 +82,7 @@ class ChatMessage {
       if (hadPhoto) 'hadPhoto': true,
       if (saved != MessageStatus.ok) 'status': saved.name,
       if (saved == MessageStatus.failed && failedStatus != null) 'failedStatus': failedStatus,
+      if (saved == MessageStatus.failed && failedCode != null) 'failedCode': failedCode,
       if (saved == MessageStatus.failed && failure != null) 'failure': failure!.name,
     };
   }
@@ -102,6 +109,11 @@ class ChatMessage {
                 orElse: () => MessageStatus.ok,
               ),
         failedStatus: json['failedStatus'] is int ? json['failedStatus'] as int : null,
+        failedCode: _codeFrom(json['failedCode']),
         failure: ReplyFailure.values.where((f) => f.name == json['failure']).firstOrNull,
       );
+
+  /// Only an upper-case code (as the backend sends) is kept from storage.
+  static String? _codeFrom(Object? v) =>
+      v is String && RegExp(r'^[A-Z][A-Z0-9_]{0,39}$').hasMatch(v) ? v : null;
 }

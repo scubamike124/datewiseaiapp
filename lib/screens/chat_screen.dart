@@ -7,6 +7,8 @@ import 'package:provider/provider.dart';
 import '../models/chat_message.dart';
 import '../models/coach.dart';
 import '../models/reply_options.dart';
+import '../services/coach_limit_messages.dart';
+import '../services/coach_usage.dart';
 import '../services/reply_language.dart';
 import '../services/speech_service.dart';
 import '../services/store_service.dart';
@@ -448,6 +450,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     )
                   : _Locked(coach: coach),
             ),
+            if (entitled) const ContentWidth(child: _UsageNotice()),
             if (entitled)
               ContentWidth(
                 child: _voiceMode
@@ -792,6 +795,7 @@ class _Bubble extends StatelessWidget {
                               partial: parsed.body,
                               stopped: message.status == MessageStatus.stopped,
                               failure: message.failure,
+                              code: message.failedCode,
                               onRetry: onRetry,
                             )
                           : message.isPhotoOnly
@@ -1149,10 +1153,13 @@ class _Locked extends StatelessWidget {
 /// A reply that could not be delivered: the friendly notice (localized), any
 /// text that arrived before the failure, and "Try again".
 class _FailedReply extends StatelessWidget {
-  const _FailedReply({required this.partial, required this.stopped, required this.onRetry, this.failure});
+  const _FailedReply({required this.partial, required this.stopped, required this.onRetry, this.failure, this.code});
   final String partial;
   final bool stopped;
   final ReplyFailure? failure;
+
+  /// The backend's refusal code (chat-v7); a known one shows its limit notice.
+  final String? code;
   final VoidCallback? onRetry;
 
   @override
@@ -1179,12 +1186,13 @@ class _FailedReply extends StatelessWidget {
               child: Text(
                 stopped
                     ? l.chatErrorStopped
-                    : switch (failure) {
-                        ReplyFailure.busy => l.chatErrorBusy,
-                        ReplyFailure.offline => l.chatErrorOffline,
-                        ReplyFailure.server => l.chatErrorServer,
-                        null => l.chatErrorUnavailable,
-                      },
+                    : coachLimitMessage(l, code) ??
+                        switch (failure) {
+                          ReplyFailure.busy => l.chatErrorBusy,
+                          ReplyFailure.offline => l.chatErrorOffline,
+                          ReplyFailure.server => l.chatErrorServer,
+                          null => l.chatErrorUnavailable,
+                        },
                 key: const ValueKey('reply-failed-notice'),
                 style: const TextStyle(fontSize: 14, height: 1.4, color: AppColors.text),
               ),
@@ -1205,6 +1213,41 @@ class _FailedReply extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// The soft fair-use notice ("You're close to today's fair-use limit") the
+/// backend sends with a reply: a small line above the composer. Nothing is
+/// shown when there is no notice.
+class _UsageNotice extends StatelessWidget {
+  const _UsageNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<CoachUsageState?>(
+      valueListenable: CoachUsage.state,
+      builder: (context, usage, _) {
+        final text = coachUsageNotice(context.l10n, usage?.notice);
+        if (text == null) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 2),
+          child: Semantics(
+            liveRegion: true,
+            container: true,
+            child: Row(
+              key: const ValueKey('usage-notice'),
+              children: [
+                const ExcludeSemantics(child: Icon(Icons.info_outline_rounded, size: 15, color: AppColors.faint)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(text, style: const TextStyle(fontSize: 12.5, height: 1.35, color: AppColors.textMuted)),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

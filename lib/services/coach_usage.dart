@@ -48,6 +48,10 @@ class CoachLimitCode {
 
   /// Codes that a fresh StoreKit entitlement may fix (one refresh, one retry).
   static const refreshable = {subscriptionExpired, subscriptionInvalid, subscriptionRequired};
+
+  /// Codes that an immediate retry cannot fix, so the chat offers none:
+  /// the daily and monthly caps, a refunded purchase and an outdated app.
+  static const noInstantRetry = {dailyLimit, monthlyLimit, subscriptionRevoked, appUpdateRequired};
 }
 
 /// The fair-use state reported with the last successful reply.

@@ -11,6 +11,7 @@ import '../models/user_profile.dart';
 import '../models/weekly_plan.dart';
 import '../services/ai_service.dart';
 import '../services/backend_ai_service.dart' show CoachUnavailableException;
+import '../services/coach_usage.dart' show CoachLimitCode;
 import '../services/persona.dart';
 import '../services/storage_service.dart';
 import '../services/store_service.dart';
@@ -370,6 +371,7 @@ class AppState extends ChangeNotifier {
             onError: (Object e) {
               coachMsg.status = MessageStatus.failed;
               coachMsg.failedStatus = e is CoachUnavailableException ? e.statusCode : null;
+              coachMsg.failedCode = e is CoachUnavailableException ? e.code : null;
               coachMsg.failure = replyFailureFor(e);
               finish();
             },
@@ -431,7 +433,13 @@ class AppState extends ChangeNotifier {
   /// Whether the open conversation ends with a failed or stopped reply.
   bool get canRetry {
     final last = activeThread?.messages.lastOrNull;
-    return !_isResponding && last != null && !last.isUser && last.status != MessageStatus.ok;
+    return !_isResponding &&
+        last != null &&
+        !last.isUser &&
+        last.status != MessageStatus.ok &&
+        // A daily or monthly cap (or a revoked purchase, or an app too old)
+        // will refuse again at once: no instant retry.
+        !CoachLimitCode.noInstantRetry.contains(last.failedCode);
   }
 
   /// Asks the coach again for the last message after a failed or stopped
