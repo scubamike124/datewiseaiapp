@@ -208,10 +208,14 @@ the merge in 2.4, because `pubspec.yaml` on the v2 branch is `2.0.0+100`. Do one
 
 ### 2.4 Merge to `main` (github.com in Safari)
 
-**Blocked until you decide to merge.** Today `main` has only the "Deploy to GitHub Pages" workflow. GitHub lists a
-manually run workflow under **Actions** only when it is on the default branch, so **iOS build** and **Deploy coach
-Worker** do not appear at all until the v2 branch is merged, and the staging deploy only deploys commits on `main`.
-Sections 2.5 and 3 onward wait for this merge. You can do section 1 (namespace check), 2.1, 2.2, 2.3 and 2.6 now.
+**Blocked until you decide to merge.** Today `main` has only the "Deploy to GitHub Pages" workflow. GitHub offers a
+**Run workflow** button only for a workflow that is on the default branch, so **iOS build** and **Deploy coach
+Worker** cannot be started until the v2 branch is merged (iOS build may be listed from earlier PR runs, without the
+button), and the staging deploy only deploys commits on `main`. Sections 2.5 and 3 onward wait for this merge.
+
+You can do these now: section 1 (namespace check), 2.1, 2.2, 2.3, 2.6, and
+docs/launch/WORKER_DEPLOY_RUNBOOK.md sections 1b to 1f. Do 1f (**Protect `main`**, mandatory) **before** the merge
+below: without it the deploy's "on `main`" check means nothing.
 
 **Merging to `main` and every deploy are the owner's decision alone.** No agent or workflow merges or deploys on its
 own; nothing in this runbook happens until you do it.
@@ -219,16 +223,17 @@ own; nothing in this runbook happens until you do it.
 1. Merge `claude/datewise-v2-app` (which contains chat-v7 and PRs #34, #37, #38 and #39) into `main` through a
    reviewed PR (ask an agent to open it).
 2. **Side effect:** every push to `main` runs **Deploy to GitHub Pages**, which publishes the v2 web app to the
-   project's GitHub Pages site. The web build has no purchases (it shows a "subscribe in the iOS app" card).
+   project's GitHub Pages site. The web build has no purchases (it shows "Subscribe in the app on your iPhone or iPad. Purchases are not available on the web.").
 3. To merge a PR: **Pull requests**, open the PR, then **Merge pull request**, then **Confirm merge**.
 
 ### 2.5 Deploy the staging Worker (github.com in Safari)
 
 These are runbook section 9, owner steps 2 to 4.
 
-0. If not done yet: docs/launch/WORKER_DEPLOY_RUNBOOK.md sections 1b to 1d (a Cloudflare API token, the
-   `production-worker` environment with you as required reviewer and branches limited to `main`, and its secrets
-   `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`). These must be **environment** secrets: the run fails on purpose
+0. If not done yet: docs/launch/WORKER_DEPLOY_RUNBOOK.md sections 1b to 1f (a Cloudflare API token; the
+   `production-worker` environment with you as required reviewer and deployment branches and tags `main` and
+   `worker-v*`; its secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`; the `worker-v*` tag ruleset; and the
+   `main` branch ruleset). These must be **environment** secrets: the run fails on purpose
    if `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` or `ID_HASH_SALT` is a repository secret.
 1. Run the **rate-limit namespace check** in section 1. It must PASS.
 2. Repo **Actions** tab, then **Deploy coach Worker** in the workflow list, then **Run workflow**. Fill in the form:
@@ -240,8 +245,8 @@ These are runbook section 9, owner steps 2 to 4.
 3. Open the run when it finishes. The summary must say **STAGING** and show the commit.
 4. Run it again with **dry_run unticked**. The deploy job waits for you: tap **Review deployments**, tick
    **production-worker**, then tap **Approve and deploy**. The gate is named `production-worker`, but this run deploys
-   only `datewise-coach-staging`: check the job title says `chat-v7-staging` before approving. The GitHub mobile app can also approve it from the
-   notification.
+   only `datewise-coach-staging`: check the job title says
+   `chat-v7-staging` before approving. The GitHub mobile app can also approve it from the notification.
 5. When the run is green, open
    **https://datewise-coach-staging.scubamike124.workers.dev/?version** in Safari. It must show
    `"version":"chat-v7-cost-guard"`. If the run summary shows a workers.dev subdomain other than `scubamike124`, stop:
