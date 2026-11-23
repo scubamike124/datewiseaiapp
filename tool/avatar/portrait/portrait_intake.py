@@ -1,10 +1,11 @@
-import os
 """DateWise portrait intake: accept the owner's 8 high-res coach portraits only if they keep the approved identities.
 
 Usage: python portrait_intake.py <incoming_dir> [--apply] [--app <flutter_repo_dir>]
   incoming_dir holds {ava,ethan,sofia,diego}-{hero,avatar}.{jpg,jpeg,png}
   Without --apply it only reports. With --apply, accepted files are written (sRGB JPEG, q=92) to
-  dw-concepts/img/<coach>-<slot>.jpg, which the mockups (and the app's assets/coaches/) use.
+  $DW_INTAKE_OUT/<coach>-<slot>.jpg (default ~/dw-portrait-intake, outside the repository), and with
+  --app also to <flutter_repo_dir>/assets/coaches/ (q=90).
+  Exits 1 when any portrait is rejected or missing.
 
 Checks per file:
   1. Resolution: hero >= 1024 px wide and >= 1400 px tall, portrait orientation; avatar >= 1024 px on the short side.
@@ -20,13 +21,12 @@ Nothing is altered: accepted images are only re-encoded.
 import sys, os, json, math, numpy as np, cv2
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-S = os.path.dirname(HERE)
 # Approved identity crops (the same files the avatar frame gate uses) and OpenCV Zoo models from the
 # avatar tool cache (tool/avatar/setup.sh), unless overridden.
 REF_DIR = os.environ.get("DW_REF_DIR", os.path.join(HERE, "..", "refs"))
 REF = {c: os.path.join(REF_DIR, f"crop-{c}.png") for c in ["ava", "ethan", "sofia", "diego"]}
 MODELS = os.path.join(os.environ.get("AVATAR_TOOLS", os.path.expanduser("~/.cache/datewise-avatar-tools")), "models")
-OUT = os.environ.get("DW_INTAKE_OUT", os.path.join(S, "dw-concepts", "img"))
+OUT = os.environ.get("DW_INTAKE_OUT", os.path.expanduser("~/dw-portrait-intake"))  # outside the repository
 det = cv2.FaceDetectorYN.create(os.path.join(MODELS, "yunet.onnx"), "", (320, 320), 0.8, 0.3, 5000)
 rec = cv2.FaceRecognizerSF.create(os.path.join(MODELS, "sface.onnx"), "")
 
@@ -131,6 +131,7 @@ def main():
                 results.append({"coach": coach, "slot": slot, "ok": False, "notes": ["missing"]}); continue
             r = check(p, coach, slot, refs)
             if r["ok"] and apply:
+                os.makedirs(OUT, exist_ok=True)
                 dst = os.path.join(OUT, f"{coach}-{slot}.jpg")
                 cv2.imwrite(dst, cv2.imread(p), [cv2.IMWRITE_JPEG_QUALITY, 92])
                 r["written"] = dst
@@ -142,7 +143,10 @@ def main():
                     r["written_app"] = adst
             results.append(r)
     print(json.dumps(results, indent=1, ensure_ascii=False))
-    print(f"\n{sum(r['ok'] for r in results)}/8 accepted" + ("" if apply else " (report only; use --apply to install)"))
+    accepted = sum(r['ok'] for r in results)
+    print(f"\n{accepted}/8 accepted" + ("" if apply else " (report only; use --apply to install)"))
+    if accepted < len(results):
+        sys.exit(1)  # any rejected or missing portrait fails the gate
 
 
 if __name__ == "__main__":

@@ -1,4 +1,3 @@
-import os
 import sys, os, math, numpy as np, cv2
 SP=os.environ.get('DW_PORTRAIT_WORK', os.path.expanduser('~/dw-portrait-work'))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

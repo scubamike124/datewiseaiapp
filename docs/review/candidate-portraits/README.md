@@ -29,7 +29,7 @@ pixels; the only change to the face itself is the relaxed mouth.
 ## Unmet targets, stated plainly
 
 - **Face similarity between the pairs stays over the 0.5 goal:** Ava↔Sofía
-  is 0.59 (interim 0.68) and Ethan↔Diego 0.62 (interim 0.645).
+  is 0.585 (interim 0.68) and Ethan↔Diego 0.64 (interim 0.645).
   The faces were not changed, and the face matcher ignores hair, clothes
   and backdrop, so the pairs differ only by styling.
 - **Sharpness:** each face comes from a reference about 100 px wide, enlarged
@@ -37,7 +37,7 @@ pixels; the only change to the face itself is the relaxed mouth.
 - **Ava's head is turned about 13°** (goal ≤ 10°). It was left as is, because
   correcting it would re-render her face.
 - **Identity vs reference** (hero / avatar; gate ≥ 0.45): Ava 0.73 / 0.77,
-  Ethan 0.89 / 0.91, Sofía 0.68 / 0.73, Diego 0.83 / 0.87 (interim 0.87–0.91). Each is closest to its own
+  Ethan 0.89 / 0.91, Sofía 0.68 / 0.73, Diego 0.83 / 0.89 (interim 0.87–0.91). Each is closest to its own
   coach. The reference smiles with teeth; the candidates do not.
 - **Artefacts:** Diego's dark jaw outline from the source is softened, not
   gone. The generated clothing looks slightly painterly up close (Ethan's
@@ -52,6 +52,7 @@ pixels; the only change to the face itself is the relaxed mouth.
   | Interim | 0.49/0.47 | 0.69/0.69 | 0.34/0.46 | 0.51/0.55 | 0.52 |
   | Candidate (round 2) | 0.64/0.60 | 0.49/0.55 | 0.51/0.70 | 0.66/0.59 | 0.59 |
   | Candidate (round 3) | 0.57/0.52 | 0.52/0.61 | 0.41/0.47 | 0.64/0.54 | 0.53 |
+  | Candidate (round 4) | 0.55/0.48 | 0.52/0.60 | 0.41/0.47 | 0.66/0.57 | 0.53 |
 
   Ethan stays below his interim figure; the interim showed teeth at rest.
 - **Demos** were rendered on the native-audio path only (AVATAR_DEMO_MODE=audio,
@@ -160,3 +161,19 @@ coordinator's audio-only figure; Diego EN 0/5). `metrics/av_final.txt` holds
 the video-versus-audio measures. Round 3's smaller O/O2 opening lowered the
 openness correlation from 0.59 to 0.53 (table above): rounder lips at the
 cost of a weaker open/close signal on O.
+
+## Fix round 4
+
+| Item | Status |
+|--|--|
+| Coach cards (round 3 had pushed the faces into the fade) | **FIXED**. The card photo is now portrait-shaped (height 1.2 × the card width on phones, square on iPad) and aligned to the top of the portrait. The fade starts at 72%. Phone and iPad cards show the hair with a margin, the eyes, the nose and the smile above the fade, and nobody's curls are clipped. Other screens use per-coach `heroFocus` (round-2 framing, adjusted for the headroom). With taller cards, the bottom row's buttons sit partly under the tab bar in the ES 6.5" screenshot (the list scrolls). |
+| Headroom band: streaks and a ladder line | **FIXED**: a smooth, grain-matched continuation of each backdrop; no seam at row 150 |
+| Ava's right hair edge: glyph squiggles | **FIXED**: back to the round-1 pixels. The original pale rim strands are back with it (**PARTIAL** on the round-1 rim issue). |
+| Ava: orange dots at the right jaw | **PARTIAL**: filled, but a faint bump remains on the jaw line |
+| Diego's chin: grey ghost soul patch and dark crease | **FIXED** (back to round 2). The round-2 light/dark chin split and neck seam remain. |
+| Men's teeth: chalk-white | **FIXED**: every coach's teeth now measure L* 71–73 and b* 9–11.5 (ivory) |
+| Visemes: Ava's teeth on O, O2, U | **FIXED**: rounded shapes drop her smile offset and take extra purse |
+| Visemes: `a` | **PARTIAL**: lip 0.44 for Ava, Ethan and Diego, and the dark gaps between teeth are filled toward the tooth colour. Some dark mouth interior between the rows remains. |
+| Openness correlation | Unchanged at a mean of 0.53 (table above) |
+| Sofía: blue speck above the crown | **FIXED**. Her bottom-left light strip is left as is (**not fixed**). |
+| `portrait_intake.py` | **FIXED**: `import os` follows the docstring, default output is outside the repo (`~/dw-portrait-intake`), and it exits 1 on any rejection |

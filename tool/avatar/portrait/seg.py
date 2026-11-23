@@ -1,5 +1,5 @@
-import os
 # MediaPipe selfie multiclass segmenter (Apache-2.0): 0 background, 1 hair, 2 body skin, 3 face skin, 4 clothes, 5 others (accessories)
+import os
 import numpy as np, cv2, mediapipe as mp
 from mediapipe.tasks.python import vision, BaseOptions
 M=os.path.join(os.environ.get('DW_PORTRAIT_WORK', os.path.expanduser('~/dw-portrait-work')), 'fp/models/mc.tflite')

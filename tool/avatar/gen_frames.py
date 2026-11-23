@@ -55,6 +55,13 @@ VISEMES = {
 # the rest pose (Ava's master smiles softly; without this her visemes lost the
 # smile, and the mouth "pumped" between smiling and neutral while she spoke).
 COACH_MOUTH = {"ava": dict(smile=0.3)}
+# Rounded shapes do not take the smile offset (Ava's smile pulled the lips
+# back and showed her upper incisors on O and U); they get extra purse
+# instead. Per-coach `a` opening: a little smaller where the full opening
+# showed a lopsided mouth or dark gaps between the teeth.
+ROUNDED = {"o", "o2", "u", "u2", "sh", "fv"}
+COACH_ROUNDED = {"ava": dict(purse=3.0)}
+COACH_A = {"ava": 0.44, "ethan": 0.44, "diego": 0.44}
 # Per-coach eye-frame overrides. Diego's full glance moved the iris far
 # enough that the gate's iris sample caught the lid (chroma 5.1 > 5); a
 # slightly smaller glance reads the same and keeps the gate unchanged.
@@ -185,22 +192,37 @@ def match_detail(gen, orig, mask):
 
 
 def teeth_tone(gen, orig, mask):
-    """Teeth come out of the renderer grey or slightly cyan and a little dark.
-    Inside the mouth mask, pixels that are teeth in the frame (light, low
-    chroma) but not in the portrait are moved toward natural ivory: brighter
-    (L* toward 82) and warm (a* 1.5, b* 10). Only the teeth change; lips,
-    skin and the rest of the frame are untouched. L* is on the 0-100 scale
-    throughout."""
+    """Teeth come out of the renderer grey, cyan or dark. Inside the mouth
+    mask, pixels that are teeth in the frame (light, low chroma) but not in
+    the portrait are moved toward natural ivory: L* toward 76, a* 1.5,
+    b* 9 (the same target for every coach, so no chalk-white dentures).
+    Small dark gaps between teeth (inside the teeth area, darker than the
+    teeth around them) are filled toward the local tooth colour. Lips, skin
+    and everything outside the teeth are untouched. L* is on the 0-100
+    scale throughout."""
     lab = cv2.cvtColor(gen, cv2.COLOR_RGB2LAB).astype(np.float32)
     lab0 = cv2.cvtColor(orig, cv2.COLOR_RGB2LAB).astype(np.float32)
     L, a, b = lab[..., 0] * 100 / 255, lab[..., 1] - 128, lab[..., 2] - 128
     L0 = lab0[..., 0] * 100 / 255
-    teeth = (L > 50) & (np.hypot(a, b) < 22) & (a < 12) & (mask > 0.3) & (np.abs(L - L0) > 5)
-    w = cv2.GaussianBlur(teeth.astype(np.float32), (0, 0), 1.2) * 0.8
-    L2 = L + w * np.clip(82.0 - L, 0, None) * 0.6
-    lab[..., 0] = L2 * 255 / 100
-    lab[..., 1] = 128 + a + w * (1.5 - a)
-    lab[..., 2] = 128 + b + w * (10.0 - b)
+    teeth = (L > 50) & (np.hypot(a, b) < 26) & (a < 12) & (mask > 0.3) & (np.abs(L - L0) > 5)
+    t8 = teeth.astype(np.uint8)
+    # gaps: closed teeth area minus teeth, dark, small
+    area = cv2.morphologyEx(t8, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
+    gaps = (area > 0) & ~teeth & (L < 45) & (mask > 0.3)
+    w = cv2.GaussianBlur(teeth.astype(np.float32), (0, 0), 1.2) * 0.85
+    L2 = L + w * (76.0 - L) * 0.7
+    a2 = a + w * (1.5 - a)
+    b2 = b + w * (9.0 - b)
+    if gaps.any():
+        tw = cv2.GaussianBlur(teeth.astype(np.float32), (0, 0), 3) + 1e-3
+        Lt = cv2.GaussianBlur(np.where(teeth, L2, 0).astype(np.float32), (0, 0), 3) / tw
+        g = cv2.GaussianBlur(gaps.astype(np.float32), (0, 0), 0.8) * 0.7
+        L2 = L2 + g * (Lt * 0.85 - L2)
+        a2 = a2 + g * (1.5 - a2)
+        b2 = b2 + g * (9.0 - b2)
+    lab[..., 0] = np.clip(L2, 0, 100) * 255 / 100
+    lab[..., 1] = 128 + a2
+    lab[..., 2] = 128 + b2
     return cv2.cvtColor(np.clip(lab, 0, 255).astype(np.uint8), cv2.COLOR_LAB2RGB)
 
 
@@ -262,8 +284,13 @@ def main():
             "frames": {},
         }
         review = {}
-        extra = COACH_MOUTH.get(coach, {})
-        jobs = [(n, {k: kw.get(k, 0.0) + extra.get(k, 0.0) for k in {**kw, **extra}}, "mouth") for n, kw in VISEMES.items()] + \
+        def mouth_kw(n, kw):
+            extra = COACH_ROUNDED.get(coach, {}) if n in ROUNDED else COACH_MOUTH.get(coach, {})
+            out = {k: kw.get(k, 0.0) + extra.get(k, 0.0) for k in {**kw, **extra}}
+            if n == "a" and coach in COACH_A:
+                out["lip"] = COACH_A[coach]
+            return out
+        jobs = [(n, mouth_kw(n, kw), "mouth") for n, kw in VISEMES.items()] + \
                [(n, COACH_EYES.get(coach, {}).get(n, kw), "eyes") for n, kw in EYES.items()]
         lips = st["lmk203"][LIPS]
         manifest["mouth"] = [round(float(lips[:, 0].mean()), 1), round(float(lips[:, 1].mean()), 1)]

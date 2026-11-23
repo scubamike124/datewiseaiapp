@@ -1,4 +1,3 @@
-import os
 # Stage C: upscale the SD result (Real-ESRGAN x4 via spandrel), composite the original face/hair back,
 # replace the backdrop with a clean per-coach studio gradient, apply one shared grade, crop hero + avatar.
 import sys, os, numpy as np, cv2, torch

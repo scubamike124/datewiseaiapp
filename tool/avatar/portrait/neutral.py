@@ -1,4 +1,3 @@
-import os
 # Step 1-2: level the head by rotating the whole image (no face change), then relax the mouth with LivePortrait.
 import sys, os, math, json, numpy as np, cv2
 SP=os.environ.get('DW_PORTRAIT_WORK', os.path.expanduser('~/dw-portrait-work'))

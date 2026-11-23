@@ -1,4 +1,3 @@
-import os
 # Fix round 2: local repairs on the finished heroes. Never touches the face core except the explicitly
 # listed cosmetic edits (lip colour/gloss, eyeliner wing) and thin source artefacts (Diego).
 import sys, os, numpy as np, cv2, torch

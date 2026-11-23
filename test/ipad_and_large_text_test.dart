@@ -168,13 +168,17 @@ void main() {
       });
     }
 
-    testWidgets('phones are unchanged: 150 pt portraits, no tablet layout', (t) async {
+    testWidgets('phones: portrait-shaped card photos (1.2 x the card width), no tablet layout', (t) async {
       await pumpApp(t, size: const Size(430, 932), prefs: onboardedPrefs(), tab: AppTab.coaches);
       await t.pumpAndSettle();
       expect(isTabletLayout(t.element(find.byType(HomeShell))), isFalse);
       final card = find.byKey(const ValueKey('coach-card-ava'));
-      final photo = find.descendant(of: card, matching: find.byType(SizedBox)).first;
-      expect(t.getSize(photo).height, 150);
+      final photo = find.descendant(of: card, matching: find.byType(AspectRatio)).first;
+      // The head, from the top of the hair to the smile, sits above the fade:
+      // the photo is taller than wide (it was a fixed 150 pt strip).
+      expect(t.getSize(photo).height, closeTo(t.getSize(photo).width * 1.2, 0.5));
+      expect(t.getSize(photo).width, greaterThan(t.getSize(card).width - 4), reason: 'full card width');
+      expect(t.getSize(photo).height, greaterThan(150));
     });
 
     testWidgets('phone welcome hero has no side fade', (t) async {

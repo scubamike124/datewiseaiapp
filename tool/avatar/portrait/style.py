@@ -1,4 +1,3 @@
-import os
 # Stage A: non-face styling in the levelled image (hair colour, lip colour, earrings, stubble) + masks.
 import sys, os, json, math, numpy as np, cv2
 SP=os.environ.get('DW_PORTRAIT_WORK', os.path.expanduser('~/dw-portrait-work'))

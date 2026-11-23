@@ -1,6 +1,6 @@
-import os
 # Explicit iris-colour comparison: mean CIELAB of the darker iris pixels in a disc at each YuNet eye point,
 # candidate vs the approved reference crop (upscaled 4x, cubic). Reports Delta-E76 and the hue angle.
+import os
 import sys, math, numpy as np, cv2
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fl

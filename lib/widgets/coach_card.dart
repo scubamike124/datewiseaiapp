@@ -39,18 +39,22 @@ class CoachCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(
+          _PhotoBox(
             // The photo shrinks a little at large text sizes so the name,
-            // description and button keep their room; on iPad the cards are
-            // wider, so the photo is taller to keep a portrait shape.
-            height: MediaQuery.textScalerOf(context).scale(1) > 1.5
-                ? 120
-                : (isTabletLayout(context) ? 230 : 150),
+            // description and button keep their room. Otherwise its height
+            // follows the card's width (portrait on phones, square on iPad),
+            // so the head, from the top of the hair to the smile, sits above
+            // the fade whatever the card's width.
+            compact: MediaQuery.textScalerOf(context).scale(1) > 1.5,
+            heightPerWidth: isTabletLayout(context) ? 1.0 : 1.2,
             child: Stack(
               fit: StackFit.expand,
               children: [
-                CoachImage(coach: coach, semanticLabel: l.coachPortrait(coach.name)),
-                const FadeToBackground(stops: [0.5, 1], color: AppColors.cardDeep),
+                // The card shows the portrait from its top edge: the hair with
+                // the margin above it, then the face; the fade starts below the
+                // smile.
+                CoachImage(coach: coach, semanticLabel: l.coachPortrait(coach.name), alignment: Alignment.topCenter),
+                const FadeToBackground(stops: [0.72, 1], color: AppColors.cardDeep),
                 Positioned(
                   top: 10,
                   left: 10,
@@ -192,4 +196,20 @@ class CoachGrid extends StatelessWidget {
       ],
     );
   }
+}
+
+
+/// The card's photo area: [compact] keeps the former fixed 120 px (large
+/// text); otherwise the height is [heightPerWidth] times the card's width.
+/// AspectRatio (not LayoutBuilder) so the stacked cards' IntrinsicHeight
+/// still works.
+class _PhotoBox extends StatelessWidget {
+  const _PhotoBox({required this.compact, required this.heightPerWidth, required this.child});
+  final bool compact;
+  final double heightPerWidth;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) =>
+      compact ? SizedBox(height: 120, child: child) : AspectRatio(aspectRatio: 1 / heightPerWidth, child: child);
 }

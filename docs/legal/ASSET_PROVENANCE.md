@@ -10,14 +10,14 @@ placeholders they replace (AI/voice QA report D10, D11, D12).
 
 | File | Pixels | SHA-256 (first 16) | Original pixels* |
 |--|--|--|--|
-| `assets/coaches/ava-hero.jpg` | 1784×2376 | `77193382835f67b3` | 56% |
-| `assets/coaches/ava-avatar.jpg` | 1024×1024 | `b6d7835e2245a108` | crop of the hero |
-| `assets/coaches/ethan-hero.jpg` | 1768×2360 | `552db36a1da3e23b` | 24% |
+| `assets/coaches/ava-hero.jpg` | 1784×2376 | `21b68bf92b29bb8c` | 56% |
+| `assets/coaches/ava-avatar.jpg` | 1024×1024 | `b1138a3b5973e07a` | crop of the hero |
+| `assets/coaches/ethan-hero.jpg` | 1768×2360 | `e932fc1daa729910` | 24% |
 | `assets/coaches/ethan-avatar.jpg` | 1024×1024 | `2714ca82481fc487` | crop of the hero |
-| `assets/coaches/sofia-hero.jpg` | 1856×2472 | `75775c2d20c3563b` | 46% |
+| `assets/coaches/sofia-hero.jpg` | 1856×2472 | `2893cd5b398274aa` | 46% |
 | `assets/coaches/sofia-avatar.jpg` | 1024×1024 | `4b4ed92d7c6f848a` | crop of the hero |
-| `assets/coaches/diego-hero.jpg` | 1968×2624 | `88f40593541ed71e` | 27% |
-| `assets/coaches/diego-avatar.jpg` | 1024×1024 | `adef940a93a0d120` | crop of the hero |
+| `assets/coaches/diego-hero.jpg` | 1968×2624 | `802e9dc900886e9d` | 27% |
+| `assets/coaches/diego-avatar.jpg` | 1024×1024 | `b9dadd1b95048760` | crop of the hero |
 
 \* Share of the hero whose pixels come from the approved portrait (the face,
 hair and, except for Ethan, the upper neck). The rest (clothing, shoulders,
@@ -157,6 +157,21 @@ Fix round 3 (2026-11-23). Ava and Sofía restart from the round-1 files
   coach cards room above the hair.
 - **Scripts and exact parameters:** `tool/avatar/portrait/`.
 
+Fix round 4 (2026-11-23), all non-generative (scripts in
+`tool/avatar/portrait/round4.py`):
+- The 150 px headroom band was rebuilt as a smooth continuation of each
+  backdrop: a normalised large-sigma blur of the real backdrop plus matched
+  grain. There are no column streaks and no seam at row 150.
+- Ava's right hair edge is back to the round-1 pixels (the round-3 SD pass
+  had drawn glyph-like squiggles). Two orange dots at her right jaw edge
+  were filled with OpenCV Telea.
+- Diego's chin and upper neck are back to the round-2 pixels: round 3's
+  chin change made a grey soul patch and a dark crease. The round-2 neck
+  seam and the faint chin split remain.
+- A light-blue speck above Sofía's crown was filled (OpenCV Telea).
+- The faces are unchanged; the reviewer measured the face offset at exactly
+  +150 px, with correlation 0.994–0.999 against round 1.
+
 ## Identity and quality gates (2026-11-23)
 
 Round-3 heroes are saved as JPEG q90. YuNet is sensitive to small
@@ -176,7 +191,7 @@ detection: when YuNet finds no face, it retries on a smaller copy (1280 or
 | Ava | 0.73 / 0.77 | 0.91 | 6.4 / 1.0 | 1.3° |
 | Ethan | 0.89 / 0.91 | 0.91 | 2.8 / 12.2 | 0.6° |
 | Sofía | 0.68 / 0.73 | 0.87 | 7.8 / 12.1 | 3.6° |
-| Diego | 0.83 / 0.87 | 0.90 | 5.4 / 16.4 | 6.3° |
+| Diego | 0.83 / 0.89 | 0.90 | 5.4 / 16.4 | 3.7° |
 
 Identity drops from the interim scores because the approved reference smiles
 broadly with teeth and the candidates have closed lips. Each candidate is
@@ -191,8 +206,8 @@ Cross-coach face similarity (SFace, hero):
 
 | Pair | Interim | Candidate |
 |--|--|--|
-| Ava ↔ Sofía | 0.68 | 0.59 |
-| Ethan ↔ Diego | 0.645 | 0.62 |
+| Ava ↔ Sofía | 0.68 | 0.585 |
+| Ethan ↔ Diego | 0.645 | 0.64 |
 
 The earlier target of below 0.5 is **not met**. The faces were deliberately
 not changed, and SFace looks only at the aligned face. The pairs now differ

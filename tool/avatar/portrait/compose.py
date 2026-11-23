@@ -1,4 +1,3 @@
-import os
 # Stage B: portrait framing. Everything outside the protected face+hair region is (re)generated with
 # SD 1.5 inpainting (CreativeML OpenRAIL-M) at low resolution, upscaled with Real-ESRGAN, and the
 # original face/hair pixels are composited back on top at full resolution.

@@ -16,8 +16,8 @@
     454,
     319
    ],
-   "identity": 0.622,
-   "master": 0.924
+   "identity": 0.621,
+   "master": 0.923
   },
   "a": {
    "region": "mouth",
@@ -27,8 +27,8 @@
     454,
     319
    ],
-   "identity": 0.533,
-   "master": 0.811
+   "identity": 0.529,
+   "master": 0.81
   },
   "a2": {
    "region": "mouth",
@@ -39,7 +39,7 @@
     319
    ],
    "identity": 0.554,
-   "master": 0.817
+   "master": 0.822
   },
   "e": {
    "region": "mouth",
@@ -49,8 +49,8 @@
     454,
     319
    ],
-   "identity": 0.562,
-   "master": 0.828
+   "identity": 0.569,
+   "master": 0.833
   },
   "e2": {
    "region": "mouth",
@@ -60,8 +60,8 @@
     454,
     319
    ],
-   "identity": 0.622,
-   "master": 0.871
+   "identity": 0.623,
+   "master": 0.87
   },
   "i": {
    "region": "mouth",
@@ -71,8 +71,8 @@
     454,
     319
    ],
-   "identity": 0.639,
-   "master": 0.885
+   "identity": 0.641,
+   "master": 0.887
   },
   "i2": {
    "region": "mouth",
@@ -93,8 +93,8 @@
     454,
     319
    ],
-   "identity": 0.574,
-   "master": 0.84
+   "identity": 0.576,
+   "master": 0.841
   },
   "o2": {
    "region": "mouth",
@@ -104,8 +104,8 @@
     454,
     319
    ],
-   "identity": 0.597,
-   "master": 0.888
+   "identity": 0.598,
+   "master": 0.889
   },
   "u": {
    "region": "mouth",
@@ -126,7 +126,7 @@
     454,
     319
    ],
-   "identity": 0.637,
+   "identity": 0.638,
    "master": 0.928
   },
   "fv": {
@@ -148,8 +148,8 @@
     454,
     319
    ],
-   "identity": 0.575,
-   "master": 0.816
+   "identity": 0.573,
+   "master": 0.817
   },
   "th": {
    "region": "mouth",
@@ -159,8 +159,8 @@
     454,
     319
    ],
-   "identity": 0.612,
-   "master": 0.871
+   "identity": 0.61,
+   "master": 0.87
   },
   "cons": {
    "region": "mouth",
@@ -170,8 +170,8 @@
     454,
     319
    ],
-   "identity": 0.616,
-   "master": 0.881
+   "identity": 0.618,
+   "master": 0.879
   },
   "sh": {
    "region": "mouth",
@@ -181,8 +181,8 @@
     454,
     319
    ],
-   "identity": 0.663,
-   "master": 0.902
+   "identity": 0.665,
+   "master": 0.903
   },
   "blink_half": {
    "region": "eyes",
