@@ -53,24 +53,46 @@ assets/coaches/<id>-hero.jpg                     native audio path (iOS 13+ API,
 
 * **Frames:** 19 per coach (16 mouth shapes, 2 blink stages, 1 glance),
   76 in all, 1.5 MB of JPEGs. Pipeline and licences: `tool/avatar/README.md`.
-* **Native audio path (default on, iOS):** `ios/Runner/AppDelegate.swift`
-  registers a small platform channel. It renders the reply with the chosen
-  voice, pitch and rate through `AVSpeechSynthesizer.write(_:toBufferCallback:)`
-  (iOS 13+), plays the buffers through `AVAudioEngine`/`AVAudioPlayerNode`,
-  and streams the RMS of every 10 ms (and, on iOS 17+ only, the word
-  markers from `write(_:toBufferCallback:toMarkerCallback:)` behind
-  `#available`) to Dart (`lib/avatar/speech_audio.dart`). Synthesis runs
-  ahead of playback, so the loudness of the reply is known before it is
-  heard. If the channel is missing or reports an error before playback, the
-  same reply is spoken through flutter_tts and the app keeps using flutter_tts
-  for the session. Runtime switch: `DeviceVoiceService.useAudioPath`.
-  **The app minimum stays iOS 15.** Not yet run on a device; it compiles in
-  CI (see the PR).
-* **Alignment:** with markers (iOS 17), the plan is mapped word by word.
-  Otherwise the loudness is aligned to the plan by dynamic time warping
-  (20 ms steps, both ends fixed once synthesis is complete; bounded to about
-  400k cells, coarser for very long replies). On the flutter_tts fallback,
-  each word-range event re-anchors the plan (iOS 15+).
+* **Native audio path (iOS; off in App Store builds until a device test):**
+  `ios/Runner/AppDelegate.swift` registers a small platform channel. It
+  renders the reply with the chosen voice, pitch and rate through
+  `AVSpeechSynthesizer.write(_:toBufferCallback:)` (iOS 13+), plays the
+  buffers through `AVAudioEngine`/`AVAudioPlayerNode` (completion on
+  `.dataPlayedBack`, so the tail is never cut), and streams the RMS of every
+  10 ms, the output latency (so Bluetooth headphones do not put the mouth
+  ahead of the sound) and, on iOS 17+ only, word markers (byte offsets
+  converted with the buffer format's bytes per frame and sample rate)
+  to Dart (`lib/avatar/speech_audio.dart`).
+  * An audio-session interruption (a call, Siri), losing the output route
+    (headphones unplugged), an engine configuration change or the app going
+    to the background ends the utterance with "done": the stage stops
+    speaking; the next reply uses the native path again.
+  * If the synthesizer renders no audio at all, the channel reports an error
+    before playback; Dart also waits at most 3 s for playback to start. In
+    both cases the same reply is spoken through flutter_tts and the app keeps
+    using flutter_tts for the session. An explicit stop releases the audio
+    session so other apps' audio is no longer ducked.
+  * **Build flag:** `--dart-define=DW_AVATAR_AUDIO_PATH=true` turns it on
+    (`DeviceVoiceService.useAudioPath`). **Default off**: App Store builds use
+    the flutter_tts word-range path until the native path has passed an
+    iPhone test. For that test, run the `iOS build` workflow by hand with
+    `signed_build`, `upload_testflight` and `avatar_audio_path` ticked, and
+    install the TestFlight build. Leave `avatar_audio_path` off for a build
+    meant for App Store review.
+  * **The app minimum stays iOS 15.** It compiles in CI.
+* **Alignment:** with markers (iOS 17), the plan is mapped word by word
+  (markers out of order or past the audio are ignored). Otherwise the
+  loudness is aligned to the plan by dynamic time warping (20 ms steps, both
+  ends fixed once synthesis is complete; at most 250k cells, coarser for
+  long replies; re-warped at most once per second of new audio, so the UI
+  isolate does little work: about 22 ms worst case per call for a 52 s
+  reply in a debug test). Each planned M/B/P closure is moved onto a
+  clear dip in the loudness (below 30% of the local median) within ±60 ms.
+  A ±120 ms search was tried and measured worse (an "m" is voiced, so the
+  quietest moment is often elsewhere): closures within ±80 ms of the real
+  M/B/P fell from 54% to 45% (loudness only) and from 96% to 76% (iOS 17
+  markers). On the
+  flutter_tts path, each word-range event re-anchors the plan (iOS 15+).
 * **Jaw and opening:** the jaw drop follows the real loudness (a mesh warp of
   the lower lip and chin, up to 12% of the mouth width, zero at the patch
   border), and loud vowels get the full opening, soft ones the half opening.
@@ -78,18 +100,22 @@ assets/coaches/<id>-hero.jpg                     native audio path (iOS 13+ API,
   fallback path the jaw follows a per-syllable envelope from the plan.
 * **Transitions:** every change of mouth shape is a hard switch between two
   whole photos (no crossfade, so no teeth through lips); closed lips and an
-  open or smiling mouth always pass through a just-parted shape (and a
-  middle shape for large jumps), however short. Blinks are switched too.
-* **Blinks:** 150 ms; sometimes a double blink, never three in a row; the
-  schedule is seeded per coach and per session; the half-closed frame closes
-  both eyes equally.
+  open or smiling mouth pass through a just-parted shape (and a middle
+  shape for large jumps). A middle shape lasts at least 34 ms (two frames at
+  60 Hz) and is skipped when the next shape would last under 50 ms, so
+  there is no one-frame flicker. Blinks are switched too.
+* **Blinks:** 150 ms; the first one at a random moment 1.5–4 s in; sometimes
+  a double blink, never three in a row; the schedule is seeded per coach and
+  per session; the half-closed frame closes both eyes equally.
 * **Head motion:** a whole-image transform (listening nods, phrase-start and
-  emphasis nods, a thinking tilt); the zoom that hides the frame edges is
+  emphasis nods, small tilts under half a degree on stressed vowels, a
+  thinking tilt); the zoom that hides the frame edges is
   computed from the stage size and the largest motion, so the short
   large-text stage and the wide iPad stage never show an edge.
 * **Constants:** `VisemeTimeline.lead` 0.08 s (word path),
   `LipSyncDriver.audioLead` 0.03 s (audio path), `maxHold` 0.25 s,
-  `bridgeJump` 0.4, `bridgeLength` 0.035 s, `AvatarPainter.jawDrop` 0.12.
+  `bridgeJump` 0.4, `bridgeLength` 0.034 s, `minAfterBridge` 0.05 s,
+  `AudioAlignment.closureSearch` 0.06 s, `AvatarPainter.jawDrop` 0.12.
   Tune on a device.
 * **Memory:** only the coach on screen is decoded (11.1–12.6 MB of images).
   Switching coach disposes the previous coach's images; closing the voice
@@ -108,6 +134,10 @@ assets/coaches/<id>-hero.jpg                     native audio path (iOS 13+ API,
   voice is used automatically.
 * With the native audio path, the same voice identifier, pitch and rate are
   passed to AVSpeechSynthesizer, so the coach sounds the same as before.
+* Same-gender coaches who share the only installed voice of a language
+  (Ava answering in Spanish with Sofía's voice, Ethan with Diego's) differ
+  by about 8% in speaking rate as well as in pitch (rates 0.52/0.48 and
+  0.49/0.45; pitch 1.02/1.10 and 0.95/0.88).
 * Each coach gets a distinct voice when the device has several: Ava and
   Ethan (en-US) and Sofía and Diego (es-MX) differ by gender; a coach
   answering in the other language avoids the voice of that language's own
@@ -140,44 +170,44 @@ Nothing new leaves the phone. The avatar is drawn on the device from bundled
 images; speech and its timing come from the device's own synthesizer. No
 avatar vendor is involved. App Privacy answers are unchanged.
 
-## Evidence (2026-11-23, round 3)
+## Evidence (2026-11-23, round 4)
 
 **Frames:** 76/76 pass the gate. Identity vs approved reference ≥ 0.657
 (threshold 0.45, own coach always highest), vs master ≥ 0.772, iris chroma
 shift ≤ 2.8 (limit 5). Half blink: both eyes at 0.47–0.53 of their open size.
 
-**Simulation of the native audio path**, offline, 8 clips (4 coaches ×
-EN/ES), each coach with its own Piper voice (es-MX for all Spanish clips),
-the app's own `LipSyncDriver` fed the clips' 10 ms RMS, frames drawn by the
-app's painter. Reproducible with `tool/avatar/eval/`.
+**Offline simulation**, 8 clips (4 coaches × EN/ES; each coach its own Piper
+voice; es-MX for every Spanish clip, the shared voices separated by pitch and
+~8% rate). The app's own `LipSyncDriver` runs on a simulated clock, fed like
+the app, and the app's painter draws the frames. Reproducible with
+`tool/avatar/eval/`.
 
 Mouth vs loudness, measured on the videos the visual reviewer's way (mouth-
 region difference from the idle frame vs audio RMS; head motion cancelled by
 aligning on the upper face):
 
-| | Round 1 (04cff76) | Round 2 (3ab5ea8) | Round 3 |
-|---|---|---|---|
-| r at 0 lag | 0.45 | 0.71 | **0.82** |
-| best lag (+ = mouth late) / r there | +86 ms / 0.67 | −16 ms / 0.72 | **−8 ms / 0.82** |
-| cavity + teeth openness proxy: best r | 0.40 | 0.39 | 0.38 |
-| longest unchanged mouth while audible | 67 ms | 33 ms | 0 ms |
+| | Round 1 (04cff76) | Round 2 (3ab5ea8) | Round 3 (72bb738) | Round 4, native audio path | Round 4, flutter_tts path (App Store default) |
+|---|---|---|---|---|---|
+| r at 0 lag | 0.45 | 0.71 | 0.82 | **0.81** | 0.63 |
+| best lag / r there | +86 ms / 0.67 | −16 ms / 0.72 | −8 ms / 0.82 | **−9 ms / 0.82** | −4 ms / 0.64 |
+| longest unchanged mouth while audible | 67 ms | 33 ms | 0 ms | 33 ms | 33 ms |
+| longest rest while audible | 67 ms | 100 ms | 0 ms | 33 ms | 133 ms |
 
-(Rounds 1 and 2 used the earlier demo voices. An earlier version of the
-measurement script aligned frames on the whole picture, which the mouth
-itself disturbed; the numbers above are all from the fixed script.)
+Rounds 1–3 used earlier demo voices. (An earlier version of the measurement
+script aligned frames on the whole picture, which the mouth disturbed; all
+numbers here use the fixed script.)
 
 Mouth shape vs Piper's phoneme alignments (what the frames showed):
 
 | Path | Exact shape | Openness r | M/B/P within ±80 ms | Lag |
 |---|---|---|---|---|
-| Native audio, iOS 15/16 (loudness only) | 30% | 0.29 | 54% | −51 ms |
-| Native audio, iOS 17 (+ word markers) | 47% | 0.40 | 95% | −18 ms |
-| flutter_tts fallback (word events) | 29% | 0.25 | 66% | −58 ms |
+| Native audio, iOS 15/16 (loudness only) | 29% | 0.27 | 51% | −46 ms |
+| Native audio, iOS 17 (+ word markers) | 48% | 0.42 | 96% | −24 ms |
+| flutter_tts path (word events) | 31% | 0.25 | 62% | −71 ms |
 
-The jaw follows the real loudness on both audio paths, which is what the
-viewer mostly sees. Which mouth shape is shown still comes from spelling
-rules and an estimated alignment, so exact-shape agreement is modest
-without markers.
+The jaw follows the real loudness on the native path, which is what the
+viewer mostly sees. Which shape is shown comes from spelling rules and an
+estimated alignment, so exact-shape agreement is modest without markers.
 
 **Performance (host CPU):** 7–30 µs to record a frame; about 8–9 ms to
 rasterize a 1098×510 px frame in software (an upper bound; iPhones use the

@@ -140,7 +140,7 @@ void main() {
     await tester.runAsync(() async {
       for (final coach in Coaches.all) {
         final frames = (await AvatarFrames.load(coach))!;
-        final animator = AvatarAnimator(seed: 3);
+        final animator = AvatarAnimator(seed: coach.id.hashCode);
         final pose = ValueNotifier(AvatarPose.still);
         final painter = AvatarPainter(frames, pose, coach.heroFocus);
         final dir = Directory('$outDir/states-${coach.id}')..createSync(recursive: true);

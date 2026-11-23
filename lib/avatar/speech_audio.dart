@@ -268,22 +268,31 @@ class AudioAlignment {
 
   List<(double, double)>? _closures;
 
-  /// How far a planned lip closure may move to meet a dip in the loudness.
-  static const double closureSearch = 0.12;
+  /// How far a planned lip closure may move to meet a clear dip in the
+  /// loudness. Kept small: in the offline evaluation a wider search (120 ms)
+  /// moved closures away from the real M/B/P more often than onto them.
+  static const double closureSearch = 0.06;
 
-  /// Lips-closed windows (audio seconds): every planned M/B/P closure moved
-  /// onto the quietest moment within ±[closureSearch] of where the plan puts
-  /// it, since closed lips silence the voice. Empty until warped.
+  /// Lips-closed windows (audio seconds): every planned M/B/P closure at
+  /// the audio time the current mapping gives it, moved onto a clear dip in
+  /// the loudness within ±[closureSearch] when there is one (closed lips
+  /// silence the voice; an "m" is voiced, so it often has no dip and stays
+  /// where the plan puts it). Empty until a mapping exists.
   List<(double, double)> closures() {
     final cached = _closures;
     if (cached != null) return cached;
     final out = <(double, double)>[];
-    if (_map.isEmpty) return out;
+    final len = _levels.length * _hop;
+    if (len <= 0) return out;
+    // Plan time at every audio step, through markers or the warp.
+    final steps = (len / step).ceil();
+    final dense = [for (var i = 0; i < steps; i++) planTime(i * step) ?? -1.0];
+    if (dense.every((p) => p < 0)) return out;
     double audioAt(double plan) {
-      for (var i = 0; i < _map.length; i++) {
-        if (_map[i] >= plan) return i * step;
+      for (var i = 0; i < dense.length; i++) {
+        if (dense[i] >= plan) return i * step;
       }
-      return (_map.length - 1) * step;
+      return len;
     }
 
     double smooth(int i) {
@@ -303,14 +312,20 @@ class AudioAlignment {
       final d = math.max(0.05, a1 - a0);
       final mid = (a0 + a1) / 2;
       var best = mid, bestLevel = double.infinity;
+      final around = <double>[];
       for (var t = mid - closureSearch; t <= mid + closureSearch; t += _hop) {
         final l = smooth((t / _hop).round());
+        around.add(l);
         if (l < bestLevel) {
           bestLevel = l;
           best = t;
         }
       }
-      out.add((best - d / 2, best + d / 2));
+      around.sort();
+      final median = around.isEmpty ? 0.0 : around[around.length ~/ 2];
+      final clearDip = bestLevel < 0.3 * median;
+      final centre = clearDip ? best : mid;
+      out.add((centre - d / 2, centre + d / 2));
     }
     return _closures = out;
   }
@@ -325,7 +340,10 @@ class AudioAlignment {
 
   void addMarker(int charStart, double t) {
     final k = timeline.wordAtChar(charStart);
-    if (k >= 0 && t >= 0) _markers[k] = t;
+    if (k >= 0 && t >= 0) {
+      _markers[k] = t;
+      _closures = null;
+    }
   }
 
   /// Markers that make sense: in word order, and not past the audio

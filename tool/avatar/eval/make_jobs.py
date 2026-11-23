@@ -24,11 +24,15 @@ VOICES = {
     ("diego", "en"): ("en_US-norman-medium", None, 0),      # male, public domain
     ("sofia", "es"): ("es_MX-claude-high", None, 0),        # female, Apache-2.0
     ("diego", "es"): ("es_MX-ald-medium", None, 0),         # male, Unlicense
-    ("ava", "es"): ("es_MX-claude-high", None, -2.0),       # same es-MX voice, lower
-    ("ethan", "es"): ("es_MX-ald-medium", None, +1.5),      # same es-MX voice, higher
+    ("ava", "es"): ("es_MX-claude-high", None, -1.5),       # same es-MX voice, lower and slower
+    ("ethan", "es"): ("es_MX-ald-medium", None, +0.5),      # same es-MX voice, slightly higher, faster
 }
-# Pace roughly like the app's per-coach rate (0.46-0.50).
-PACE = {"ava": 1.0, "ethan": 1.05, "sofia": 1.0, "diego": 1.06}
+# Piper length scale (1 = the voice's own pace; > 1 slower). Coaches that
+# share a voice differ by about 8% in rate, like the app's voice profiles.
+PACE = {
+    ("ava", "en"): 1.0, ("ethan", "en"): 1.05, ("sofia", "en"): 1.0, ("diego", "en"): 1.06,
+    ("sofia", "es"): 1.0, ("ava", "es"): 1.08, ("diego", "es"): 1.06, ("ethan", "es"): 0.97,
+}
 TEXT = {
     ("ava", "en"): "Hi, I'm Ava. Your profile already shows warmth. Change one thing: lead with a specific story, then ask a playful question.",
     ("ethan", "en"): "Hey, I'm Ethan. Keep the opener simple. Mention something from her photos, keep it light, and suggest coffee this week.",
@@ -77,7 +81,7 @@ def main():
         voice, speaker, semitones = VOICES[(coach, lang)]
         base = os.path.join(out, f"{coach}-{lang}")
         cmd = [PY, "-I", os.path.join(HERE, "tts_align.py"), os.path.join(TOOLS, "voices", voice + ".onnx"),
-               text, base + ".wav", base + ".ph.json", str(PACE[coach])]
+               text, base + ".wav", base + ".ph.json", str(PACE[(coach, lang)])]
         if speaker is not None:
             cmd.append(str(speaker))
         subprocess.run(cmd, check=True, capture_output=True)

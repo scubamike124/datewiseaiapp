@@ -369,7 +369,7 @@ void main() {
       expect(worst, lessThan(150000), reason: 'worst call ${worst ~/ 1000} ms');
     });
 
-    test('lip closures snap to the nearest loudness dip (within 120 ms)', () {
+    test('lip closures snap to a clear loudness dip nearby', () {
       const text = 'mamá';
       final tl = VisemeTimeline.fromTimedWords(text, CoachLanguage.es, [(0, 4, 0.0, 0.8)]);
       final a = AudioAlignment(tl);
