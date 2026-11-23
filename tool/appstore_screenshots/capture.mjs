@@ -148,6 +148,8 @@ async function waitForReply(page) {
 
 const SHOTS = {
   en: [
+    // English fits at the top (with the "AI dating coaches" label); Spanish
+    // scrolls a little so no button sits under the tab bar.
     { name: '01-coaches', headline: 'Choose your AI dating coach', sub: 'Four coaches, in English and Spanish', run: (p) => open(p, 'coaches') },
     { name: '02-home', headline: 'A simple plan for your week', sub: 'Profile, conversations and first dates', run: (p) => open(p, 'home') },
     { name: '03-chat', headline: 'Know what to say next', sub: 'Example chat: openers and replies you can adapt', run: (p) => open(p, 'chat') },
@@ -155,7 +157,7 @@ const SHOTS = {
     { name: '05-privacy', headline: 'Your data, your controls', sub: 'Coach memory is off unless you turn it on', run: async (p) => { await open(p, 'you'); await withoutCutRows(p); } },
   ],
   es: [
-    { name: '01-coaches', headline: 'Elige tu coach de citas con IA', sub: 'Cuatro coaches, en inglés y en español', run: (p) => open(p, 'coaches') },
+    { name: '01-coaches', headline: 'Elige tu coach de citas con IA', sub: 'Cuatro coaches, en inglés y en español', run: async (p) => { await open(p, 'coaches'); await withoutCutRows(p); } },
     { name: '02-home', headline: 'Un plan sencillo para tu semana', sub: 'Perfil, conversaciones y primeras citas', run: (p) => open(p, 'home') },
     // One finished exchange with Sofía (review mode seeds it with ?lang=es).
     { name: '03-chat', headline: 'Sabrás qué escribir', sub: 'Chat de ejemplo: primeros mensajes y respuestas a tu medida', run: (p) => open(p, 'chat') },
