@@ -7,8 +7,25 @@ owner's approval click.
 
 | Target | What it is | Source | Use it for |
 |---|---|---|---|
-| `chat-v7-cost-guard` | Multi-module Worker (`worker.js`, `cost_guard.js`, `coach_prompts.js`, `apple_jws.js`), Durable Object `USAGE_GUARD` with migration `v1-usage-guard`, rate-limit binding `RATE_LIMITER`, secret `ID_HASH_SALT` | `backend/` at a commit that is **already on `main` or `claude/datewise-v2-app`** (reviewed code only) | The v2 release |
+| `chat-v7-cost-guard` | Multi-module Worker (`worker.js`, `cost_guard.js`, `coach_prompts.js`, `apple_jws.js`), Durable Object `USAGE_GUARD` with migration `v1-usage-guard`, rate-limit binding `RATE_LIMITER`, secret `ID_HASH_SALT` | `backend/` at a commit that is **already on `main`** | The v2 release |
 | `chat-v6` | Single file, `AI` binding only | Always commit `f5b0401`, and `worker.js` must hash to `de390ddb…3d23837` | Fixing today's v1 HTTP 502 (production runs chat-v5 on a retired model) |
+
+**What the workflow guarantees.** The workflow refuses to run unless **the
+commit it runs from** (the dispatched branch head, or the tagged commit, which
+supplies this workflow file) is an ancestor of `main`. For chat-v7, the
+**deployed code commit** must also be an ancestor of `main`. chat-v6 code
+always comes from `f5b0401` with its pinned sha256. "On `main`" means
+"reviewed" **only once `main` is protected by the ruleset in 1f** (pull request
+with an approving review, no force pushes, restricted pushers). Every deploy
+also needs your approval in `production-worker`. The workflow does not review
+code itself.
+
+**Consequences:**
+- **chat-v7** can be deployed only after the v2 code (and this workflow) is
+  merged to `main` through a reviewed PR. When to do that is your decision.
+- **chat-v6** also needs this workflow on `main` first, for example through a
+  small reviewed PR to `main` that adds only this workflow and the runbook.
+  Until then, use the other deploy path in section 7 for the v1 fix.
 
 ## 1. Owner setup (once)
 
@@ -61,10 +78,9 @@ environment's `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` point at.
    while you are the only reviewer.
 3. **Deployment branches and tags: "Selected branches and tags".** Add:
    - branch `main`;
-   - branch `claude/datewise-v2-app`;
    - tag pattern `worker-v*`.
 
-   Without this, a run from any branch could ask for the secrets.
+   Nothing else. Without this, a run from any branch could ask for the secrets.
 
 ### 1d. Add the secrets to the `production-worker` environment only
 | Secret | Value | Needed for |
@@ -99,7 +115,26 @@ environment's `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` point at.
 - Bypass list: **Repository admin** (you) only.
 
 A tag push runs the workflow file *at the tagged commit*, so only you should be
-able to create these tags.
+able to create these tags. The workflow also refuses tags on commits that are
+not on `main`.
+
+### 1f. Protect `main` (GitHub: Settings, Rules, Rulesets, New branch ruleset). Mandatory.
+- Name: `protect main`. Enforcement: **Active**. Target branches: **Include
+  default branch** (`main`).
+- Rules:
+  - **Restrict deletions**;
+  - **Block force pushes**;
+  - **Require a pull request before merging**, with **at least 1 approving
+    review** and "Dismiss stale pull request approvals when new commits are
+    pushed";
+  - optionally "Require status checks to pass" (Backend tests).
+- **Restrict who can push:** leave the bypass list empty, or Repository admin
+  (you) only. If you are the only maintainer and approve your own PRs, GitHub
+  doesn't count self-approval, so either add a second reviewer or let yourself
+  bypass as admin. Either way, merging to `main` stays a deliberate step.
+
+Without 1f, anyone with write access could push a modified workflow to `main`,
+and the "on main" check would mean nothing.
 
 ## 2. Starting a run
 
@@ -109,25 +144,32 @@ they end in `-deploy`.**
 
 | Way | chat-v7 | chat-v6 |
 |---|---|---|
-| Actions, Deploy coach Worker, Run workflow | target `chat-v7-cost-guard`, optional `ref` (on `main` or `claude/datewise-v2-app`), `dry_run` (default on) | target `chat-v6` (ref ignored, always f5b0401) |
+| Actions, Deploy coach Worker, Run workflow | target `chat-v7-cost-guard`, optional `ref` (must be on `main`), `dry_run` (default on) | target `chat-v6` (ref ignored, always f5b0401) |
 | Dry run by tag | `git tag worker-v7-2026-11-24 <commit> && git push origin worker-v7-2026-11-24` | `worker-v6-2026-11-24` |
 | Deploy by tag (still waits for your approval) | `worker-v7-2026-11-24-deploy` | `worker-v6-2026-11-24-deploy` |
 
-- The tagged commit must contain this workflow file, and for chat-v7 it must
-  already be on `main` or `claude/datewise-v2-app`. This PR's branch is not, so
-  merge it first.
+- The tagged or dispatched commit must be on `main` and contain this workflow
+  file, for both targets. This PR targets `claude/datewise-v2-app`, so
+  nothing can run until the workflow reaches `main` (see "Consequences" above).
 - `ref` accepts only plain branch, tag or SHA names: one line, no `..`, no leading `-`, no
   `refs/pull/…` or `pull/…`.
 
 ## 3. Dry run (job "Check and dry-run bundle": no Cloudflare secrets)
 1. Fails if the Cloudflare secrets exist as repository or organization secrets.
 2. Validates the target, ref and tag, then checks out the commit with full
-   history. **chat-v7:** the commit must be an ancestor of `origin/main` or
-   `origin/claude/datewise-v2-app`. **chat-v6:** it must be `f5b0401` with the
-   pinned `worker.js` hash.
-3. Refuses `.npmrc`, `backend/.npmrc`, `backend/package.json`,
-   `backend/node_modules`, `backend/wrangler.json(c)` and any `[build]` section
-   in `backend/wrangler.toml`, since these could change what gets built or installed.
+   history.
+   - **Both targets:** the run's own commit (`GITHUB_SHA`) must be an ancestor of `origin/main`.
+   - **chat-v7:** the code commit must be an ancestor of `origin/main` too.
+   - **chat-v6:** the code commit must be `f5b0401` with the pinned `worker.js` hash.
+3. Refuses a set of files that could change what Wrangler builds, installs or
+   connects to (`.env` files can redirect the API base URL):
+   - `.npmrc`, `backend/.npmrc`, `backend/package.json`, `backend/node_modules`,
+     `backend/wrangler.json(c)`;
+   - `.env`, `.env.*`, `backend/.env`, `backend/.env.*`, `backend/.dev.vars(.*)`.
+
+   It also refuses any `build` key at any level of `backend/wrangler.toml`
+   (custom build command). The file is parsed with Python `tomllib`, so quoted
+   keys are caught too.
 4. `node --test backend/*.test.mjs`.
 5. Checks `backend/wrangler.toml`:
    - the Worker name, and `main = "worker.js"`;
@@ -154,8 +196,9 @@ tests pass, and the 20.25 KiB bundle reports `chat-v6`.
 ## 4. Real deploy (job "Deploy … (owner approval)", environment `production-worker`)
 Runs only for `dry_run` = false or a `-deploy` tag, and only after the dry-run
 job passes **and** you approve.
-1. Re-validates the target and SHA, checks out that exact commit, and re-checks
-   that it is on a reviewed branch (or is the chat-v6 pin).
+1. Re-validates the target and SHA, checks out that exact commit, and re-runs
+   the `main`-ancestor checks (workflow commit, plus the chat-v7 code commit) or
+   the chat-v6 pin. It also re-runs the refused-file and `build`-key checks.
 2. Checks that the Cloudflare secrets are set.
 3. **Records the rollback point:** `wrangler deployments status --json`, then
    the version id serving the most traffic, shown in the run summary. It fails
@@ -216,7 +259,7 @@ existing bindings.
 
 | Need | Use |
 |---|---|
-| Fix the v1 502 now, on the current account | That tool (chat-v6), **or** this workflow with target `chat-v6` |
+| Fix the v1 502 now, on the current account | That tool (chat-v6), **or** this workflow with target `chat-v6` (once the workflow is on `main`) |
 | Deploy chat-v7-cost-guard (v2) | **This workflow only.** A single-file upload can't add the extra modules, the DO binding and migration, the rate-limit binding or the secret |
 | Deploy to a new DateWise account | **This workflow only.** Don't give other tools a token for the new account |
 | Roll back | `wrangler rollback`, the dashboard, or the tool above (current account only) |

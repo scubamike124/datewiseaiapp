@@ -89,8 +89,8 @@ Optional. If enabled (`ASSN_ENABLED = "1"`), set both the Production and Sandbox
 Deploys go through `.github/workflows/deploy-worker.yml`, adapted from the earlier manual workflow at `f5b0401`. The steps are in **`WORKER_DEPLOY_RUNBOOK.md`**, which is the source of truth. In short:
 - **Environment `production-worker`** (Settings → Environments):
   - **Required reviewers: the owner**;
-  - **Deployment branches and tags: selected**, namely `main`, `claude/datewise-v2-app` and tag pattern `worker-v*`;
-  - a tag ruleset so only the owner can create `worker-v*` tags (runbook 1c and 1e).
+  - **Deployment branches and tags: selected**, namely `main` and tag pattern `worker-v*` only;
+  - a tag ruleset so only the owner can create `worker-v*` tags, and a ruleset protecting `main` (PR with approving review, no force pushes, restricted pushers) (runbook 1c, 1e and 1f).
 - **Environment secrets only**, never repository secrets; the workflow fails if repository-level copies exist:
   - `CLOUDFLARE_API_TOKEN` (the deploy token);
   - `CLOUDFLARE_ACCOUNT_ID` (the new account's ID).
@@ -103,7 +103,7 @@ Deploys go through `.github/workflows/deploy-worker.yml`, adapted from the earli
   - runs `node --test backend/*.test.mjs`;
   - pins actions to commit SHAs;
   - uses wrangler 4.158.0 (4.36 or later is needed for `[[ratelimits]]`);
-  - deploys only reviewed commits (ancestors of `main` or `claude/datewise-v2-app`);
+  - runs only from commits on `main`, and deploys only chat-v7 code that is on `main` (chat-v6 stays pinned to `f5b0401`). chat-v7 can therefore deploy only after v2 is merged to `main`;
   - does a dry run with binding and cost-limit checks;
   - records the previous version id;
   - checks `?version` = `chat-v7-cost-guard` and a no-AI 403 `SUBSCRIPTION_REQUIRED` at the new URL.
@@ -174,7 +174,7 @@ From `docs/business/WORKERS_PAID_EVALUATION.md` section 4 (`node docs/business/a
 2. Decide Free or Workers Paid; approve $5 a month if Paid.
 3. Create the new Cloudflare account and choose its workers.dev subdomain.
 4. Create the scoped deploy token (Workers Scripts Edit, new account only).
-5. Create the GitHub environment `production-worker` (required reviewer: you; deployment branches and tags restricted) with the environment secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, and add the `worker-v*` tag ruleset (`WORKER_DEPLOY_RUNBOOK.md` 1c–1e).
+5. Create the GitHub environment `production-worker` (required reviewer: you; deployment branches and tags restricted) with the environment secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, add the `worker-v*` tag ruleset, and protect `main` with a ruleset (`WORKER_DEPLOY_RUNBOOK.md` 1c–1f).
 6. `ID_HASH_SALT` (a long random value; store it in your password manager). For the first deploy on the new account, add it as a `production-worker` environment secret, because the Worker doesn't exist yet. Afterwards you may delete that secret, since the Worker keeps it.
 7. Run the deploy workflow (dry run, then approve the deploy); confirm `?version`.
 8. Decide on the custom domain. For option B: copy the DNS records, switch nameservers, test `support@` mail.

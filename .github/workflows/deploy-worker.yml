@@ -5,11 +5,16 @@ name: Deploy coach Worker
 # claude/fix-retired-cf-model). Runbook: docs/launch/WORKER_DEPLOY_RUNBOOK.md.
 #
 # Targets:
-#   chat-v7-cost-guard  backend/ at a reviewed commit (an ancestor of main or
-#                       claude/datewise-v2-app): multi-module, Durable Object +
-#                       migration, rate-limit binding, ID_HASH_SALT.
+#   chat-v7-cost-guard  backend/ at a commit that is an ancestor of main:
+#                       multi-module, Durable Object + migration, rate-limit
+#                       binding, ID_HASH_SALT.
 #   chat-v6             backend/ at the pinned commit f5b0401 (single file, AI
 #                       binding only), with a pinned worker.js sha256.
+#   For BOTH targets the commit this workflow runs from (the dispatched branch
+#   head or the tagged commit) must also be an ancestor of main, because that
+#   commit supplies this workflow file. The owner protects main with a ruleset
+#   (PR + approving review, no force push), so "on main" means "merged through
+#   a reviewed PR".
 #
 # Jobs:
 #   check   no Cloudflare secrets: ref and commit checks, offline tests, config
@@ -41,7 +46,7 @@ on:
           - chat-v6
         default: chat-v7-cost-guard
       ref:
-        description: 'chat-v7 only: branch, tag or commit SHA (must be on main or claude/datewise-v2-app; empty = this run''s commit). chat-v6 is always f5b0401.'
+        description: 'chat-v7 only: branch, tag or commit SHA (must already be on main; empty = this run''s commit). chat-v6 is always f5b0401.'
         type: string
         required: false
         default: ''
@@ -72,8 +77,8 @@ env:
   # chat-v6: the reviewed commit and its worker.js sha256.
   V6_SHA: f5b0401f52e78375a4b48b865d6e58314e18e115
   V6_WORKER_SHA256: de390ddb4481cb3e8ceccb3bf2e230a79c80c40db4752c3fc3c0f53e13d23837
-  # chat-v7 commits must be ancestors of one of these branches.
-  REVIEWED_BRANCHES: 'main claude/datewise-v2-app'
+  # Commits (the workflow's own and chat-v7's code) must be ancestors of main.
+  REVIEWED_BRANCH: main
 
 jobs:
   check:
@@ -176,7 +181,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: The commit must be reviewed (on main or claude/datewise-v2-app, or the chat-v6 pin)
+      - name: The commits must be on main (workflow commit, and chat-v7 code) or the chat-v6 pin
         id: resolve
         env:
           TARGET: ${{ steps.plan.outputs.target }}
@@ -185,18 +190,19 @@ jobs:
           set -euo pipefail
           sha=$(git rev-parse --verify 'HEAD^{commit}')
           [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::could not resolve the commit"; exit 1; }
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::unexpected GITHUB_SHA"; exit 1; }
+          git fetch --quiet --no-tags origin "+refs/heads/$REVIEWED_BRANCH:refs/remotes/origin/$REVIEWED_BRANCH" \
+            || { echo "::error::could not fetch $REVIEWED_BRANCH"; exit 1; }
+          on_main() { git merge-base --is-ancestor "$1" "refs/remotes/origin/$REVIEWED_BRANCH"; }
+          # The workflow file comes from GITHUB_SHA, so it must be merged too.
+          on_main "$GITHUB_SHA" || { echo "::error::This workflow run's commit $GITHUB_SHA is not on $REVIEWED_BRANCH. Run it from main, or tag a commit that is on main."; exit 1; }
           if [ "$TARGET" = "chat-v6" ]; then
             [ "$sha" = "$V6_SHA" ] || { echo "::error::chat-v6 must be $V6_SHA"; exit 1; }
             actual=$(git show "$sha:backend/worker.js" | sha256sum | cut -d' ' -f1)
             [ "$actual" = "$V6_WORKER_SHA256" ] || { echo "::error::backend/worker.js sha256 $actual does not match the pinned $V6_WORKER_SHA256"; exit 1; }
           else
-            ok=""
-            for b in $REVIEWED_BRANCHES; do
-              git fetch --quiet --no-tags origin "+refs/heads/$b:refs/remotes/origin/$b" || continue
-              if git merge-base --is-ancestor "$sha" "refs/remotes/origin/$b"; then ok="$b"; break; fi
-            done
-            [ -n "$ok" ] || { echo "::error::$sha is not on main or claude/datewise-v2-app; only reviewed commits can be deployed"; exit 1; }
-            echo "Commit $sha is on $ok"
+            on_main "$sha" || { echo "::error::$sha is not on $REVIEWED_BRANCH; chat-v7 deploys only code merged to $REVIEWED_BRANCH"; exit 1; }
+            echo "Commit $sha is on $REVIEWED_BRANCH"
           fi
           printf 'sha=%s\n' "$sha" >> "$GITHUB_OUTPUT"
 
@@ -204,16 +210,39 @@ jobs:
         with:
           node-version: 22
 
-      - name: Refuse build hooks and registry overrides
+      - name: Refuse build hooks, registry and environment overrides
+        shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          shopt -s nullglob dotglob
           bad=0
-          for f in .npmrc backend/.npmrc backend/package.json backend/node_modules backend/wrangler.json backend/wrangler.jsonc; do
-            if [ -e "$f" ]; then echo "::error::$f must not exist (it could change what Wrangler builds or installs)"; bad=1; fi
+          # Files that could change what Wrangler builds, installs or talks to
+          # (.env files can set CLOUDFLARE_API_BASE_URL and similar).
+          for f in .npmrc backend/.npmrc backend/package.json backend/node_modules \
+                   backend/wrangler.json backend/wrangler.jsonc \
+                   .env .env.* backend/.env backend/.env.* backend/.dev.vars backend/.dev.vars.*; do
+            if [ -e "$f" ]; then echo "::error::$f must not exist (it could change what Wrangler builds, installs or connects to)"; bad=1; fi
           done
-          if grep -Eq '^[[:space:]]*(\[+[[:space:]]*build([].[:space:]]|$)|build[[:space:]]*[.=])' backend/wrangler.toml; then
-            echo "::error::backend/wrangler.toml must not have a [build] section (custom build command)"; bad=1
-          fi
+          # Any "build" key at any level of wrangler.toml (custom build command),
+          # parsed with a real TOML parser so quoted keys are caught too.
+          python3 - <<'EOF' || bad=1
+          import sys, tomllib
+          try:
+              cfg = tomllib.load(open('backend/wrangler.toml', 'rb'))
+          except Exception as e:
+              print(f'::error::backend/wrangler.toml does not parse: {e}'); sys.exit(1)
+          found = []
+          def walk(o, path):
+              if isinstance(o, dict):
+                  for k, v in o.items():
+                      if k.strip().lower() == 'build': found.append('.'.join(path + [k]))
+                      walk(v, path + [k])
+              elif isinstance(o, list):
+                  for i, v in enumerate(o): walk(v, path + [str(i)])
+          walk(cfg, [])
+          for f in found: print(f'::error::backend/wrangler.toml must not have a build key ({f})')
+          sys.exit(1 if found else 0)
+          EOF
           exit $bad
 
       - name: Offline Worker tests must pass
@@ -223,59 +252,45 @@ jobs:
         env:
           TARGET: ${{ steps.plan.outputs.target }}
         run: |
-          node --input-type=module - <<'EOF'
-          import { readFileSync } from 'node:fs';
-          const target = process.env.TARGET;
-          const lines = readFileSync('backend/wrangler.toml', 'utf8').split('\n');
-          const errors = [];
-          // Collect key = value pairs per [section] / [[array-section]].
-          const sections = [];
-          let cur = { name: '', keys: {} };
-          sections.push(cur);
-          for (const raw of lines) {
-            const line = raw.replace(/\s+#.*$/, '').trim();
-            if (!line || line.startsWith('#')) continue;
-            const h = line.match(/^\[\[?\s*([^\]]+?)\s*\]\]?$/);
-            if (h) { cur = { name: h[1], keys: {} }; sections.push(cur); continue; }
-            const kv = line.match(/^([A-Za-z0-9_.-]+)\s*=\s*(.*)$/);
-            if (kv) cur.keys[kv[1]] = kv[2].replace(/^"(.*)"$/, '$1');
-          }
-          const top = sections[0].keys;
-          if (top.name !== process.env.WORKER_NAME) errors.push(`name must be ${process.env.WORKER_NAME}, got ${top.name}`);
-          if (top.main !== 'worker.js') errors.push(`main must be worker.js, got ${top.main}`);
-          if (sections.some((s) => /^build(\.|$)/.test(s.name))) errors.push('[build] is not allowed');
-          // [vars]: refuse placeholder values.
-          const placeholder = /^$|REPLACE|CHANGE_?ME|TODO|TBD|FIXME|PLACEHOLDER|YOUR[_-]|<[^>]*>|x{4,}|example\.(com|org)/i;
-          for (const s of sections.filter((s) => s.name === 'vars')) {
-            for (const [k, v] of Object.entries(s.keys)) {
-              if (placeholder.test(v)) errors.push(`[vars] ${k} looks like a placeholder: "${v}"`);
-            }
-          }
-          if (target === 'chat-v7-cost-guard') {
-            const rl = sections.filter((s) => s.name === 'ratelimits');
-            if (rl.length === 0) errors.push('[[ratelimits]] block is missing');
-            for (const s of rl) {
-              if (!/^[1-9][0-9]*$/.test(s.keys.namespace_id || '')) errors.push(`[[ratelimits]] ${s.keys.name}: namespace_id must be a positive integer, got "${s.keys.namespace_id ?? ''}"`);
-              else console.log(`rate limit ${s.keys.name}: namespace_id ${s.keys.namespace_id}`);
-            }
-            const dob = sections.filter((s) => s.name === 'durable_objects.bindings');
-            if (!dob.some((s) => s.keys.name === 'USAGE_GUARD' && s.keys.class_name === 'UsageGuard')) errors.push('Durable Object binding USAGE_GUARD (UsageGuard) is missing');
-            const mig = sections.filter((s) => s.name === 'migrations');
-            if (!mig.some((s) => /UsageGuard/.test(s.keys.new_sqlite_classes || ''))) errors.push('[[migrations]] with new_sqlite_classes = ["UsageGuard"] is missing');
-            // Cost limits: every budget and cap must be set to a whole number.
-            const vars = Object.assign({}, ...sections.filter((s) => s.name === 'vars').map((s) => s.keys));
-            const caps = ['DAILY_NEURON_BUDGET', 'ANON_NEURON_BUDGET', 'DAILY_MESSAGE_LIMIT', 'MONTHLY_MESSAGE_LIMIT',
-              'PER_MINUTE_LIMIT', 'MAX_CONCURRENT', 'MAX_INPUT_TOKENS', 'MAX_OUTPUT_TOKENS', 'IP_PER_MINUTE_LIMIT',
-              'ANON_DAILY_LIMIT', 'ANON_MONTHLY_LIMIT'];
-            for (const k of caps) {
-              if (!/^(0|[1-9][0-9]*)$/.test(vars[k] ?? '')) errors.push(`[vars] ${k} must be a whole number, got "${vars[k] ?? ''}"`);
-            }
-            if (!(Number(vars.DAILY_NEURON_BUDGET) > 0)) errors.push('[vars] DAILY_NEURON_BUDGET must be above 0 (it is the global circuit breaker)');
-            if (Number(vars.ANON_NEURON_BUDGET) > Number(vars.DAILY_NEURON_BUDGET)) errors.push('[vars] ANON_NEURON_BUDGET exceeds DAILY_NEURON_BUDGET');
-            console.log(`cost limits: DAILY_NEURON_BUDGET=${vars.DAILY_NEURON_BUDGET} ANON_NEURON_BUDGET=${vars.ANON_NEURON_BUDGET} DAILY_MESSAGE_LIMIT=${vars.DAILY_MESSAGE_LIMIT} MONTHLY_MESSAGE_LIMIT=${vars.MONTHLY_MESSAGE_LIMIT}`);
-          }
-          if (errors.length) { for (const e of errors) console.log(`::error::${e}`); process.exit(1); }
-          console.log('wrangler.toml checks passed');
+          python3 - <<'EOF'
+          import os, re, sys, tomllib
+          target = os.environ['TARGET']
+          cfg = tomllib.load(open('backend/wrangler.toml', 'rb'))
+          errors = []
+          if cfg.get('name') != os.environ['WORKER_NAME']: errors.append(f"name must be {os.environ['WORKER_NAME']}, got {cfg.get('name')}")
+          if cfg.get('main') != 'worker.js': errors.append(f"main must be worker.js, got {cfg.get('main')}")
+          vars_ = cfg.get('vars', {}) or {}
+          if not isinstance(vars_, dict): errors.append('[vars] must be a table'); vars_ = {}
+          # [vars]: refuse placeholder values.
+          placeholder = re.compile(r'^$|REPLACE|CHANGE_?ME|TODO|TBD|FIXME|PLACEHOLDER|YOUR[_-]|<[^>]*>|x{4,}|example\.(com|org)', re.I)
+          for k, v in vars_.items():
+              if placeholder.search(str(v)): errors.append(f'[vars] {k} looks like a placeholder: "{v}"')
+          if target == 'chat-v7-cost-guard':
+              rl = cfg.get('ratelimits', []) or []
+              if not rl: errors.append('[[ratelimits]] block is missing')
+              for b in rl:
+                  ns = str(b.get('namespace_id', ''))
+                  if not re.fullmatch(r'[1-9][0-9]*', ns): errors.append(f"[[ratelimits]] {b.get('name')}: namespace_id must be a positive integer, got \"{ns}\"")
+                  else: print(f"rate limit {b.get('name')}: namespace_id {ns}")
+              dob = (cfg.get('durable_objects', {}) or {}).get('bindings', []) or []
+              if not any(b.get('name') == 'USAGE_GUARD' and b.get('class_name') == 'UsageGuard' for b in dob): errors.append('Durable Object binding USAGE_GUARD (UsageGuard) is missing')
+              mig = cfg.get('migrations', []) or []
+              if not any('UsageGuard' in (m.get('new_sqlite_classes') or []) for m in mig): errors.append('[[migrations]] with new_sqlite_classes = ["UsageGuard"] is missing')
+              # Cost limits: every budget and cap must be set to a whole number.
+              caps = ['DAILY_NEURON_BUDGET', 'ANON_NEURON_BUDGET', 'DAILY_MESSAGE_LIMIT', 'MONTHLY_MESSAGE_LIMIT',
+                      'PER_MINUTE_LIMIT', 'MAX_CONCURRENT', 'MAX_INPUT_TOKENS', 'MAX_OUTPUT_TOKENS', 'IP_PER_MINUTE_LIMIT',
+                      'ANON_DAILY_LIMIT', 'ANON_MONTHLY_LIMIT']
+              for k in caps:
+                  if not re.fullmatch(r'0|[1-9][0-9]*', str(vars_.get(k, ''))): errors.append(f'[vars] {k} must be a whole number, got "{vars_.get(k, "")}"')
+              try:
+                  if not int(vars_.get('DAILY_NEURON_BUDGET', 0)) > 0: errors.append('[vars] DAILY_NEURON_BUDGET must be above 0 (it is the global circuit breaker)')
+                  if int(vars_.get('ANON_NEURON_BUDGET', 0)) > int(vars_.get('DAILY_NEURON_BUDGET', 0)): errors.append('[vars] ANON_NEURON_BUDGET exceeds DAILY_NEURON_BUDGET')
+              except ValueError:
+                  pass
+              print('cost limits: ' + ' '.join(f'{k}={vars_.get(k)}' for k in ['DAILY_NEURON_BUDGET', 'ANON_NEURON_BUDGET', 'DAILY_MESSAGE_LIMIT', 'MONTHLY_MESSAGE_LIMIT']))
+          for e in errors: print(f'::error::{e}')
+          if errors: sys.exit(1)
+          print('wrangler.toml checks passed')
           EOF
 
       - name: Dry-run bundle (no upload, no credentials)
@@ -370,24 +385,53 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Re-check the commit
+      - name: Re-check the commits and refused files
         shell: bash
         run: |
           set -euo pipefail
           [ "$(git rev-parse HEAD)" = "$SHA" ] || { echo "::error::checked-out commit differs"; exit 1; }
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::unexpected GITHUB_SHA"; exit 1; }
+          git fetch --quiet --no-tags origin "+refs/heads/$REVIEWED_BRANCH:refs/remotes/origin/$REVIEWED_BRANCH" \
+            || { echo "::error::could not fetch $REVIEWED_BRANCH"; exit 1; }
+          on_main() { git merge-base --is-ancestor "$1" "refs/remotes/origin/$REVIEWED_BRANCH"; }
+          # The workflow file comes from GITHUB_SHA, so it must be merged too.
+          on_main "$GITHUB_SHA" || { echo "::error::This workflow run's commit $GITHUB_SHA is not on $REVIEWED_BRANCH. Run it from main, or tag a commit that is on main."; exit 1; }
           if [ "$TARGET" = "chat-v7-cost-guard" ]; then
-            ok=""
-            for b in $REVIEWED_BRANCHES; do
-              git fetch --quiet --no-tags origin "+refs/heads/$b:refs/remotes/origin/$b" || continue
-              if git merge-base --is-ancestor "$SHA" "refs/remotes/origin/$b"; then ok="$b"; break; fi
-            done
-            [ -n "$ok" ] || { echo "::error::$SHA is not on a reviewed branch"; exit 1; }
+            on_main "$SHA" || { echo "::error::$SHA is not on $REVIEWED_BRANCH"; exit 1; }
           else
             [ "$(sha256sum backend/worker.js | cut -d' ' -f1)" = "$V6_WORKER_SHA256" ] || { echo "::error::chat-v6 hash mismatch"; exit 1; }
           fi
-          for f in .npmrc backend/.npmrc backend/package.json backend/wrangler.json backend/wrangler.jsonc; do
-            [ ! -e "$f" ] || { echo "::error::$f must not exist"; exit 1; }
+          set +e
+          shopt -s nullglob dotglob
+          bad=0
+          # Files that could change what Wrangler builds, installs or talks to
+          # (.env files can set CLOUDFLARE_API_BASE_URL and similar).
+          for f in .npmrc backend/.npmrc backend/package.json backend/node_modules \
+                   backend/wrangler.json backend/wrangler.jsonc \
+                   .env .env.* backend/.env backend/.env.* backend/.dev.vars backend/.dev.vars.*; do
+            if [ -e "$f" ]; then echo "::error::$f must not exist (it could change what Wrangler builds, installs or connects to)"; bad=1; fi
           done
+          # Any "build" key at any level of wrangler.toml (custom build command),
+          # parsed with a real TOML parser so quoted keys are caught too.
+          python3 - <<'EOF' || bad=1
+          import sys, tomllib
+          try:
+              cfg = tomllib.load(open('backend/wrangler.toml', 'rb'))
+          except Exception as e:
+              print(f'::error::backend/wrangler.toml does not parse: {e}'); sys.exit(1)
+          found = []
+          def walk(o, path):
+              if isinstance(o, dict):
+                  for k, v in o.items():
+                      if k.strip().lower() == 'build': found.append('.'.join(path + [k]))
+                      walk(v, path + [k])
+              elif isinstance(o, list):
+                  for i, v in enumerate(o): walk(v, path + [str(i)])
+          walk(cfg, [])
+          for f in found: print(f'::error::backend/wrangler.toml must not have a build key ({f})')
+          sys.exit(1 if found else 0)
+          EOF
+          exit $bad
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
