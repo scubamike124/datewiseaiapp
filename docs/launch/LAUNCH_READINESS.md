@@ -1,3 +1,5 @@
+> **Superseded by DateWise v2 (one $9.99/month plan).** DateWise v2 has a single auto-renewable subscription, `datewise_premium_monthly`, with no free tier and no free trial. Plans, prices, tiers or free-launch notes below are historical; see `docs/appstore/metadata.md` for the current offer.
+
 # DateWise launch-readiness checklist
 
 Last checked 2026-11-22 for #20. Each line says what was verified and how. "Owner" means it waits on an owner action or decision. Do not start advertising or spend money until every **Required** item is ✅ and the owner approves.

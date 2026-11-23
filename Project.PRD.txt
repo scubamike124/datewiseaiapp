@@ -1,3 +1,5 @@
+SUPERSEDED BY DATEWISE V2 (ONE $9.99/MONTH PLAN). DateWise v2 has a single auto-renewable subscription, datewise_premium_monthly, with no free tier and no free trial. The plans, prices and trial described below are historical; see docs/appstore/metadata.md for the current offer.
+
 Lumière — Product Requirements Document
 AI Dating Coach Application
 

@@ -37,7 +37,8 @@ Version **2.0.0**, build **4** (set in `ios/Flutter/Version.xcconfig`).
 10. Replace the placeholder **coach portraits** in `assets/coaches/` (same file
     names) with the final, licensed portraits. Keep a record of the licence /
     consent for each face (Apple can ask; the portraits must not be real
-    people presented as the coaches without consent).
+    people presented as the coaches without consent). The record lives in
+    `docs/legal/ASSET_PROVENANCE.md`; update it with the finals.
 11. Regenerate the screenshots (one command, needs Flutter, Python 3, Node):
     ```bash
     (cd tool/appstore_screenshots && npm install && npx playwright install chromium)

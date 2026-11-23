@@ -1,3 +1,5 @@
+> **Superseded by DateWise v2 (one $9.99/month plan).** DateWise v2 has a single auto-renewable subscription, `datewise_premium_monthly`, with no free tier and no free trial. Plans, prices, tiers or free-launch notes below are historical; see `docs/appstore/metadata.md` for the current offer.
+
 # DateWise AI: Talking-Avatar, Voice and Coaching-Model Research
 
 **Prepared:** 2026-11-22. **All sources accessed:** 2026-11-22.
