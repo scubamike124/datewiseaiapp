@@ -174,6 +174,13 @@ class _FakeSpeech implements SpeechService {
   @override
   bool available = true;
 
+  @override
+  bool get permissionDenied => !available;
+  @override
+  bool get canOpenSettings => false;
+  @override
+  Future<void> openSettings() async {}
+
   /// When set, ensureReady reports this while [available] stays as is
   /// (permission granted, recognizer unavailable).
   bool? ready;
@@ -190,6 +197,7 @@ class _FakeSpeech implements SpeechService {
     List<String> fallbackLocales = const [],
     required void Function(String words) onWords,
     void Function()? onUnsupported,
+    void Function(String words)? onEnded,
   }) async {
     starts++;
     requestedLocales.add([localeId, ...fallbackLocales]);
@@ -336,8 +344,11 @@ void main() {
       expect(raw, isNot(contains('imageBase64')));
       expect(raw, isNot(contains('QUFBQUFBQUE=')));
       expect(raw, isNot(contains('"analysis"')));
+      // The v1 thread ends on the user's message: it reloads with an
+      // interrupted reply ("Try again"), which is never sent as history.
       final msgs = state.threads.single.messages;
-      expect(msgs.map((m) => m.isPhotoOnly), [true, true, false]);
+      expect(msgs.map((m) => m.isPhotoOnly), [true, true, false, false]);
+      expect(msgs.last.status, MessageStatus.interrupted);
       final sent = BackendAIService(endpoint: 'https://coach.example.com')
           .buildMessages(msgs, AppState.aiTier, null, Coaches.ava)
           .skip(1)
@@ -367,10 +378,10 @@ void main() {
       await pumpEventQueue();
       // Anything that saves mid-reply (here: the raw JSON of the thread).
       final partial = ChatMessage.fromJson(state.activeThread!.messages.last.toJson());
-      expect(partial.status, MessageStatus.stopped);
+      expect(partial.status, MessageStatus.interrupted);
       expect(partial.isComplete, isFalse);
       expect(ChatMessage.fromJson({'id': 'x', 'role': 'coach', 'text': 'Hal', 'isStreaming': true}).status,
-          MessageStatus.stopped);
+          MessageStatus.interrupted);
 
       await coach.streams.single.close();
       await sending;

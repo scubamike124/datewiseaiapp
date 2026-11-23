@@ -107,6 +107,7 @@
         <li><strong>Verificación de la suscripción:</strong> con cada mensaje, la app envía a nuestro servidor la prueba firmada por Apple de tu suscripción (la transacción de StoreKit). El servidor la verifica con los certificados de Apple.</li>
         <li><strong>Conteos de uso justo:</strong> para aplicar los límites de uso justo de los Términos de uso, el servidor guarda conteos anónimos de respuestas del coach, identificados por un hash unidireccional con sal del ID de transacción de la suscripción. Estos conteos no están vinculados a tu identidad y no contienen nada de tus conversaciones.</li>
         <li><strong>Reembolsos:</strong> si Apple informa que una compra se reembolsó o revocó, el servidor guarda ese estado como un hash del ID de transacción, para que la transacción deje de aceptarse.</li>
+        <li><strong>Renovaciones y período de gracia de facturación:</strong> si Apple informa una renovación o un período de gracia de facturación, el servidor guarda las fechas de fin de la renovación y del período de gracia, con un hash del ID de transacción como clave, para que el chat siga funcionando hasta que el nuevo período llegue a tu dispositivo.</li>
       </ul>
 
       <h2>Proveedores de servicios</h2>
@@ -120,7 +121,7 @@
       <ul>
         <li><strong>Los datos del dispositivo se conservan hasta que los eliminas:</strong> Tú › Eliminar todas las conversaciones, Tú › Eliminar mis datos (borra todo lo que DateWise guardó en el dispositivo) o desinstalando la app. Eliminar tus datos no cancela tu suscripción del App Store; para cancelarla, ve a Configuración › [tu nombre] › Suscripciones.</li>
         <li>Los mensajes enviados para obtener una respuesta no se conservan en nuestros servidores después de procesarse.</li>
-        <li><strong>En nuestro servidor:</strong> los conteos diarios de respuestas se reinician cada día (00:00 UTC), los mensuales se conservan solo durante el mes en curso y los registros de límite de frecuencia duran poco (alrededor de un minuto). El estado de un reembolso o una revocación se conserva, como hash, solo para que la transacción siga rechazada.</li>
+        <li><strong>En nuestro servidor:</strong> los conteos diarios de respuestas se reinician cada día (00:00 UTC), los mensuales se conservan solo durante el mes en curso y los registros de límite de frecuencia duran poco (alrededor de un minuto). El estado de un reembolso o una revocación se conserva, como hash, solo para que la transacción siga rechazada. Las fechas de fin de la renovación y del período de gracia de facturación se eliminan 35 días después de que termine el período pagado o el período de gracia (si la suscripción venció, 35 días después del último aviso de Apple).</li>
       </ul>
 
       <h2>Seguridad</h2>

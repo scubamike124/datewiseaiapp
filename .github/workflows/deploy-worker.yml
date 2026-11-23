@@ -594,9 +594,12 @@ jobs:
           [ -n "$ok" ] || fail "?version did not report $EXPECT within 3 minutes"
           if [ "$TARGET" = "chat-v7-cost-guard" ]; then
             # A v2 chat request with no StoreKit token is refused before any model
-            # call: 403 SUBSCRIPTION_REQUIRED. Reaching that code means the
-            # USAGE_GUARD binding is present (else 503 GUARD_UNAVAILABLE) and the IP
-            # rate limit answered; it does not exercise the Durable Object itself.
+            # call: 403 SUBSCRIPTION_REQUIRED. That shows the server-side
+            # subscription check is on and the IP rate limit answered. It does NOT
+            # prove the USAGE_GUARD binding exists: the token check runs before the
+            # guard is used. The binding is proven by the pre-deploy dry-run binding
+            # check ("Dry-run output must list the guard bindings"); the Durable
+            # Object itself is first exercised by a real v2 chat.
             code=$(curl -sS --max-time 20 -o "$RUNNER_TEMP/h.json" -w '%{http_code}' -X POST "$url/" \
               -H 'Content-Type: application/json' \
               --data '{"coachId":"ava","messages":[{"role":"user","content":"deploy health check"}]}') || true

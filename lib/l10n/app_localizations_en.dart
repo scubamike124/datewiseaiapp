@@ -840,4 +840,40 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get coachUsageNoticeMonthly =>
       'You\'re close to this month\'s fair-use limit.';
+
+  @override
+  String get chatErrorInterrupted =>
+      'The reply was interrupted when the app closed. Your message is saved.';
+
+  @override
+  String get conversationDeleted => 'Conversation deleted.';
+
+  @override
+  String get undo => 'Undo';
+
+  @override
+  String get ageUnderConfirmTitle => 'Are you under 18?';
+
+  @override
+  String get ageUnderConfirmBody =>
+      'DateWise is only for adults. If you confirm, the app stays locked on this device.';
+
+  @override
+  String get ageUnderConfirmAction => 'Yes, I\'m under 18';
+
+  @override
+  String voicePermissionDeniedNote(String name) {
+    return 'Microphone or speech recognition access is turned off for DateWise. Allow it in Settings to talk with $name, or type instead.';
+  }
+
+  @override
+  String get openSettings => 'Open Settings';
+
+  @override
+  String get voiceNoSpeech =>
+      'I didn\'t catch that. Hold the button and try again.';
+
+  @override
+  String get voiceKeptInComposer =>
+      'Your coach is still replying. What you said is in the message box.';
 }

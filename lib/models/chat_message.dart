@@ -1,9 +1,10 @@
 enum MessageRole { user, coach }
 
 /// How a coach reply ended. A reply that [failed] (the coach could not be
-/// reached) or was [stopped] (the user left the chat mid-reply) is shown with
+/// reached), was [stopped] (the user stopped it or left the chat mid-reply)
+/// or was [interrupted] (the app closed or restarted mid-reply) is shown with
 /// a "Try again" button and is never sent back to the model as history.
-enum MessageStatus { ok, failed, stopped }
+enum MessageStatus { ok, failed, stopped, interrupted }
 
 /// Why a reply [MessageStatus.failed], when the app can tell. It picks the
 /// notice shown under the reply; null shows the generic one.
@@ -70,10 +71,11 @@ class ChatMessage {
   bool get isPhotoOnly => hadPhoto && text.trim().isEmpty;
 
   /// A reply saved while it was still streaming (the app was closed or
-  /// crashed mid-reply) is stored, and reloads, as [MessageStatus.stopped]:
-  /// it is shown as incomplete with "Try again" and never sent as history.
+  /// crashed mid-reply) is stored, and reloads, as
+  /// [MessageStatus.interrupted]: it is shown as interrupted with "Try
+  /// again" and never sent as history.
   Map<String, dynamic> toJson() {
-    final saved = isStreaming && status == MessageStatus.ok ? MessageStatus.stopped : status;
+    final saved = isStreaming && status == MessageStatus.ok ? MessageStatus.interrupted : status;
     return {
       'id': id,
       'role': role.name,
@@ -103,7 +105,7 @@ class ChatMessage {
             json['analysis'] != null ||
             json['batchAnalysis'] != null,
         status: json['isStreaming'] == true
-            ? MessageStatus.stopped
+            ? MessageStatus.interrupted
             : MessageStatus.values.firstWhere(
                 (s) => s.name == json['status'],
                 orElse: () => MessageStatus.ok,

@@ -25,12 +25,15 @@ class ChatThread {
 
   ChatMessage? get lastMessage => messages.isEmpty ? null : messages.last;
 
+  /// The newest message with something to show (an empty failed or
+  /// interrupted reply is skipped), as one line of plain text.
   String get preview {
-    final last = lastMessage;
-    if (last == null) return 'New conversation';
-    if (last.isPhotoOnly) return 'Photo';
-    final text = last.text.replaceAll('\n', ' ').trim();
-    return text.isEmpty ? 'New conversation' : text;
+    for (final m in messages.reversed) {
+      if (m.isPhotoOnly) return 'Photo';
+      final text = m.text.trim();
+      if (text.isNotEmpty) return text;
+    }
+    return 'New conversation';
   }
 
   Map<String, dynamic> toJson() => {

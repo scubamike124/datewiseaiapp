@@ -47,6 +47,14 @@ String storeErrorText(AppLocalizations l, StoreError e) => switch (e) {
       StoreError.restoreFailed => l.restoreFailed,
     };
 
+/// What a restore that found no active subscription says: the store's error
+/// when the store failed, is unavailable or could not be reached (never "no
+/// subscription", which would be wrong then), else [none].
+String restoreFailureText(AppLocalizations l, StoreError? error, String none) =>
+    error == StoreError.restoreFailed || error == StoreError.storeUnreachable || error == StoreError.storeUnavailable
+        ? storeErrorText(l, error!)
+        : none;
+
 class _PaywallScreenState extends State<PaywallScreen> {
   /// A message for the last action, built in the current language.
   String Function(AppLocalizations l)? _message;
@@ -78,9 +86,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
     if (ok) {
       widget.onClose();
     } else {
-      setState(() => _message = (l) => error == StoreError.restoreFailed || error == StoreError.storeUnreachable || error == StoreError.storeUnavailable
-          ? storeErrorText(l, error!)
-          : l.noSubscriptionForAppleId);
+      setState(() => _message = (l) => restoreFailureText(l, error, l.noSubscriptionForAppleId));
     }
   }
 

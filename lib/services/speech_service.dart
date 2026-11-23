@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:speech_to_text/speech_to_text.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/coach.dart';
 
@@ -23,6 +24,18 @@ abstract class SpeechService {
   /// permission: the chat then shows text input only.
   bool get available;
 
+  /// True when voice is hidden because the user denied microphone or speech
+  /// recognition permission (not because the device has no recognizer):
+  /// the app then says so and offers [openSettings].
+  bool get permissionDenied;
+
+  /// Whether [openSettings] can open DateWise's page in the Settings app.
+  bool get canOpenSettings;
+
+  /// Opens DateWise's page in the Settings app (microphone and speech
+  /// recognition switches), where a denial can be undone.
+  Future<void> openSettings();
+
   /// Asks for permission the first time and reports whether listening works.
   Future<bool> ensureReady();
 
@@ -32,12 +45,17 @@ abstract class SpeechService {
 
   /// Starts listening in [localeId], or the first of [fallbackLocales] the
   /// device can recognize when it cannot; [onWords] gets the running
-  /// transcript. [onUnsupported] is called if recognition fails later.
+  /// transcript. [onUnsupported] is called if recognition fails later
+  /// because of the language. [onEnded] is called once if recognition ends
+  /// by itself (silence timeout, no match, another recognizer error), with
+  /// the transcript so far (empty when nothing was understood); never after
+  /// [stop] or [cancel].
   Future<SpeechStart> start({
     required String localeId,
     List<String> fallbackLocales = const [],
     required void Function(String words) onWords,
     void Function()? onUnsupported,
+    void Function(String words)? onEnded,
   });
 
   /// The recognition locales to try for [language], best first. A bare
@@ -73,6 +91,12 @@ class NoSpeechService implements SpeechService {
   @override
   bool get available => false;
   @override
+  bool get permissionDenied => false;
+  @override
+  bool get canOpenSettings => false;
+  @override
+  Future<void> openSettings() async {}
+  @override
   Future<bool> ensureReady() async => false;
   @override
   Future<void> recheckPermission() async {}
@@ -82,6 +106,7 @@ class NoSpeechService implements SpeechService {
     List<String> fallbackLocales = const [],
     required void Function(String words) onWords,
     void Function()? onUnsupported,
+    void Function(String words)? onEnded,
   }) async =>
       SpeechStart.denied;
   @override
@@ -102,6 +127,11 @@ class DeviceSpeechService implements SpeechService {
   bool _denied = false;
   String _words = '';
   void Function()? _onUnsupported;
+  void Function(String words)? _onEnded;
+
+  /// True once the current session reported "listening": an end status
+  /// before that belongs to an earlier session and is ignored.
+  bool _sessionListening = false;
 
   static SpeechService create() {
     if (kIsWeb ||
@@ -114,6 +144,22 @@ class DeviceSpeechService implements SpeechService {
 
   @override
   bool get available => !_denied;
+
+  @override
+  bool get permissionDenied => _denied;
+
+  /// iOS's "app-settings:" URL opens the app's own page in Settings
+  /// (url_launcher, already a dependency).
+  @override
+  bool get canOpenSettings => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+
+  @override
+  Future<void> openSettings() async {
+    if (!canOpenSettings) return;
+    try {
+      await launchUrl(Uri.parse('app-settings:'));
+    } catch (_) {}
+  }
 
   /// Locale ids the recognizer supports on this device (read once).
   List<String>? _locales;
@@ -130,7 +176,22 @@ class DeviceSpeechService implements SpeechService {
     try {
       _ready = await _stt.initialize(
         onError: (e) {
-          if (_isUnsupported(e.errorMsg)) _onUnsupported?.call();
+          if (_isUnsupported(e.errorMsg)) {
+            final cb = _onUnsupported;
+            _onEnded = null;
+            cb?.call();
+          } else {
+            // No match, speech timeout and the like: the session is over.
+            _endedBySelf();
+          }
+        },
+        onStatus: (status) {
+          if (status == SpeechToText.listeningStatus) {
+            _sessionListening = true;
+          } else if (_sessionListening &&
+              (status == SpeechToText.doneStatus || status == SpeechToText.notListeningStatus)) {
+            _endedBySelf();
+          }
         },
       );
     } catch (_) {
@@ -165,10 +226,13 @@ class DeviceSpeechService implements SpeechService {
     List<String> fallbackLocales = const [],
     required void Function(String words) onWords,
     void Function()? onUnsupported,
+    void Function(String words)? onEnded,
   }) async {
     if (!await ensureReady()) return _denied ? SpeechStart.denied : SpeechStart.unsupported;
     _words = '';
     _onUnsupported = onUnsupported;
+    _onEnded = onEnded;
+    _sessionListening = false;
     try {
       _locales ??= [for (final l in await _stt.locales()) l.localeId];
     } catch (_) {
@@ -210,13 +274,25 @@ class DeviceSpeechService implements SpeechService {
   /// harmless.
   Future<void> _cancelRecognizer() async {
     _onUnsupported = null;
+    _onEnded = null;
     try {
       await _stt.cancel();
     } catch (_) {}
   }
 
+  /// Recognition ended without [stop] or [cancel]: tells the session once.
+  void _endedBySelf() {
+    final cb = _onEnded;
+    _onEnded = null;
+    _onUnsupported = null;
+    _sessionListening = false;
+    cb?.call(_words.trim());
+  }
+
   @override
   Future<String> stop() async {
+    // Stopping on purpose is not an end "by itself".
+    _onEnded = null;
     if (_stt.isListening) {
       await _stt.stop();
       // Give the recognizer a moment to deliver its final result.
