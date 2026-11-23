@@ -49,6 +49,73 @@ async function open(page, screen) {
   await page.evaluate(() => document.querySelector('flt-semantics-placeholder')?.click());
   await page.waitForTimeout(800);
 }
+// Scrolls a list screen (the You tab) to a position where no row is cut off:
+// not by the top edge, not under the tab bar. Uses Flutter's semantics tree
+// for positions and checks where the list actually is after each small wheel
+// step (Flutter does not apply every wheel event one to one). The large title
+// is merged into its scroll view and has no node of its own, so it must be
+// either fully shown (no scroll) or scrolled away (past the first section
+// label's top).
+async function withoutCutRows(page) {
+  const { width, height } = page.viewportSize();
+  const measure = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('flt-semantics')]
+        .map((e) => {
+          const r = e.getBoundingClientRect();
+          const label = (e.getAttribute('aria-label') || e.textContent || '').trim();
+          return { role: e.getAttribute('role'), label, top: r.top, bottom: r.bottom, h: r.height };
+        })
+        .filter((n) => n.h > 0 && n.h < 140),
+    );
+  const layout = (nodes) => {
+    // The tab bar: the row of (at least four) buttons sharing one top near the bottom.
+    const low = nodes.filter((n) => n.role === 'button' && n.top > height * 0.75);
+    const tops = low.map((n) => Math.round(n.top));
+    const tabTop = tops.find((t) => tops.filter((x) => x === t).length >= 4);
+    const barTop = (tabTop ?? height) - 6; // DwTabBar's top padding
+    const tabs = low.filter((n) => Math.round(n.top) === tabTop);
+    return { barTop, items: nodes.filter((n) => !tabs.includes(n)) };
+  };
+  const isCut = ({ barTop, items }) =>
+    items.some(
+      (n) =>
+        (n.top < 0.5 && n.bottom > 1 && n.h < height * 0.5) || // cut by the top edge
+        (n.top < barTop - 2 && n.bottom > barTop + 2) || // runs under the tab bar
+        (n.role === 'button' && n.h < 44 && n.top < barTop && n.bottom > barTop - 4), // row clipped by the bar
+    );
+  const first = layout(await measure());
+  // The first section label (a short text node such as "COACHING") and the
+  // first row below it: the row tracks how far the list has really moved.
+  const label = first.items.filter((n) => n.role === null && n.h < 30 && n.top > 4).sort((a, b) => a.top - b.top)[0];
+  const ref = first.items.filter((n) => n.role === 'button' && n.top > (label?.top ?? 0)).sort((a, b) => a.top - b.top)[0];
+  const titleEnd = label ? label.top + label.h : 0;
+  const scrolledBy = (items) => {
+    const now = items.find((n) => n.role === 'button' && n.label === ref?.label);
+    return now && ref ? ref.top - now.top : null;
+  };
+  await page.mouse.move(width / 2, height / 2);
+  let lastSig = null;
+  let still = 0;
+  for (let i = 0; i < 600; i++) {
+    const nodes = await measure();
+    const l = layout(nodes);
+    const by = scrolledBy(l.items);
+    if (by !== null && !isCut(l) && (by < 0.5 || by >= titleEnd)) {
+      // Let the desktop-style scrollbar fade out before the screenshot.
+      if (by >= 0.5) await page.waitForTimeout(2000);
+      return Math.round(by);
+    }
+    const sig = nodes.map((n) => Math.round(n.top)).join(',');
+    still = sig === lastSig ? still + 1 : 0;
+    if (still >= 40) break; // nothing moves any more: the end of the list
+    lastSig = sig;
+    await page.mouse.wheel(0, 2);
+    await page.waitForTimeout(80);
+  }
+  throw new Error(`could not find a scroll position without cut-off rows (ref ${ref?.label}, title ends at ${titleEnd})`);
+}
+
 const tap = async (page, name) => {
   await page.getByRole('button', { name }).first().click();
   await page.waitForTimeout(1200);
@@ -78,7 +145,7 @@ const SHOTS = {
     { name: '02-home', headline: 'A simple plan for your week', sub: 'Profile, conversations and first dates', run: (p) => open(p, 'home') },
     { name: '03-chat', headline: 'Know what to say next', sub: 'Openers and replies you can adapt', run: (p) => open(p, 'chat') },
     { name: '04-coach', headline: 'A coach who listens', sub: 'Honest, practical dating advice from AI', run: (p) => open(p, 'welcome') },
-    { name: '05-privacy', headline: 'Your data, your controls', sub: 'Coach memory is off unless you turn it on', run: (p) => open(p, 'you') },
+    { name: '05-privacy', headline: 'Your data, your controls', sub: 'Coach memory is off unless you turn it on', run: async (p) => { await open(p, 'you'); await withoutCutRows(p); } },
   ],
   es: [
     { name: '01-coaches', headline: 'Elige tu coach de citas con IA', sub: 'Cuatro coaches, en inglés y en español', run: (p) => open(p, 'coaches') },
@@ -86,7 +153,7 @@ const SHOTS = {
     // One finished exchange with Sofía (review mode seeds it with ?lang=es).
     { name: '03-chat', headline: 'Sabrás qué escribir', sub: 'Primeros mensajes y respuestas a tu medida', run: (p) => open(p, 'chat') },
     { name: '04-coach', headline: 'Coaches en español', sub: 'Sofía y Diego te ayudan en tu idioma', run: async (p) => { await open(p, 'coaches'); await tap(p, /Chatear con Diego/); } },
-    { name: '05-privacy', headline: 'Tus datos, tu control', sub: 'La memoria del coach está apagada salvo que la actives', run: (p) => open(p, 'you') },
+    { name: '05-privacy', headline: 'Tus datos, tu control', sub: 'La memoria del coach está apagada salvo que la actives', run: async (p) => { await open(p, 'you'); await withoutCutRows(p); } },
   ],
 };
 
