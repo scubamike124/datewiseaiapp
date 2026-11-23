@@ -71,6 +71,7 @@ class _SpyingSpeech extends NoSpeechService {
     List<String> fallbackLocales = const [],
     required void Function(String words) onWords,
     void Function()? onUnsupported,
+    void Function(String words)? onEnded,
   }) async {
     starts++;
     return SpeechStart.started;

@@ -156,9 +156,11 @@ class _ChatScreenState extends State<ChatScreen> {
         setState(() {});
         // Still "available" means permission is fine but the recognizer is
         // not (e.g. Siri & Dictation off): say so, not "permission needed".
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(_speech.available ? context.l10n.voiceRecognitionUnavailable : context.l10n.voicePermissionNeeded),
-        ));
+        if (_speech.available) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.voiceRecognitionUnavailable)));
+        } else {
+          _showPermissionNeeded();
+        }
       }
       return;
     }
@@ -217,6 +219,9 @@ class _ChatScreenState extends State<ChatScreen> {
       onUnsupported: () {
         if (mounted && gen == _listenGen) _listenFailed(SpeechStart.unsupported);
       },
+      onEnded: (words) {
+        if (mounted && gen == _listenGen) _listenEnded(words);
+      },
     );
     _starting = false;
     if (!mounted || gen != _listenGen) {
@@ -239,9 +244,44 @@ class _ChatScreenState extends State<ChatScreen> {
       _listening = false;
       _partial = '';
     });
+    if (why == SpeechStart.denied) {
+      _showPermissionNeeded();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.voiceLanguageUnsupported)));
+    }
+  }
+
+  /// Recognition ended by itself (silence timeout, no match): what was
+  /// heard is sent; nothing heard leaves "Listening…" with a gentle note.
+  void _listenEnded(String words) {
+    final text = words.trim().isNotEmpty ? words : _partial;
+    _listenGen++;
+    _holding = false;
+    _speech.cancel();
+    setState(() {
+      _listening = false;
+      _partial = '';
+    });
+    if (text.trim().isNotEmpty) {
+      _send(text);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        key: const ValueKey('voice-no-speech'),
+        content: Text(context.l10n.voiceNoSpeech),
+      ));
+    }
+  }
+
+  /// Microphone or speech permission denied: says so, with "Open Settings"
+  /// where the system allows it.
+  void _showPermissionNeeded() {
     final l = context.l10n;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(why == SpeechStart.denied ? l.voicePermissionNeeded : l.voiceLanguageUnsupported),
+      key: const ValueKey('voice-permission-snackbar'),
+      content: Text(l.voicePermissionNeeded),
+      action: _speech.canOpenSettings
+          ? SnackBarAction(key: const ValueKey('voice-open-settings'), label: l.openSettings, onPressed: _speech.openSettings)
+          : null,
     ));
   }
 
@@ -336,7 +376,34 @@ class _ChatScreenState extends State<ChatScreen> {
                   children: [
                     const Icon(Icons.mic_off_outlined, size: 20, color: AppColors.faint),
                     const SizedBox(width: 12),
-                    Expanded(child: Text(l.voiceUnavailableNote(coach.name), style: AppText.small)),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // A denied permission is not "not available on
+                          // this device": it can be allowed again in Settings.
+                          Text(
+                            _speech.permissionDenied ? l.voicePermissionDeniedNote(coach.name) : l.voiceUnavailableNote(coach.name),
+                            key: const ValueKey('voice-unavailable-note'),
+                            style: AppText.small,
+                          ),
+                          if (_speech.permissionDenied && _speech.canOpenSettings)
+                            TextButton(
+                              key: const ValueKey('menu-open-settings'),
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: const Size(44, 44),
+                                foregroundColor: AppColors.gold,
+                              ),
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                _speech.openSettings();
+                              },
+                              child: Text(l.openSettings),
+                            ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),

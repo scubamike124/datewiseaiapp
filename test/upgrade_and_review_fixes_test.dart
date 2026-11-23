@@ -174,6 +174,13 @@ class _FakeSpeech implements SpeechService {
   @override
   bool available = true;
 
+  @override
+  bool get permissionDenied => !available;
+  @override
+  bool get canOpenSettings => false;
+  @override
+  Future<void> openSettings() async {}
+
   /// When set, ensureReady reports this while [available] stays as is
   /// (permission granted, recognizer unavailable).
   bool? ready;
@@ -190,6 +197,7 @@ class _FakeSpeech implements SpeechService {
     List<String> fallbackLocales = const [],
     required void Function(String words) onWords,
     void Function()? onUnsupported,
+    void Function(String words)? onEnded,
   }) async {
     starts++;
     requestedLocales.add([localeId, ...fallbackLocales]);
