@@ -117,7 +117,7 @@ class Coaches {
     ],
     chatLabel: 'Chat with Ava',
     composerHint: 'Message Ava…',
-    heroFocus: Alignment(0, -0.5),
+    heroFocus: Alignment(0, -1),
     avatarFocus: Alignment(0.1, -0.2),
   );
 
@@ -144,7 +144,7 @@ class Coaches {
     ],
     chatLabel: 'Chat with Ethan',
     composerHint: 'Message Ethan…',
-    heroFocus: Alignment(0, -0.6),
+    heroFocus: Alignment(0, -1),
     avatarFocus: Alignment(0.05, -0.3),
   );
 
@@ -172,7 +172,7 @@ class Coaches {
     ],
     chatLabel: 'Chatear con Sofía',
     composerHint: 'Escríbele a Sofía…',
-    heroFocus: Alignment(0, -0.45),
+    heroFocus: Alignment(0, -1),
     avatarFocus: Alignment(0, -0.1),
   );
 
@@ -200,7 +200,7 @@ class Coaches {
     ],
     chatLabel: 'Chatear con Diego',
     composerHint: 'Escríbele a Diego…',
-    heroFocus: Alignment(0, -0.55),
+    heroFocus: Alignment(0, -1),
     avatarFocus: Alignment(0, -0.15),
   );
 

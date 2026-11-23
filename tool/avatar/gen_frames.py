@@ -35,14 +35,14 @@ VISEMES = {
     # earlier values compensated for a broad toothy smile in the source
     # (smile < 0, strong purse); on a neutral mouth they made O/U a pout.
     "mbp": dict(lip=0.0, smile=-0.05),              # M, B, P: lips pressed
-    "a": dict(lip=0.6, smile=0.15),                 # A (father, casa), stressed: jaw open, not a shout
-    "a2": dict(lip=0.42, smile=0.1),                # A, unstressed / half open
+    "a": dict(lip=0.5, smile=0.1),                  # A (father, casa), stressed: jaw open, not a shout
+    "a2": dict(lip=0.36, smile=0.08),                # A, unstressed / half open
     "e": dict(lip=0.32, grin=4, smile=0.2),         # E (bed, mesa)
     "e2": dict(lip=0.2, grin=3, smile=0.1),
     "i": dict(lip=0.14, grin=6),                    # I (see, si)
     "i2": dict(lip=0.07, grin=4),
-    "o": dict(lip=0.3, smile=-0.1, purse=9),        # O (go, oso): rounded, teeth mostly hidden
-    "o2": dict(lip=0.24, smile=-0.05, purse=7),
+    "o": dict(lip=0.14, smile=-0.25, purse=18),     # O (go, oso): rounded, small opening; teeth mostly hidden (review sheets)
+    "o2": dict(lip=0.1, smile=-0.2, purse=15),
     "u": dict(lip=0.08, smile=-0.1, purse=11),      # U / W (you, luna)
     "u2": dict(lip=0.04, smile=-0.1, purse=12),
     "fv": dict(lip=0.05, purse=2),                  # F, V
@@ -185,17 +185,22 @@ def match_detail(gen, orig, mask):
 
 
 def teeth_tone(gen, orig, mask):
-    """Teeth come out of the renderer slightly grey or cyan. Inside the mouth
-    mask, pixels that are teeth in the frame (light, low chroma) but not in
-    the portrait are moved toward a warm, natural tooth colour. Only the teeth
-    change; lips, skin and the rest of the frame are untouched."""
+    """Teeth come out of the renderer grey or slightly cyan and a little dark.
+    Inside the mouth mask, pixels that are teeth in the frame (light, low
+    chroma) but not in the portrait are moved toward natural ivory: brighter
+    (L* toward 82) and warm (a* 1.5, b* 10). Only the teeth change; lips,
+    skin and the rest of the frame are untouched. L* is on the 0-100 scale
+    throughout."""
     lab = cv2.cvtColor(gen, cv2.COLOR_RGB2LAB).astype(np.float32)
     lab0 = cv2.cvtColor(orig, cv2.COLOR_RGB2LAB).astype(np.float32)
     L, a, b = lab[..., 0] * 100 / 255, lab[..., 1] - 128, lab[..., 2] - 128
-    teeth = (L > 55) & (np.hypot(a, b) < 22) & (a < 12) & (mask > 0.3) & (np.abs(lab[..., 0] - lab0[..., 0]) > 12)
-    w = cv2.GaussianBlur(teeth.astype(np.float32), (0, 0), 1.2) * 0.75
-    lab[..., 1] = 128 + a + w * (2.0 - a)
-    lab[..., 2] = 128 + b + w * (9.0 - b)
+    L0 = lab0[..., 0] * 100 / 255
+    teeth = (L > 50) & (np.hypot(a, b) < 22) & (a < 12) & (mask > 0.3) & (np.abs(L - L0) > 5)
+    w = cv2.GaussianBlur(teeth.astype(np.float32), (0, 0), 1.2) * 0.8
+    L2 = L + w * np.clip(82.0 - L, 0, None) * 0.6
+    lab[..., 0] = L2 * 255 / 100
+    lab[..., 1] = 128 + a + w * (1.5 - a)
+    lab[..., 2] = 128 + b + w * (10.0 - b)
     return cv2.cvtColor(np.clip(lab, 0, 255).astype(np.uint8), cv2.COLOR_LAB2RGB)
 
 

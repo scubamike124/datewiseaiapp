@@ -10,14 +10,14 @@ placeholders they replace (AI/voice QA report D10, D11, D12).
 
 | File | Pixels | SHA-256 (first 16) | Original pixels* |
 |--|--|--|--|
-| `assets/coaches/ava-hero.jpg` | 1784×2376 | `1c98ac2feb5a506e` | 56% |
-| `assets/coaches/ava-avatar.jpg` | 1024×1024 | `f73218b8864853e8` | crop of the hero |
-| `assets/coaches/ethan-hero.jpg` | 1768×2360 | `eaecc3fb89959cff` | 24% |
-| `assets/coaches/ethan-avatar.jpg` | 1024×1024 | `5476228d72808a00` | crop of the hero |
-| `assets/coaches/sofia-hero.jpg` | 1856×2472 | `d2201ef42a301ac4` | 46% |
-| `assets/coaches/sofia-avatar.jpg` | 1024×1024 | `97e3a59aeb8abcf0` | crop of the hero |
-| `assets/coaches/diego-hero.jpg` | 1968×2624 | `9023dfe09cc58bd1` | 27% |
-| `assets/coaches/diego-avatar.jpg` | 1024×1024 | `4df22bc4ca85d2b2` | crop of the hero |
+| `assets/coaches/ava-hero.jpg` | 1784×2376 | `77193382835f67b3` | 56% |
+| `assets/coaches/ava-avatar.jpg` | 1024×1024 | `b6d7835e2245a108` | crop of the hero |
+| `assets/coaches/ethan-hero.jpg` | 1768×2360 | `552db36a1da3e23b` | 24% |
+| `assets/coaches/ethan-avatar.jpg` | 1024×1024 | `2714ca82481fc487` | crop of the hero |
+| `assets/coaches/sofia-hero.jpg` | 1856×2472 | `75775c2d20c3563b` | 46% |
+| `assets/coaches/sofia-avatar.jpg` | 1024×1024 | `4b4ed92d7c6f848a` | crop of the hero |
+| `assets/coaches/diego-hero.jpg` | 1968×2624 | `88f40593541ed71e` | 27% |
+| `assets/coaches/diego-avatar.jpg` | 1024×1024 | `adef940a93a0d120` | crop of the hero |
 
 \* Share of the hero whose pixels come from the approved portrait (the face,
 hair and, except for Ethan, the upper neck). The rest (clothing, shoulders,
@@ -89,8 +89,8 @@ or API was used.
    Avatar = a square crop around the face, saved at 1024×1024, because YuNet
    (used by the intake and lip-sync tools) misses faces above about 700 px.
 
-Tool chain: `fp/bin/{neutral,style,compose,finish,iris}.py` in the working
-scratchpad. These are not in the repository.
+Tool chain: `tool/avatar/portrait/` (scripts, exact parameters and order;
+see its README).
 
 ### Tools and models
 
@@ -132,9 +132,39 @@ Fix round 2 (2026-11-23):
   (OpenCV), without changing geometry.
 - The approved faces, eyes and features are otherwise unchanged.
 
+Fix round 3 (2026-11-23). Ava and Sofía restart from the round-1 files
+(9b58790); Ethan and Diego continue from round 2 (fa7da02).
+- **Sofía:** the round-2 hair fill is dropped. Only her three reviewed grey
+  patches were re-inpainted with SD 1.5, with narrow masks, and the round-2
+  lip edit was re-applied.
+- **Ava:**
+  - Both hoops were removed with SD 1.5 (hair in shadow), so she wears no
+    earrings.
+  - The crown and the outer hair edge were re-inpainted.
+  - The lip edit was re-applied.
+  - The eyeliner edit was tried and **reverted** (it greyed the lashes), so
+    her eyes are the round-1 pixels.
+- **Ethan:** the orange curl at the left temple and the translucent curls at
+  the right temple were re-inpainted (hair).
+- **Diego:**
+  - The forehead smudge, the right-side hair loop, the crown and the neck
+    seam were re-inpainted.
+  - The chin's light/dark split was reduced by equalising mid-frequency
+    shading only. Stubble detail and geometry are unchanged.
+- **All four:** 150 px of studio backdrop was added above the head, with the
+  same image size: the bottom 150 px of clothing is cropped. Where the hair
+  reached the top, SD completed the crown in the new band. This gives the
+  coach cards room above the hair.
+- **Scripts and exact parameters:** `tool/avatar/portrait/`.
+
 ## Identity and quality gates (2026-11-23)
 
-`portrait_intake.py` (outside the repo; YuNet + SFace): 8/8 accepted. The
+Round-3 heroes are saved as JPEG q90. YuNet is sensitive to small
+compression changes on these large faces: Ava's hero at q92 detected a
+smaller face box and read 0.61, against 0.73–0.75 at q90, q93–q96 and in the
+lossless file. q90 matches the intake script's own `--app` setting.
+
+`tool/avatar/portrait/portrait_intake.py` (YuNet + SFace): 8/8 accepted. The
 thresholds are unchanged: identity ≥ 0.45 against the approved reference,
 closest to its own coach, eye-tone shift within limits, avatar roll ≤ 8°,
 hero portrait ≥ 1024×1400, avatar ≥ 1024. The only change to the script is
@@ -143,10 +173,10 @@ detection: when YuNet finds no face, it retries on a smaller copy (1280 or
 
 | Coach | Identity vs reference (hero / avatar) | Interim | Eye-tone shift hue / brightness (hero) | Avatar roll |
 |--|--|--|--|--|
-| Ava | 0.74 / 0.74 | 0.91 | 7.9 / 8.2 | 1.5° |
-| Ethan | 0.90 / 0.90 | 0.91 | 5.4 / 4.0 | 1.0° |
-| Sofía | 0.70 / 0.71 | 0.87 | 7.1 / 11.0 | 3.5° |
-| Diego | 0.87 / 0.87 | 0.90 | 11.0 / 20.1 | 4.8° |
+| Ava | 0.73 / 0.77 | 0.91 | 6.4 / 1.0 | 1.3° |
+| Ethan | 0.89 / 0.91 | 0.91 | 2.8 / 12.2 | 0.6° |
+| Sofía | 0.68 / 0.73 | 0.87 | 7.8 / 12.1 | 3.6° |
+| Diego | 0.83 / 0.87 | 0.90 | 5.4 / 16.4 | 6.3° |
 
 Identity drops from the interim scores because the approved reference smiles
 broadly with teeth and the candidates have closed lips. Each candidate is
@@ -161,8 +191,8 @@ Cross-coach face similarity (SFace, hero):
 
 | Pair | Interim | Candidate |
 |--|--|--|
-| Ava ↔ Sofía | 0.68 | 0.58 |
-| Ethan ↔ Diego | 0.645 | 0.64 |
+| Ava ↔ Sofía | 0.68 | 0.59 |
+| Ethan ↔ Diego | 0.645 | 0.62 |
 
 The earlier target of below 0.5 is **not met**. The faces were deliberately
 not changed, and SFace looks only at the aligned face. The pairs now differ
