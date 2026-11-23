@@ -1,7 +1,9 @@
 # DateWise AI: AI usage cost model and subscription profitability
 
 Status: Phase 1 audit (read-only) plus the evaluation of price points. Nothing here changes the price,
-StoreKit, the paywall or entitlements. The configured price stays **$9.99/month, Apple IAP only**.
+StoreKit, the paywall or entitlements. The configured price is **$19.99/month, Apple IAP only** (owner decision,
+2026-11-23; it was $9.99 before). Headline figures below are given at both commission rates: 15% (Apple Small Business
+Program, which the owner must join) and 30% (Apple's standard first-year rate, the conservative case).
 
 Every figure is labelled:
 - **MEASURED**: read from an official price page (URL and date below) or from the code at a named commit.
@@ -67,7 +69,7 @@ default global budget (Phase 2) is the free 10,000 neurons a day, so it spends $
 | Apple Developer Program | 99 USD a membership year, about $8.25 a month | https://developer.apple.com/programs/whats-included/ | MEASURED |
 | Billing retry and grace period | The App Store retries a failed renewal for up to 60 days. The optional Billing Grace Period for monthly plans is 3, 16 or 28 days | https://developer.apple.com/documentation/storekit/reducing-involuntary-subscriber-churn | MEASURED |
 | Refunds | Apple publishes no rate. **Assumed 3% of proceeds are reversed** | none | ASSUMPTION |
-| Taxes | The model uses the US price, so commission applies to $9.99. In VAT countries, proceeds are calculated on the price minus VAT (about 17% less in most EU countries) | Apple subscriptions page ("minus applicable taxes") | MEASURED rule; mix is an ASSUMPTION |
+| Taxes | The model uses the US price, so commission applies to $19.99. In VAT countries, proceeds are calculated on the price minus VAT (about 17% less in most EU countries) | Apple subscriptions page ("minus applicable taxes") | MEASURED rule; mix is an ASSUMPTION |
 | Hosting (site, legal pages) | Cloudflare Pages and Netlify free tiers, already in use. The domain fee is not counted | `netlify.toml`, worker CORS list | ASSUMPTION ($0) |
 
 ## 3. Usage assumptions
@@ -84,7 +86,7 @@ Other inputs to the model: commission of 15% (Small Business Program) or 30% (th
 Workers Paid $5 whenever usage exceeds 10,000 neurons a day, the Apple Developer Program $8.25 a month,
 4 Durable Object requests per chat message (the guard design), and 5 ms of CPU per request (ASSUMPTION).
 
-## 4. Cost per customer at $9.99 (the configured price)
+## 4. Cost per customer (the same at every price; the configured price is $19.99)
 
 | Model | Usage | Tokens in/out per msg (ASSUMPTION) | Msgs/month (ASSUMPTION) | $/msg | Neurons/msg | AI $/subscriber/month (list price, before free allowance) |
 |---|---|---|---|---|---|---|
@@ -114,7 +116,7 @@ must approve first (MEASURED prices; usage is an ASSUMPTION).
 
 ## 5. Price-point scenarios
 
-Evaluation only. $9.99 stays the configured price, and StoreKit, the paywall and entitlements are unchanged.
+$19.99 is the configured price (owner decision, 2026-11-23). The other price points are kept for comparison only.
 Model: Llama 3.3 70B fp8-fast (the chat-v6/v7 chat model, MEASURED; production still runs chat-v5, which fails with 502). Every row is derived from MEASURED prices and
 ASSUMPTION usage and refunds. "Infra" is Workers Paid $5 (needed in **every** row below, because even 100 light
 subscribers use about 25,000 neurons a day, above the free 10,000) plus Worker and Durable Object overage. Profit also
@@ -156,7 +158,7 @@ Monthly net profit = subscribers x price x (1 - commission) x (1 - 3% refunds) -
 | 5000 | typical | $61796.28 | $50891.05 | $1574.89 | $5.60 | $0.318 | $60207.53 | $49302.31 | 96.9% |
 | 5000 | heavy | $61796.28 | $50891.05 | $11563.86 | $8.45 | $2.316 | $50215.71 | $39310.49 | 77.2% |
 
-#### $19.99 / month
+#### $19.99 / month (configured price)
 Monthly net profit = subscribers x price x (1 - commission) x (1 - 3% refunds) - AI (Llama 3.3, after the 10k neurons/day free allowance) - infrastructure (Workers Paid $5 when needed + overage) - Apple Developer Program $8.25. All results are derived from MEASURED prices and the ASSUMPTION usage profiles above.
 
 | Subscribers | Usage | Net proceeds @15% | Net proceeds @30% | AI cost | Infra | Cost/customer | Profit @15% | Profit @30% | Margin @30% |
@@ -216,11 +218,11 @@ Notes:
   800 out). The "heavy" column uses the heavy profile with a 1.5x safety factor. Voice allowance: voice turns
   **share the message allowance**. Speech recognition and synthesis are free (on the device, MEASURED), but each
   spoken turn is a chat message. At about 2 turns per voice minute (ASSUMPTION), the sustainable message figures
-  in the table above equal about half as many voice minutes. For example, 600 to 700 messages at $9.99 is about 300 to 350 voice
+  in the table above equal about half as many voice minutes. For example, 1,150 to 1,400 messages at $19.99 is about 570 to 700 voice
   minutes a month if a subscriber only talks. It is described as fair use, never "unlimited".
-- Recommended allowance at $9.99 (published as fair use, not as a number): about 600 to 700 messages a month is
-  sustainable at 70% margin even at 30% commission. The hard anti-abuse cap of 1,500 a month only guarantees no loss on
-  any one subscriber. At $14.99 the sustainable figure is about 850 to 1,050, at $19.99 about 1,150 to 1,400, and at
+- Recommended allowance at the configured $19.99 (published as fair use, not as a number): about 1,150 to 1,400
+  messages a month is sustainable at 70% margin even at 30% commission (about 1,390 to 1,710 at 15%). The hard anti-abuse cap of 1,500 a month only guarantees no loss on
+  any one subscriber. For comparison, at $9.99 it is about 570 to 700, at $14.99 about 850 to 1,050, and at
   $24.99 about 1,430 to 1,760.
 
 ## 6. Worst-case monthly exposure
@@ -256,7 +258,7 @@ change both together.
 |---|---|---|---|
 | `DAILY_MESSAGE_LIMIT` | 150 a subscriber a day | Almost 4x the heavy profile (40). Nobody chatting by hand reaches it | ASSUMPTION (policy) |
 | `SOFT_NOTICE_PERCENT` | 80, so the notice starts at 120 | Warns before the hard stop | ASSUMPTION (policy) |
-| `MONTHLY_MESSAGE_LIMIT` | 1,500 a subscriber a month | Worst case at full request size is $5.34, which stays below the $6.78 net per subscriber at 30% commission, so one subscriber can never cost more than they pay | derived from MEASURED prices |
+| `MONTHLY_MESSAGE_LIMIT` | 1,500 a subscriber a month | Worst case at full request size is $5.34, which stays below the $13.57 net per subscriber at $19.99 and 30% commission (and below the $6.78 it would be at $9.99), so one subscriber can never cost more than they pay | derived from MEASURED prices |
 | `MAX_INPUT_TOKENS` | 6,000 estimated (oldest turns trimmed first) | Limits a single request to $0.00356 | MEASURED (price) |
 | `MAX_OUTPUT_TOKENS` | 800 | Same as chat-v6 | MEASURED (code) |
 | `PER_MINUTE_LIMIT` | 12 a subscriber | A person types more slowly than this; scripts do not | ASSUMPTION |
@@ -284,8 +286,8 @@ budget no matter how many subscribers there are. Requests whose worst-case reser
 before any model call.
 
 When real numbers exist (from the guard's count-only logs: messages, estimated neurons, outcome), tighten or loosen:
-- If the 95th percentile subscriber stays under 600 messages a month at $9.99, keep 1,500 as the anti-abuse cap.
-- If blended AI cost per subscriber exceeds $2.03 (70% margin at 30% commission), consider Gemma 4 as primary.
+- If the 95th percentile subscriber stays under 1,150 messages a month at $19.99, keep 1,500 as the anti-abuse cap.
+- If blended AI cost per subscriber exceeds $4.07 (70% margin at $19.99 and 30% commission), consider Gemma 4 as primary.
   It is about 4.8x cheaper per message (MEASURED price), subject to a quality check with the chat-v8 model eval.
 
 ## 8. Storage and verification choices (summary; details in the Phase 2 PR)

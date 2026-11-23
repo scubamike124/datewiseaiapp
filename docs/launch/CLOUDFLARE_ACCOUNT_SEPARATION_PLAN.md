@@ -156,7 +156,7 @@ From `docs/business/WORKERS_PAID_EVALUATION.md` section 4 (`node docs/business/a
 | 1,000 | $56.61 | **$317.34** | $2,315.70 | $13.40 | **$74.20** | $566.28 |
 | 5,000 | $276.30 | **$1,580.49** | $11,572.31 | $60.23 | **$364.80** | $2,825.18 |
 
-- For comparison, net proceeds at the configured **$9.99** after 15% commission and 3% refunds are about **$824 / $8,237 / $41,184 a month** for 100 / 1,000 / 5,000 subscribers (ASSUMPTION on refunds).
+- For comparison, net proceeds at the configured **$19.99** after 15% commission and 3% refunds are about **$1,648 / $16,482 / $82,409 a month** for 100 / 1,000 / 5,000 subscribers (ASSUMPTION on refunds).
 - The per-subscriber cap (1,500 replies a month) bounds one heavy user at about $5.34 a month on Llama, worst case (MEASURED rule; derived in the evaluation).
 - `DAILY_NEURON_BUDGET` to set (`WORKERS_PAID_EVALUATION.md` section 5; release checklist A3). ASSUMPTION, derived from MEASURED prices: typical usage, a 2x peak day, the Sandbox slice (35,000 Llama / 10,000 Gemma) and in-flight headroom, divided by 0.8 while v1 is served (`LEGACY_CLIENTS=1`) for the anonymous slice. Start at **285,000 on Llama or 70,000 on Gemma at 100 subscribers**:
 

@@ -68,7 +68,7 @@ void main() {
 
     test('one product; the price only ever comes from the store (no hard-coded fallback)', () {
       expect(StoreConfig.productId, 'datewise_premium_monthly');
-      expect(FakeStoreService(price: '9,99 €').storePrice, '9,99 €', reason: 'the StoreKit price is shown as is');
+      expect(FakeStoreService(price: '19,99 €').storePrice, '19,99 €', reason: 'the StoreKit price is shown as is');
       expect(FakeStoreService(price: null).storePrice, isNull);
       expect(UnsupportedStoreService().storePrice, isNull);
       expect(UnsupportedStoreService().canPurchase, isFalse);

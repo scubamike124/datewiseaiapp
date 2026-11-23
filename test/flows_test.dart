@@ -60,7 +60,7 @@ void main() {
     expect(app.state.selectedCoach, Coaches.sofia);
     expect(app.state.plan!.items.first.goal.name, 'confidence');
     final disclosure = tester.widget<Text>(find.byKey(const ValueKey('paywall-disclosure'))).data!;
-    expect(disclosure, contains(r'$9.99/mes'));
+    expect(disclosure, contains(r'$19.99/mes'));
     expect(disclosure, contains('se renueva automáticamente cada mes'));
     expect(disclosure, contains('24 horas antes'));
     expect(disclosure, contains('Configuración › [tu nombre] › Suscripciones'));
@@ -68,7 +68,7 @@ void main() {
     expect(find.text('Restaurar compras'), findsOneWidget);
     expect(find.text('Términos de uso'), findsOneWidget);
     expect(find.text('Privacidad'), findsOneWidget);
-    expect(find.text(r'Suscribirme por $9.99/mes'), findsOneWidget);
+    expect(find.text(r'Suscribirme por $19.99/mes'), findsOneWidget);
     expect(find.textContaining('prueba'), findsNothing);
     expect(find.textContaining('gratis', findRichText: true), findsNothing);
 

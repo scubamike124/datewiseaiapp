@@ -16,7 +16,7 @@ Diego in Spanish), five tabs: Home, Coaches, Chat, Progress, You.
   recognition (`speech_to_text`), replies read aloud with the system voices
   (`flutter_tts`). Hidden on web and when permission is denied.
 - **Subscription**: one auto-renewable product, `datewise_premium_monthly`
-  ($9.99/month, price read from StoreKit). No free plan, no trial. Chat needs
+  ($19.99/month, price read from StoreKit). No free plan, no trial. Chat needs
   an active subscription. **The owner must create this product in App Store
   Connect** (auto-renewable, 1 month) before real purchases work.
 - **No accounts**: everything is stored on the device. You › Delete my data

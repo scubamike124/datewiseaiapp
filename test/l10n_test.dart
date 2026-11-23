@@ -174,11 +174,11 @@ void main() {
     testWidgets('paywall with Apple disclosures', (tester) async {
       await pumpScreen(tester, PaywallScreen(onClose: () {}), locale: es, entitled: false, prefs: spanishPrefs());
       expect(find.text('DATEWISE PREMIUM'), findsOneWidget);
-      expect(find.text(r'Suscribirme por $9.99/mes'), findsOneWidget);
+      expect(find.text(r'Suscribirme por $19.99/mes'), findsOneWidget);
       expect(find.text('al mes'), findsOneWidget);
       expect(find.text('Mensual · renovación automática'), findsOneWidget);
       final disclosure = tester.widget<Text>(find.byKey(const ValueKey('paywall-disclosure'))).data!;
-      expect(disclosure, startsWith(r'$9.99/mes.'));
+      expect(disclosure, startsWith(r'$19.99/mes.'));
       expect(disclosure, contains('Cuenta de Apple'));
       expect(disclosure, contains('se renueva automáticamente cada mes'));
       expect(disclosure, contains('Configuración › [tu nombre] › Suscripciones'));
