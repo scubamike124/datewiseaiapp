@@ -71,9 +71,13 @@ class _SK2 implements InAppPurchase2API {
   bool fail = false;
   int calls = 0;
 
+  /// When non-empty, each read waits on the next completer (the test completes them).
+  final gates = <Completer<List<SK2TransactionMessage>>>[];
+
   @override
   Future<List<SK2TransactionMessage>> currentEntitlements() async {
     calls++;
+    if (gates.isNotEmpty) return gates.removeAt(0).future;
     if (hangTimes > 0) {
       hangTimes--;
       return Completer<List<SK2TransactionMessage>>().future; // never completes
@@ -94,6 +98,9 @@ class _SK2 implements InAppPurchase2API {
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
+
+SK2TransactionMessage _msg(String product, String jws) =>
+    SK2TransactionMessage(id: 1, originalId: 1, productId: product, status: SK2PurchaseStatusMessage.purchased, receiptData: jws);
 
 const _jwsA = 'aaa.bbb.ccc';
 const _jwsB = 'ddd.eee.fff';
@@ -295,6 +302,59 @@ void main() {
       expect(store.isEntitled, isTrue, reason: 'a failed re-read keeps the last known state');
       expect(CoachLimitCode.noInstantRetry.contains(CoachLimitCode.subscriptionExpired), isFalse, reason: 'the chat offers Try again');
     });
+  });
+
+  group('entitlement reads that finish out of order', () {
+    test('a stale read finishing after a newer one does not overwrite it (generation counter)', () async {
+      sk2.entitled = [(StoreConfig.productId, _jwsA, _soon)];
+      final store = _store(_Iap());
+      await store.init();
+      expect(store.isEntitled, isTrue);
+      final older = Completer<List<SK2TransactionMessage>>();
+      final newer = Completer<List<SK2TransactionMessage>>();
+      sk2.gates.addAll([older, newer]);
+      final a = store.refresh(); // e.g. a resume read that hangs
+      final b = store.refresh(); // a later read (another resume, or the chat's refresh-once)
+      await Future<void>.delayed(Duration.zero);
+      newer.complete([]); // the newer read: the subscription has ended
+      await b;
+      expect(store.isEntitled, isFalse);
+      expect(EntitlementToken.current, isNull);
+      older.complete([_msg(StoreConfig.productId, _jwsA)]); // the stale read arrives late
+      await a;
+      expect(store.isEntitled, isFalse, reason: 'the stale result is discarded');
+      expect(EntitlementToken.current, isNull);
+    });
+
+    test('a stale "not entitled" does not lock out a subscriber the newer read found', () async {
+      final store = _store(_Iap());
+      await store.init();
+      expect(store.isEntitled, isFalse);
+      final older = Completer<List<SK2TransactionMessage>>();
+      final newer = Completer<List<SK2TransactionMessage>>();
+      sk2.gates.addAll([older, newer]);
+      var notifications = 0;
+      store.addListener(() => notifications++);
+      final a = store.refresh();
+      final b = store.restore();
+      await Future<void>.delayed(Duration.zero);
+      newer.complete([_msg(StoreConfig.productId, _jwsB)]);
+      expect(await b, isTrue);
+      final afterNewer = notifications;
+      expect(afterNewer, greaterThan(0), reason: 'listeners hear about the change');
+      older.complete([]);
+      await a;
+      expect(store.isEntitled, isTrue);
+      expect(EntitlementToken.current, _jwsB);
+    });
+  });
+
+  test('a product that loads after failed entitlement reads keeps the "Could not reach the App Store" error', () async {
+    sk2.fail = true;
+    final store = _store(_Iap());
+    await store.init();
+    expect(store.storePrice, r'$9.99');
+    expect(store.lastError, StoreError.storeUnreachable);
   });
 
   test('a refusal the guard sends while degraded (GUARD_UNAVAILABLE) is retryable from the chat', () {

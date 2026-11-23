@@ -14,10 +14,10 @@
  *   handles one request at a time, so check-and-increment is atomic.
  * - Budget: every AI call first reserves its worst-case neurons in the global
  *   object; when the daily budget would be exceeded, the call is refused before
- *   the model runs, then settled with the measured usage. Fails closed, with
- *   one bounded exception: while the counters are unreachable, a subscriber
- *   whose Production token verifies offline gets a few messages per isolate
- *   per hour (FAIL_OPEN_PER_SUBSCRIBER / FAIL_OPEN_PER_ISOLATE). No paid fallback.
+ *   the model runs, then settled with the measured usage. Fails closed. An
+ *   opt-in, bounded exception (off by default): while the Durable Object
+ *   throws, a subscriber whose Production token verifies offline may get a few
+ *   messages (FAIL_OPEN_*; see failOpenAllowed). No paid fallback.
  * - Logs: counts only (hashed id prefix, counters, estimated neurons, outcome).
  *   No message text, no profile, no IP address, no transaction id.
  *
@@ -57,10 +57,13 @@ const DEFAULTS = {
   LEASE_SECONDS: 120,
   EXPIRY_LEEWAY_MINUTES: 60,
   BILLING_GRACE_DAYS: 0,
-  // Bounded fail-open while the Durable Object is unreachable (see failOpen()).
-  // Per Worker isolate and clock hour; 0 turns it off (fail closed).
-  FAIL_OPEN_PER_SUBSCRIBER: 5,
-  FAIL_OPEN_PER_ISOLATE: 50,
+  // Opt-in bounded fail-open while the Durable Object throws (see
+  // failOpenAllowed). 0 (the default) = fail closed. Per Worker isolate and
+  // clock hour, plus a cross-isolate bound through the rate-limit binding and
+  // at most FAIL_OPEN_MAX_MINUTES of fail-open per isolate per outage.
+  FAIL_OPEN_PER_SUBSCRIBER: 0,
+  FAIL_OPEN_PER_ISOLATE: 0,
+  FAIL_OPEN_MAX_MINUTES: 15,
   // Per-request caps for the token-less v1 (legacy) chat, so posing as v1
   // buys only short prompts and short replies.
   LEGACY_MAX_INPUT_TOKENS: 3000,
@@ -447,26 +450,48 @@ function logUsage(fields) {
   }
 }
 
-// --- bounded fail-open (Durable Object unreachable) ----------------------------
-// When the counters cannot be reached, a subscriber whose Production token
-// verified offline (signed by Apple, this app and product, not expired, not
-// revoked in the token itself) still gets a few messages instead of a dead
-// end. The allowance is per Worker isolate and per clock hour, both per
-// subscriber (FAIL_OPEN_PER_SUBSCRIBER) and in total (FAIL_OPEN_PER_ISOLATE),
-// so the worst-case cost of an outage is bounded and small. Sandbox and
-// token-less (v1) requests always fail closed. 0 turns it off.
-const failOpenWindows = { hour: -1, total: 0, per: new Map() };
+// --- opt-in bounded fail-open (Durable Object throwing) ---------------------------
+// Off unless FAIL_OPEN_PER_SUBSCRIBER and FAIL_OPEN_PER_ISOLATE are both > 0.
+// When a Durable Object call throws (never when the binding is missing), a
+// subscriber whose Production token verified offline (signed by Apple, this
+// app and product, not expired, not revoked in the token itself) may still get
+// a few messages, with the legacy per-request caps. Bounds, all required:
+//   1. per isolate and clock hour: FAIL_OPEN_PER_SUBSCRIBER per subscriber,
+//      FAIL_OPEN_PER_ISOLATE in total;
+//   2. at most FAIL_OPEN_MAX_MINUTES of fail-open per isolate per outage (an
+//      outage ends after 10 quiet minutes or one successful DO call);
+//   3. across isolates: the rate-limit binding (FAILOPEN_LIMITER if bound,
+//      else RATE_LIMITER) must allow both `failopen:<subscriber>` and
+//      `failopen:all`. No binding, or the binding failing, means fail closed.
+// Sandbox and token-less (v1) requests always fail closed.
+const OUTAGE_QUIET_MS = 10 * 60_000;
+const failOpenWindows = { hour: -1, total: 0, per: new Map(), outageStart: 0, outageLast: 0 };
 export function _resetFailOpenForTests() {
-  failOpenWindows.hour = -1;
+  Object.assign(failOpenWindows, { hour: -1, total: 0, per: new Map(), outageStart: 0, outageLast: 0 });
 }
-function failOpenAllowed(cfg, key, now) {
+function endOutage() {
+  failOpenWindows.outageStart = 0;
+}
+async function failOpenAllowed(env, cfg, key, now) {
   if (cfg.FAIL_OPEN_PER_SUBSCRIBER <= 0 || cfg.FAIL_OPEN_PER_ISOLATE <= 0) return false;
+  const w = failOpenWindows;
+  if (!w.outageStart || now - w.outageLast > OUTAGE_QUIET_MS) w.outageStart = now;
+  w.outageLast = now;
+  if (now - w.outageStart > cfg.FAIL_OPEN_MAX_MINUTES * 60_000) return false;
   const hour = Math.floor(now / 3_600_000);
-  if (failOpenWindows.hour !== hour) Object.assign(failOpenWindows, { hour, total: 0, per: new Map() });
-  const used = failOpenWindows.per.get(key) || 0;
-  if (used >= cfg.FAIL_OPEN_PER_SUBSCRIBER || failOpenWindows.total >= cfg.FAIL_OPEN_PER_ISOLATE) return false;
-  failOpenWindows.per.set(key, used + 1);
-  failOpenWindows.total += 1;
+  if (w.hour !== hour) Object.assign(w, { hour, total: 0, per: new Map() });
+  const used = w.per.get(key) || 0;
+  if (used >= cfg.FAIL_OPEN_PER_SUBSCRIBER || w.total >= cfg.FAIL_OPEN_PER_ISOLATE) return false;
+  const limiter = env.FAILOPEN_LIMITER || env.RATE_LIMITER;
+  if (!limiter || typeof limiter.limit !== 'function') return false;
+  try {
+    if (!(await limiter.limit({ key: `failopen:${key}` })).success) return false;
+    if (!(await limiter.limit({ key: 'failopen:all' })).success) return false;
+  } catch {
+    return false;
+  }
+  w.per.set(key, used + 1);
+  w.total += 1;
   return true;
 }
 
@@ -552,10 +577,14 @@ export async function admit(request, env, cors, { kind, model, inTokens, outToke
   const who = cfg.SALT_SET ? key.slice(0, key.indexOf(':') + 13) : undefined;
   const reserveNeurons = neurons ?? neuronsFor(model, inTokens, outTokens);
 
-  // The counters are unreachable: a verified Production subscriber gets a
-  // small bounded allowance (see failOpenAllowed); everyone else is refused.
-  const unavailable = () => {
-    if (verified && !sandbox && failOpenAllowed(cfg, key, now)) {
+  const closed = () => {
+    logUsage({ kind, who, outcome: 'GUARD_UNAVAILABLE' });
+    return { response: guardError('GUARD_UNAVAILABLE', cors, { retryAfter: 30 }) };
+  };
+  // A Durable Object call threw: a verified Production subscriber may get the
+  // opt-in bounded allowance (see failOpenAllowed); everyone else is refused.
+  const unavailable = async () => {
+    if (verified && !sandbox && (await failOpenAllowed(env, cfg, key, now))) {
       logUsage({ kind, who, outcome: 'fail_open', reserve: reserveNeurons });
       let done = false;
       const finish = async (actualNeurons, { refund = false } = {}) => {
@@ -563,18 +592,29 @@ export async function admit(request, env, cors, { kind, model, inTokens, outToke
         done = true;
         logUsage({ kind, who, outcome: refund ? 'fail_open_failed' : 'fail_open_ok', neurons: Math.max(0, Math.ceil(actualNeurons)) });
       };
-      return { ticket: { headers: { 'X-DateWise-Degraded': '1', 'Access-Control-Expose-Headers': 'X-DateWise-Degraded' }, finish, cfg, reserveNeurons } };
+      // degraded: the caller applies the legacy per-request caps before the model runs.
+      return {
+        ticket: {
+          headers: { 'X-DateWise-Degraded': '1', 'Access-Control-Expose-Headers': 'X-DateWise-Degraded' },
+          finish,
+          cfg,
+          reserveNeurons,
+          degraded: true,
+          maxInputTokens: Math.min(cfg.MAX_INPUT_TOKENS, cfg.LEGACY_MAX_INPUT_TOKENS),
+          maxOutputTokens: Math.min(cfg.MAX_OUTPUT_TOKENS, cfg.LEGACY_MAX_OUTPUT_TOKENS),
+        },
+      };
     }
-    logUsage({ kind, who, outcome: 'GUARD_UNAVAILABLE' });
-    return { response: guardError('GUARD_UNAVAILABLE', cors, { retryAfter: 30 }) };
+    return closed();
   };
-  if (!hasGuard) return unavailable();
+  // No binding is a configuration error, not an outage: always fail closed.
+  if (!hasGuard) return closed();
 
   let sub;
   try {
     sub = await callDo(env, key, 'reserve', { now, txHash: tx, limits });
   } catch {
-    return unavailable();
+    return await unavailable();
   }
   if (!sub.ok) {
     logUsage({ kind, who, outcome: sub.code });
@@ -597,8 +637,9 @@ export async function admit(request, env, cors, { kind, model, inTokens, outToke
     });
   } catch {
     await releaseSub(true);
-    return unavailable();
+    return await unavailable();
   }
+  endOutage();
   if (!budget.ok) {
     await releaseSub(true);
     logUsage({ kind, who, outcome: 'SERVICE_BUDGET_EXHAUSTED', reserve: reserveNeurons, anon });
@@ -749,8 +790,9 @@ export function meteredAi(ai) {
  *   DID_CHANGE_RENEWAL_STATUS, DID_CHANGE_RENEWAL_PREF, PRICE_INCREASE,
  *   REFUND_DECLINED, CONSUMPTION_REQUEST, TEST, anything else -> acknowledged, nothing changes
  * A notification for another product id (e.g. an old IAP) is acknowledged and ignored.
- * Replies: 200 when handled or deliberately ignored (Apple stops retrying);
- * 400 when the payload is not a valid notification for this app; 503 when
+ * Replies: 200 when handled or deliberately ignored (Apple stops retrying; this
+ * includes a genuine notification without signedTransactionInfo); 400 when a
+ * signature, bundle or transaction/renewal match fails; 503 when
  * the state could not be stored (Apple retries later).
  */
 const GRACE_MAX_MS = 28 * 86_400_000; // the longest Billing Grace Period Apple offers
@@ -797,13 +839,19 @@ export async function handleAppleNotification(request, env) {
       logUsage({ kind: 'assn', outcome: 'ack', type: String(n.notificationType).slice(0, 40) });
       return new Response('ok', { status: 200 });
     }
-    if (!data.signedTransactionInfo) throw new JwsError('no_transaction');
+    if (!data.signedTransactionInfo) {
+      // A genuine notification that carries no transaction cannot change anything
+      // here. Acknowledge it (a 4xx would only make Apple retry it) and log it.
+      logUsage({ kind: 'assn', outcome: 'ignored', reason: 'no_transaction', type: n.notificationType });
+      return new Response('ignored', { status: 200 });
+    }
     tx = await verifyAppleJws(data.signedTransactionInfo, verifyOpts(now));
     if (tx.bundleId !== cfg.APPLE_BUNDLE_ID || tx.environment !== data.environment) throw new JwsError('transaction_mismatch');
     if (!tx.originalTransactionId || !tx.transactionId) throw new JwsError('no_original_id');
     if (data.signedRenewalInfo) {
       renewal = await verifyAppleJws(data.signedRenewalInfo, verifyOpts(now));
-      if (renewal.originalTransactionId && renewal.originalTransactionId !== tx.originalTransactionId) {
+      // The renewal info must name the same subscription and environment.
+      if (renewal.originalTransactionId !== tx.originalTransactionId || renewal.environment !== data.environment) {
         throw new JwsError('renewal_mismatch');
       }
     }

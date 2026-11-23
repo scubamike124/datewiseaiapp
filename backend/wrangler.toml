@@ -35,6 +35,16 @@ namespace_id = "740219"
   limit = 60
   period = 60
 
+# Optional, only with fail-open turned on: a tighter cross-isolate bound for
+# `failopen:all` / `failopen:<subscriber>` than RATE_LIMITER's 60 a minute.
+# Pick another namespace_id that is unique in the account before enabling.
+# [[ratelimits]]
+# name = "FAILOPEN_LIMITER"
+# namespace_id = "740220"
+#   [ratelimits.simple]
+#   limit = 10
+#   period = 60
+
 # All limits are PROVISIONAL defaults (docs/business/AI_COST_MODEL.md, section 7).
 # The global budget is the main protection. Change values here or in the dashboard.
 [vars]
@@ -101,12 +111,17 @@ BILLING_GRACE_DAYS = "0"
 # Period is followed automatically. Verified offline (JWS), so an Apple outage never
 # blocks chat. "1" only after the URL is set in App Store Connect.
 ASSN_ENABLED = "0"
-# When the Durable Object (counters, budget) cannot be reached, a subscriber whose
-# Production token verifies offline still gets this many messages per Worker
-# isolate per hour, up to FAIL_OPEN_PER_ISOLATE in total per isolate per hour.
-# Sandbox and v1 requests always fail closed. "0" = fail closed for everyone.
-FAIL_OPEN_PER_SUBSCRIBER = "5"
-FAIL_OPEN_PER_ISOLATE = "50"
+# Opt-in fail-open while the Durable Object throws (never when its binding is
+# missing). "0" = fail closed for everyone (the default). If the owner opts in,
+# the recommended values are 3 per subscriber and 10 per isolate per hour, with
+# at most FAIL_OPEN_MAX_MINUTES per isolate per outage and the legacy per-request
+# caps. Across isolates, the rate-limit binding (FAILOPEN_LIMITER if bound, else
+# RATE_LIMITER) must allow `failopen:<subscriber>` and `failopen:all`; without
+# one it stays closed. Only verified Production tokens; Sandbox and v1 never.
+# Exposure math: docs/qa/SUBSCRIPTION_RESILIENCE.md, section 4.
+FAIL_OPEN_PER_SUBSCRIBER = "0"
+FAIL_OPEN_PER_ISOLATE = "0"
+FAIL_OPEN_MAX_MINUTES = "15"
 # ID_HASH_SALT: set as a secret (wrangler secret put ID_HASH_SALT), not here.
 # Rotating it resets every counter and the revoked list. Without it, a public
 # default salt is used and logs carry no `who`.

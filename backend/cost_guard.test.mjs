@@ -622,7 +622,7 @@ test('notifications: bundleId required, inner transaction checked, REFUND_REVERS
     return worker.fetch(new Request('https://example.workers.dev/apple/notifications', { method: 'POST', body: JSON.stringify({ signedPayload }) }), env, ctx());
   };
   const inner = async (over = {}) => pki.sign({ ...tx, revocationDate: Date.now() - 500, filler: pad, ...over });
-  const renewal = await pki.sign({ originalTransactionId: o, autoRenewStatus: 0, signedDate: Date.now() - 1000, filler: pad });
+  const renewal = await pki.sign({ originalTransactionId: o, autoRenewStatus: 0, signedDate: Date.now() - 1000, environment: 'Production', filler: pad });
   const full = { bundleId: tx.bundleId, environment: 'Production', signedTransactionInfo: await inner(), signedRenewalInfo: renewal };
   assert.ok(JSON.stringify(full).length > 16_000);
   // Missing or wrong bundleId, or an inner transaction from another app or environment: rejected.

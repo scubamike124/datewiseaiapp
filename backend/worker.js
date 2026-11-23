@@ -35,8 +35,8 @@ function isAllowedOrigin(origin) {
   if (!origin) return false;
   if (ALLOWED_ORIGINS.has(origin)) return true;
   try {
-    const host = new URL(origin).hostname;
-    return host.endsWith('.datewiseai.pages.dev');
+    const u = new URL(origin);
+    return u.protocol === 'https:' && u.hostname.endsWith('.datewiseai.pages.dev');
   } catch {
     return false;
   }
@@ -635,15 +635,19 @@ async function handleChat(request, env, ctx, body) {
   });
   if (gate.response) return gate.response;
   const { ticket } = gate;
+  // Degraded (opt-in fail-open while the counters are down): the smaller
+  // legacy per-request caps apply, so the outage allowance stays cheap.
+  const modelMessages = ticket.degraded ? fitToInputBudget(fitted, ticket.maxInputTokens) : fitted;
+  const modelMaxOut = ticket.degraded ? Math.min(maxOut, ticket.maxOutputTokens) : maxOut;
   let stream;
   try {
-    stream = await runChatStream(env, fitted, maxOut);
+    stream = await runChatStream(env, modelMessages, modelMaxOut);
   } catch (e) {
     ctx?.waitUntil?.(ticket.finish(0, { refund: true }));
     return json({ error: 'Workers AI error', detail: String(e) }, 502);
   }
   const metered = meterStream(stream, (m) => {
-    const actual = neuronsFor(CHAT_MODEL, m.inTokens || inTokens, m.outTokens);
+    const actual = neuronsFor(CHAT_MODEL, m.inTokens || estimateTokens(modelMessages), m.outTokens);
     // A server-side failure (the model stream broke, or ended with no reply)
     // gives the message back; a client that hangs up still uses it.
     const refund = m.outcome === 'error' || (m.outcome === 'done' && !m.produced);

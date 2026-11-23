@@ -295,7 +295,9 @@ class AppStoreService extends StoreService {
       final res = await _iap.queryProductDetails({StoreConfig.productId});
       if (res.productDetails.isNotEmpty) {
         _product = res.productDetails.first;
-        if (_error == StoreError.productUnavailable || _error == StoreError.storeUnreachable) _error = null;
+        // Only the product error is cleared: a failed entitlement read
+        // (storeUnreachable) still needs to be shown.
+        if (_error == StoreError.productUnavailable) _error = null;
       } else {
         _error = StoreError.productUnavailable;
       }
@@ -304,16 +306,29 @@ class AppStoreService extends StoreService {
     }
   }
 
+  /// Incremented by every entitlement read; only the newest read's result is
+  /// applied, so a slow, stale read that finishes late cannot overwrite a
+  /// newer state (for example a launch read finishing after a resume read).
+  int _entitlementGen = 0;
+
+  void _applyEntitlement(bool entitled) {
+    if (_entitled == entitled) return;
+    _entitled = entitled;
+    notifyListeners();
+  }
+
   Future<void> _refreshEntitlement() async {
+    final gen = ++_entitlementGen;
     if (_isIOS) {
       final current = await SK2Transaction.currentEntitlements();
+      if (gen != _entitlementGen) return; // a newer read started: its result wins
       // Any other product id (for example an IAP created before v2) never
       // unlocks chat; stray transactions are finished in [_onPurchases].
       final mine = current.where((t) => t.productId == StoreConfig.productId).toList();
-      _entitled = mine.isNotEmpty;
       // The signed transaction (JWS) the coach backend verifies; null when not
       // entitled. With more than one (rare), the latest-expiring one is sent.
       EntitlementToken.update(mine.isEmpty ? null : latestExpiring(mine).receiptData);
+      _applyEntitlement(mine.isNotEmpty);
     } else {
       // Google Play re-delivers active purchases through purchaseStream.
       // Wait for that batch (or [restoreSettle]) and take the result as the
@@ -325,7 +340,7 @@ class AppStoreService extends StoreService {
       try {
         await _iap.restorePurchases();
         await wait.future.timeout(restoreSettle, onTimeout: () {});
-        _entitled = _restoreSeen;
+        if (gen == _entitlementGen) _applyEntitlement(_restoreSeen);
       } finally {
         if (identical(_restoreWait, wait)) _restoreWait = null;
       }

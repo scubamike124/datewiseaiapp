@@ -37,8 +37,8 @@ product id (for example an IAP from before v2) is acknowledged and ignored.
 
 - `"0"` (default in `backend/wrangler.toml`): `POST /apple/notifications` returns 404. The guard uses only the device token.
 - `"1"`: the endpoint verifies each `signedPayload`, then its `signedTransactionInfo` and `signedRenewalInfo`, all offline. It stores only salted hashes and dates in the subscriber's Durable Object. The guard also checks that object when a token has expired, to apply a confirmed renewal or grace period.
-  - 200: handled, or deliberately ignored (another environment or product, `TEST`, informational types). Apple stops retrying.
-  - 400: not a valid notification for this app (forged, wrong bundle, mismatched inner transaction).
+  - 200: handled, or deliberately ignored (another environment or product, `TEST`, informational types, or a genuine notification without `signedTransactionInfo`, which is logged). Apple stops retrying.
+  - 400: a signature or bundle check failed, or the inner transaction or renewal info does not match (another subscription or environment).
   - 503: the Durable Object was unreachable. Apple retries later, on its own schedule.
 - `ALLOW_SANDBOX` applies here too. With `"0"`, Sandbox notifications are acknowledged and ignored.
 

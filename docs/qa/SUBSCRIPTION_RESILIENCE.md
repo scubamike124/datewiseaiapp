@@ -94,21 +94,38 @@ and storage outages (503, so Apple retries).
 | L3 | Restore on a new device when `AppStore.sync` fails (offline, sign-in cancelled) | `restoreFailed` without reading the local entitlement | The local entitlement is still read. Restored if StoreKit holds it, otherwise `restoreFailed` ("try again") | `restore on a new device` (3 tests) |
 | L4 | Token renewed mid-session | The client re-reads StoreKit once and retries once (existing) | Unchanged and now tested end to end with the real `AppStoreService.refresh`. With notifications on, the server also accepts the previous-period token once Apple confirms the renewal | Dart `a token that renewed mid-session…`; server `ASSN SUBSCRIBED and DID_RENEW…` |
 | L5 | Clock skew | n/a | Only Cloudflare's clock is used. Device time and `Date` headers are ignored. Apple's `signedDate` may be up to 5 min ahead | `clock skew…` |
-| L6 | Durable Object unavailable (`GUARD_UNAVAILABLE`) | Fail closed for everyone | **Bounded fail-open** (below) for verified Production subscribers. `Retry-After: 30`, and the chat offers Try again | `Durable Object down…` (3 tests) |
+| L6 | Durable Object unavailable (`GUARD_UNAVAILABLE`) | Fail closed for everyone | **Still fail closed by default** (`Retry-After: 30`, the chat says "busy" and offers Try again). An **opt-in**, multiply bounded fail-open exists for verified Production subscribers (below). A missing binding always fails closed | `fail-open is off by default…`, `missing USAGE_GUARD binding…`, `opt-in fail-open…` (4 tests) |
 | L7 | `expiresDate` passes just before the renewal reaches the device | 60-min leeway | Unchanged (`EXPIRY_LEEWAY_MINUTES`), boundary-tested. Notifications extend it with the confirmed renewal | `expired transaction…` |
 | L8 | Billing retry | No access until Apple recovers the payment (correct: the user has not paid) | Unchanged. With notifications, `DID_RENEW`/`BILLING_RECOVERY` reopens chat at once, even with the old token | `ASSN DID_FAIL_TO_RENEW without grace…` |
 | L9 | Billing Grace Period on in App Store Connect but `BILLING_GRACE_DAYS` not matched | Subscribers in grace refused | With notifications, Apple's `gracePeriodExpiresDate` is followed. Without them, `BILLING_GRACE_DAYS` must match (checklist step 12a) | `ASSN DID_FAIL_TO_RENEW with GRACE_PERIOD…`, `billing grace without ASSN…` |
 | L10 | Family Sharing | Off (`familyShareable: false`), so Apple issues no family transactions | An Apple-signed `FAMILY_SHARED` transaction is accepted if Family Sharing is ever turned on (doing that cannot be undone in App Store Connect). Whether family members share a counter is unverified: **BLOCKED** (Sandbox) | `restore on a new device / family sharing…` |
 | L11 | Unknown product id (an IAP created before v2) | Finished on the purchase stream, never unlocks chat (existing) | Also: never sent as the token. The latest-expiring entitlement of our product is sent. Notifications for it get 200 and are ignored | Dart `unknown product ids` (3 tests); server `ASSN: unknown product id…` |
 
-**Fail-open decision (L6).** Cost risk against customer harm: a Durable Object outage is rare and usually short, but
-failing closed shows every paying subscriber "Coaching is busy" for its whole length. Failing open without limits would remove the budget
-breaker. Chosen: while the counters are unreachable, a request whose **Production** token verifies offline (Apple-signed, this app and
-product, not expired, not revoked in the token) gets up to `FAIL_OPEN_PER_SUBSCRIBER` = 5 messages per Worker isolate per hour, with at most
-`FAIL_OPEN_PER_ISOLATE` = 50 in total per isolate per hour. The response carries `X-DateWise-Degraded: 1`. Sandbox, v1/anonymous, expired,
-revoked and forged requests still fail closed. Worst case: 50 × 324 neurons = 16,200 neurons per isolate-hour, which is $0 on Workers Free
-(Workers AI stops at the free allowance) and about $0.18 per isolate-hour on Workers Paid. Set either variable to `"0"` to fail closed.
-The revoked list is not readable during an outage, so a refunded user with an old token could get those 5 messages. That is accepted.
+**Fail-open decision (L6): off by default, opt-in.** Cost risk against customer harm: a Durable Object outage is rare and usually
+short, but failing closed shows every paying subscriber "Coaching is busy" for as long as it lasts. Failing open removes the budget breaker,
+and an attacker could try to cause it by overloading the hot `global` object. Per-isolate caps alone do not bound the total, because
+the total is that cap times the number of isolates. So the default stays **fail closed** (`FAIL_OPEN_PER_SUBSCRIBER = FAIL_OPEN_PER_ISOLATE = "0"`
+in the code and in `wrangler.toml`). The owner can opt in. Every one of these bounds must hold:
+
+1. Only when a Durable Object call **throws**. A missing `USAGE_GUARD` binding is a configuration error and always gets 503.
+2. Only a **Production** token that verifies offline (Apple-signed, this app and product, not expired, not revoked in the token). Sandbox, v1/anonymous,
+   expired, revoked and forged requests fail closed.
+3. Per isolate and clock hour: `FAIL_OPEN_PER_SUBSCRIBER` per subscriber and `FAIL_OPEN_PER_ISOLATE` in total.
+4. Per isolate and outage: at most `FAIL_OPEN_MAX_MINUTES` (15). An outage ends after 10 quiet minutes or after one successful Durable Object call.
+5. Across isolates: the rate-limit binding (`FAILOPEN_LIMITER` if bound, otherwise the existing `RATE_LIMITER`) must allow both
+   `failopen:<subscriber>` and `failopen:all`. With no limiter binding, or a failing one, the request fails closed.
+6. Each fail-open request gets the legacy per-request caps (3,000 tokens in, 500 out), which is at most 183 neurons. It carries `X-DateWise-Degraded: 1`.
+
+**Recommended values if the owner opts in:** 3 per subscriber and 10 per isolate. Exposure math, at most 183 neurons per message and $0.011 per 1,000
+neurons above the free allowance on Workers Paid (on Workers Free, Workers AI stops at the free 10,000 a day, so $0):
+- Per isolate: at most 10 messages per outage (the 15-minute bound sits inside an hour, or straddles two hours for at most 20), so about 1,830 to 3,660 neurons.
+- Across isolates, with the existing `RATE_LIMITER` (60 a minute per key, counted per Cloudflare location): `failopen:all` allows at most
+  60 × 15 = 900 messages per location per outage. That is about 165,000 neurons, or $1.81 per location on Workers Paid.
+- With the optional `FAILOPEN_LIMITER` binding (commented out in `wrangler.toml`, 10 a minute): at most 150 messages per location per outage,
+  about 27,000 neurons, or $0.30.
+- During an outage the revoked list cannot be read, so a refunded user holding an old token could get those few messages.
+
+Recommendation: leave it off until the count-only logs show that Durable Object outages actually happen. If you turn it on, use the values above together with `FAILOPEN_LIMITER`.
 
 **Always an action, never a dead end.** Paywall: Subscribe, **Restore purchases**, Close, and a message for each store error.
 Chat refusals: `SUBSCRIPTION_EXPIRED`/`REQUIRED` say "isn't active", and `SUBSCRIPTION_INVALID` says "Tap Restore purchases", both
