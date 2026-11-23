@@ -194,7 +194,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get ageUnder => 'Tengo menos de 18 años';
 
   @override
-  String get underageTitle => 'Lo sentimos, DateWise es solo para adultos.';
+  String get underageTitle => 'Lo sentimos, DateWise es solo para adultos.';
 
   @override
   String get underageBody =>
@@ -882,7 +882,7 @@ class AppLocalizationsEs extends AppLocalizations {
       'DateWise es solo para adultos. Si lo confirmas, la app quedará bloqueada en este dispositivo.';
 
   @override
-  String get ageUnderConfirmAction => 'Sí, tengo menos de 18';
+  String get ageUnderConfirmAction => 'Sí, tengo menos de 18';
 
   @override
   String voicePermissionDeniedNote(String name) {

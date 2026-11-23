@@ -151,7 +151,7 @@ void main() {
         await t.pumpAndSettle();
         final action = find.byKey(const ValueKey('confirm-action'));
         final cancel = find.byKey(const ValueKey('confirm-cancel'));
-        expect(find.descendant(of: action, matching: find.text('Sí, tengo menos de 18')), findsOneWidget);
+        expect(find.descendant(of: action, matching: find.text('Sí, tengo menos de\u00a018')), findsOneWidget);
         for (final b in [action, cancel]) {
           final text = t.widget<Text>(find.descendant(of: b, matching: find.byType(Text)));
           expect(text.textAlign, TextAlign.center);

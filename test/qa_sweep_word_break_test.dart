@@ -83,6 +83,28 @@ List<String> wordProblems(WidgetTester t, Finder finder) {
   return out;
 }
 
+/// The lines [finder]'s first paragraph is laid out in, as shown.
+List<String> paragraphLines(WidgetTester t, Finder finder) {
+  final p = t.renderObject<RenderParagraph>(find.descendant(of: finder, matching: find.byType(RichText), matchRoot: true).first);
+  final s = p.text.toPlainText();
+  final lines = <String>[];
+  final buf = StringBuffer();
+  double? prevTop;
+  for (var i = 0; i < s.length; i++) {
+    final boxes = p.getBoxesForSelection(TextSelection(baseOffset: i, extentOffset: i + 1));
+    if (boxes.isNotEmpty) {
+      if (prevTop != null && boxes.first.top > prevTop + 1) {
+        lines.add(buf.toString().trim());
+        buf.clear();
+      }
+      prevTop = boxes.first.top;
+    }
+    buf.write(s[i]);
+  }
+  lines.add(buf.toString().trim());
+  return lines;
+}
+
 void main() {
   setUpAll(() async {
     await _loadFont('Inter', ['Inter-Regular.ttf', 'Inter-Medium.ttf', 'Inter-SemiBold.ttf', 'Inter-Bold.ttf']);
@@ -168,6 +190,42 @@ void main() {
           expect(t.takeException(), isNull);
         });
       }
+    }
+  }
+
+  // ES under-18 copy on iPhone SE and iPhone 15, at 1.0 and 2.0: the
+  // adults-only title never leaves "." alone on a line, and the dialog's
+  // "Sí, tengo menos de 18" never leaves "18" alone.
+  for (final size in const [se, i15]) {
+    for (final scale in const [1.0, 2.0]) {
+      final tag = '[es ${size.width.toInt()} ${scale}x]';
+
+      testWidgets('$tag the adults-only title breaks between words only', (t) async {
+        await pumpApp(t, size: size, scale: scale, prefs: {...spanishPrefs(), 'dw_underage': true});
+        await t.pumpAndSettle();
+        final title = find.descendant(of: find.byKey(const ValueKey('underage')), matching: find.byType(LargeTitle));
+        expect(title, findsOneWidget);
+        final text = find.descendant(of: title, matching: find.byType(Text)).first;
+        expect(t.widget<Text>(text).data, startsWith('Lo sentimos'));
+        final lines = paragraphLines(t, text);
+        expect(lines.where((l) => !_letter.hasMatch(l)), isEmpty, reason: '$lines');
+        expect(wordProblems(t, text), isEmpty);
+      });
+
+      testWidgets('$tag "Sí, tengo menos de 18" keeps "de 18" together', (t) async {
+        await pumpScreen(t, const OnboardingScreen(initialStep: 2),
+            size: size, scale: scale, prefs: spanishPrefs(), locale: const Locale('es'));
+        await t.pumpAndSettle();
+        final under = find.byKey(const ValueKey('age-under'));
+        await t.ensureVisible(under);
+        await t.pumpAndSettle();
+        await t.tap(under);
+        await t.pumpAndSettle();
+        final action = find.byKey(const ValueKey('confirm-action'));
+        final lines = paragraphLines(t, find.descendant(of: action, matching: find.byType(Text)));
+        expect(lines.where((l) => RegExp(r'^\d+$').hasMatch(l)), isEmpty, reason: '$lines');
+        expect(lines.last, endsWith('de\u00a018'), reason: '$lines');
+      });
     }
   }
 }

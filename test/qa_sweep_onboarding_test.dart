@@ -24,7 +24,7 @@ Future<void> _toStep(WidgetTester t, int step) async {
 void main() {
   for (final (lang, title, action) in [
     ('en', 'Are you under 18?', "Yes, I'm under 18"),
-    ('es', '¿Tienes menos de 18 años?', 'Sí, tengo menos de 18'),
+    ('es', '¿Tienes menos de 18 años?', 'Sí, tengo menos de\u00a018'),
   ]) {
     testWidgets('[$lang] "I am under 18" asks first; Cancel keeps onboarding, confirming locks the app', (t) async {
       if (lang == 'es') {
