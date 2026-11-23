@@ -55,9 +55,9 @@ jobs:
           echo "::error::upload_testflight was ticked without signed_build. Tick signed_build too; nothing would be uploaded."
           exit 1
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -116,7 +116,7 @@ jobs:
           cat ios-flutter-migrations.patch
           echo "----- END ios-flutter-migrations.patch -----"
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: ios-flutter-migrations
           path: ios-flutter-migrations.patch
@@ -128,7 +128,7 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent Runner.app "$GITHUB_WORKSPACE/Runner-app-unsigned.zip"
           ls -lh "$GITHUB_WORKSPACE/Runner-app-unsigned.zip"
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: datewise-ios-Runner-app-unsigned
           path: Runner-app-unsigned.zip
@@ -140,21 +140,24 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.signed_build
     runs-on: macos-latest
     timeout-minutes: 60
-    env:
-      IOS_DIST_CERT_P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
-      IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
-      IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-      ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-      ASC_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+    # No secrets at job level: each step gets only the secrets it uses. The
+    # check below sees only whether each secret is set ("true"/"false").
     steps:
       - name: Check signing secrets
         id: secrets
+        env:
+          HAS_IOS_DIST_CERT_P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 != '' }}
+          HAS_IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD != '' }}
+          HAS_IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 != '' }}
+          HAS_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID != '' }}
+          HAS_APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID != '' }}
+          HAS_APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID != '' }}
+          HAS_APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 != '' }}
         run: |
           missing=""
-          for v in IOS_DIST_CERT_P12_BASE64 IOS_DIST_CERT_PASSWORD IOS_PROVISIONING_PROFILE_BASE64 APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8; do
-            if [ -z "${!v}" ]; then missing="$missing $v"; fi
+          for v in IOS_DIST_CERT_P12_BASE64 IOS_DIST_CERT_PASSWORD IOS_PROVISIONING_PROFILE_BASE64 APPLE_TEAM_ID APP_STORE_CONNECT_API_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_API_KEY_P8; do
+            h="HAS_$v"
+            if [ "${!h}" != "true" ]; then missing="$missing $v"; fi
           done
           if [ -n "$missing" ]; then
             echo "::error::Signing secrets missing:$missing. Nothing was built or uploaded. See docs/appstore/checklist.md."
@@ -165,10 +168,10 @@ jobs:
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         if: steps.secrets.outputs.ready == 'true'
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         if: steps.secrets.outputs.ready == 'true'
         with:
           channel: stable
@@ -177,6 +180,10 @@ jobs:
 
       - name: Install certificate and provisioning profile
         if: steps.secrets.outputs.ready == 'true'
+        env:
+          IOS_DIST_CERT_P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
+          IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
         run: |
           KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
           KEYCHAIN_PASSWORD="$(uuidgen)"
@@ -198,9 +205,12 @@ jobs:
           mkdir -p "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
           cp "$RUNNER_TEMP/profile.mobileprovision" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/$UUID.mobileprovision"
           echo "PROFILE_NAME=$NAME" >> "$GITHUB_ENV"
+          echo "PROFILE_UUID=$UUID" >> "$GITHUB_ENV"
 
       - name: Manual signing for the Runner target (CI checkout only, not committed)
         if: steps.secrets.outputs.ready == 'true'
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           # Only the Runner target's configurations end in exactly "datewiseAi;"
           # (RunnerTests is ...datewiseAi.RunnerTests), so plugin targets keep
@@ -232,11 +242,12 @@ jobs:
           # offset keeps it above pubspec's +N and any earlier uploads).
           BUILD_NUMBER=$((100 + GITHUB_RUN_NUMBER))
           echo "Build number: $BUILD_NUMBER" >> "$GITHUB_STEP_SUMMARY"
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
           flutter build ipa --release --build-number="$BUILD_NUMBER" \
             --export-options-plist="$RUNNER_TEMP/ExportOptions.plist"
           ls -lh build/ios/ipa
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: steps.secrets.outputs.ready == 'true'
         with:
           name: datewise-ios-ipa-signed
@@ -246,12 +257,32 @@ jobs:
 
       - name: Upload to App Store Connect (TestFlight)
         if: steps.secrets.outputs.ready == 'true' && inputs.upload_testflight
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
         run: |
+          # altool's old upload-app command is deprecated; Apple's altool documentation
+          # names `--upload-package` (App Store Connect API key auth) as its
+          # replacement for uploading builds. altool finds the key in
+          # ~/.appstoreconnect/private_keys/AuthKey_<key id>.p8.
           mkdir -p "$HOME/.appstoreconnect/private_keys"
           printf '%s' "$ASC_KEY_P8" > "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
-          xcrun altool --upload-app --type ios --file build/ios/ipa/*.ipa \
+          IPA=$(ls build/ios/ipa/*.ipa | head -n 1)
+          VERSION=$(sed -n 's/^version: *\([0-9.]*\).*/\1/p' pubspec.yaml)
+          xcrun altool --upload-package "$IPA" --type ios \
+            --apple-id 6780110141 --bundle-id com.datewise.datewiseAi \
+            --bundle-version "$BUILD_NUMBER" --bundle-short-version-string "$VERSION" \
             --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
 
-      - name: Clean up keychain
-        if: always() && steps.secrets.outputs.ready == 'true'
-        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
+      - name: Clean up signing material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/dist.p12" "$RUNNER_TEMP/profile.mobileprovision" "$RUNNER_TEMP/profile.plist" \
+            "$RUNNER_TEMP/ExportOptions.plist"
+          rm -rf "$HOME/.appstoreconnect/private_keys"
+          if [ -n "${PROFILE_UUID:-}" ]; then
+            rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision" \
+              "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          fi

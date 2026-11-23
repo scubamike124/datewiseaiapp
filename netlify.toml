@@ -8,10 +8,11 @@
   publish = "build/web"
 
   # Build command for Git-connected continuous deploys. Installs Flutter, then
-  # builds the web release. (Ignored for manual `netlify deploy --dir` uploads.)
+  # builds the web release with Flutter 3.47.9, the version CI pins
+  # (FLUTTER_VERSION). (Ignored for manual `netlify deploy --dir` uploads.)
   command = """
     if [ ! -d "$HOME/flutter" ]; then \
-      git clone https://github.com/flutter/flutter.git -b stable --depth 1 "$HOME/flutter"; \
+      git clone https://github.com/flutter/flutter.git -b 3.47.9 --depth 1 "$HOME/flutter"; \
     fi; \
     export PATH="$HOME/flutter/bin:$PATH"; \
     flutter config --enable-web; \
