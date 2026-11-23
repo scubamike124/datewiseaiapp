@@ -94,7 +94,7 @@ and storage outages (503, so Apple retries).
 | L3 | Restore on a new device when `AppStore.sync` fails (offline, sign-in cancelled) | `restoreFailed` without reading the local entitlement | The local entitlement is still read. Restored if StoreKit holds it, otherwise `restoreFailed` ("try again") | `restore on a new device` (3 tests) |
 | L4 | Token renewed mid-session | The client re-reads StoreKit once and retries once (existing) | Unchanged and now tested end to end with the real `AppStoreService.refresh`. With notifications on, the server also accepts the previous-period token once Apple confirms the renewal | Dart `a token that renewed mid-session…`; server `ASSN SUBSCRIBED and DID_RENEW…` |
 | L5 | Clock skew | n/a | Only Cloudflare's clock is used. Device time and `Date` headers are ignored. Apple's `signedDate` may be up to 5 min ahead | `clock skew…` |
-| L6 | Durable Object unavailable (`GUARD_UNAVAILABLE`) | Fail closed for everyone | **Still fail closed by default** (`Retry-After: 30`, the chat says "busy" and offers Try again). An **opt-in**, multiply bounded fail-open exists for verified Production subscribers (below). A missing binding always fails closed | `fail-open is off by default…`, `missing USAGE_GUARD binding…`, `opt-in fail-open…` (4 tests) |
+| L6 | Durable Object unavailable (`GUARD_UNAVAILABLE`) | Fail closed for everyone | **Still fail closed by default** (`Retry-After: 30`, the chat says "busy" and offers Try again). An **opt-in**, multiply bounded fail-open exists for verified Production subscribers (below). A missing binding always fails closed | `fail-open is off by default…`, `missing USAGE_GUARD binding…`, `opt-in fail-open…` (5 tests) |
 | L7 | `expiresDate` passes just before the renewal reaches the device | 60-min leeway | Unchanged (`EXPIRY_LEEWAY_MINUTES`), boundary-tested. Notifications extend it with the confirmed renewal | `expired transaction…` |
 | L8 | Billing retry | No access until Apple recovers the payment (correct: the user has not paid) | Unchanged. With notifications, `DID_RENEW`/`BILLING_RECOVERY` reopens chat at once, even with the old token | `ASSN DID_FAIL_TO_RENEW without grace…` |
 | L9 | Billing Grace Period on in App Store Connect but `BILLING_GRACE_DAYS` not matched | Subscribers in grace refused | With notifications, Apple's `gracePeriodExpiresDate` is followed. Without them, `BILLING_GRACE_DAYS` must match (checklist step 12a) | `ASSN DID_FAIL_TO_RENEW with GRACE_PERIOD…`, `billing grace without ASSN…` |
@@ -111,21 +111,23 @@ in the code and in `wrangler.toml`). The owner can opt in. Every one of these bo
 2. Only a **Production** token that verifies offline (Apple-signed, this app and product, not expired, not revoked in the token). Sandbox, v1/anonymous,
    expired, revoked and forged requests fail closed.
 3. Per isolate and clock hour: `FAIL_OPEN_PER_SUBSCRIBER` per subscriber and `FAIL_OPEN_PER_ISOLATE` in total.
-4. Per isolate and outage: at most `FAIL_OPEN_MAX_MINUTES` (15). An outage ends after 10 quiet minutes or after one successful Durable Object call.
-5. Across isolates: the rate-limit binding (`FAILOPEN_LIMITER` if bound, otherwise the existing `RATE_LIMITER`) must allow both
-   `failopen:<subscriber>` and `failopen:all`. With no limiter binding, or a failing one, the request fails closed.
+4. Per isolate and outage: at most `FAIL_OPEN_MAX_MINUTES` (15). An outage ends only after 10 quiet minutes with no Durable Object call
+   throwing. A single successful call does not end it, so a flapping Durable Object cannot restart the 15-minute bound.
+5. Across isolates: the dedicated `FAILOPEN_LIMITER` rate-limit binding must allow both `failopen:<subscriber>` and `failopen:all`.
+   It is required: the existing `RATE_LIMITER` is never used as a fallback, so with no `FAILOPEN_LIMITER`, or a failing one, the request
+   fails closed even if the two variables are set. The Workers rate limit counts **per Cloudflare location**, so this bound is per colo
+   (each location has its own `failopen:all` counter), not global.
 6. Each fail-open request gets the legacy per-request caps (3,000 tokens in, 500 out), which is at most 183 neurons. It carries `X-DateWise-Degraded: 1`.
 
 **Recommended values if the owner opts in:** 3 per subscriber and 10 per isolate. Exposure math, at most 183 neurons per message and $0.011 per 1,000
 neurons above the free allowance on Workers Paid (on Workers Free, Workers AI stops at the free 10,000 a day, so $0):
 - Per isolate: at most 10 messages per outage (the 15-minute bound sits inside an hour, or straddles two hours for at most 20), so about 1,830 to 3,660 neurons.
-- Across isolates, with the existing `RATE_LIMITER` (60 a minute per key, counted per Cloudflare location): `failopen:all` allows at most
-  60 × 15 = 900 messages per location per outage. That is about 165,000 neurons, or $1.81 per location on Workers Paid.
-- With the optional `FAILOPEN_LIMITER` binding (commented out in `wrangler.toml`, 10 a minute): at most 150 messages per location per outage,
-  about 27,000 neurons, or $0.30.
+- Across isolates, with the required `FAILOPEN_LIMITER` binding (commented out in `wrangler.toml`, 10 a minute per key): `failopen:all`
+  allows at most 10 × 15 = 150 messages **per Cloudflare location** per outage, about 27,000 neurons, or $0.30 per location on Workers Paid.
+  The total is that times the number of locations that receive fail-open traffic during the outage, because the counter is per colo.
 - During an outage the revoked list cannot be read, so a refunded user holding an old token could get those few messages.
 
-Recommendation: leave it off until the count-only logs show that Durable Object outages actually happen. If you turn it on, use the values above together with `FAILOPEN_LIMITER`.
+Recommendation: leave it off until the count-only logs show that Durable Object outages actually happen. If you turn it on, use the values above and uncomment `FAILOPEN_LIMITER` (with a namespace_id unique in the account); without that binding fail-open stays closed.
 
 **Always an action, never a dead end.** Paywall: Subscribe, **Restore purchases**, Close, and a message for each store error.
 Chat refusals: `SUBSCRIPTION_EXPIRED`/`REQUIRED` say "isn't active", and `SUBSCRIPTION_INVALID` says "Tap Restore purchases", both

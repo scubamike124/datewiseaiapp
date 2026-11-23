@@ -35,9 +35,10 @@ namespace_id = "740219"
   limit = 60
   period = 60
 
-# Optional, only with fail-open turned on: a tighter cross-isolate bound for
-# `failopen:all` / `failopen:<subscriber>` than RATE_LIMITER's 60 a minute.
-# Pick another namespace_id that is unique in the account before enabling.
+# Required to turn fail-open on: the dedicated cross-isolate bound for
+# `failopen:all` / `failopen:<subscriber>`. RATE_LIMITER is never used for it;
+# without this binding fail-open stays closed. Counted per Cloudflare location,
+# so the bound is per colo. Pick a namespace_id unique in the account first.
 # [[ratelimits]]
 # name = "FAILOPEN_LIMITER"
 # namespace_id = "740220"
@@ -115,9 +116,10 @@ ASSN_ENABLED = "0"
 # missing). "0" = fail closed for everyone (the default). If the owner opts in,
 # the recommended values are 3 per subscriber and 10 per isolate per hour, with
 # at most FAIL_OPEN_MAX_MINUTES per isolate per outage and the legacy per-request
-# caps. Across isolates, the rate-limit binding (FAILOPEN_LIMITER if bound, else
-# RATE_LIMITER) must allow `failopen:<subscriber>` and `failopen:all`; without
-# one it stays closed. Only verified Production tokens; Sandbox and v1 never.
+# caps. Across isolates, the dedicated FAILOPEN_LIMITER binding (above, per
+# Cloudflare location) must allow `failopen:<subscriber>` and `failopen:all`;
+# without it fail-open stays closed (RATE_LIMITER is never used as a fallback).
+# Only verified Production tokens; Sandbox and v1 never.
 # Exposure math: docs/qa/SUBSCRIPTION_RESILIENCE.md, section 4.
 FAIL_OPEN_PER_SUBSCRIBER = "0"
 FAIL_OPEN_PER_ISOLATE = "0"

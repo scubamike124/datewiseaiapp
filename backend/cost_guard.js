@@ -458,19 +458,19 @@ function logUsage(fields) {
 // a few messages, with the legacy per-request caps. Bounds, all required:
 //   1. per isolate and clock hour: FAIL_OPEN_PER_SUBSCRIBER per subscriber,
 //      FAIL_OPEN_PER_ISOLATE in total;
-//   2. at most FAIL_OPEN_MAX_MINUTES of fail-open per isolate per outage (an
-//      outage ends after 10 quiet minutes or one successful DO call);
-//   3. across isolates: the rate-limit binding (FAILOPEN_LIMITER if bound,
-//      else RATE_LIMITER) must allow both `failopen:<subscriber>` and
-//      `failopen:all`. No binding, or the binding failing, means fail closed.
+//   2. at most FAIL_OPEN_MAX_MINUTES of fail-open per isolate per outage. An
+//      outage ends only after 10 quiet minutes (no DO call throwing), never on
+//      a single successful DO call, so a flapping DO cannot reset the bound;
+//   3. across isolates: the dedicated FAILOPEN_LIMITER rate-limit binding must
+//      allow both `failopen:<subscriber>` and `failopen:all`. It is never
+//      RATE_LIMITER: no FAILOPEN_LIMITER, or one failing, means fail closed.
+//      Workers rate limits count per Cloudflare location, so this bound is
+//      per colo, not global.
 // Sandbox and token-less (v1) requests always fail closed.
 const OUTAGE_QUIET_MS = 10 * 60_000;
 const failOpenWindows = { hour: -1, total: 0, per: new Map(), outageStart: 0, outageLast: 0 };
 export function _resetFailOpenForTests() {
   Object.assign(failOpenWindows, { hour: -1, total: 0, per: new Map(), outageStart: 0, outageLast: 0 });
-}
-function endOutage() {
-  failOpenWindows.outageStart = 0;
 }
 async function failOpenAllowed(env, cfg, key, now) {
   if (cfg.FAIL_OPEN_PER_SUBSCRIBER <= 0 || cfg.FAIL_OPEN_PER_ISOLATE <= 0) return false;
@@ -482,7 +482,7 @@ async function failOpenAllowed(env, cfg, key, now) {
   if (w.hour !== hour) Object.assign(w, { hour, total: 0, per: new Map() });
   const used = w.per.get(key) || 0;
   if (used >= cfg.FAIL_OPEN_PER_SUBSCRIBER || w.total >= cfg.FAIL_OPEN_PER_ISOLATE) return false;
-  const limiter = env.FAILOPEN_LIMITER || env.RATE_LIMITER;
+  const limiter = env.FAILOPEN_LIMITER; // dedicated binding only, never RATE_LIMITER
   if (!limiter || typeof limiter.limit !== 'function') return false;
   try {
     if (!(await limiter.limit({ key: `failopen:${key}` })).success) return false;
@@ -639,7 +639,6 @@ export async function admit(request, env, cors, { kind, model, inTokens, outToke
     await releaseSub(true);
     return await unavailable();
   }
-  endOutage();
   if (!budget.ok) {
     await releaseSub(true);
     logUsage({ kind, who, outcome: 'SERVICE_BUDGET_EXHAUSTED', reserve: reserveNeurons, anon });

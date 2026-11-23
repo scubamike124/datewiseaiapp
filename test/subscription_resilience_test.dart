@@ -60,6 +60,9 @@ class _Iap implements InAppPurchase {
   Future<void> completePurchase(PurchaseDetails purchase) async => completed.add(purchase);
 
   @override
+  Future<bool> buyNonConsumable({required PurchaseParam purchaseParam}) async => true;
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -346,6 +349,62 @@ void main() {
       await a;
       expect(store.isEntitled, isTrue);
       expect(EntitlementToken.current, _jwsB);
+    });
+  });
+
+  group('a purchase whose re-read overlaps a resume refresh', () {
+    PurchaseDetails purchased() => PurchaseDetails(
+          purchaseID: 'tx-1',
+          productID: StoreConfig.productId,
+          verificationData: PurchaseVerificationData(localVerificationData: _jwsA, serverVerificationData: _jwsA, source: 'app_store'),
+          transactionDate: '0',
+          status: PurchaseStatus.purchased,
+        );
+
+    Future<(Future<PurchaseResult>, Completer<List<SK2TransactionMessage>>, Completer<List<SK2TransactionMessage>>, Future<void>)>
+        overlap(AppStoreService store, _Iap iap) async {
+      final purchaseRead = Completer<List<SK2TransactionMessage>>();
+      final resumeRead = Completer<List<SK2TransactionMessage>>();
+      sk2.gates.addAll([purchaseRead, resumeRead]);
+      final callsBefore = sk2.calls;
+      final result = store.buy();
+      await Future<void>.delayed(Duration.zero);
+      iap.stream.add([purchased()]); // StoreKit delivers the purchase; its re-read starts
+      await pumpEventQueue();
+      expect(sk2.calls, callsBefore + 1);
+      final resume = store.refresh(); // the app resumes: a newer read supersedes the purchase's
+      await pumpEventQueue();
+      expect(sk2.calls, callsBefore + 2);
+      return (result, purchaseRead, resumeRead, resume);
+    }
+
+    test('the superseded purchase read finishes first: the purchase waits for the newest read, not reported failed', () async {
+      final iap = _Iap();
+      final store = _store(iap);
+      await store.init();
+      expect(store.isEntitled, isFalse);
+      final (result, purchaseRead, resumeRead, resume) = await overlap(store, iap);
+      purchaseRead.complete([_msg(StoreConfig.productId, _jwsA)]); // superseded: discarded
+      await pumpEventQueue();
+      expect(store.busy, isTrue, reason: 'still waiting for the newest read');
+      resumeRead.complete([_msg(StoreConfig.productId, _jwsA)]);
+      await resume;
+      expect(await result, PurchaseResult.purchased);
+      expect(store.isEntitled, isTrue);
+      expect(store.lastError, isNull);
+      expect(EntitlementToken.current, _jwsA);
+    });
+
+    test('the newest read finishes first, or the superseded read fails: still purchased', () async {
+      final iap = _Iap();
+      final store = _store(iap);
+      await store.init();
+      final (result, purchaseRead, resumeRead, resume) = await overlap(store, iap);
+      resumeRead.complete([_msg(StoreConfig.productId, _jwsA)]);
+      await resume;
+      purchaseRead.completeError(StateError('stale read failed')); // ignored: superseded
+      expect(await result, PurchaseResult.purchased);
+      expect(store.isEntitled, isTrue);
     });
   });
 

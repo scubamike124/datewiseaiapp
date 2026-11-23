@@ -317,11 +317,34 @@ class AppStoreService extends StoreService {
     notifyListeners();
   }
 
+  /// The newest read, which superseded callers wait for (see [_refreshEntitlement]).
+  Future<void>? _latestEntitlementRead;
+
+  /// Reads the entitlement. If a newer read starts while this one runs, this
+  /// one's result is discarded and the caller waits for the newest read
+  /// instead of returning early, so it always sees the newest state: a
+  /// purchase whose re-read overlaps a resume refresh is not reported as
+  /// failed. An error from a superseded read is ignored; the newest read's
+  /// error is what the caller gets.
   Future<void> _refreshEntitlement() async {
-    final gen = ++_entitlementGen;
+    var gen = ++_entitlementGen;
+    var read = _latestEntitlementRead = _readEntitlement(gen);
+    while (true) {
+      try {
+        await read;
+      } catch (_) {
+        if (gen == _entitlementGen) rethrow;
+      }
+      if (gen == _entitlementGen) return;
+      gen = _entitlementGen;
+      read = _latestEntitlementRead!;
+    }
+  }
+
+  Future<void> _readEntitlement(int gen) async {
     if (_isIOS) {
       final current = await SK2Transaction.currentEntitlements();
-      if (gen != _entitlementGen) return; // a newer read started: its result wins
+      if (gen != _entitlementGen) return; // a newer read started: its result wins (callers wait for it)
       // Any other product id (for example an IAP created before v2) never
       // unlocks chat; stray transactions are finished in [_onPurchases].
       final mine = current.where((t) => t.productId == StoreConfig.productId).toList();

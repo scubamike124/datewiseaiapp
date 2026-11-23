@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import worker, { LEGACY_UPDATE_NOTICE, legacyLanguage } from './worker.js';
 import { ASSN_EFFECTS, _resetFailOpenForTests, _setTrustedRootsForTests, guardConfig } from './cost_guard.js';
 import { fakeAi, fakeDoNamespace, heldStream, makePki, txPayload } from './test/helpers.mjs';
+import { coachSystemPrompt } from './coach_prompts.js';
 
 const pki = await makePki();
 _setTrustedRootsForTests([pki.rootSha256]);
@@ -480,7 +481,7 @@ function fakeLimiter(limit, { fail = false } = {}) {
   };
 }
 const FAIL_OPEN = { FAIL_OPEN_PER_SUBSCRIBER: '3', FAIL_OPEN_PER_ISOLATE: '10' };
-const downEnv = (vars = {}, limiter = fakeLimiter(1000)) => ({ ...makeEnv({ ...FAIL_OPEN, ...vars }, { ns: fakeDoNamespace({ fail: true }) }), RATE_LIMITER: limiter });
+const downEnv = (vars = {}, limiter = fakeLimiter(1000)) => ({ ...makeEnv({ ...FAIL_OPEN, ...vars }, { ns: fakeDoNamespace({ fail: true }) }), FAILOPEN_LIMITER: limiter });
 
 test('fail-open is off by default: a throwing Durable Object means 503 GUARD_UNAVAILABLE, no model call', async () => {
   _resetFailOpenForTests();
@@ -489,19 +490,19 @@ test('fail-open is off by default: a throwing Durable Object means 503 GUARD_UNA
   const toml = readFileSync(new URL('./wrangler.toml', import.meta.url), 'utf8');
   assert.match(toml, /^FAIL_OPEN_PER_SUBSCRIBER = "0"$/m);
   assert.match(toml, /^FAIL_OPEN_PER_ISOLATE = "0"$/m);
-  const env = { ...makeEnv({}, { ns: fakeDoNamespace({ fail: true }) }), RATE_LIMITER: fakeLimiter(1000) };
+  const env = { ...makeEnv({}, { ns: fakeDoNamespace({ fail: true }) }), FAILOPEN_LIMITER: fakeLimiter(1000) };
   const r = await send(env, { jws: await sign({ originalTransactionId: otid() }) });
   assert.equal(r.res.status, 503);
   assert.equal(r.code(), 'GUARD_UNAVAILABLE');
   assert.equal(env.AI.calls.length, 0);
   // Only one of the two set: still off.
-  const half = { ...makeEnv({ FAIL_OPEN_PER_SUBSCRIBER: '3' }, { ns: fakeDoNamespace({ fail: true }) }), RATE_LIMITER: fakeLimiter(1000) };
+  const half = { ...makeEnv({ FAIL_OPEN_PER_SUBSCRIBER: '3' }, { ns: fakeDoNamespace({ fail: true }) }), FAILOPEN_LIMITER: fakeLimiter(1000) };
   assert.equal((await send(half, { jws: await sign({ originalTransactionId: otid() }) })).code(), 'GUARD_UNAVAILABLE');
 });
 
 test('missing USAGE_GUARD binding: always 503 GUARD_UNAVAILABLE, even with fail-open configured', async () => {
   _resetFailOpenForTests();
-  const env = { AI: fakeAi(), ...FAIL_OPEN, RATE_LIMITER: fakeLimiter(1000) };
+  const env = { AI: fakeAi(), ...FAIL_OPEN, FAILOPEN_LIMITER: fakeLimiter(1000) };
   const r = await send(env, { jws: await sign({ originalTransactionId: otid() }) });
   assert.equal(r.res.status, 503);
   assert.equal(r.code(), 'GUARD_UNAVAILABLE');
@@ -519,7 +520,13 @@ test('opt-in fail-open (DO throwing): per-subscriber and per-isolate caps, legac
     assert.equal(r.res.headers.get('X-DateWise-Degraded'), '1');
   }
   // Legacy caps on every fail-open request: 500 out, about 3,000 tokens in.
+  // The degraded re-fit drops old turns only: the coach system prompt stays messages[0], intact.
+  const coachSystem = coachSystemPrompt('ava', undefined);
   for (const call of env.AI.calls) {
+    assert.equal(call.input.messages[0].role, 'system');
+    assert.equal(call.input.messages[0].content, coachSystem);
+    assert.equal(call.input.messages.filter((m) => m.role === 'system').length, 1);
+    assert.ok(call.input.messages.length < longHistory.length + 1, 'old turns were dropped by the re-fit');
     assert.equal(call.input.max_tokens, 500);
     const inBytes = call.input.messages.reduce((n, m) => n + Buffer.byteLength(m.content), 0);
     assert.ok(inBytes / 3 <= 3000, `~${Math.round(inBytes / 3)} tokens`);
@@ -534,7 +541,7 @@ test('opt-in fail-open (DO throwing): per-subscriber and per-isolate caps, legac
   assert.equal(env.AI.calls.length, 5);
 });
 
-test('opt-in fail-open: the cross-isolate RATE_LIMITER bound, keyed failopen:<sub> and failopen:all; no or failing limiter = closed', async () => {
+test('opt-in fail-open: the cross-isolate FAILOPEN_LIMITER bound, keyed failopen:<sub> and failopen:all; no FAILOPEN_LIMITER (even with RATE_LIMITER) or a failing one = closed', async () => {
   _resetFailOpenForTests();
   const limiter = fakeLimiter(2);
   const env = downEnv({}, limiter);
@@ -553,10 +560,19 @@ test('opt-in fail-open: the cross-isolate RATE_LIMITER bound, keyed failopen:<su
   const c = await sign({ originalTransactionId: otid() });
   assert.equal((await send(perSub, { jws: c })).res.status, 200);
   assert.equal((await send(perSub, { jws: c })).code(), 'GUARD_UNAVAILABLE');
-  // A dedicated FAILOPEN_LIMITER binding is preferred over RATE_LIMITER.
+  // RATE_LIMITER is never a fallback: with only RATE_LIMITER bound, fail-open stays closed
+  // and RATE_LIMITER is never asked about failopen:* keys.
   _resetFailOpenForTests();
-  const dedicated = { ...downEnv(), FAILOPEN_LIMITER: fakeLimiter(0) };
+  const rateOnly = fakeLimiter(1000);
+  const dedicated = { ...makeEnv(FAIL_OPEN, { ns: fakeDoNamespace({ fail: true }) }), RATE_LIMITER: rateOnly };
   assert.equal((await send(dedicated, { jws: await sign({ originalTransactionId: otid() }) })).code(), 'GUARD_UNAVAILABLE');
+  assert.equal([...rateOnly.counts.keys()].filter((k) => k.startsWith('failopen:')).length, 0);
+  // With FAILOPEN_LIMITER bound, it is the one consulted (RATE_LIMITER is not).
+  _resetFailOpenForTests();
+  const both = { ...downEnv(), RATE_LIMITER: fakeLimiter(1000) };
+  assert.equal((await send(both, { jws: await sign({ originalTransactionId: otid() }) })).res.status, 200);
+  assert.ok(both.FAILOPEN_LIMITER.counts.has('failopen:all'));
+  assert.equal([...both.RATE_LIMITER.counts.keys()].filter((k) => k.startsWith('failopen:')).length, 0);
   // No limiter binding, or a failing one: fail closed.
   _resetFailOpenForTests();
   const noLimiter = makeEnv(FAIL_OPEN, { ns: fakeDoNamespace({ fail: true }) });
@@ -597,6 +613,37 @@ test('opt-in fail-open: window rollover (new hour) and the per-outage time bound
   assert.equal((await send(env, { jws: late })).res.status, 200);
 });
 
+test('opt-in fail-open: a single successful DO call does not end the outage; only the quiet period does', async (t) => {
+  _resetFailOpenForTests();
+  let now = Date.UTC(2026, 10, 23, 10, 0, 0);
+  t.mock.method(Date, 'now', () => now);
+  const ns = fakeDoNamespace();
+  const realGet = ns.get.bind(ns);
+  let down = true;
+  ns.get = (id) => (down ? { fetch: () => Promise.reject(new Error('down')) } : realGet(id));
+  const env = { ...makeEnv({ FAIL_OPEN_PER_SUBSCRIBER: '3', FAIL_OPEN_PER_ISOLATE: '10', FAIL_OPEN_MAX_MINUTES: '15' }, { ns }), FAILOPEN_LIMITER: fakeLimiter(1000) };
+  const tok = () => pki.sign(txPayload({ originalTransactionId: otid(), signedDate: now - 60_000, expiresDate: now + 30 * DAY }));
+  assert.equal((await send(env, { jws: await tok() })).res.status, 200); // outage starts 10:00, fail-open
+  now = Date.UTC(2026, 10, 23, 10, 8, 0);
+  assert.equal((await send(env, { jws: await tok() })).res.status, 200); // still failing, inside 15 min
+  // The DO flaps back for one call at 10:09: a normal, non-degraded answer.
+  now = Date.UTC(2026, 10, 23, 10, 9, 0);
+  down = false;
+  const ok = await send(env, { jws: await tok() });
+  assert.equal(ok.res.status, 200);
+  assert.equal(ok.res.headers.get('X-DateWise-Degraded'), null);
+  // Down again at 10:16, 8 minutes after the last failure: the same outage, past the
+  // 15-minute bound, so closed. (A success-resets-the-outage rule would reopen it.)
+  down = true;
+  now = Date.UTC(2026, 10, 23, 10, 16, 0);
+  assert.equal((await send(env, { jws: await tok() })).code(), 'GUARD_UNAVAILABLE');
+  // Only after 10 quiet minutes (no DO call throwing) does a new outage start.
+  now = Date.UTC(2026, 10, 23, 10, 25, 0); // 9 min after 10:16: still the same outage
+  assert.equal((await send(env, { jws: await tok() })).code(), 'GUARD_UNAVAILABLE');
+  now = Date.UTC(2026, 10, 23, 10, 36, 0); // 11 quiet minutes after 10:25: a new outage
+  assert.equal((await send(env, { jws: await tok() })).res.status, 200);
+});
+
 test('opt-in fail-open: anonymous (v1), Sandbox, expired, revoked and forged requests still fail closed', async () => {
   _resetFailOpenForTests();
   const env = downEnv();
@@ -613,7 +660,7 @@ test('budget object down after the subscriber was counted: the message is given 
   const ns = fakeDoNamespace();
   const realGet = ns.get.bind(ns);
   ns.get = (id) => (id === 'global' ? { fetch: () => Promise.reject(new Error('down')) } : realGet(id));
-  const env = { ...makeEnv({ FAIL_OPEN_PER_SUBSCRIBER: '1', FAIL_OPEN_PER_ISOLATE: '10' }, { ns }), RATE_LIMITER: fakeLimiter(1000) };
+  const env = { ...makeEnv({ FAIL_OPEN_PER_SUBSCRIBER: '1', FAIL_OPEN_PER_ISOLATE: '10' }, { ns }), FAILOPEN_LIMITER: fakeLimiter(1000) };
   const jws = await sign({ originalTransactionId: otid() });
   assert.equal((await send(env, { jws })).res.status, 200);
   assert.equal((await send(env, { jws })).code(), 'GUARD_UNAVAILABLE');
