@@ -246,10 +246,14 @@ class AvatarPainter extends CustomPainter {
   /// mouth position, [focus] places it as before.
   static Rect sourceRect(Size image, Size box, Offset? mouth, Alignment focus) {
     final fitted = applyBoxFit(BoxFit.cover, image, box).source;
-    if (mouth == null || box.isEmpty) return focus.inscribe(fitted, Offset.zero & image);
+    if (mouth == null || box.isEmpty || mouth.dy <= 0 || mouth.dy >= image.height) {
+      return focus.inscribe(fitted, Offset.zero & image);
+    }
     var h = fitted.height;
     h = math.min(h, (image.height - mouth.dy) / (1 - mouthAt));
     h = math.min(h, mouth.dy / mouthAt);
+    // A mouth at the very edge (a bad manifest) would leave no crop to draw.
+    if (!(h >= 1)) return focus.inscribe(fitted, Offset.zero & image);
     final w = h * box.width / box.height;
     final top = (mouth.dy - mouthAt * h).clamp(0.0, math.max(0.0, image.height - h)).toDouble();
     final left = (mouth.dx - w / 2).clamp(0.0, math.max(0.0, image.width - w)).toDouble();

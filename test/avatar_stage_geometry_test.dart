@@ -105,4 +105,15 @@ void main() {
       expect(t.takeException(), isNull);
     });
   }
+
+  test('a mouth at or beyond the portrait edge falls back to the focus crop (no empty rect)', () {
+    const image = Size(1000, 1200);
+    const box = Size(390, 195);
+    for (final dy in [0.0, -5.0, 1200.0, 1300.0, 0.2, 1199.9]) {
+      final r = AvatarPainter.sourceRect(image, box, Offset(500, dy), Alignment.center);
+      expect(r.width, greaterThan(1), reason: 'dy=$dy');
+      expect(r.height, greaterThan(1), reason: 'dy=$dy');
+      expect(r.left >= 0 && r.top >= 0 && r.right <= image.width + 1e-6 && r.bottom <= image.height + 1e-6, isTrue, reason: 'dy=$dy');
+    }
+  });
 }
