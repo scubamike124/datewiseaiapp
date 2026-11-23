@@ -25,9 +25,17 @@ class CoachCard extends StatelessWidget {
   final bool selected;
   final bool previewing;
 
+  /// Where the 120 pt strip (stacked cards, large text) and the low
+  /// landscape photo sit on the portrait: on the eyes and the smile.
+  static const stripAlignment = Alignment(0, -0.1);
+  static const landscapeAlignment = Alignment(0, -0.4);
+
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
+    final compact = MediaQuery.textScalerOf(context).scale(1) > CoachGrid.stackAboveScale;
+    final size = MediaQuery.sizeOf(context);
+    final landscape = size.width > size.height;
     return Container(
       key: ValueKey('coach-card-${coach.id}'),
       decoration: BoxDecoration(
@@ -40,20 +48,30 @@ class CoachCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _PhotoBox(
-            // The photo shrinks a little at large text sizes so the name,
-            // description and button keep their room. Otherwise its height
-            // follows the card's width (portrait on phones, square on iPad),
-            // so the head, from the top of the hair to the smile, sits above
-            // the fade whatever the card's width.
-            compact: MediaQuery.textScalerOf(context).scale(1) > 1.5,
-            heightPerWidth: isTabletLayout(context) ? 1.0 : 1.2,
+            key: ValueKey('coach-photo-${coach.id}'),
+            // When the cards stack (text scale above CoachGrid.stackAboveScale)
+            // each card is full width, so a portrait-shaped photo would fill
+            // the screen (344x413 pt on an iPhone SE): the photo becomes a
+            // 120 pt strip on the face instead. Otherwise its height follows
+            // the card's width: portrait on phones, square on iPad, and
+            // shorter in phone landscape, where the screen is low. The head,
+            // from the top of the hair to the smile, sits above the fade.
+            compact: compact,
+            heightPerWidth: isTabletLayout(context) ? 1.0 : (landscape ? 0.8 : 1.2),
             child: Stack(
               fit: StackFit.expand,
               children: [
-                // The card shows the portrait from its top edge: the hair with
-                // the margin above it, then the face; the fade starts below the
-                // smile.
-                CoachImage(coach: coach, semanticLabel: l.coachPortrait(coach.name), alignment: Alignment.topCenter),
+                // Portrait: the card shows the photo from its top edge (the
+                // hair with the margin above it, then the face; the fade starts
+                // below the smile). The strip and the landscape photo are lower
+                // than the head, so they center on the face.
+                CoachImage(
+                  coach: coach,
+                  semanticLabel: l.coachPortrait(coach.name),
+                  alignment: compact
+                      ? CoachCard.stripAlignment
+                      : (landscape && !isTabletLayout(context) ? CoachCard.landscapeAlignment : Alignment.topCenter),
+                ),
                 const FadeToBackground(stops: [0.72, 1], color: AppColors.cardDeep),
                 Positioned(
                   top: 10,
@@ -199,12 +217,12 @@ class CoachGrid extends StatelessWidget {
 }
 
 
-/// The card's photo area: [compact] keeps the former fixed 120 px (large
-/// text); otherwise the height is [heightPerWidth] times the card's width.
+/// The card's photo area: [compact] is a fixed 120 pt strip (stacked cards,
+/// large text); otherwise the height is [heightPerWidth] times the card's width.
 /// AspectRatio (not LayoutBuilder) so the stacked cards' IntrinsicHeight
 /// still works.
 class _PhotoBox extends StatelessWidget {
-  const _PhotoBox({required this.compact, required this.heightPerWidth, required this.child});
+  const _PhotoBox({super.key, required this.compact, required this.heightPerWidth, required this.child});
   final bool compact;
   final double heightPerWidth;
   final Widget child;

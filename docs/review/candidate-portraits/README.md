@@ -29,15 +29,15 @@ pixels; the only change to the face itself is the relaxed mouth.
 ## Unmet targets, stated plainly
 
 - **Face similarity between the pairs stays over the 0.5 goal:** Ava↔Sofía
-  is 0.585 (interim 0.68) and Ethan↔Diego 0.64 (interim 0.645).
+  is 0.59 (interim 0.68) and Ethan↔Diego 0.64 (interim 0.645).
   The faces were not changed, and the face matcher ignores hair, clothes
   and backdrop, so the pairs differ only by styling.
 - **Sharpness:** each face comes from a reference about 100 px wide, enlarged
   about 10x. Faces look soft at full size, and the lips are not crisp.
 - **Ava's head is turned about 13°** (goal ≤ 10°). It was left as is, because
   correcting it would re-render her face.
-- **Identity vs reference** (hero / avatar; gate ≥ 0.45): Ava 0.73 / 0.77,
-  Ethan 0.89 / 0.91, Sofía 0.68 / 0.73, Diego 0.83 / 0.89 (interim 0.87–0.91). Each is closest to its own
+- **Identity vs reference** (hero / avatar; gate ≥ 0.45): Ava 0.74 / 0.77,
+  Ethan 0.89 / 0.91, Sofía 0.69 / 0.73, Diego 0.84 / 0.87 (interim 0.87–0.91). Each is closest to its own
   coach. The reference smiles with teeth; the candidates do not.
 - **Artefacts:** Diego's dark jaw outline from the source is softened, not
   gone. The generated clothing looks slightly painterly up close (Ethan's
@@ -53,6 +53,7 @@ pixels; the only change to the face itself is the relaxed mouth.
   | Candidate (round 2) | 0.64/0.60 | 0.49/0.55 | 0.51/0.70 | 0.66/0.59 | 0.59 |
   | Candidate (round 3) | 0.57/0.52 | 0.52/0.61 | 0.41/0.47 | 0.64/0.54 | 0.53 |
   | Candidate (round 4) | 0.55/0.48 | 0.52/0.60 | 0.41/0.47 | 0.66/0.57 | 0.53 |
+  | Candidate (round 5) | 0.54/0.48 | 0.48/0.59 | 0.41/0.47 | 0.66/0.58 | 0.53 |
 
   Ethan stays below his interim figure; the interim showed teeth at rest.
 - **Demos** were rendered on the native-audio path only (AVATAR_DEMO_MODE=audio,
@@ -177,3 +178,17 @@ cost of a weaker open/close signal on O.
 | Openness correlation | Unchanged at a mean of 0.53 (table above) |
 | Sofía: blue speck above the crown | **FIXED**. Her bottom-left light strip is left as is (**not fixed**). |
 | `portrait_intake.py` | **FIXED**: `import os` follows the docstring, default output is outside the repo (`~/dw-portrait-intake`), and it exits 1 on any rejection |
+
+## Fix round 5
+
+| Item | Status |
+|--|--|
+| Teeth: grey-green shaded teeth, dark gaps, grey/chalk tone | **FIXED** (`teeth_tone` rewritten). Teeth are found inside the mouth opening only (changed, low-chroma pixels inside an ellipse around the lips, with lip above and below), with a cut-off relative to the brightest teeth in the frame, so shaded teeth are included. One uniform lift per frame moves them to one shared ivory; gaps between teeth are closed at a scale set by the mouth width. Measured on `a`, `e`, `a2`, `e2`: L* 71.7–73.2, b* 10.9–12.0, a* 2.1–2.5 for all four coaches (round 4: men b* about 9.5, Sofía near chalk). Ethan's O, O2 and U openings are smaller and rounder (lip 0.08/0.07/0.05, purse 24/18/14), so no half-hidden grey teeth show; all coaches' `o` is now lip 0.10, purse 21. Ethan's `a` is lip 0.40. **PARTIAL** on Ethan's slightly uneven upper incisor in `a` (renderer geometry; smaller, not gone) and a thin dark line between the rows on Diego's `a`. |
+| Ava: smile pumping on rounded shapes | **FIXED**: rounded shapes keep a smile offset of 0.15 (open shapes 0.3), with purse +6 and a smaller opening (O 0.09, O2 0.08, U 0.06), so her teeth stay hidden. |
+| Ava's right side | **FIXED**: the pale crescent in the hair is now backdrop seen through the hair, the light lines in the teal backdrop are gone, and both jaw-edge specks are replaced by hair (the jaw line itself is not moved). No generation. |
+| Diego: tick and dot in the soul patch, pale chin stripe | Tick and dot **FIXED** (tick contrast −29.7 → −7.5 L). Chin stripe **PARTIAL**: its lightness is matched to the stubble on both sides and it has the stubble texture from beside it; a faint seam is still visible at full size. Jaw geometry unchanged. The soul patch is no longer lifted to tooth colour on O2, U, U2 (a round-5 regression caught before push). |
+| Sofía: bottom-left strip, blue-grey wisp at the crown | **FIXED** (wisp replaced by the backdrop above it; strip darkened to the hair beside it). |
+| Coach cards | **FIXED**: the photo becomes the 120 pt strip whenever the cards stack (text scale above `CoachGrid.stackAboveScale`, 1.3), centred on the face; phone landscape uses 0.8 × the card width. New tests: iPad square photos, landscape 0.8, the strip at text scale 1.4 and 2.0, and the last card's button above the tab bar after scrolling at 375×667 (text 1.0 and 2.0). `coverDecodeWidth` is unchanged (optional item not done). |
+| Screenshots | **FIXED**: the Coaches shots now scroll to the first position where no row or button is cut (the same helper as the privacy shot). In ES 6.5" and 6.9" every "Chatear con …" button is above the tab bar; all 30 screenshots were retaken with the round-5 portraits. |
+| Openness r vs audio | Mean unchanged at 0.53 (table above). Ethan EN fell from 0.52 to 0.48: his O and U openings are smaller to hide the grey teeth. |
+| `portrait_intake.py --apply` | **FIXED**: files are written only when all 8 pass; otherwise nothing is written and it exits 1. |

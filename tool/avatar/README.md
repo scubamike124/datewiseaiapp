@@ -67,7 +67,20 @@ Mouth-shape settings (`VISEMES` in `gen_frames.py`) assume a master with
 closed, relaxed lips (the candidate final portraits). The earlier values
 were tuned against a broad toothy smile (negative smile, strong purse) and
 turned O and U into a pout on a neutral mouth; if a master with a smile is
-ever used again, re-check the review sheets.
+ever used again, re-check the review sheets. Per-coach offsets
+(`COACH_MOUTH`, `COACH_ROUNDED`, `COACH_A`, `COACH_SHAPES`) keep Ava's soft
+smile through speech (0.3 on open shapes, 0.15 on rounded ones, with extra
+purse so her teeth stay hidden) and give Ethan smaller, rounder O and U
+openings.
+
+Teeth (`teeth_tone`): the renderer's teeth come out grey, grey-green or
+cyan, with dark gaps. Only the mouth opening is edited: pixels the renderer
+changed, low in chroma, inside an ellipse around the portrait's lips and
+with lip both above and below them (so stubble and the chin are never
+selected). Teeth use a cut-off relative to the brightest teeth in the frame
+(shaded teeth count), get one uniform lift toward the shared ivory (L* 74,
+a* 1.5, b* 11.5; small O/U openings stay dimmer and are smoothed), and the
+gaps between them are closed at a scale set by the mouth width.
 
 Large portraits: YuNet misses faces of roughly 700 px and up, so
 `lp_engine.py` and `verify.py` detect on a copy at most 1280 px on the long

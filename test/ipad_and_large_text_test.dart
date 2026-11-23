@@ -17,6 +17,7 @@ import 'package:datewise_ai/app_links.dart';
 import 'package:datewise_ai/screens/chat_screen.dart';
 import 'package:datewise_ai/screens/shell.dart';
 import 'package:datewise_ai/screens/welcome_screen.dart';
+import 'package:datewise_ai/widgets/coach_card.dart';
 import 'package:datewise_ai/widgets/dw.dart';
 
 import 'helpers.dart';
@@ -180,6 +181,57 @@ void main() {
       expect(t.getSize(photo).width, greaterThan(t.getSize(card).width - 4), reason: 'full card width');
       expect(t.getSize(photo).height, greaterThan(150));
     });
+
+    testWidgets('iPad: square card photos', (t) async {
+      await pumpApp(t, size: ipad13, prefs: onboardedPrefs(), tab: AppTab.coaches);
+      await t.pumpAndSettle();
+      for (final id in ['ava', 'ethan', 'sofia', 'diego']) {
+        final photo = t.getSize(find.byKey(ValueKey('coach-photo-$id')));
+        expect(photo.height, closeTo(photo.width, 0.5), reason: id);
+        expect(photo.width, greaterThan(300));
+      }
+    });
+
+    testWidgets('phone landscape: lower card photos (0.8 x the card width)', (t) async {
+      await pumpApp(t, size: const Size(844, 390), prefs: onboardedPrefs(), tab: AppTab.coaches);
+      await t.pumpAndSettle();
+      final photo = t.getSize(find.byKey(const ValueKey('coach-photo-ava')));
+      expect(photo.height, closeTo(photo.width * 0.8, 0.5));
+      expect(t.takeException(), isNull);
+    });
+
+    for (final scale in const [1.4, 2.0]) {
+      testWidgets('stacked cards at text scale $scale: a 120 pt photo strip, not a full-width portrait', (t) async {
+        await pumpApp(t, size: const Size(375, 667), scale: scale, prefs: onboardedPrefs(), tab: AppTab.coaches);
+        await t.pumpAndSettle();
+        expect(scale, greaterThan(CoachGrid.stackAboveScale));
+        for (final id in ['ava', 'ethan', 'sofia', 'diego']) {
+          final photo = find.byKey(ValueKey('coach-photo-$id'));
+          await t.scrollUntilVisible(photo, 200);
+          expect(t.getSize(photo).height, 120, reason: id);
+          final img = t.widget<Image>(find.descendant(of: photo, matching: find.byType(Image)));
+          expect(img.alignment, CoachCard.stripAlignment, reason: 'the strip sits on the face, not the hair');
+        }
+        expect(t.takeException(), isNull);
+      });
+    }
+
+    for (final scale in const [1.0, 2.0]) {
+      testWidgets('375x667 at $scale: the last card\'s button clears the tab bar after scrolling', (t) async {
+        await pumpApp(t, size: const Size(375, 667), scale: scale, prefs: onboardedPrefs(), tab: AppTab.coaches);
+        await t.pumpAndSettle();
+        final buttons = find.byWidgetPredicate((w) => w.key is ValueKey && '${(w.key as ValueKey).value}'.startsWith('chat-'));
+        expect(buttons, findsNWidgets(4));
+        await t.drag(find.byType(Scrollable).first, const Offset(0, -6000));
+        await t.pumpAndSettle();
+        final rects = [for (final e in buttons.evaluate()) t.getRect(find.byWidget(e.widget))];
+        final last = rects.reduce((a, b) => a.bottom > b.bottom ? a : b);
+        final tabBar = t.getRect(find.byType(DwTabBar));
+        expect(last.bottom, lessThanOrEqualTo(tabBar.top), reason: 'whole button above the tab bar');
+        expect(last.top, greaterThan(0));
+        expect(t.takeException(), isNull);
+      });
+    }
 
     testWidgets('phone welcome hero has no side fade', (t) async {
       await pumpScreen(t, const WelcomeScreen(), size: const Size(430, 932));

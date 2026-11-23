@@ -41,7 +41,7 @@ VISEMES = {
     "e2": dict(lip=0.2, grin=3, smile=0.1),
     "i": dict(lip=0.14, grin=6),                    # I (see, si)
     "i2": dict(lip=0.07, grin=4),
-    "o": dict(lip=0.14, smile=-0.25, purse=18),     # O (go, oso): rounded, small opening; teeth mostly hidden (review sheets)
+    "o": dict(lip=0.1, smile=-0.25, purse=21),      # O (go, oso): rounded, small dark opening; teeth hidden (round-5 sheets)
     "o2": dict(lip=0.1, smile=-0.2, purse=15),
     "u": dict(lip=0.08, smile=-0.1, purse=11),      # U / W (you, luna)
     "u2": dict(lip=0.04, smile=-0.1, purse=12),
@@ -55,13 +55,20 @@ VISEMES = {
 # the rest pose (Ava's master smiles softly; without this her visemes lost the
 # smile, and the mouth "pumped" between smiling and neutral while she spoke).
 COACH_MOUTH = {"ava": dict(smile=0.3)}
-# Rounded shapes do not take the smile offset (Ava's smile pulled the lips
-# back and showed her upper incisors on O and U); they get extra purse
-# instead. Per-coach `a` opening: a little smaller where the full opening
-# showed a lopsided mouth or dark gaps between the teeth.
+# Rounded shapes take a smaller part of Ava's smile (0.15 instead of 0.3, so
+# her mouth does not switch between smiling and neutral) and extra purse, so
+# her upper incisors stay hidden. Per-coach `a` opening: a little smaller
+# where the full opening showed a lopsided mouth or dark gaps between the
+# teeth. COACH_SHAPES sets the opening of single shapes per coach: Ethan's
+# O and U showed half-hidden grey teeth; a smaller, more rounded opening
+# hides them.
 ROUNDED = {"o", "o2", "u", "u2", "sh", "fv"}
-COACH_ROUNDED = {"ava": dict(purse=3.0)}
-COACH_A = {"ava": 0.44, "ethan": 0.44, "diego": 0.44}
+COACH_ROUNDED = {"ava": dict(smile=0.15, purse=6.0)}
+COACH_SHAPES = {
+    "ava": {"o": dict(lip=0.09), "o2": dict(lip=0.08), "u": dict(lip=0.06)},
+    "ethan": {"o": dict(lip=0.08, purse=24), "o2": dict(lip=0.07, purse=18), "u": dict(lip=0.05, purse=14)},
+}
+COACH_A = {"ava": 0.44, "ethan": 0.4, "diego": 0.44}
 # Per-coach eye-frame overrides. Diego's full glance moved the iris far
 # enough that the gate's iris sample caught the lid (chroma 5.1 > 5); a
 # slightly smaller glance reads the same and keeps the gate unchanged.
@@ -191,35 +198,121 @@ def match_detail(gen, orig, mask):
     return np.clip(out, 0, 255).astype(np.uint8)
 
 
-def teeth_tone(gen, orig, mask):
-    """Teeth come out of the renderer grey, cyan or dark. Inside the mouth
-    mask, pixels that are teeth in the frame (light, low chroma) but not in
-    the portrait are moved toward natural ivory: L* toward 76, a* 1.5,
-    b* 9 (the same target for every coach, so no chalk-white dentures).
-    Small dark gaps between teeth (inside the teeth area, darker than the
-    teeth around them) are filled toward the local tooth colour. Lips, skin
-    and everything outside the teeth are untouched. L* is on the 0-100
-    scale throughout."""
+IVORY = (74.0, 1.5, 11.5)   # L* (0-100), a*, b*
+
+
+def between_lips(a, mask, reach):
+    """Pixels with lip (clearly redder than the skin around the mouth)
+    within `reach` px both above and below them in the same column: the
+    mouth opening, never the stubble or chin under the lower lip."""
+    ring = (mask > 0.02) & (mask < 0.3)
+    skin_a = float(np.median(a[ring])) if ring.any() else 15.0
+    lip = ((a > skin_a + 5) & (mask > 0.1)).astype(np.uint8)
+    lip = cv2.dilate(lip, np.ones((1, 3), np.uint8)).astype(np.int32)
+    c = np.vstack([np.zeros((1, lip.shape[1]), np.int32), np.cumsum(lip, axis=0)])
+    h = lip.shape[0]
+    y = np.arange(h)
+    lo = np.clip(y - reach, 0, h)[:, None]
+    hi = np.clip(y + reach + 1, 0, h)[:, None]
+    cols = np.arange(lip.shape[1])[None, :]
+    above = c[y[:, None], cols] - c[lo, cols]
+    below = c[hi, cols] - c[np.minimum(y + 1, h)[:, None], cols]
+    return (above > 0) & (below > 0)
+
+
+def mouth_interior(L, a, b, L0, mask, lips):
+    """Teeth, tongue and cavity: pixels inside the mouth mask that the
+    renderer changed and that are not lip or skin coloured (low chroma, low
+    a*). Small isolated pieces (beard, skin texture) are dropped: only the
+    components around the largest one, inside its box, are kept."""
+    cand = (mask > 0.5) & (a < 12) & (np.hypot(a, b) < 26) & (np.abs(L - L0) > 5)
+    if lips is not None:
+        # Only around the portrait's lips: an ellipse as wide as the mouth,
+        # reaching further down than up (the jaw opens downward).
+        mw = float(np.ptp(lips[:, 0]))
+        cx, cy = lips[:, 0].mean(), lips[:, 1].mean()
+        yy, xx = np.mgrid[:L.shape[0], :L.shape[1]].astype(np.float32)
+        dy = (yy - cy) / np.where(yy > cy, 0.42 * mw, 0.25 * mw)
+        cand &= ((xx - cx) / (0.5 * mw)) ** 2 + dy ** 2 <= 1.0
+        cand &= between_lips(a, mask, int(round(0.3 * mw)))
+    c8 = cv2.dilate(cand.astype(np.uint8), np.ones((3, 3), np.uint8))
+    n, lab, st, _ = cv2.connectedComponentsWithStats(c8, connectivity=8)
+    if n <= 1:
+        return cand
+    areas = st[1:, cv2.CC_STAT_AREA]
+    big = 1 + int(np.argmax(areas))
+    x, y, w, h = st[big, :4]
+    keep = np.zeros_like(cand)
+    for i in range(1, n):
+        if st[i, cv2.CC_STAT_AREA] < max(12, 0.1 * areas.max()):
+            continue
+        cx, cy = st[i, 0] + st[i, 2] / 2, st[i, 1] + st[i, 3] / 2
+        if x - 0.05 * w <= cx <= x + 1.05 * w and y <= cy <= y + h:
+            keep |= lab == i
+    return cand & keep
+
+
+def teeth_tone(gen, orig, mask, lips=None):
+    """Teeth come out of the renderer grey, grey-green, cyan or dark, with
+    dark gaps between them. Inside the mouth opening (mouth_interior), the
+    teeth are the lighter pixels (cut-off relative to the brightest teeth in
+    the frame, so shaded teeth are included) and are moved to the same
+    natural ivory for every coach (IVORY: L* 74, a* 1.5, b* 11.5) by one
+    uniform lift per frame, which keeps the shading across the row. Small
+    rounded openings (O, U) stay dimmer and are smoothed. Gaps between teeth
+    are closed at a scale set by the mouth width and filled toward the local
+    tooth colour. The remaining cavity is kept dark but warm. Lips, skin and
+    beard are untouched. L* is on the 0-100 scale throughout."""
     lab = cv2.cvtColor(gen, cv2.COLOR_RGB2LAB).astype(np.float32)
-    lab0 = cv2.cvtColor(orig, cv2.COLOR_RGB2LAB).astype(np.float32)
     L, a, b = lab[..., 0] * 100 / 255, lab[..., 1] - 128, lab[..., 2] - 128
-    L0 = lab0[..., 0] * 100 / 255
-    teeth = (L > 50) & (np.hypot(a, b) < 26) & (a < 12) & (mask > 0.3) & (np.abs(L - L0) > 5)
+    L0 = cv2.cvtColor(orig, cv2.COLOR_RGB2LAB)[..., 0].astype(np.float32) * 100 / 255
+    inner = mouth_interior(L, a, b, L0, mask, lips)
+    if inner.sum() < 12:
+                return gen
+    ys, xs = np.nonzero(inner)
+    mw = xs.max() - xs.min() + 1
+    hi = float(np.percentile(L[inner], 95))
+    cut = max(24.0, 0.45 * hi)
+    chroma = np.hypot(a, b)
+    teeth = inner & (L > cut) & (chroma < 30) & (a < 14)
+    # Gaps between neighbouring teeth: close the tooth mask horizontally at a
+    # scale set by the mouth width, then a little vertically (jagged edges).
+    kx = max(3, int(round(mw / 28)) | 1)
     t8 = teeth.astype(np.uint8)
-    # gaps: closed teeth area minus teeth, dark, small
-    area = cv2.morphologyEx(t8, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
-    gaps = (area > 0) & ~teeth & (L < 45) & (mask > 0.3)
-    w = cv2.GaussianBlur(teeth.astype(np.float32), (0, 0), 1.2) * 0.85
-    L2 = L + w * (76.0 - L) * 0.7
-    a2 = a + w * (1.5 - a)
-    b2 = b + w * (9.0 - b)
+    closed = cv2.morphologyEx(t8, cv2.MORPH_CLOSE, np.ones((1, kx), np.uint8))
+    closed = cv2.morphologyEx(closed, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+    gaps = (closed > 0) & ~teeth & inner
+    tl, ta, tb = IVORY
+    core = cv2.GaussianBlur(teeth.astype(np.float32), (0, 0), 1.2)
+    w = np.clip(core * 1.2, 0, 1)
+    # One uniform lift per frame keeps the shading across the row. A small
+    # rounded opening (O, U) is in the lips' shadow, so its teeth stay dimmer.
+    ih = np.ptp(ys) + 1
+    mouth_w = float(np.ptp(lips[:, 0])) if lips is not None else mw
+    small = ih < 0.12 * mouth_w
+    med = float(np.median(L[teeth])) if teeth.any() else tl
+    lift = np.clip((58.0 if small else tl) - med, 0, 30)
+    L2 = L + w * lift
+    if small and teeth.any():
+        # Renderer noise on half-hidden teeth reads as blotches once lifted.
+        tf = teeth.astype(np.float32)
+        Ls = cv2.GaussianBlur(np.where(teeth, L2, 0).astype(np.float32), (0, 0), 2.5) / (cv2.GaussianBlur(tf, (0, 0), 2.5) + 1e-3)
+        L2 = L2 + w * (Ls - L2) * 0.9
+    a2 = a + w * (ta - a)
+    b2 = b + w * (tb - b)
     if gaps.any():
         tw = cv2.GaussianBlur(teeth.astype(np.float32), (0, 0), 3) + 1e-3
         Lt = cv2.GaussianBlur(np.where(teeth, L2, 0).astype(np.float32), (0, 0), 3) / tw
-        g = cv2.GaussianBlur(gaps.astype(np.float32), (0, 0), 0.8) * 0.7
-        L2 = L2 + g * (Lt * 0.85 - L2)
-        a2 = a2 + g * (1.5 - a2)
-        b2 = b2 + g * (9.0 - b2)
+        g = np.clip(cv2.GaussianBlur(gaps.astype(np.float32), (0, 0), 0.8), 0, 1) * 0.9
+        L2 = L2 + g * (Lt * 0.88 - L2)
+        a2 = a2 + g * (ta - a2)
+        b2 = b2 + g * (tb - b2)
+    # Remaining cavity: neutral-warm dark, never grey-green or cyan.
+    cav = inner & ~teeth & ~gaps
+    if cav.any():
+        c = cv2.GaussianBlur(cav.astype(np.float32), (0, 0), 0.8)
+        a2 = a2 + c * (np.clip(a2, 6, 20) - a2)
+        b2 = b2 + c * (np.clip(b2, 4, 16) - b2)
     lab[..., 0] = np.clip(L2, 0, 100) * 255 / 100
     lab[..., 1] = 128 + a2
     lab[..., 2] = 128 + b2
@@ -289,6 +382,7 @@ def main():
             out = {k: kw.get(k, 0.0) + extra.get(k, 0.0) for k in {**kw, **extra}}
             if n == "a" and coach in COACH_A:
                 out["lip"] = COACH_A[coach]
+            out.update(COACH_SHAPES.get(coach, {}).get(n, {}))
             return out
         jobs = [(n, mouth_kw(n, kw), "mouth") for n, kw in VISEMES.items()] + \
                [(n, COACH_EYES.get(coach, {}).get(n, kw), "eyes") for n, kw in EYES.items()]
@@ -306,7 +400,7 @@ def main():
                 _, full = eng.render(st, **kw)
             full = match_detail(full, rgb, mask)
             if region == "mouth":
-                full = teeth_tone(full, rgb, mask)
+                full = teeth_tone(full, rgb, mask, lips)
             comp = blend(rgb, full, mask)
             comp_bgr = cv2.cvtColor(comp, cv2.COLOR_RGB2BGR)
             res = verify.check_frame(comp_bgr, coach, refs, master, eyes_closed=name.startswith("blink"),

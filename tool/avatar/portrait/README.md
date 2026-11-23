@@ -26,7 +26,8 @@ Environment:
 | 5 | `herofix.py`, `herofix_run.py` | Fix round 2 helpers (lips, liner, patch fills, local SD inpaint, headroom). |
 | 6 | `round3.py`, then `diego_r3.py`, `ava_r3b.py`, `headroom_all.py` and `ava_r3c.py` (steps `ear`, `crown`, `edges`; order in its header) | Fix round 3 local repairs, starting from 9b58790 for Ava and Sofía and from fa7da02 for Ethan and Diego. |
 | 7 | `round4.py ava,ethan,sofia,diego`, then `round4.py none spots` and `round4.py none speck2` | Fix round 4 (no generation): smooth headroom band, Ava's right hair edge back to round-1 pixels plus the jaw specks, Diego's chin and neck back to round 2, Sofía's crown speck. |
-| gate | `portrait_intake.py <dir>` | Intake gate (exit code 1 on any rejection): identity ≥ 0.45 vs `tool/avatar/refs`, closest to own coach, eye tone, roll, sizes. Models come from `$AVATAR_TOOLS/models`. |
+| 8 | `ava_r5.py`, `r5_spots.py sofia`, `r5_spots.py diego`, then `export.py <coach> <png> assets/coaches` | Fix round 5 (no generation): Ava's pale crescent becomes backdrop seen through the hair, light lines in her backdrop and the jaw-edge specks are removed; Sofía's crown wisp and bottom-left strip; Diego's soul-patch tick and dot and the pale chin stripe (lightness and texture only). `export.py` writes the hero (q90) and avatar crops. |
+| gate | `portrait_intake.py <dir> [--apply]` | Intake gate (exit code 1 on any rejection; `--apply` writes files only when all 8 pass): identity ≥ 0.45 vs `tool/avatar/refs`, closest to own coach, eye tone, roll, sizes. Models come from `$AVATAR_TOOLS/models`. |
 | gate | `iris.py <coach> <images>` | Iris colour vs the reference, compared at the same face scale. |
 
 `herofix.py` points `AVATAR_TOOLS` at `$DW_PORTRAIT_WORK/avatar-tools` (the folder

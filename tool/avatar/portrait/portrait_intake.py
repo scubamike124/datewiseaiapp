@@ -2,10 +2,10 @@
 
 Usage: python portrait_intake.py <incoming_dir> [--apply] [--app <flutter_repo_dir>]
   incoming_dir holds {ava,ethan,sofia,diego}-{hero,avatar}.{jpg,jpeg,png}
-  Without --apply it only reports. With --apply, accepted files are written (sRGB JPEG, q=92) to
-  $DW_INTAKE_OUT/<coach>-<slot>.jpg (default ~/dw-portrait-intake, outside the repository), and with
-  --app also to <flutter_repo_dir>/assets/coaches/ (q=90).
-  Exits 1 when any portrait is rejected or missing.
+  Without --apply it only reports. With --apply, and only when all 8 portraits pass, the files are
+  written (sRGB JPEG, q=92) to $DW_INTAKE_OUT/<coach>-<slot>.jpg (default ~/dw-portrait-intake,
+  outside the repository), and with --app also to <flutter_repo_dir>/assets/coaches/ (q=90).
+  If any portrait is rejected or missing, nothing is written (no partial set) and it exits 1.
 
 Checks per file:
   1. Resolution: hero >= 1024 px wide and >= 1400 px tall, portrait orientation; avatar >= 1024 px on the short side.
@@ -130,22 +130,30 @@ def main():
             if not p:
                 results.append({"coach": coach, "slot": slot, "ok": False, "notes": ["missing"]}); continue
             r = check(p, coach, slot, refs)
-            if r["ok"] and apply:
-                os.makedirs(OUT, exist_ok=True)
-                dst = os.path.join(OUT, f"{coach}-{slot}.jpg")
-                cv2.imwrite(dst, cv2.imread(p), [cv2.IMWRITE_JPEG_QUALITY, 92])
-                r["written"] = dst
-                if "--app" in sys.argv:
-                    app = sys.argv[sys.argv.index("--app") + 1]
-                    adst = os.path.join(app, "assets", "coaches", f"{coach}-{slot}.jpg")
-                    os.makedirs(os.path.dirname(adst), exist_ok=True)
-                    cv2.imwrite(adst, cv2.imread(p), [cv2.IMWRITE_JPEG_QUALITY, 90])
-                    r["written_app"] = adst
+            r["path"] = p
             results.append(r)
-    print(json.dumps(results, indent=1, ensure_ascii=False))
     accepted = sum(r['ok'] for r in results)
-    print(f"\n{accepted}/8 accepted" + ("" if apply else " (report only; use --apply to install)"))
-    if accepted < len(results):
+    complete = accepted == len(results) == 8
+    if apply and complete:
+        # All or nothing: a partial set would mix approved and old portraits.
+        for r in results:
+            img = cv2.imread(r["path"])
+            os.makedirs(OUT, exist_ok=True)
+            dst = os.path.join(OUT, f"{r['coach']}-{r['slot']}.jpg")
+            cv2.imwrite(dst, img, [cv2.IMWRITE_JPEG_QUALITY, 92])
+            r["written"] = dst
+            if "--app" in sys.argv:
+                app = sys.argv[sys.argv.index("--app") + 1]
+                adst = os.path.join(app, "assets", "coaches", f"{r['coach']}-{r['slot']}.jpg")
+                os.makedirs(os.path.dirname(adst), exist_ok=True)
+                cv2.imwrite(adst, img, [cv2.IMWRITE_JPEG_QUALITY, 90])
+                r["written_app"] = adst
+    print(json.dumps([{k: v for k, v in r.items() if k != "path"} for r in results], indent=1, ensure_ascii=False))
+    note = " (report only; use --apply to install)"
+    if apply:
+        note = " (written)" if complete else " (nothing written: --apply installs only a complete, passing set)"
+    print(f"\n{accepted}/8 accepted" + note)
+    if not complete:
         sys.exit(1)  # any rejected or missing portrait fails the gate
 
 

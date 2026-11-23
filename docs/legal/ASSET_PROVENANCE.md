@@ -10,14 +10,14 @@ placeholders they replace (AI/voice QA report D10, D11, D12).
 
 | File | Pixels | SHA-256 (first 16) | Original pixels* |
 |--|--|--|--|
-| `assets/coaches/ava-hero.jpg` | 1784×2376 | `21b68bf92b29bb8c` | 56% |
-| `assets/coaches/ava-avatar.jpg` | 1024×1024 | `b1138a3b5973e07a` | crop of the hero |
+| `assets/coaches/ava-hero.jpg` | 1784×2376 | `4de474efaac88c43` | 56% |
+| `assets/coaches/ava-avatar.jpg` | 1024×1024 | `198fb522d8509c97` | crop of the hero |
 | `assets/coaches/ethan-hero.jpg` | 1768×2360 | `e932fc1daa729910` | 24% |
 | `assets/coaches/ethan-avatar.jpg` | 1024×1024 | `2714ca82481fc487` | crop of the hero |
-| `assets/coaches/sofia-hero.jpg` | 1856×2472 | `2893cd5b398274aa` | 46% |
-| `assets/coaches/sofia-avatar.jpg` | 1024×1024 | `4b4ed92d7c6f848a` | crop of the hero |
-| `assets/coaches/diego-hero.jpg` | 1968×2624 | `802e9dc900886e9d` | 27% |
-| `assets/coaches/diego-avatar.jpg` | 1024×1024 | `b9dadd1b95048760` | crop of the hero |
+| `assets/coaches/sofia-hero.jpg` | 1856×2472 | `583a8cdcf3f3ca7c` | 46% |
+| `assets/coaches/sofia-avatar.jpg` | 1024×1024 | `ea8f2c733acf6aa8` | crop of the hero |
+| `assets/coaches/diego-hero.jpg` | 1968×2624 | `54a616545a5a0f28` | 27% |
+| `assets/coaches/diego-avatar.jpg` | 1024×1024 | `1734cd2767b5c67d` | crop of the hero |
 
 \* Share of the hero whose pixels come from the approved portrait (the face,
 hair and, except for Ethan, the upper neck). The rest (clothing, shoulders,
@@ -172,6 +172,23 @@ Fix round 4 (2026-11-23), all non-generative (scripts in
 - The faces are unchanged; the reviewer measured the face offset at exactly
   +150 px, with correlation 0.994–0.999 against round 1.
 
+Fix round 5 (2026-11-23), all non-generative (scripts in
+`tool/avatar/portrait/`: `ava_r5.py`, `r5_spots.py`, `export.py`):
+- Ava: the pale grey crescent inside the hair at the right, at jaw height,
+  is recoloured to the local teal backdrop (read as backdrop seen through
+  the hair); thin light lines in the teal backdrop are replaced by the
+  median backdrop; the two skin-coloured specks just outside the right jaw
+  line are replaced by the hair a few pixels further out (the jaw edge in
+  those rows is interpolated from the rows above and below, so it does not
+  move).
+- Sofía: the blue-grey wisp above the right crown is replaced by the
+  backdrop just above it; the light strip at the bottom-left edge has its
+  low-frequency lightness pulled down to the hair beside it.
+- Diego: the dark tick and the dot in the soul patch, and the pale vertical
+  stripe down the chin centre, are corrected in lightness (and the stripe
+  gets the stubble texture from beside it). No geometry changed.
+- Ethan's files are unchanged.
+
 ## Identity and quality gates (2026-11-23)
 
 Round-3 heroes are saved as JPEG q90. YuNet is sensitive to small
@@ -179,7 +196,7 @@ compression changes on these large faces: Ava's hero at q92 detected a
 smaller face box and read 0.61, against 0.73–0.75 at q90, q93–q96 and in the
 lossless file. q90 matches the intake script's own `--app` setting.
 
-`tool/avatar/portrait/portrait_intake.py` (YuNet + SFace): 8/8 accepted. The
+`tool/avatar/portrait/portrait_intake.py` (YuNet + SFace): 8/8 accepted (round-5 files). The
 thresholds are unchanged: identity ≥ 0.45 against the approved reference,
 closest to its own coach, eye-tone shift within limits, avatar roll ≤ 8°,
 hero portrait ≥ 1024×1400, avatar ≥ 1024. The only change to the script is
@@ -188,26 +205,26 @@ detection: when YuNet finds no face, it retries on a smaller copy (1280 or
 
 | Coach | Identity vs reference (hero / avatar) | Interim | Eye-tone shift hue / brightness (hero) | Avatar roll |
 |--|--|--|--|--|
-| Ava | 0.73 / 0.77 | 0.91 | 6.4 / 1.0 | 1.3° |
+| Ava | 0.74 / 0.77 | 0.91 | 4.0 / 1.0 | 1.2° |
 | Ethan | 0.89 / 0.91 | 0.91 | 2.8 / 12.2 | 0.6° |
-| Sofía | 0.68 / 0.73 | 0.87 | 7.8 / 12.1 | 3.6° |
-| Diego | 0.83 / 0.89 | 0.90 | 5.4 / 16.4 | 3.7° |
+| Sofía | 0.69 / 0.73 | 0.87 | 9.2 / 12.0 | 3.0° |
+| Diego | 0.84 / 0.87 | 0.90 | 0.8 / 17.3 | 4.5° |
 
 Identity drops from the interim scores because the approved reference smiles
 broadly with teeth and the candidates have closed lips. Each candidate is
 still closest to its own coach.
 
 Explicit iris check: the mean CIELAB of the iris ring, compared at the
-reference's face scale. Every candidate keeps brown irises (hue within 3° of
-the reference; ΔE 5–9.5). On the same measure, the rejected GFPGAN images
+reference's face scale. Every candidate keeps brown irises (round-5 files:
+hue within 6° of the reference, ΔE 1.3–7.4 over the eight heroes and avatars). On the same measure, the rejected GFPGAN images
 shifted the iris hue by 32–74° (to blue or grey).
 
 Cross-coach face similarity (SFace, hero):
 
 | Pair | Interim | Candidate |
 |--|--|--|
-| Ava ↔ Sofía | 0.68 | 0.585 |
-| Ethan ↔ Diego | 0.645 | 0.64 |
+| Ava ↔ Sofía | 0.68 | 0.59 |
+| Ethan ↔ Diego | 0.645 | 0.636 |
 
 The earlier target of below 0.5 is **not met**. The faces were deliberately
 not changed, and SFace looks only at the aligned face. The pairs now differ
