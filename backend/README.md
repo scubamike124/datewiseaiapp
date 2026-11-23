@@ -1,3 +1,5 @@
+> **Superseded by DateWise v2 (one $9.99/month plan).** DateWise v2 has a single auto-renewable subscription, `datewise_premium_monthly`, with no free tier and no free trial, no accounts and no Gemini key. The coach backend is the Workers AI Worker in [`worker.js`](worker.js) (chat-v7 cost guard, see [`../docs/business/AI_COST_MODEL.md`](../docs/business/AI_COST_MODEL.md)). The setup below is historical.
+
 # DateWise AI — Photo Coach backend (Cloudflare Worker)
 
 This tiny Worker is the secure proxy for the **AI Photo Coach**. It holds the
