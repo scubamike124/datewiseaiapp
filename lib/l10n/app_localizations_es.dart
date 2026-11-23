@@ -758,4 +758,44 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get lastUpdated => 'Última actualización: 22 de noviembre de 2026';
+
+  @override
+  String get coachLimitDaily =>
+      'Llegaste al límite de coaching de hoy. Se renueva a la medianoche (UTC).';
+
+  @override
+  String get coachLimitMonthly =>
+      'Llegaste al límite de uso justo de este mes. Se renueva el día 1.';
+
+  @override
+  String get coachLimitSlowDown =>
+      'Estás enviando mensajes muy rápido. Espera un momento e inténtalo de nuevo.';
+
+  @override
+  String get coachLimitBusy =>
+      'El coaching está muy ocupado en este momento. Inténtalo más tarde.';
+
+  @override
+  String get coachLimitSubscriptionInactive =>
+      'Tu suscripción a DateWise Premium no está activa. Renuévala para seguir chateando.';
+
+  @override
+  String get coachLimitRevoked =>
+      'Esta compra fue reembolsada o revocada, así que el coaching está bloqueado.';
+
+  @override
+  String get coachLimitVerify =>
+      'No pudimos confirmar tu suscripción. Toca Restaurar compras.';
+
+  @override
+  String get coachLimitUpdateApp =>
+      'Actualiza DateWise a la última versión para seguir chateando con tu coach.';
+
+  @override
+  String get coachUsageNoticeDaily =>
+      'Te estás acercando al límite de uso justo de hoy.';
+
+  @override
+  String get coachUsageNoticeMonthly =>
+      'Te estás acercando al límite de uso justo de este mes.';
 }
