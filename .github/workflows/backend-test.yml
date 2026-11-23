@@ -19,7 +19,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
-      - run: node --test backend/*.test.mjs tool/live/*.test.mjs
+      - run: node --test backend/*.test.mjs backend/eval/*.test.mjs tool/live/*.test.mjs
 
   # The staging Worker ([env.staging] in backend/wrangler.toml) used by the live
   # AI test: a dry-run build (no upload, no Cloudflare credentials, no secrets).

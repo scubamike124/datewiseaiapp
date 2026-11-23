@@ -1,4 +1,5 @@
 // Cost model calculator for docs/business/AI_COST_MODEL.md (prints markdown tables).
+// `--workers-paid` prints the tables of docs/business/WORKERS_PAID_EVALUATION.md instead.
 const NEURON_USD = 0.011 / 1000; // MEASURED
 const FREE_NEURONS_DAY = 10000; // MEASURED
 const M = {
@@ -89,4 +90,137 @@ for (const [label, perMsg] of [['uncapped request (24k tokens in, 800 out)', (24
   p(`- ${label}: $${perMsg.toFixed(5)}/msg; 1 req/5 s for 30 days = ${f(perMsg * 17280 * 30)}; at the account's Workers AI rate limit (300 req/min) = ${f(perMsg * 300 * 60 * 24 * 30)}/month.`);
 }
 p(`- With guard defaults (150/day, 1,500/month): one subscriber at worst-case capped size = ${f(1500 * WORST)}/month.`);
-console.log(out.join('\n'));
+
+// --- Workers Paid evaluation at $19.99 (docs/business/WORKERS_PAID_EVALUATION.md) -------
+// Same prices and usage profiles as above, but always on Workers Paid, for both models,
+// with Durable Object costs itemised and the DAILY_NEURON_BUDGET each scenario needs.
+const PAID_PRICE = 19.99; // proposed price only; $9.99 stays configured
+const DO_GBS_PER_REQ = 0.02 * 0.125; // ASSUMPTION: 20 ms wall time x 128 MB per guard request
+const DO_ROWS_WRITTEN_PER_MSG = 4; // ASSUMPTION: one storage.put per guard request (cost_guard.js)
+const PEAK_FACTOR = 2; // ASSUMPTION: busiest day = 2x the average day
+const BUDGET_STEP = 5000; // round the recommended budget up to this
+
+function paidMonth(model, usage, subs) {
+  const msgs = usage.msgsMonth * subs;
+  const neurons = msgs * neuronsPerMsg(model, usage);
+  const ai = Math.max(0, neurons - FREE_NEURONS_DAY * 30) * NEURON_USD; // free 10k/day still applies on Paid (MEASURED)
+  const workerReq = Math.max(0, msgs * 1.05 - 10e6) / 1e6 * 0.3 + Math.max(0, msgs * CPU_MS_PER_MSG - 30e6) / 1e6 * 0.02;
+  const doReqs = msgs * DO_REQ_PER_MSG;
+  const durableObjects =
+    Math.max(0, doReqs - 1e6) / 1e6 * 0.15 +
+    Math.max(0, doReqs * DO_GBS_PER_REQ - 400000) / 1e6 * 12.5 +
+    Math.max(0, msgs * DO_ROWS_WRITTEN_PER_MSG - 50e6) / 1e6 * 1.0;
+  const avgDay = neurons / 30;
+  const peakDay = avgDay * PEAK_FACTOR;
+  const budget = Math.max(FREE_NEURONS_DAY, Math.ceil(peakDay / BUDGET_STEP) * BUDGET_STEP);
+  return { msgs, neurons, ai, workerReq, durableObjects, doReqs, avgDay, peakDay, budget };
+}
+
+function workersPaidTables() {
+  const q = [];
+  const w = (x = '') => q.push(x);
+  const n = (x) => Math.round(x).toLocaleString('en-US');
+  w(`### Profit and loss at $${PAID_PRICE} a month on Workers Paid`);
+  w();
+  w('Net = subscribers x $19.99 x (1 - commission) x (1 - 3% refunds, ASSUMPTION). Costs: Workers Paid $5 (MEASURED) plus Worker requests and CPU over the included 10 M requests and 30 M CPU-ms (MEASURED prices); Durable Objects over the included 1 M requests, 400,000 GB-s and 50 M rows written (MEASURED prices; 4 guard requests per message from the code, GB-s and rows per message ASSUMPTION); AI after the free 10,000 neurons a day (MEASURED price, usage ASSUMPTION); Apple Developer Program $8.25 a month (MEASURED). Margin = profit / net.');
+  w();
+  for (const m of Object.values(M)) {
+    w(`#### ${m.name}`);
+    w();
+    w('| Subs | Usage | Gross | Apple 15% | Apple 30% | Refunds (3%) | Net @15% | Net @30% | Workers ($5 + requests) | Durable Objects | AI | Apple dev | Profit @15% | Margin @15% | Profit @30% | Margin @30% |');
+    w('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|');
+    for (const s of SUBS) for (const [uk, u] of Object.entries(U)) {
+      const c = paidMonth(m, u, s);
+      const gross = s * PAID_PRICE;
+      const net = (comm) => gross * (1 - comm) * (1 - REFUND);
+      const cost = WORKERS_PAID + c.workerReq + c.durableObjects + c.ai + APPLE_FEE_MONTH;
+      const p15 = net(0.15) - cost;
+      const p30 = net(0.3) - cost;
+      w(`| ${s} | ${uk} | ${f(gross)} | ${f(gross * 0.15)} | ${f(gross * 0.3)} | ${f(gross * 0.85 * REFUND)} / ${f(gross * 0.7 * REFUND)} | ${f(net(0.15))} | ${f(net(0.3))} | ${f(WORKERS_PAID + c.workerReq)} | ${f(c.durableObjects)} | ${f(c.ai)} | ${f(APPLE_FEE_MONTH)} | ${f(p15)} | ${((p15 / net(0.15)) * 100).toFixed(1)}% | ${f(p30)} | ${((p30 / net(0.3)) * 100).toFixed(1)}% |`);
+    }
+    w();
+  }
+  w('Refunds column: the 3% of proceeds lost at 15% / at 30% commission.');
+  w();
+  w('### DAILY_NEURON_BUDGET needed per scenario');
+  w();
+  w(`Average day = monthly neurons / 30. Peak day = ${PEAK_FACTOR}x the average (ASSUMPTION). Recommended budget = the peak day rounded up to ${n(BUDGET_STEP)}, never below the free 10,000. "Most the breaker allows" = the AI bill if the whole budget were used every day for 30 days: the ceiling the breaker enforces.`);
+  w();
+  w('| Model | Subs | Usage | Messages / month | Neurons / month | Average day | Peak day | Recommended DAILY_NEURON_BUDGET | Most the breaker allows / month | Guard DO requests / month |');
+  w('|---|---|---|---|---|---|---|---|---|---|');
+  for (const m of Object.values(M)) for (const s of SUBS) for (const [uk, u] of Object.entries(U)) {
+    const c = paidMonth(m, u, s);
+    w(`| ${m.name} | ${s} | ${uk} | ${n(c.msgs)} | ${n(c.neurons)} | ${n(c.avgDay)} | ${n(c.peakDay)} | ${n(c.budget)} | ${f(Math.max(0, c.budget - FREE_NEURONS_DAY) * 30 * NEURON_USD)} | ${n(c.doReqs)} |`);
+  }
+  w();
+  w('### Sustainable allowance per subscriber at $19.99');
+  w();
+  w('AI + infrastructure may use at most 30% of net (70% margin target, ASSUMPTION, as in AI_COST_MODEL.md section 5).');
+  w();
+  w('| Model | Commission | Net per subscriber | Max AI per subscriber | $ per worst-case capped message (6,000 in / 800 out) | Messages / month at worst case | $ per heavy message | Messages / month at heavy x 1.5 safety | One subscriber at the 1,500 / month cap, worst case |');
+  w('|---|---|---|---|---|---|---|---|---|');
+  for (const m of Object.values(M)) for (const comm of COMMS) {
+    const net = PAID_PRICE * (1 - comm) * (1 - REFUND);
+    const maxAi = net * 0.3;
+    const worst = (6000 * m.inUsd + 800 * m.outUsd) / 1e6;
+    const heavy = usdPerMsg(m, U.heavy);
+    w(`| ${m.name} | ${comm * 100}% | ${f(net)} | ${f(maxAi)} | $${worst.toFixed(5)} | ${n(Math.floor(maxAi / worst))} | $${heavy.toFixed(5)} | ${n(Math.floor(maxAi / (heavy * 1.5)))} | ${f(1500 * worst)} |`);
+  }
+  w();
+  w(budgetSliceTable());
+  return q.join('\n');
+}
+
+// --- DAILY_NEURON_BUDGET with the chat-v7 guard's slices (claude/datewise-v2-app be57af7) ---
+// The global breaker counts every AI call. Token-less v1 traffic may use up to ANON_NEURON_BUDGET
+// and Sandbox (TestFlight, App Review) up to SANDBOX_NEURON_BUDGET, both INSIDE the daily total
+// (cost_guard.js UsageGuard.budget). Each call first reserves input + the output cap, then settles.
+const ANON_SHARE = 0.2; // MEASURED: cost_guard.js default, ANON_NEURON_BUDGET = 20% of the daily budget
+const V2_MAX_IN = 6000; // MEASURED: MAX_INPUT_TOKENS (wrangler.toml)
+const V2_MAX_OUT = 800; // MEASURED: MAX_OUTPUT_TOKENS and worker.js MAX_CHAT_TOKENS
+const LEGACY_IN = 3000; // MEASURED: LEGACY_MAX_INPUT_TOKENS (wrangler.toml, cost_guard.js default)
+const LEGACY_OUT = 500; // MEASURED: LEGACY_MAX_OUTPUT_TOKENS
+const SANDBOX_DAILY = 20; // MEASURED: SANDBOX_DAILY_LIMIT (per tester)
+const SANDBOX_TESTERS = 5; // ASSUMPTION: App Review plus a few TestFlight testers on one day
+const INFLIGHT_SHARE = 0.01; // ASSUMPTION: at the busiest moment 1% of subscribers have a reply streaming
+const MIX = {
+  typical: { label: 'typical (all)', parts: [['typical', 1]] },
+  mixed: { label: '25% heavy, 75% typical', parts: [['typical', 0.75], ['heavy', 0.25]] },
+  heavy: { label: 'heavy (all)', parts: [['heavy', 1]] },
+};
+const neuronsAt = (m, inTok, outTok) => (inTok * m.inN + outTok * m.outN) / 1e6;
+const roundUp = (x) => Math.max(FREE_NEURONS_DAY, Math.ceil(x / BUDGET_STEP) * BUDGET_STEP);
+
+function sliceBudget(m, mixKey, subs) {
+  const perSubMonth = MIX[mixKey].parts.reduce((a, [uk, share]) => a + share * U[uk].msgsMonth * neuronsPerMsg(m, U[uk]), 0);
+  const subPeak = (subs * perSubMonth / 30) * PEAK_FACTOR;
+  const sandbox = roundUp(SANDBOX_TESTERS * SANDBOX_DAILY * neuronsAt(m, V2_MAX_IN, V2_MAX_OUT));
+  const inflight = Math.max(2, Math.ceil(subs * INFLIGHT_SHARE)) * neuronsAt(m, V2_MAX_IN, V2_MAX_OUT);
+  const need = subPeak + sandbox + inflight;
+  return { subPeak, sandbox, inflight, v1On: roundUp(need / (1 - ANON_SHARE)), v1Off: roundUp(need) };
+}
+
+function budgetSliceTable() {
+  const q = [];
+  const w = (x = '') => q.push(x);
+  const n = (x) => Math.round(x).toLocaleString('en-US');
+  const usd = (budget) => '$' + Math.round(Math.max(0, budget - FREE_NEURONS_DAY) * 30 * NEURON_USD).toLocaleString('en-US');
+  w('### DAILY_NEURON_BUDGET with the guard\'s budget slices');
+  w();
+  w(`Subscriber peak day = subscribers x monthly neurons / 30 x ${PEAK_FACTOR} (usage and peak ASSUMPTION, prices MEASURED). Sandbox slice = ${SANDBOX_TESTERS} testers (ASSUMPTION) x SANDBOX_DAILY_LIMIT ${SANDBOX_DAILY} (MEASURED) x a worst-case v2 request (${n(V2_MAX_IN)} in / ${V2_MAX_OUT} out, MEASURED caps), rounded up. In-flight headroom = ${INFLIGHT_SHARE * 100}% of subscribers (at least 2, ASSUMPTION) each holding a worst-case reservation. v1 on (LEGACY_CLIENTS=1): token-less traffic may take its whole ANON_NEURON_BUDGET slice, 20% of the total (MEASURED default), so budget = (peak + sandbox + in-flight) / 0.8. v1 off: budget = peak + sandbox + in-flight. Rounded up to ${n(BUDGET_STEP)}. "$ / month max" = the most the breaker lets AI cost in 30 days after the free 10,000 a day.`);
+  w();
+  w('| Model | Subs | Usage | Subscriber peak day | Sandbox slice | In-flight headroom | DAILY_NEURON_BUDGET, v1 on | $ / month max, v1 on | DAILY_NEURON_BUDGET, v1 off | $ / month max, v1 off |');
+  w('|---|---|---|---|---|---|---|---|---|---|');
+  for (const m of Object.values(M)) for (const s of SUBS) for (const mk of Object.keys(MIX)) {
+    const b = sliceBudget(m, mk, s);
+    w(`| ${m.name} | ${n(s)} | ${MIX[mk].label} | ${n(b.subPeak)} | ${n(b.sandbox)} | ${n(b.inflight)} | **${n(b.v1On)}** | ${usd(b.v1On)} | ${n(b.v1Off)} | ${usd(b.v1Off)} |`);
+  }
+  w();
+  w('Per-request worst cases (MEASURED caps x MEASURED prices):');
+  for (const m of Object.values(M)) {
+    w(`- ${m.name}: v2 request ${n(V2_MAX_IN)} / ${V2_MAX_OUT} tokens = ${neuronsAt(m, V2_MAX_IN, V2_MAX_OUT).toFixed(1)} neurons; v1 (legacy) request ${n(LEGACY_IN)} / ${LEGACY_OUT} = ${neuronsAt(m, LEGACY_IN, LEGACY_OUT).toFixed(1)} neurons; one subscriber at 150 a day, all worst case = ${n(150 * neuronsAt(m, V2_MAX_IN, V2_MAX_OUT))} neurons a day.`);
+  }
+  return q.join('\n');
+}
+
+console.log(process.argv.includes('--workers-paid') ? workersPaidTables() : out.join('\n'));

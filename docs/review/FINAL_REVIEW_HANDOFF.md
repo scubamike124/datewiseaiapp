@@ -136,7 +136,7 @@ This section supersedes the older figures below; the earlier sections are kept a
 
 ## 8. Owner-only actions
 1. **v1 stop-gap:** deploy chat-v6 (`f5b0401`) to the old Worker, with an owner-internal redeploy tool outside this repo or with `.github/workflows/deploy-worker.yml` (target `chat-v6`), per `docs/launch/WORKER_DEPLOY_RUNBOOK.md` §7 (release checklist D0). That fixes the production HTTP 502. Then rerun the live coach tests.
-2. **Model comparison:** add the repo secrets `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_AI_TOKEN` (your existing token, which needs Workers AI Read and Edit). Then approve the model and the `DAILY_NEURON_BUDGET`, and Workers Paid if you want it.
+2. **Model comparison:** create the GitHub Environment `model-eval` with yourself as required reviewer and add its environment secrets `DW_EVAL_CF_ACCOUNT_ID` and `DW_EVAL_CF_AI_TOKEN` (a token with Workers AI Read and Edit). Not repository secrets, so they never trip the deploy workflow's check (docs/business/MODEL_COMPARISON.md §5). Then approve the model and the `DAILY_NEURON_BUDGET`, and Workers Paid if you want it.
 3. **Pricing:** decide the final price; the default is $9.99. Set Mexico and Spain prices by hand, and join the Apple Small Business Program for 15% commission.
 4. **App Store Connect:**
    - sign the Paid Apps Agreement and complete tax and banking;

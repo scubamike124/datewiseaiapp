@@ -1,0 +1,142 @@
+name: Chat model comparison
+
+# Real Workers AI replies from Llama 3.3 70B fp8-fast (production) and Gemma 4 26B,
+# with the v2 Worker's own coach prompts (backend/eval/model-eval.mjs). Deploys
+# nothing. See docs/business/MODEL_COMPARISON.md.
+#
+# Two ways to start a live run (both owner-controlled):
+#   1. A push to claude/datewise-model-eval whose head commit message contains
+#      "[run-eval part=1]" or "[run-eval part=2]" (optionally "budget=N", e.g.
+#      "[run-eval part=2 budget=3500]"). Any other push runs only the offline tests
+#      and a dry run, and spends nothing.
+#   2. workflow_dispatch, once this file is on the default branch.
+# There is deliberately no pull_request trigger, so opening or updating a PR never
+# spends the free Workers AI allowance.
+#
+# Spend-bearing runs go through the `live` job, which uses the GitHub Environment
+# `model-eval`. The owner creates it with himself as required reviewer, so every live
+# run waits for his approval click. Its two environment secrets are DW_EVAL_CF_AI_TOKEN
+# (a Cloudflare API token that can run Workers AI) and DW_EVAL_CF_ACCOUNT_ID. They are
+# never repository secrets and never named CLOUDFLARE_*, so they cannot trip the
+# repository-secret check in deploy-worker.yml. They reach only the step that calls the
+# API. Without them that step fails with "BLOCKED" and spends nothing.
+on:
+  push:
+    branches: [claude/datewise-model-eval]
+  workflow_dispatch:
+    inputs:
+      part:
+        description: '1 = English coaches, 2 = Spanish coaches + load test (run on separate UTC days), all = both'
+        type: choice
+        options: ['1', '2', 'all']
+        default: '1'
+      budget:
+        description: 'Neuron budget for this run (stops early; the free allowance is 10,000/day, shared with production)'
+        type: string
+        default: '4000'
+      concurrency:
+        description: 'Parallel requests per model in the light load test (part 2 or all; 0 = off)'
+        type: choice
+        options: ['10', '5', '0']
+        default: '10'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: model-eval
+  cancel-in-progress: false
+
+jobs:
+  eval:
+    # Offline only: no environment, no secrets, no neurons.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      live: ${{ steps.plan.outputs.live }}
+      part: ${{ steps.plan.outputs.part }}
+      budget: ${{ steps.plan.outputs.budget }}
+      concurrency: ${{ steps.plan.outputs.concurrency }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Offline harness tests (no credentials)
+        run: node --test backend/eval/model-eval.test.mjs
+      - name: Dry run (fake endpoint, no credentials, no neurons)
+        run: node backend/eval/model-eval.mjs --dry-run --out=dry-run.md --key-out=dry-run-key.md
+      - name: Decide whether to make a live run
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          IN_PART: ${{ inputs.part }}
+          IN_BUDGET: ${{ inputs.budget }}
+          IN_CONC: ${{ inputs.concurrency }}
+        run: |
+          live=false; part=1; budget=4000; conc=10
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            live=true; part="$IN_PART"; budget="$IN_BUDGET"; conc="$IN_CONC"
+          else
+            re='\[run-eval part=([12])( budget=([0-9]+))?\]'
+            if [[ "$COMMIT_MSG" =~ $re ]]; then
+              live=true; part="${BASH_REMATCH[1]}"; budget="${BASH_REMATCH[3]:-4000}"
+            fi
+          fi
+          case "$part" in 1|2|all) ;; *) echo "invalid part"; exit 1 ;; esac
+          if ! [[ "$budget" =~ ^[0-9]+$ ]] || [ "$budget" -lt 1 ] || [ "$budget" -gt 9500 ]; then
+            echo "budget must be 1 to 9500 neurons"; exit 1
+          fi
+          case "$conc" in 0|5|10) ;; *) echo "invalid concurrency"; exit 1 ;; esac
+          echo "live=$live part=$part budget=$budget concurrency=$conc"
+          { echo "live=$live"; echo "part=$part"; echo "budget=$budget"; echo "concurrency=$conc"; } >> "$GITHUB_OUTPUT"
+          if [ "$live" != "true" ]; then
+            echo 'No live run: add "[run-eval part=1]" or "[run-eval part=2]" to the head commit message to start one.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Neuron estimate
+        if: steps.plan.outputs.live == 'true'
+        env:
+          PART: ${{ steps.plan.outputs.part }}
+          BUDGET: ${{ steps.plan.outputs.budget }}
+          CONC: ${{ steps.plan.outputs.concurrency }}
+        run: node backend/eval/model-eval.mjs --estimate-only --part="$PART" --budget="$BUDGET" --concurrency="$CONC" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  live:
+    # Spends Workers AI neurons. Waits for the owner's approval in the `model-eval`
+    # environment (required reviewer), and only it can read that environment's secrets.
+    needs: eval
+    if: needs.eval.outputs.live == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: model-eval
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Neuron estimate
+        env:
+          PART: ${{ needs.eval.outputs.part }}
+          BUDGET: ${{ needs.eval.outputs.budget }}
+          CONC: ${{ needs.eval.outputs.concurrency }}
+        run: node backend/eval/model-eval.mjs --estimate-only --part="$PART" --budget="$BUDGET" --concurrency="$CONC" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Compare models (real API)
+        env:
+          DW_EVAL_CF_AI_TOKEN: ${{ secrets.DW_EVAL_CF_AI_TOKEN }}
+          DW_EVAL_CF_ACCOUNT_ID: ${{ secrets.DW_EVAL_CF_ACCOUNT_ID }}
+          PART: ${{ needs.eval.outputs.part }}
+          BUDGET: ${{ needs.eval.outputs.budget }}
+          CONC: ${{ needs.eval.outputs.concurrency }}
+        run: |
+          node backend/eval/model-eval.mjs --part="$PART" --budget="$BUDGET" --concurrency="$CONC" \
+            --out=model-eval.md --key-out=model-eval-key.md
+          cat model-eval.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: always()
+        with:
+          name: model-eval-part-${{ needs.eval.outputs.part }}
+          path: |
+            model-eval.md
+            model-eval-key.md
+          if-no-files-found: ignore
