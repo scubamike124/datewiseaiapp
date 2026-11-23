@@ -10,8 +10,8 @@ import { _setTrustedRootsForTests } from './cost_guard.js';
 import { fakeDoNamespace, makePki, txPayload } from './test/helpers.mjs';
 
 // chat-v7: every AI path goes through the cost guard (an in-memory Durable
-// Object here) and the photo coach needs PHOTO_COACH_ENABLED=1 plus a verified
-// subscription (a JWS from a throwaway test PKI).
+// Object here). These requests carry a subscription token signed by a
+// throwaway test PKI.
 const pki = await makePki();
 _setTrustedRootsForTests([pki.rootSha256]);
 const JWS = await pki.sign(txPayload());
@@ -46,7 +46,6 @@ function fakeEnv(reply) {
       },
       USAGE_GUARD: fakeDoNamespace(),
       DAILY_NEURON_BUDGET: '1000000',
-      PHOTO_COACH_ENABLED: '1',
     },
   };
 }

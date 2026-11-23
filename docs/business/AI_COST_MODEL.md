@@ -16,7 +16,7 @@ Prices were checked on **2026-11-22**. The tables are produced by `docs/business
 | Item | Finding | Label |
 |---|---|---|
 | Chat model (deployed chat-v6, commit `f5b0401`, `backend/worker.js`) | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` (`CHAT_MODEL = TEXT_MODEL`), streamed, `max_tokens: 800` | MEASURED (code) |
-| Photo coach (same Worker) | `@cf/meta/llama-3.2-11b-vision-instruct`, plus Llama 3.3 as a JSON converter fallback. The v2 app sends no photos (`lib/` has no `imageBase64` sender; `storage_service.dart` only purges v1 photo data), so this path costs nothing today unless an old v1 build calls it | MEASURED (code) |
+| Photo coach (same Worker) | `@cf/meta/llama-3.2-11b-vision-instruct`, plus Llama 3.3 as a JSON converter fallback. The v2 app sends no photos: `lib/` on `claude/datewise-v2-app` has no `imageBase64` sender, and `storage_service.dart` only purges v1 photo data. **The live App Store build does use it.** That is v1 1.0.2 on `main`, whose `lib/services/backend_ai_service.dart` posts `imageBase64` (single photo) and `images` (rank and compare) with `tier`/`mode`. Its chat sends `messages` with its own system prompt and no `coachId`. The photo coach keeps costing money for as long as 1.0.2 is installed. chat-v7 keeps both v1 paths while `LEGACY_CLIENTS=1`, inside the anonymous caps and their own budget slice | MEASURED (code) |
 | Branch `claude/datewise-v2-app` (base of this work) | Still holds the older chat-v5 worker with `@cf/meta/llama-3.1-8b-instruct-fp8`, which Workers AI retired on 2026-11-20 (HTTP 410). The deployed code is `f5b0401` (chat-v6). | MEASURED (code) |
 | Chat input caps (chat-v6) | 24 turns, 24,000 characters of history (newest kept), each message cut to 6,000 characters, plus the system message. The worst case is about 30,000 characters of input | MEASURED (code) |
 | System prompt size | 1,921 to 2,004 characters per coach (measured by running `CoachPersona.systemPrompt` for all four coaches), plus about 200 to 400 for the profile line | MEASURED (code run) |
@@ -255,7 +255,10 @@ Policy text, for the support page and App Store description. It does not say "un
 | `PER_MINUTE_LIMIT` | 12 a subscriber | A person types more slowly than this; scripts do not | ASSUMPTION |
 | `MAX_CONCURRENT` | 2 a subscriber | Two devices on one Apple ID | ASSUMPTION |
 | `IP_PER_MINUTE_LIMIT` | 60 an IP | Blunts floods and forged-token probing. Generous because carrier NAT puts many users behind one IP | ASSUMPTION |
-| `ANON_DAILY_LIMIT` | 60 an IP hash a day | For app builds that send no token yet, while `REQUIRE_SUBSCRIPTION=0` | ASSUMPTION |
+| `ANON_DAILY_LIMIT` | 60 a day per IPv4 address or IPv6 /64 (hashed) | For builds that send no token (the v1 App Store build, and v2 before its entitlement loads) while `REQUIRE_SUBSCRIPTION=0` | ASSUMPTION |
+| `ANON_NEURON_BUDGET` | 20% of the daily budget (2,000) | Token-less traffic shares only this slice, so it cannot use up the subscribers' budget | ASSUMPTION |
+| `SANDBOX_DAILY_LIMIT` | 20 a day | For TestFlight and App Review Sandbox transactions. A missing or `Xcode` environment is refused | ASSUMPTION |
+| `LEGACY_CLIENTS` | 1 | Keeps the v1 chat and photo paths. Set it to 0 when 1.0.2 is retired, so those requests get 426 `APP_UPDATE_REQUIRED` | n/a |
 | `DAILY_NEURON_BUDGET` | **10,000** | The free allowance, so $0 of spending. Raise it only with the owner's approval and Workers Paid. Suggested once approved: about 1.5 x (subscribers x 10 msgs x 115 neurons), for example 175,000 for 100 subscribers, which is at most $1.82 a day above the free 10,000 | MEASURED (price); suggestion is an ASSUMPTION |
 | `MONTHLY_NEURON_BUDGET` | unset (off) | An optional second ceiling | n/a |
 
@@ -287,7 +290,17 @@ When real numbers exist (from the guard's count-only logs: messages, estimated n
 - `backend/apple_jws.js`: offline StoreKit 2 JWS verification.
 - `backend/coach_prompts.js`: server-side coach system prompts. Client system messages are dropped, so the Worker is
   no longer a general-purpose model proxy.
-- The v1 photo coach is off unless `PHOTO_COACH_ENABLED=1`, and then it requires a verified subscription.
+- v1 compatibility: requests without `coachId` (App Store 1.0.2) keep the chat-v6 behaviour, so its own system prompt is
+  used. They are inside the anonymous caps and their budget slice. The photo coach serves only those requests. It
+  reserves its worst case (one vision call per photo plus two 70B converter passes) and settles with the measured usage.
+  Both paths close with `LEGACY_CLIENTS=0`.
+- Refund replay while App Store Server Notifications are off: a refunded transaction's older signed copy keeps
+  passing the offline check until the Worker sees the revoked version, or until `expiresDate` (at most one month for this
+  monthly plan, plus the leeway). That copy is still bound by that subscriber's caps. Turning on `ASSN_ENABLED` (free;
+  it needs only the URL in App Store Connect) closes this gap as soon as Apple sends `REFUND` or `REVOKE`.
+  `REFUND_REVERSED` reinstates the transaction.
+- `ID_HASH_SALT` (secret): rotating it resets every counter and the revoked list. Without it, a public default salt is
+  used and the logs leave out `who`.
 - Every limit is a variable in `backend/wrangler.toml`.
 - Deploying chat-v7 needs a new pinned hash for `backend/worker.js` in Amber's redeploy tool and the owner's
   approval. chat-v6 (`f5b0401`) stays the approved deploy.

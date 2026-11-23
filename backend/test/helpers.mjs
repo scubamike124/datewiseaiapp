@@ -135,12 +135,13 @@ async function genKey(curve) {
   return crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: curve }, true, ['sign', 'verify']);
 }
 
-async function makeCert({ subject, issuer, publicKey, signKey, signHash, signCurveSize, markers = [], notBefore, notAfter, ca }) {
+async function makeCert({ subject, issuer, publicKey, signKey, signHash, signCurveSize, markers = [], notBefore, notAfter, ca, criticalUnknown }) {
   const spki = new Uint8Array(await crypto.subtle.exportKey('spki', publicKey));
   const sigAlg = seq(oid(signHash === 'SHA-384' ? OIDS.ecdsaSha384 : OIDS.ecdsaSha256));
   const exts = [
     ...markers.map((m) => seq(oid(m), tlv(0x04, Uint8Array.of(0x05, 0x00)))),
     ...(ca ? [seq(oid(OIDS.basicConstraints), tlv(0x01, Uint8Array.of(0xff)), tlv(0x04, seq(tlv(0x01, Uint8Array.of(0xff)))))] : []),
+    ...(criticalUnknown ? [seq(oid('1.2.3.4.5'), tlv(0x01, Uint8Array.of(0xff)), tlv(0x04, Uint8Array.of(0x05, 0x00)))] : []),
   ];
   const tbs = seq(
     tlv(0xa0, int(Uint8Array.of(2))),
@@ -164,14 +165,14 @@ const b64url = (bytes) => Buffer.from(bytes).toString('base64url');
  * A test PKI: root (P-384) -> intermediate (P-384, SHA-384) -> leaf (P-256,
  * SHA-256), like Apple's. Options drop a marker OID or shift validity.
  */
-export async function makePki({ leafMarker = true, intermediateMarker = true, validFrom = Date.now() - 365 * 86_400_000, validTo = Date.now() + 365 * 86_400_000 } = {}) {
+export async function makePki({ leafMarker = true, intermediateMarker = true, leafCa = false, intermediateCa = true, criticalUnknown = false, validFrom = Date.now() - 365 * 86_400_000, validTo = Date.now() + 365 * 86_400_000 } = {}) {
   const rootKey = await genKey('P-384');
   const intKey = await genKey('P-384');
   const leafKey = await genKey('P-256');
   const common = { notBefore: validFrom, notAfter: validTo };
   const root = await makeCert({ ...common, subject: 'Test Root', issuer: 'Test Root', publicKey: rootKey.publicKey, signKey: rootKey.privateKey, signHash: 'SHA-384', signCurveSize: 48, ca: true });
-  const intermediate = await makeCert({ ...common, subject: 'Test WWDR', issuer: 'Test Root', publicKey: intKey.publicKey, signKey: rootKey.privateKey, signHash: 'SHA-384', signCurveSize: 48, markers: intermediateMarker ? [OIDS.intermediateMarker] : [], ca: true });
-  const leaf = await makeCert({ ...common, subject: 'Test StoreKit', issuer: 'Test WWDR', publicKey: leafKey.publicKey, signKey: intKey.privateKey, signHash: 'SHA-384', signCurveSize: 48, markers: leafMarker ? [OIDS.leafMarker] : [] });
+  const intermediate = await makeCert({ ...common, subject: 'Test WWDR', issuer: 'Test Root', publicKey: intKey.publicKey, signKey: rootKey.privateKey, signHash: 'SHA-384', signCurveSize: 48, markers: intermediateMarker ? [OIDS.intermediateMarker] : [], ca: intermediateCa });
+  const leaf = await makeCert({ ...common, subject: 'Test StoreKit', issuer: 'Test WWDR', publicKey: leafKey.publicKey, signKey: intKey.privateKey, signHash: 'SHA-384', signCurveSize: 48, markers: leafMarker ? [OIDS.leafMarker] : [], ca: leafCa, criticalUnknown });
   const rootSha256 = await sha256Hex(root);
   async function sign(payload, header = {}) {
     const h = b64url(new TextEncoder().encode(JSON.stringify({ alg: 'ES256', x5c: [b64(leaf), b64(intermediate), b64(root)], ...header })));

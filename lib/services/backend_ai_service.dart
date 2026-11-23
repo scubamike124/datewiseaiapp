@@ -86,31 +86,50 @@ class BackendAIService implements AIService {
     Future<void> run() async {
       final c = client = _clientFactory();
       try {
-        final req = http.Request('POST', Uri.parse(endpoint))
-          ..headers['Content-Type'] = 'application/json'
-          ..headers['Accept'] = 'text/event-stream'
-          ..body = payload;
-        final entitlement = EntitlementToken.current;
-        if (entitlement != null) req.headers['X-DateWise-Entitlement'] = entitlement;
-        final http.StreamedResponse res;
-        try {
-          res = await c.send(req).timeout(connectTimeout);
-        } on TimeoutException {
-          throw const CoachUnavailableException('timeout');
-        } catch (e) {
-          throw CoachUnavailableException('network: $e');
+        Future<http.StreamedResponse> send() async {
+          final req = http.Request('POST', Uri.parse(endpoint))
+            ..headers['Content-Type'] = 'application/json'
+            ..headers['Accept'] = 'text/event-stream'
+            ..body = payload;
+          final entitlement = EntitlementToken.current;
+          if (entitlement != null) req.headers['X-DateWise-Entitlement'] = entitlement;
+          try {
+            return await c.send(req).timeout(connectTimeout);
+          } on TimeoutException {
+            throw const CoachUnavailableException('timeout');
+          } catch (e) {
+            throw CoachUnavailableException('network: $e');
+          }
         }
-        if (canceled) return;
 
-        if (res.statusCode != 200) {
+        Future<CoachUnavailableException> refusal(http.StreamedResponse res) async {
           // Read (a bounded amount of) the error body so the connection is freed.
           final body = await res.stream
               .bytesToString()
               .timeout(const Duration(seconds: 5), onTimeout: () => '');
-          throw CoachUnavailableException('http',
+          return CoachUnavailableException('http',
               statusCode: res.statusCode,
               code: errorCodeFrom(body),
               retryAfter: int.tryParse(res.headers['retry-after'] ?? ''));
+        }
+
+        var res = await send();
+        if (canceled) return;
+        if (res.statusCode != 200) {
+          final error = await refusal(res);
+          final refresh = EntitlementToken.refresher;
+          // An expired or invalid token may only be stale (a renewal not yet
+          // read): re-read the entitlement once and retry once.
+          if (!CoachLimitCode.refreshable.contains(error.code) || refresh == null) throw error;
+          try {
+            await refresh().timeout(const Duration(seconds: 10));
+          } catch (_) {
+            throw error;
+          }
+          if (canceled) return;
+          res = await send();
+          if (canceled) return;
+          if (res.statusCode != 200) throw await refusal(res);
         }
         CoachUsage.state.value = CoachUsageState.fromHeaders(res.headers);
 

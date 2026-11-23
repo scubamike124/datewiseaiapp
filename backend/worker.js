@@ -12,10 +12,12 @@
  *
  * chat-v7 (cost guard): every AI call passes cost_guard.js first (per-subscriber
  * caps, global neuron budget, StoreKit 2 JWS check), the coach system prompt is
- * built on the server (coach_prompts.js), and the v1 photo coach is off unless
- * PHOTO_COACH_ENABLED=1. See docs/business/AI_COST_MODEL.md.
+ * built on the server (coach_prompts.js) for requests with a coachId. Requests
+ * without one come from the v1 App Store build (1.0.2): its chat and photo
+ * coach keep their chat-v6 behaviour, inside the anonymous caps and budget,
+ * while LEGACY_CLIENTS=1. See docs/business/AI_COST_MODEL.md.
  */
-import { admit, estimateTokens, fitToInputBudget, guardConfig, guardError, handleAppleNotification, meterStream, neuronsFor, GUARD_VERSION } from './cost_guard.js';
+import { admit, estimateTokens, fitToInputBudget, guardConfig, guardError, handleAppleNotification, meterStream, meteredAi, neuronsFor, GUARD_VERSION } from './cost_guard.js';
 import { coachMessages, resolveCoachId } from './coach_prompts.js';
 export { UsageGuard } from './cost_guard.js';
 
@@ -541,23 +543,37 @@ async function runChatStream(env, messages, maxTokens = MAX_CHAT_TOKENS) {
   }
 }
 
-// Handles a coaching chat request (chat-v7): the server builds the coach's
-// system prompt (client system messages are dropped), trims the history to the
-// input-token cap, admits the request through the cost guard, then streams the
-// model's reply back unchanged as Server-Sent Events while metering it.
+// Handles a coaching chat request (chat-v7). With a coachId (the v2 app) the
+// server builds the coach's system prompt and drops client system messages.
+// Without one (the v1 build, 1.0.2) the chat-v6 behaviour is kept while
+// LEGACY_CLIENTS=1. Either way the history is trimmed to the input-token cap,
+// the request is admitted by the cost guard, and the model's reply streams
+// back unchanged as Server-Sent Events while it is metered.
 async function handleChat(request, env, ctx, body) {
-  const coachId = resolveCoachId(body.coachId);
-  if (!coachId) return json({ error: 'Unknown coachId.', code: 'UNKNOWN_COACH' }, 400);
-  const built = coachMessages(coachId, body.profile, body.messages);
-  const safe = built && sanitizeMessages(built);
+  const cfg = guardConfig(env);
+  const legacy = body.coachId === undefined || body.coachId === null;
+  let safe;
+  if (legacy) {
+    if (!cfg.LEGACY_CLIENTS) return guardError('APP_UPDATE_REQUIRED', corsHeaders());
+    safe = sanitizeMessages(body.messages);
+  } else {
+    const coachId = resolveCoachId(body.coachId);
+    if (!coachId) return json({ error: 'Unknown coachId.', code: 'UNKNOWN_COACH' }, 400);
+    const built = coachMessages(coachId, body.profile, body.messages);
+    safe = built && sanitizeMessages(built);
+  }
   if (!safe) {
     return json({ error: 'Provide at least one user message.' }, 400);
   }
-  const cfg = guardConfig(env);
   const maxOut = Math.min(MAX_CHAT_TOKENS, cfg.MAX_OUTPUT_TOKENS) || MAX_CHAT_TOKENS;
   const fitted = fitToInputBudget(safe, cfg.MAX_INPUT_TOKENS);
   const inTokens = estimateTokens(fitted);
-  const gate = await admit(request, env, corsHeaders(), { kind: 'chat', model: CHAT_MODEL, inTokens, outTokens: maxOut });
+  const gate = await admit(request, env, corsHeaders(), {
+    kind: legacy ? 'legacy-chat' : 'chat',
+    model: CHAT_MODEL,
+    inTokens,
+    outTokens: maxOut,
+  });
   if (gate.response) return gate.response;
   const { ticket } = gate;
   let stream;
@@ -569,7 +585,10 @@ async function handleChat(request, env, ctx, body) {
   }
   const metered = meterStream(stream, (m) => {
     const actual = neuronsFor(CHAT_MODEL, m.inTokens || inTokens, m.outTokens);
-    const done = ticket.finish(actual, { refund: !m.produced });
+    // A server-side failure (the model stream broke, or ended with no reply)
+    // gives the message back; a client that hangs up still uses it.
+    const refund = m.outcome === 'error' || (m.outcome === 'done' && !m.produced);
+    const done = ticket.finish(actual, { refund });
     if (ctx?.waitUntil) ctx.waitUntil(done);
   });
   // Workers AI returns an SSE ReadableStream ("data: {\"response\":\"…\"}\n\n"
@@ -582,6 +601,13 @@ async function handleChat(request, env, ctx, body) {
       ...ticket.headers,
     },
   });
+}
+
+// Worst-case neurons for one photo request: one vision call per photo (about
+// 1,600 image tokens + the prompt, up to 800 out) plus up to two 70B converter
+// passes (JSON mode, then plain JSON) of up to 900 tokens out.
+function photoReserve(count) {
+  return count * neuronsFor(MODEL, 2000, 800) + 2 * neuronsFor(TEXT_MODEL, 1500, 900);
 }
 
 export default {
@@ -651,24 +677,29 @@ export default {
       return await handleChat(request, env, ctx, body);
     }
 
-    // The v1 photo coach (the v2 app sends no photos) is off in chat-v7. When
-    // re-enabled with PHOTO_COACH_ENABLED=1 it needs a verified subscription
-    // and goes through the same caps and budget as chat.
-    if (env.PHOTO_COACH_ENABLED !== '1') {
-      return json({ error: 'The photo coach is not available in this version.', code: 'PHOTO_COACH_DISABLED' }, 410);
+    // The photo coach: only the v1 build (1.0.2) uses it (the v2 app sends no
+    // photos). Kept while LEGACY_CLIENTS=1, inside the same caps and budget,
+    // reserved at its worst case and settled with the measured usage.
+    if (!guardConfig(env).LEGACY_CLIENTS) {
+      return guardError('APP_UPDATE_REQUIRED', corsHeaders());
     }
-    if (!request.headers.get('X-DateWise-Entitlement')) {
-      return guardError('SUBSCRIPTION_REQUIRED', corsHeaders());
+    if (tier !== 'magnet') {
+      return json({ error: 'The AI Photo Coach is a Magnet-tier feature.' }, 403);
     }
     const photoCount = Array.isArray(images) && images.length > 0 ? Math.min(images.length, MAX_BATCH) : 1;
-    const photoGate = await admit(request, env, corsHeaders(), {
-      kind: 'photo',
-      neurons: photoCount * guardConfig(env).PHOTO_NEURONS_PER_IMAGE,
-    });
+    const photoGate = await admit(request, env, corsHeaders(), { kind: 'photo', neurons: photoReserve(photoCount) });
     if (photoGate.response) return photoGate.response;
-    const photoResponse = await handlePhoto(env, { imageBase64, images, tier, mode, userNote });
-    const photoNeurons = photoCount * guardConfig(env).PHOTO_NEURONS_PER_IMAGE;
-    ctx?.waitUntil?.(photoGate.ticket.finish(photoNeurons, { refund: photoResponse.status !== 200 }));
+    const meter = meteredAi(env.AI);
+    let photoResponse;
+    try {
+      photoResponse = await handlePhoto({ ...env, AI: meter.ai }, { imageBase64, images, tier, mode, userNote });
+    } catch (e) {
+      photoResponse = json({ error: 'Workers AI error', detail: String(e) }, 502);
+    }
+    const spent = meter.neurons();
+    // Refund the message only when the server failed or no model ran (a bad image).
+    ctx?.waitUntil?.(photoGate.ticket.finish(spent, { refund: photoResponse.status >= 500 || spent === 0 }));
+    for (const [k, v] of Object.entries(photoGate.ticket.headers)) photoResponse.headers.set(k, v);
     return photoResponse;
   },
 };

@@ -11,7 +11,9 @@
  *   4. every certificate is valid at the payload's `signedDate`;
  *   5. the leaf carries Apple's marker OID 1.2.840.113635.100.6.11.1 and the
  *      intermediate 1.2.840.113635.100.6.2.1;
- *   6. the leaf key verifies the JWS signature.
+ *   6. basicConstraints: the intermediate is a CA, the leaf is not, the root
+ *      is not marked "not a CA"; no certificate has an unknown critical extension;
+ *   7. the leaf key verifies the JWS signature.
  * Online OCSP revocation checks are not done (offline by design).
  *
  * Apple Root CA - G3: https://www.apple.com/certificateauthority/ (AppleRootCA-G3.cer)
@@ -23,6 +25,20 @@ export const APPLE_ROOT_CA_G3_SHA256 =
 
 const OID_LEAF_MARKER = '1.2.840.113635.100.6.11.1';
 const OID_INTERMEDIATE_MARKER = '1.2.840.113635.100.6.2.1';
+const OID_BASIC_CONSTRAINTS = '2.5.29.19';
+// Extensions this verifier understands; any other extension marked critical is refused (RFC 5280 4.2).
+const KNOWN_EXTENSIONS = new Set([
+  OID_BASIC_CONSTRAINTS,
+  '2.5.29.15', // keyUsage
+  '2.5.29.37', // extKeyUsage
+  '2.5.29.14', // subjectKeyIdentifier
+  '2.5.29.35', // authorityKeyIdentifier
+  '2.5.29.32', // certificatePolicies
+  '2.5.29.31', // cRLDistributionPoints
+  '1.3.6.1.5.5.7.1.1', // authorityInfoAccess
+  OID_LEAF_MARKER,
+  OID_INTERMEDIATE_MARKER,
+]);
 const SIG_ALGS = {
   '1.2.840.10045.4.3.2': 'SHA-256',
   '1.2.840.10045.4.3.3': 'SHA-384',
@@ -132,10 +148,23 @@ export function parseCertificate(der) {
   const curve = CURVES[readOid(der, spkiAlg[1])];
   if (!curve) throw new JwsError('cert_curve');
   const extOids = [];
+  let isCa = null; // null: no basicConstraints extension
   const extWrap = tbsKids.slice(i + 6).find((t) => t.tag === 0xa3);
   if (extWrap) {
     const exts = children(der, children(der, extWrap)[0]);
-    for (const e of exts) extOids.push(readOid(der, children(der, e)[0]));
+    for (const e of exts) {
+      const parts = children(der, e); // extnID, [critical BOOLEAN], extnValue OCTET STRING
+      const id = readOid(der, parts[0]);
+      const critical = parts.length === 3 && parts[1].tag === 0x01 && der[parts[1].start] !== 0;
+      if (critical && !KNOWN_EXTENSIONS.has(id)) throw new JwsError('unknown_critical_extension');
+      if (id === OID_BASIC_CONSTRAINTS) {
+        const value = parts[parts.length - 1];
+        const bc = readTlv(der, value.start); // SEQUENCE { cA BOOLEAN DEFAULT FALSE, pathLen INTEGER OPTIONAL }
+        const first = children(der, bc)[0];
+        isCa = Boolean(first && first.tag === 0x01 && der[first.start] !== 0);
+      }
+      extOids.push(id);
+    }
   }
   const sigBits = der.subarray(sigVal.start + 1, sigVal.end); // skip unused-bits byte
   return {
@@ -147,6 +176,7 @@ export function parseCertificate(der) {
     spki: der.subarray(spki.hdrStart, spki.end),
     curve,
     extOids,
+    isCa,
   };
 }
 
@@ -188,11 +218,14 @@ async function verifySignedBy(child, issuer) {
  *
  * options.trustedRootSha256: list of accepted root fingerprints (default: Apple Root CA - G3 only).
  * options.now: current time in ms (for the not-from-the-future check).
+ * options.maxLength: longest accepted JWS (default 16,000 characters; a
+ *   notification nests two signed JWS, so its caller allows 64,000).
  */
 export async function verifyAppleJws(jws, options = {}) {
   const roots = options.trustedRootSha256 || [APPLE_ROOT_CA_G3_SHA256];
   const now = options.now ?? Date.now();
-  if (typeof jws !== 'string' || jws.length > 16_000) throw new JwsError('jws_shape');
+  const maxLength = options.maxLength ?? 16_000;
+  if (typeof jws !== 'string' || jws.length > maxLength) throw new JwsError('jws_shape');
   const parts = jws.split('.');
   if (parts.length !== 3 || parts.some((p) => !p)) throw new JwsError('jws_shape');
   let header;
@@ -219,6 +252,11 @@ export async function verifyAppleJws(jws, options = {}) {
   const [leaf, intermediate, root] = ders.map(parseCertificate);
   if (!leaf.extOids.includes(OID_LEAF_MARKER)) throw new JwsError('leaf_marker');
   if (!intermediate.extOids.includes(OID_INTERMEDIATE_MARKER)) throw new JwsError('intermediate_marker');
+  if (leaf.isCa === true) throw new JwsError('leaf_is_ca');
+  if (intermediate.isCa !== true) throw new JwsError('intermediate_not_ca');
+  // The root is pinned by fingerprint; it must not say it is not a CA.
+  // (Apple Root CA - G3 has CA:TRUE; Apple's library test root has no extensions.)
+  if (root.isCa === false) throw new JwsError('root_not_ca');
   await verifySignedBy(intermediate, root);
   await verifySignedBy(leaf, intermediate);
 

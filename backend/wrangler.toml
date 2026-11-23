@@ -17,6 +17,21 @@ class_name = "UsageGuard"
 tag = "v1-usage-guard"
 new_sqlite_classes = ["UsageGuard"]
 
+# Per-network request limit (Workers Rate Limiting binding; current syntax per
+# developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit, which
+# replaced the older [[unsafe.bindings]] type = "ratelimit" form; needs
+# wrangler 4.36+). The docs list no charge for it. Counts are approximate and
+# per Cloudflare location; the Durable Object counters stay the strict limits.
+# The key is a salted hash of the IPv4 address or IPv6 /64. Without the
+# binding, the Worker falls back to an in-isolate window.
+[[ratelimits]]
+name = "RATE_LIMITER"
+namespace_id = "1001"
+
+  [ratelimits.simple]
+  limit = 60
+  period = 60
+
 # All limits are PROVISIONAL defaults (docs/business/AI_COST_MODEL.md, section 7).
 # The global budget is the main protection. Change values here or in the dashboard.
 [vars]
@@ -24,6 +39,9 @@ new_sqlite_classes = ["UsageGuard"]
 # 10000 = the Workers AI free daily allowance, so $0 of spending. Raising it
 # needs Workers Paid and the owner's approval.
 DAILY_NEURON_BUDGET = "10000"
+# The share of that budget requests without a StoreKit token may use (the v1
+# App Store build). Unset or "-1" = 20% of DAILY_NEURON_BUDGET.
+ANON_NEURON_BUDGET = "2000"
 # Optional monthly ceiling in neurons ("0" = off).
 MONTHLY_NEURON_BUDGET = "0"
 # Per subscriber (keyed by a salted hash of the App Store originalTransactionId).
@@ -42,19 +60,26 @@ IP_PER_MINUTE_LIMIT = "60"
 # Set REQUIRE_SUBSCRIPTION = "1" once the app version that sends the token is
 # widely installed. Until then, these requests share a per-IP bucket.
 REQUIRE_SUBSCRIPTION = "0"
+# Per IPv4 address / IPv6 /64.
 ANON_DAILY_LIMIT = "60"
 ANON_MONTHLY_LIMIT = "600"
+# v1 App Store build (1.0.2, no coachId): chat with its own prompt and the
+# photo coach, inside the anonymous caps and budget. Set "0" when v1 is retired
+# (requests then get 426 APP_UPDATE_REQUIRED).
+LEGACY_CLIENTS = "1"
 # Subscription checks (offline StoreKit 2 JWS verification against Apple Root CA - G3).
 APPLE_BUNDLE_ID = "com.datewise.datewiseAi"
 APPLE_PRODUCT_ID = "datewise_premium_monthly"
-# TestFlight and App Review purchases are Sandbox transactions.
+# TestFlight and App Review purchases are Sandbox transactions. They get their
+# own small daily cap. A missing or "Xcode" environment is refused.
 ALLOW_SANDBOX = "1"
+SANDBOX_DAILY_LIMIT = "20"
 # Minutes accepted after expiresDate while a renewal reaches the device.
 EXPIRY_LEEWAY_MINUTES = "60"
 # Match App Store Connect's Billing Grace Period (0, 3, 16 or 28 days for monthly plans).
 BILLING_GRACE_DAYS = "0"
 # App Store Server Notifications v2 at POST /apple/notifications (REFUND/REVOKE). Off by default.
 ASSN_ENABLED = "0"
-# The v1 photo coach (the v2 app sends no photos).
-PHOTO_COACH_ENABLED = "0"
 # ID_HASH_SALT: set as a secret (wrangler secret put ID_HASH_SALT), not here.
+# Rotating it resets every counter and the revoked list. Without it, a public
+# default salt is used and logs carry no `who`.

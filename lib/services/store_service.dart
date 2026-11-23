@@ -161,7 +161,9 @@ class FakeStoreService extends StoreService {
 /// on iOS). The entitlement is read from StoreKit's current entitlements on
 /// launch, so a canceled or expired subscription stops unlocking chat.
 class AppStoreService extends StoreService {
-  AppStoreService({InAppPurchase? iap}) : _iap = iap ?? InAppPurchase.instance;
+  AppStoreService({InAppPurchase? iap}) : _iap = iap ?? InAppPurchase.instance {
+    EntitlementToken.refresher = refresh;
+  }
 
   final InAppPurchase _iap;
   StreamSubscription<List<PurchaseDetails>>? _sub;

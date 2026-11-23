@@ -18,6 +18,11 @@ class EntitlementToken {
 
   static void update(String? jws) => _jws = (jws == null || jws.isEmpty) ? null : jws;
 
+  /// Re-reads the current entitlement from StoreKit (set by the store). The
+  /// chat calls it once when the backend says the token is expired or invalid,
+  /// then retries, because a renewal may not have reached the token yet.
+  static Future<void> Function()? refresher;
+
   /// Keeps [data] only when it is a compact JWS (StoreKit 2). A StoreKit 1
   /// receipt or a Google Play token is ignored and leaves the token unchanged.
   static void updateIfJws(String? data) {
@@ -39,6 +44,10 @@ class CoachLimitCode {
   static const subscriptionInvalid = 'SUBSCRIPTION_INVALID';
   static const subscriptionExpired = 'SUBSCRIPTION_EXPIRED';
   static const subscriptionRevoked = 'SUBSCRIPTION_REVOKED';
+  static const appUpdateRequired = 'APP_UPDATE_REQUIRED';
+
+  /// Codes that a fresh StoreKit entitlement may fix (one refresh, one retry).
+  static const refreshable = {subscriptionExpired, subscriptionInvalid, subscriptionRequired};
 }
 
 /// The fair-use state reported with the last successful reply.
