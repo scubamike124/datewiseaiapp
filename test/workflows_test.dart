@@ -24,6 +24,14 @@ void main() {
     }
   });
 
+  test('pull requests compile the same web build that deploy.yml publishes from main', () {
+    final cmd = RegExp(r'run: (flutter build web[^\n]*)');
+    final deploy = cmd.firstMatch(File('.github/workflows/deploy.yml').readAsStringSync())![1];
+    final tests = File('.github/workflows/test.yml').readAsStringSync();
+    expect(tests, contains('run: $deploy\n'));
+    expect(tests, isNot(contains('--dart-define')));
+  });
+
   test('every Flutter setup uses the same pinned version', () {
     final versions = <String>{};
     for (final f in workflows) {
