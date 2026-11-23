@@ -91,9 +91,13 @@ class NoSpeechService implements SpeechService {
 }
 
 class DeviceSpeechService implements SpeechService {
-  DeviceSpeechService._();
+  DeviceSpeechService._() : _stt = SpeechToText();
 
-  final SpeechToText _stt = SpeechToText();
+  /// For tests: a service around a fake recognizer.
+  @visibleForTesting
+  DeviceSpeechService.withRecognizer(SpeechToText recognizer) : _stt = recognizer;
+
+  final SpeechToText _stt;
   bool _ready = false;
   bool _denied = false;
   String _words = '';
@@ -188,13 +192,27 @@ class DeviceSpeechService implements SpeechService {
         ),
       );
     } on ListenFailedException {
+      await _cancelRecognizer();
       return SpeechStart.unsupported;
     } on PlatformException {
+      await _cancelRecognizer();
       return SpeechStart.unsupported;
     } catch (_) {
+      await _cancelRecognizer();
       return SpeechStart.unsupported;
     }
     return SpeechStart.started;
+  }
+
+  /// Cancels the recognizer whatever `isListening` says: a session that is
+  /// still starting, or one that failed half-way, can report not listening
+  /// while it still holds the microphone. Cancelling an idle recognizer is
+  /// harmless.
+  Future<void> _cancelRecognizer() async {
+    _onUnsupported = null;
+    try {
+      await _stt.cancel();
+    } catch (_) {}
   }
 
   @override
@@ -210,10 +228,7 @@ class DeviceSpeechService implements SpeechService {
 
   @override
   Future<void> cancel() async {
-    _onUnsupported = null;
     _words = '';
-    try {
-      if (_stt.isListening) await _stt.cancel();
-    } catch (_) {}
+    await _cancelRecognizer();
   }
 }
