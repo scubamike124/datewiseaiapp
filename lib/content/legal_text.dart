@@ -64,7 +64,7 @@ DateWise AI ("DateWise AI", "we", "us") provides an AI dating-coaching app with 
 # Service providers
 - Cloudflare (Workers AI) generates the AI coaching replies; inputs are processed to return a reply and are not used to train models.
 - Apple processes subscriptions and provides on-device speech recognition and voices.
-- Find a table (on first-date plans, iPhone and iPad) opens Apple Maps only when you tap it, with a general search for restaurants. DateWise sends no conversation content and no location; Apple Maps uses your device's own location settings. There is no booking inside the app.
+- Find a table (on first-date plans, iPhone and iPad) opens Apple Maps only when you tap it, with a general search for restaurants. DateWise sends no conversation content and no location; Apple Maps uses your device's own location settings. There is no booking inside the app. Apple Maps' own privacy policy applies to your search.
 - These providers process data only to provide their service to us.
 
 # Data retention and deletion
@@ -166,7 +166,7 @@ DateWise AI ("DateWise AI", "nosotros") ofrece una app de coaching de citas con 
 # Proveedores de servicios
 - Cloudflare (Workers AI) genera las respuestas de coaching con IA; los datos se procesan para devolver una respuesta y no se usan para entrenar modelos.
 - Apple procesa las suscripciones y ofrece el reconocimiento de voz y las voces del dispositivo.
-- Buscar mesa (en los planes de primera cita, iPhone y iPad) abre Apple Maps solo cuando lo tocas, con una búsqueda general de restaurantes. DateWise no envía contenido de tus conversaciones ni tu ubicación; Apple Maps usa la configuración de ubicación de tu dispositivo. No hay reservas dentro de la app.
+- Buscar mesa (en los planes de primera cita, iPhone y iPad) abre Apple Maps solo cuando lo tocas, con una búsqueda general de restaurantes. DateWise no envía contenido de tus conversaciones ni tu ubicación; Apple Maps usa la configuración de ubicación de tu dispositivo. No hay reservas dentro de la app. La política de privacidad de Apple Maps se aplica a tu búsqueda.
 - Estos proveedores procesan datos solo para prestarnos su servicio.
 
 # Conservación y eliminación de datos

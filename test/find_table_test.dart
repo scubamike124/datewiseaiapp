@@ -3,17 +3,49 @@
 // first-date plans, opens exactly https://maps.apple.com/?q=<term> in the UI
 // language, launches only on tap, and is absent elsewhere.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:datewise_ai/app.dart';
 
 import 'package:datewise_ai/app_links.dart';
 import 'package:datewise_ai/models/chat_message.dart';
 import 'package:datewise_ai/models/coach.dart';
+import 'package:datewise_ai/models/tier.dart';
+import 'package:datewise_ai/models/user_profile.dart';
+import 'package:datewise_ai/screens/shell.dart';
+import 'package:datewise_ai/services/ai_service.dart';
+import 'package:datewise_ai/services/storage_service.dart';
+import 'package:datewise_ai/services/store_service.dart';
+import 'package:datewise_ai/state/app_state.dart';
 import 'package:datewise_ai/widgets/find_table_link.dart';
 
 import 'helpers.dart';
 
 final ios = TargetPlatformVariant.only(TargetPlatform.iOS);
+
+/// A coach whose replies arrive only when the test adds them.
+class _HeldAI implements AIService {
+  final streams = <StreamController<String>>[];
+
+  @override
+  Stream<String> streamReply({
+    required List<ChatMessage> history,
+    required SubscriptionTier tier,
+    UserProfile? profile,
+    Coach? coach,
+  }) {
+    final c = StreamController<String>();
+    streams.add(c);
+    return c.stream;
+  }
+
+  @override
+  String get providerLabel => 'held';
+}
 
 void main() {
   late List<Uri> launched;
@@ -75,7 +107,8 @@ void main() {
     await tester.pump();
     final node = tester.getSemantics(button);
     expect(node.label, 'Find a table nearby. Opens Apple Maps.');
-    expect(node.flagsCollection.isButton, isTrue);
+    expect(node.flagsCollection.isLink, isTrue);
+    expect(node.flagsCollection.isButton, isFalse);
     handle.dispose();
 
     await tester.tap(button);
@@ -124,4 +157,44 @@ void main() {
       expect(tester.getRect(button).right, lessThanOrEqualTo(375));
     }, variant: ios);
   }
+
+  testWidgets('hidden while the reply streams and after a failed reply', (tester) async {
+    setSurface(tester, const Size(390, 844), 1.0);
+    SharedPreferences.setMockInitialValues(onboardedPrefs());
+    final ai = _HeldAI();
+    final storage = await StorageService.create();
+    final store = FakeStoreService(entitled: true);
+    final state = AppState(storage: storage, ai: ai, store: store);
+    await tester.pumpWidget(wrap(TestApp(state, store, storage), const DateWiseApp(initialTab: AppTab.chat)));
+    await tester.pump();
+    final button = find.byKey(const ValueKey('find-table'));
+
+    // Streaming: part of the reply is on screen, the button is not.
+    unawaited(state.sendMessage('Help me prepare for a date.'));
+    await tester.pump();
+    ai.streams.single.add('Keep it simple: **a café** for an hour. ');
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(state.isResponding, isTrue);
+    expect(find.textContaining('a café', findRichText: true), findsWidgets);
+    expect(button, findsNothing);
+    await ai.streams.single.close();
+    for (var i = 0; i < 40 && state.isResponding; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(button, findsOneWidget, reason: 'shown once the reply is complete');
+
+    // A failed follow-up reply: the button goes with it.
+    unawaited(state.sendMessage('Any other idea?'));
+    await tester.pump();
+    ai.streams.last.addError(Exception('network down'));
+    await ai.streams.last.close();
+    for (var i = 0; i < 40 && state.isResponding; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(state.activeThread!.messages.last.status, isNot(MessageStatus.ok));
+    expect(button, findsNothing);
+    expect(launched, isEmpty);
+  }, variant: ios);
 }

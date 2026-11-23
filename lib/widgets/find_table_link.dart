@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../app_links.dart';
 import '../l10n/l10n.dart';
 import '../models/chat_message.dart';
+import '../models/coach.dart';
 import 'dw.dart';
 
 /// "Find a table": the v1 booking option (owner decision, 2026-11-23). On a
@@ -27,16 +28,19 @@ class FindTableLink extends StatelessWidget {
       !kIsWeb && (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.macOS);
 
   /// The prompts that start the first-date-plan path: Home's "Prepare for a
-  /// date" quick action, the weekly plan's "Plan a first date" item (both in
-  /// either language) and the coaches' "Plan a first date" starters.
-  static final Set<String> _datePlanPrompts = {
-    for (final l in [lookupAppLocalizations(const Locale('en')), lookupAppLocalizations(const Locale('es'))]) ...[
-      l.quickDatePrompt,
-      l.planPromptDates,
-    ],
-    'Plan a first date',
-    'Planea una primera cita',
-  };
+  /// date" quick action, the weekly plan's "Plan a first date" prompt (both in
+  /// either language) and every coach starter worded like the plan's "Plan a
+  /// first date" item (derived, so a reworded starter cannot drift).
+  static final Set<String> _datePlanPrompts = () {
+    final locales = [lookupAppLocalizations(const Locale('en')), lookupAppLocalizations(const Locale('es'))];
+    final planItems = {for (final l in locales) l.planItemDates};
+    return {
+      for (final l in locales) ...[l.quickDatePrompt, l.planPromptDates],
+      for (final c in Coaches.all)
+        for (final s in c.starters)
+          if (planItems.contains(s)) s,
+    };
+  }();
 
   /// Whether [messages] is a first-date-plan conversation: its first user
   /// message is one of the date-plan prompts.
@@ -61,7 +65,6 @@ class FindTableLink extends StatelessWidget {
     // Its own node (container), not merged into the coach's reply above it.
     return Semantics(
       container: true,
-      button: true,
       link: true,
       label: l.findTableSemantics,
       onTap: () => _open(context),
