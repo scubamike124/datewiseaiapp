@@ -178,7 +178,7 @@ Nothing new leaves the phone. The avatar is drawn on the device from bundled
 images; speech and its timing come from the device's own synthesizer. No
 avatar vendor is involved. App Privacy answers are unchanged.
 
-## Evidence (2026-11-23, round 4)
+## Evidence (2026-11-23, round 5)
 
 **Frames:** 76/76 pass the gate. Identity vs approved reference ≥ 0.657
 (threshold 0.45, own coach always highest), vs master ≥ 0.772, iris chroma
@@ -194,12 +194,12 @@ Mouth vs loudness, measured on the videos the visual reviewer's way (mouth-
 region difference from the idle frame vs audio RMS; head motion cancelled by
 aligning on the upper face):
 
-| | Round 1 (04cff76) | Round 2 (3ab5ea8) | Round 3 (72bb738) | Round 4, native audio path | Round 4, flutter_tts path (App Store default) |
-|---|---|---|---|---|---|
-| r at 0 lag | 0.45 | 0.71 | 0.82 | **0.81** | 0.63 |
-| best lag / r there | +86 ms / 0.67 | −16 ms / 0.72 | −8 ms / 0.82 | **−9 ms / 0.82** | −4 ms / 0.64 |
-| longest unchanged mouth while audible | 67 ms | 33 ms | 0 ms | 33 ms | 33 ms |
-| longest rest while audible | 67 ms | 100 ms | 0 ms | 33 ms | 133 ms |
+| | Round 1 (04cff76) | Round 2 (3ab5ea8) | Round 3 (72bb738) | Round 4 (70eb4c3), native | Round 5, native audio path | Round 5, flutter_tts path (App Store default) |
+|---|---|---|---|---|---|---|
+| r at 0 lag | 0.45 | 0.71 | 0.82 | 0.81 | **0.80** | 0.64 |
+| best lag / r there | +86 ms / 0.67 | −16 ms / 0.72 | −8 ms / 0.82 | −9 ms / 0.82 | **−5 ms / 0.80** | +1 ms / 0.64 |
+| longest unchanged mouth while audible | 67 ms | 33 ms | 0 ms | 33 ms | 33 ms | 33 ms |
+| longest rest while audible | 67 ms | 100 ms | 0 ms | 33 ms | 33 ms | 200 ms |
 
 Rounds 1–3 used earlier demo voices. (An earlier version of the measurement
 script aligned frames on the whole picture, which the mouth disturbed; all
@@ -209,9 +209,13 @@ Mouth shape vs Piper's phoneme alignments (what the frames showed):
 
 | Path | Exact shape | Openness r | M/B/P within ±80 ms | Lag |
 |---|---|---|---|---|
-| Native audio, iOS 15/16 (loudness only) | 29% | 0.27 | 51% | −46 ms |
-| Native audio, iOS 17 (+ word markers) | 48% | 0.42 | 96% | −24 ms |
-| flutter_tts path (word events) | 31% | 0.25 | 62% | −71 ms |
+| Native audio, iOS 15/16 (loudness only) | 32% | 0.31 | 51% | −39 ms |
+| Native audio, iOS 17 (+ word markers) | 47% | 0.43 | 85% | −13 ms |
+| flutter_tts path (word events) | 35% | 0.27 | 73% | −38 ms |
+
+(Round 5's 50 ms minimum per shape merges very short closures into their
+neighbours: with markers, closures within ±80 ms went from 96% to 85%; on
+the flutter_tts path they went from 62% to 73%.)
 
 The jaw follows the real loudness on the native path, which is what the
 viewer mostly sees. Which shape is shown comes from spelling rules and an
