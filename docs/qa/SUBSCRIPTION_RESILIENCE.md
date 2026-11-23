@@ -2,14 +2,14 @@
 
 Date: 2026-11-23. Scope: `lib/services/store_service.dart`, `backend_ai_service.dart`, `coach_usage.dart`,
 `backend/cost_guard.js`, `apple_jws.js`, `worker.js`, `wrangler.toml`. Tests: `backend/subscription_resilience.test.mjs`
-(server) and `test/subscription_resilience_test.dart` (device). Nothing is deployed. Prices are unchanged: one plan,
-$9.99/month. $19.99 is only a proposal and is configured nowhere.
+(server) and `test/subscription_resilience_test.dart` (device). Nothing is deployed. One plan,
+$19.99/month (owner decision, 2026-11-23; previously $9.99).
 
-## 1. The only plan is $9.99/month
+## 1. The only plan is $19.99/month
 
 Verified by tests, not only by reading:
 
-- `ios/Runner/DateWise.storekit`: one subscription group with one subscription, `datewise_premium_monthly`, `P1M`, 9.99,
+- `ios/Runner/DateWise.storekit`: one subscription group with one subscription, `datewise_premium_monthly`, `P1M`, 19.99,
   no introductory, ad-hoc, code or win-back offers, `familyShareable: false`, and no other products
   (`subscription_resilience.test.mjs` test 1; `qa_subscription_store_test.dart`).
 - `backend/wrangler.toml` `APPLE_PRODUCT_ID`, the `cost_guard.js` default, `StoreConfig.productId` and

@@ -8,6 +8,9 @@ Everything here describes what the v2 app actually does. There are no
 statistics, ratings, testimonials or results claims; keep it that way.
 
 Items marked **OWNER** need the owner's decision or confirmation.
+The ordered owner steps, with every answer filled in, are in
+[SUBMISSION_READY.md](SUBMISSION_READY.md); it is also the copy-paste source
+for the App Review notes.
 
 Locales: English (U.S.) is the primary language. Spanish text is written for
 **Spanish (Mexico)**; it can be copied to Spanish (Spain) if the owner wants
@@ -25,10 +28,25 @@ and Diego in Spanish.
 | Subtitle (≤30) | Your AI dating coach | Tu coach de citas con IA |
 | Primary category | Lifestyle | Lifestyle (Estilo de vida) |
 | Secondary category | none (optional: Social Networking is **not** recommended; the app has no social features) | |
-| Support URL | **OWNER:** `https://datewiseai.com/support` (placeholder; must be a live page with contact info, or use a page that shows support@datewiseai.com) | same |
-| Marketing URL (optional) | **OWNER:** `https://datewiseai.com` | same |
-| Privacy Policy URL | **OWNER:** `https://datewiseai.com/privacy-policy` (the URL the app links to in `lib/app_links.dart`; confirm it is live and shows the v2 policy) | same |
+| Support URL | `https://datewiseai.com/terms-of-service` (no support page exists in this repository; the Terms page ends with a Contact section showing support@datewiseai.com, which meets Apple's "easy way to contact you". Keep the record's current Support URL instead if it is live and shows contact details) | same |
+| Marketing URL (optional) | Leave blank (optional field; `datewiseai.com`'s home page is not published from this branch) | same |
+| Privacy Policy URL | `https://datewiseai.com/privacy-policy` (hard-coded in the app, `lib/app_links.dart`; it must serve the v2 text, "Last updated: November 23, 2026", before submission: see "Where the legal pages are hosted" below) | same |
 | Copyright | **OWNER:** `2026 <legal owner name>` | same |
+
+**Where the legal pages are hosted.** The app opens
+`https://datewiseai.com/privacy-policy` and `/terms-of-service`. Those clean
+URLs work only on a host that applies `web/.htaccess` (Apache, e.g. GoDaddy,
+where `datewiseai.com` is believed to be hosted) or `web/_redirects`
+(Netlify). The repository's own publisher, `.github/workflows/deploy.yml`, is
+manual-only, publishes only `main`, and targets GitHub Pages under
+`/<repo>/`, where neither rule file applies (only `/privacy.html` and
+`/terms.html` would work, and the app's URLs would 404). `main` already
+has the v2 legal pages; only publishing them to `datewiseai.com` remains. The
+owner publishes `web/privacy.html`,
+`web/privacy-es.html`, `web/terms.html`, `web/terms-es.html` and the rewrite
+rules from `web/.htaccess` to the `datewiseai.com` host by hand, then opens
+both URLs in Safari. Not checked live from here (the sandbox cannot reach the
+site).
 
 Name note: the store record is currently named "DateWise AI - Dating Coach".
 Changing it to "DateWise AI" is optional; the subtitle carries "dating coach".
@@ -85,7 +103,7 @@ Do not add competitor or other app names.)
 > DateWise AI is for adults 18+. The coaches are AI, not people, and they can make mistakes. Their advice is not professional, medical, legal or mental health advice. Always meet new people in public places and put your safety first.
 >
 > DATEWISE PREMIUM
-> Chatting with the coaches requires DateWise Premium, an auto-renewing monthly subscription ($9.99/month in the U.S.; local prices vary). Payment is charged to your Apple Account at confirmation of purchase. The subscription renews automatically unless canceled at least 24 hours before the end of the current period. Manage or cancel it in Settings › [your name] › Subscriptions.
+> Chatting with the coaches requires DateWise Premium, an auto-renewing monthly subscription ($19.99/month in the U.S.; local prices vary). Payment is charged to your Apple Account at confirmation of purchase. The subscription renews automatically unless canceled at least 24 hours before the end of the current period. Manage or cancel it in Settings › [your name] › Subscriptions.
 >
 > Fair use: DateWise Premium includes generous everyday coaching for personal use, up to 150 coach replies a day and 1,500 a month (at most 12 a minute and 2 at a time). Typed and spoken messages count the same. You will see a notice in the chat when you are close to a limit. When a limit is reached, chat pauses until the next day (00:00 UTC) or the next month.
 >
@@ -125,7 +143,7 @@ Do not add competitor or other app names.)
 > DateWise AI es para mayores de 18 años. Los coaches son IA, no personas, y pueden equivocarse. Sus consejos no son asesoría profesional, médica, legal ni de salud mental. Conoce a personas nuevas siempre en lugares públicos y prioriza tu seguridad.
 >
 > DATEWISE PREMIUM
-> Para chatear con los coaches necesitas DateWise Premium, una suscripción mensual con renovación automática (9.99 USD al mes en EE. UU.; el precio local puede variar). El pago se carga a tu Cuenta de Apple al confirmar la compra. La suscripción se renueva automáticamente salvo que la canceles al menos 24 horas antes de que termine el período actual. Adminístrala o cancélala en Configuración › [tu nombre] › Suscripciones.
+> Para chatear con los coaches necesitas DateWise Premium, una suscripción mensual con renovación automática (US$19.99 al mes en EE. UU.; el precio local puede variar). El pago se carga a tu Cuenta de Apple al confirmar la compra. La suscripción se renueva automáticamente salvo que la canceles al menos 24 horas antes de que termine el período actual. Adminístrala o cancélala en Configuración › [tu nombre] › Suscripciones.
 >
 > Uso justo: DateWise Premium incluye coaching diario generoso para uso personal, hasta 150 respuestas del coach al día y 1500 al mes (con un máximo de 12 por minuto y 2 a la vez). Los mensajes escritos y hablados cuentan igual. Verás un aviso en el chat cuando estés cerca de un límite. Al alcanzar un límite, el chat se pausa hasta el día siguiente (00:00 UTC) o el mes siguiente.
 >
@@ -152,7 +170,7 @@ confirmation in onboarding.
 |--|--|
 | Parental controls | No |
 | Age assurance | No (the app asks users to confirm they are 18+; it does not verify age) |
-| Unrestricted web access | No (links open only the privacy policy, terms and support email) |
+| Unrestricted web access | No (links open only the privacy policy, terms, support email and an Apple Maps search) |
 | User-generated content | No (no content is shared with other users) |
 | Messaging and chat (with other people) | No (chat is with an AI coach only) |
 | Advertising | No |
@@ -210,7 +228,7 @@ Notes for the owner:
 
 - Sign-in required: **No** (the app has no accounts). Leave the demo account blank.
 - Contact: **OWNER** name, phone, email.
-- Notes (paste):
+- Notes (paste; [SUBMISSION_READY.md](SUBMISSION_READY.md) step 14 links here):
 
 > DateWise AI is an AI dating coach for adults (18+). There is no account or sign-in.
 >
@@ -222,13 +240,16 @@ Notes for the owner:
 > 5. Restore Purchases is on the paywall and in the You tab. Delete my data is in the You tab.
 >
 > AI DISCLOSURE
-> All four coaches (Ava, Ethan, Sofía, Diego) are AI and are labelled "AI coach" throughout the app. Replies are generated by a large language model through our backend (Cloudflare Workers AI). The app states that advice is not professional advice. Messages are not used to train models.
+> All four coaches (Ava, Ethan, Sofía, Diego) are AI and are labelled "AI coach" throughout the app. Replies are generated by a large language model (Meta Llama 3.3 70B on Cloudflare Workers AI) through our backend; only the message text, the chosen goals and language, and an optional memory note the user writes are sent, to generate the reply. The app states that advice is not professional advice. Messages are not used to train models.
 >
 > AGE
 > Onboarding asks users to confirm they are 18 or older; users who say they are under 18 cannot continue.
 >
 > FAIR USE
 > DateWise Premium has fair-use limits, disclosed on the paywall, in the description and in the Terms of Use: up to 150 coach replies a day and 1,500 a month, at most 12 a minute and 2 at a time. Sandbox purchases (App Review and TestFlight) have a smaller limit of 20 replies a day. A notice appears near the limit.
+>
+> FIND A TABLE
+> Find a table opens Apple Maps; no in-app booking.
 >
 > OTHER
 > No ads, no analytics, no tracking. Encryption: HTTPS only (exempt).
@@ -249,7 +270,7 @@ Create in App Store Connect › Monetization › Subscriptions (must match
 | Product reference name | DateWise Premium Monthly |
 | Product ID | `datewise_premium_monthly` (cannot be changed or reused later) |
 | Duration | 1 month |
-| Price | USD 9.99 (Tier equivalent; let Apple set other storefronts or set manually) |
+| Price | USD 19.99 (Tier equivalent; let Apple set other storefronts or set manually) |
 | Introductory offer / free trial | None |
 | Family Sharing | Off |
 | Availability | All storefronts where the app is sold |
@@ -311,5 +332,6 @@ screenshot shows or implies live video or a real person.
 The web review build's "Review build" paywall note never appears in these
 five screens.
 
-Coach portraits are placeholders until the owner supplies final portraits;
-regenerate after replacing `assets/coaches/*`.
+The screenshots in `docs/appstore/screenshots/` are **final**: they show the
+owner-approved portraits (PR #40, merged as `de430f7` on 2026-11-23; same
+sizes, RGB without alpha). Regenerate only if the portraits change.

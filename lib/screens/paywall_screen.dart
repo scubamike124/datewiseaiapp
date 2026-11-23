@@ -190,27 +190,36 @@ class _PaywallScreenState extends State<PaywallScreen> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              if (price != null) ...[
-                                Text(
-                                  price,
-                                  key: const ValueKey('paywall-price'),
-                                  style: const TextStyle(fontFamily: AppFonts.serif, fontSize: 26, color: AppColors.gold, height: 1.1),
-                                ),
-                                Text(l.perMonth, style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted)),
-                              ] else
-                                ConstrainedBox(
-                                  constraints: const BoxConstraints(maxWidth: 130),
-                                  child: Text(
-                                    l.priceFromAppStore,
-                                    key: const ValueKey('paywall-price'),
-                                    textAlign: TextAlign.end,
-                                    style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                          // Flexible + scaleDown: a long localized StoreKit price ("US$19.99",
+                          // "MX$399.00") at large Dynamic Type shrinks to fit instead of overflowing.
+                          Flexible(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                if (price != null) ...[
+                                  FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerRight,
+                                    child: Text(
+                                      price,
+                                      key: const ValueKey('paywall-price'),
+                                      maxLines: 1,
+                                      style: const TextStyle(fontFamily: AppFonts.serif, fontSize: 26, color: AppColors.gold, height: 1.1),
+                                    ),
                                   ),
-                                ),
-                            ],
+                                  Text(l.perMonth, style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted)),
+                                ] else
+                                  ConstrainedBox(
+                                    constraints: const BoxConstraints(maxWidth: 130),
+                                    child: Text(
+                                      l.priceFromAppStore,
+                                      key: const ValueKey('paywall-price'),
+                                      textAlign: TextAlign.end,
+                                      style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
                         ],
                       ),

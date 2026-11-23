@@ -10,14 +10,14 @@ This section supersedes the older figures below; the earlier sections are kept a
 
 | | |
 |---|---|
-| Release candidate | PR #27 `claude/datewise-v2-app`, head `7fed09c` (draft, not merged, nothing deployed). Price stays $9.99/month; $19.99 is a proposal only. |
+| Release candidate | PR #27 `claude/datewise-v2-app`, head `7fed09c` (draft, not merged, nothing deployed). Price: $19.99/month (owner decision, 2026-11-23; was $9.99). |
 | Merged in (squashed, each independently reviewed YES) | #31 subscription resilience (ASSN v2, opt-in bounded fail-open, lockout fixes, v1 forced-update reply); #32 protected wrangler deploy workflow; #33 on-device talking avatars; QA-sweep and regression fixes; the live AI test kit (`tool/live/`) |
 | Open drafts | #30 Llama vs Gemma model comparison + Workers Paid evaluation (live run BLOCKED on credentials) |
 | Tests (local, at 01754b7 + 7fed09c) | `flutter analyze lib test tool`: 0 issues. `flutter test`: 871 passed. `node --test backend/*.test.mjs tool/live/*.test.mjs`: 96 passed. |
 | CI | Tests, Backend tests and the unsigned iOS release build (compiles the native avatar audio Swift) green on every pushed head, latest verified [01754b7](https://github.com/scubamike124/datewiseaiapp/actions/runs/45148929312) |
 | Final reviews | Code/security/functional: YES (fba0f6a, then deltas to 01754b7). Design: YES 9/10 (1500269). Debug token export: YES (cannot ship in release; no leak via logs, crash paths or reports). Regression QA: 274 interactive checks, 116 screen captures, 144 layout cases; one HIGH defect found (Undo could restore data deleted by a bulk delete) and fixed, reviewed YES. |
 | Talking avatars | On-device, $0, no provider sees conversations. App Store default = flutter_tts word-anchored lip sync (visual review 5/10 on interim portraits; acceptable as "animated coach" with final neutral-lip portraits). Native audio path (loudness-driven jaw, 6/10) is TestFlight-only behind `DW_AVATAR_AUDIO_PATH` until a device test passes. Neither meets "realistic"; that needs the paid provider bake-off (`docs/avatar/PAID_PROVIDER_BAKEOFF.md`, owner approval). No avatar claims in store copy until device-verified. |
-| LIVE AI | **BLOCKED.** Production still serves chat-v5 (HTTP 502). The 36-request live kit has only run SIMULATED (`docs/qa/LIVE_AI_TEST_SIMULATED_SAMPLE.md`: 36 requests, 0 failing checks). A live run needs the isolated staging Worker `datewise-coach-staging` deployed through the protected workflow (checklist D8; no production changes) and an Apple Sandbox JWS, see `docs/qa/LIVE_AI_TEST_PLAN.md`. Estimated live cost about 1,839 neurons (free allowance). |
+| LIVE AI | **BLOCKED.** Production still serves chat-v5 (HTTP 502). The 36-request live kit has only run SIMULATED (`docs/qa/LIVE_AI_TEST_SIMULATED_SAMPLE.md`: 36 requests, 0 failing checks). A live run needs the isolated staging Worker `datewise-coach-staging` deployed through the protected workflow (checklist D8; no production changes) and an Apple Sandbox JWS, see `docs/qa/LIVE_AI_TEST_PLAN.md`. Estimated live cost about 2,019 neurons (free allowance). |
 | Device tests | **BLOCKED** (TestFlight): purchases, restore, refunds, voice/STT EN and ES, avatar timing per voice tier, frame time and memory. |
 | Owner actions | The single list is the release checklist at the top of `docs/appstore/checklist.md`. |
 
@@ -44,7 +44,7 @@ This section supersedes the older figures below; the earlier sections are kept a
 ## 3. Issues found and fixed
 
 ### Product and business rules
-- **One plan only:** $9.99 a month (`datewise_premium_monthly`). There is no free plan, trial, annual or lifetime plan. The paywall shows only the price StoreKit returns.
+- **One plan only:** $19.99 a month (`datewise_premium_monthly`). There is no free plan, trial, annual or lifetime plan. The paywall shows only the price StoreKit returns.
 - **No unlimited-use claims.** Every "unlimited" / "ilimitado" was removed. Fair-use limits are now disclosed on the paywall, in the Terms, in the App Store description and in the review notes:
   - 150 replies a day, 1,500 a month, 12 a minute, 2 at a time;
   - voice messages count the same as typed ones.
@@ -123,7 +123,7 @@ This section supersedes the older figures below; the earlier sections are kept a
   - Llama 3.3: $0.293 per million input tokens and $2.253 per million output tokens. Gemma: $0.10 and $0.30.
   - Workers Paid costs $5 a month.
   - There is **no hard spending cap** on Workers AI, so the cost guard's own budget breaker is required.
-- **Projections at the proposed $19.99** (a proposal only; $9.99 stays configured), after 30% commission, 3% refunds (an ASSUMPTION) and infrastructure:
+- **Projections at the configured $19.99**, after 30% commission, 3% refunds (an ASSUMPTION) and infrastructure:
   - 1,000 typical subscribers: about $13.2k a month on Llama or $13.5k on Gemma (97–99% margin).
   - Heavy use: 83% margin on Llama, 96% on Gemma.
   - Full tables are in `docs/business/WORKERS_PAID_EVALUATION.md` (PR #30) and `AI_COST_MODEL.md`. Usage levels are assumptions until real usage is measured.
@@ -137,7 +137,7 @@ This section supersedes the older figures below; the earlier sections are kept a
 ## 8. Owner-only actions
 1. **v1 stop-gap:** deploy chat-v6 (`f5b0401`) to the old Worker, with an owner-internal redeploy tool outside this repo or with `.github/workflows/deploy-worker.yml` (target `chat-v6`), per `docs/launch/WORKER_DEPLOY_RUNBOOK.md` §7 (release checklist D0). That fixes the production HTTP 502. Then rerun the live coach tests.
 2. **Model comparison:** add the repo secrets `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_AI_TOKEN` (your existing token, which needs Workers AI Read and Edit). Then approve the model and the `DAILY_NEURON_BUDGET`, and Workers Paid if you want it.
-3. **Pricing:** decide the final price; the default is $9.99. Set Mexico and Spain prices by hand, and join the Apple Small Business Program for 15% commission.
+3. **Pricing:** decided, $19.99/month (2026-11-23). Set USD 19.99 in App Store Connect, check Mexico and Spain prices by hand, and join the Apple Small Business Program for 15% commission.
 4. **App Store Connect:**
    - sign the Paid Apps Agreement and complete tax and banking;
    - create `datewise_premium_monthly`, and first check whether any older in-app products exist;

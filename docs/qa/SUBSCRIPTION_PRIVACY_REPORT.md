@@ -33,9 +33,9 @@ Latest GitHub Actions runs for the branch, all at head `b36b0eb`:
 
 | Check | Result |
 |--|--|
-| One paid plan, $9.99/month | PASS in the app, StoreKit file and metadata. Stale docs mention other plans (D9). |
-| StoreKit file | PASS: one auto-renewable `datewise_premium_monthly`, P1M, 9.99, `introductoryOffer: null`, no other products or offers, Family Sharing off. |
-| Paywall price | PASS: it shows only `ProductDetails.price` (tested with `9,99 €`). Without a price, Subscribe is disabled and no price is invented. |
+| One paid plan, $19.99/month | PASS in the app, StoreKit file and metadata. Stale docs mention other plans (D9). |
+| StoreKit file | PASS: one auto-renewable `datewise_premium_monthly`, P1M, 19.99, `introductoryOffer: null`, no other products or offers, Family Sharing off. |
+| Paywall price | PASS: it shows only `ProductDetails.price` (tested with `19,99 €`). Without a price, Subscribe is disabled and no price is invented. |
 | Auto-renew disclosure, Terms, Privacy, Restore | PASS. The copy says "Apple ID"; Apple now calls it "Apple Account" (D14). |
 | Purchase success / pending / error / cancel | PASS. `completePurchase` is called for every transaction of our product. |
 | Restore with or without a prior purchase | PASS on iOS. Android has a race (D3). |
@@ -187,7 +187,7 @@ users can hit; Low = edge case, docs or copy.
 - **Problem:** None of these ship in the app, but they contradict "one plan,
   no free tier, no trial" and can mislead agents and reviewers.
 - **Fix:** add a one-line "Superseded by v2: one plan,
-  `datewise_premium_monthly`, $9.99/month, no free tier or trial" banner at
+  `datewise_premium_monthly`, $19.99/month, no free tier or trial" banner at
   the top of each file, or move them to `docs/archive/`.
 
 ### D10 (Low): transactions for other product IDs are never finished
@@ -264,7 +264,7 @@ users can hit; Low = edge case, docs or copy.
 - The signed IPA build, upload to App Store Connect, TestFlight processing
   and installation.
 - That the App Store Connect product `datewise_premium_monthly` exists with
-  $9.99, 1 month and no intro offer (needs App Store Connect access).
+  $19.99, 1 month and no intro offer (needs App Store Connect access).
 - That the App Privacy answers in App Store Connect match §3 of
   `docs/appstore/metadata.md`.
 - Microphone and speech permission prompts in EN and ES on a device.

@@ -39,7 +39,7 @@ abstract class StoreService extends ChangeNotifier {
   /// Whether the user currently has an active DateWise Premium subscription.
   bool get isEntitled;
 
-  /// Localized price from the App Store ("$9.99"), or null when not loaded.
+  /// Localized price from the App Store ("$19.99"), or null when not loaded.
   /// No price is ever hard-coded: without it the paywall says "price shown
   /// by the App Store" and Subscribe stays disabled.
   String? get storePrice;
@@ -94,7 +94,7 @@ class UnsupportedStoreService extends StoreService {
 /// In-memory store for tests and for review builds (`DW_FAKE_STORE=true`).
 /// Nothing is charged; the paywall says so.
 class FakeStoreService extends StoreService {
-  FakeStoreService({bool entitled = false, String? price = r'$9.99', bool purchasedBefore = false})
+  FakeStoreService({bool entitled = false, String? price = r'$19.99', bool purchasedBefore = false})
       : _entitled = entitled,
         _everBought = purchasedBefore || entitled,
         _price = price;

@@ -32,12 +32,12 @@ import 'package:datewise_ai/state/app_state.dart';
 
 import 'helpers.dart';
 
-ProductDetails _product({String price = r'$9.99'}) => ProductDetails(
+ProductDetails _product({String price = r'$19.99'}) => ProductDetails(
       id: StoreConfig.productId,
       title: 'DateWise Premium Monthly',
       description: 'Chat and voice coaching with all four AI coaches.',
       price: price,
-      rawPrice: 9.99,
+      rawPrice: 19.99,
       currencyCode: 'USD',
     );
 
@@ -178,7 +178,7 @@ void main() {
       final store = AppStoreService(iap: iap);
       await store.init();
       expect(store.canPurchase, isTrue);
-      expect(store.storePrice, r'$9.99');
+      expect(store.storePrice, r'$19.99');
       final r = await store.buy();
       await _settle();
       expect(r, PurchaseResult.purchased);
@@ -503,7 +503,7 @@ void main() {
     });
   });
 
-  group('one paid plan: \$9.99 / month, no intro offer', () {
+  group('one paid plan: \$19.99 / month, no intro offer', () {
     test('DateWise.storekit has exactly one auto-renewable product', () {
       final j = jsonDecode(File('ios/Runner/DateWise.storekit').readAsStringSync()) as Map<String, dynamic>;
       expect(j['products'], isEmpty, reason: 'no consumables / non-consumables');
@@ -516,7 +516,7 @@ void main() {
       expect(s['productID'], StoreConfig.productId);
       expect(s['type'], 'RecurringSubscription');
       expect(s['recurringSubscriptionPeriod'], 'P1M');
-      expect(s['displayPrice'], '9.99');
+      expect(s['displayPrice'], '19.99');
       expect(s['introductoryOffer'], isNull);
       expect(s['adHocOffers'], isEmpty);
       expect(s['codeOffers'], isEmpty);
@@ -524,26 +524,30 @@ void main() {
       expect(s['familyShareable'], isFalse);
     });
 
-    test('the paywall shows only the StoreKit price string (no hard-coded \$9.99 in lib)', () {
+    test('the paywall shows only the StoreKit price string (no hard-coded \$19.99 in lib)', () {
       for (final f in Directory('lib').listSync(recursive: true).whereType<File>()) {
         if (!f.path.endsWith('.dart') || f.path.contains('/l10n/')) continue;
         // FakeStoreService's default price is the only allowed literal.
-        final src = f.readAsStringSync().replaceAll(r"String? price = r'$9.99'", '');
+        final src = f.readAsStringSync().replaceAll(r"String? price = r'$19.99'", '');
         final lines = src.split('\n').where((l) => !l.trimLeft().startsWith('//')).join('\n');
-        expect(RegExp(r'9[.,]99').hasMatch(lines), isFalse, reason: f.path);
+        expect(RegExp(r'(?<![\d.])\d+[.,]99(?!\d)').hasMatch(lines), isFalse, reason: f.path);
       }
-      for (final arb in ['lib/l10n/app_en.arb', 'lib/l10n/app_es.arb']) {
-        expect(RegExp(r'9[.,]99').hasMatch(File(arb).readAsStringSync()), isFalse, reason: arb);
+      // Translations take the price as a parameter; they never carry an amount or a currency.
+      for (final f in Directory('lib/l10n').listSync().whereType<File>()) {
+        final src = f.readAsStringSync();
+        expect(RegExp(r'\d[.,]\d\d(?!\d)|US\$|USD|€').hasMatch(src), isFalse, reason: f.path);
       }
     });
 
-    test('App Store metadata states one monthly plan at USD 9.99 with no intro offer', () {
+    test('App Store metadata states one monthly plan at USD 19.99 with no intro offer', () {
       final md = File('docs/appstore/metadata.md').readAsStringSync();
       expect(md, contains('`datewise_premium_monthly`'));
       expect(md, contains('| Duration | 1 month |'));
-      expect(md, contains('| Price | USD 9.99'));
+      expect(md, contains('| Price | USD 19.99'));
       expect(md, contains('| Introductory offer / free trial | None |'));
-      expect(md, contains(r'$9.99/month in the U.S.'));
+      expect(md, contains(r'$19.99/month in the U.S.'));
+      expect(md, contains(r'US$19.99 al mes en EE. UU.'));
+      expect(RegExp(r'(?<![0-9])9[.,]99').hasMatch(md), isFalse, reason: 'no stale \$9.99');
     });
   });
 }

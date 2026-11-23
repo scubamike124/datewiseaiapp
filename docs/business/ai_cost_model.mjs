@@ -12,6 +12,7 @@ const U = {
 };
 const SUBS = [100, 500, 1000, 5000];
 const PRICES = [9.99, 14.99, 19.99, 24.99];
+const CONFIGURED_PRICE = 19.99; // owner decision 2026-11-23: the only plan, datewise_premium_monthly
 const COMMS = [0.15, 0.3];
 const REFUND = 0.03; // ASSUMPTION
 const APPLE_FEE_MONTH = 99 / 12; // MEASURED
@@ -49,7 +50,7 @@ for (const [mk, m] of Object.entries(M)) for (const [uk, u] of Object.entries(U)
 }
 p();
 for (const price of PRICES) {
-  p(`#### $${price.toFixed(2)} / month`);
+  p(`#### $${price.toFixed(2)} / month${price === CONFIGURED_PRICE ? ' (configured price)' : ''}`);
   p('Monthly net profit = subscribers x price x (1 - commission) x (1 - 3% refunds) - AI (Llama 3.3, after the 10k neurons/day free allowance) - infrastructure (Workers Paid $5 when needed + overage) - Apple Developer Program $8.25. All results are derived from MEASURED prices and the ASSUMPTION usage profiles above.');
   p();
   p('| Subscribers | Usage | Net proceeds @15% | Net proceeds @30% | AI cost | Infra | Cost/customer | Profit @15% | Profit @30% | Margin @30% |');
