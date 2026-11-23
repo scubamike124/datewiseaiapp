@@ -19,6 +19,9 @@ class ProgressScreen extends StatelessWidget {
     final top = MediaQuery.paddingOf(context).top;
     final streak = state.streakDays;
     final l = context.l10n;
+    final large = isLargeText(context);
+    Widget status(int i) => Text(plan!.items[i].done ? l.planDone : l.planNotYet,
+        key: ValueKey('progress-plan-status-$i'), style: const TextStyle(fontSize: 13, color: AppColors.faint));
 
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(16, top + 16, 16, 28),
@@ -93,6 +96,7 @@ class ProgressScreen extends StatelessWidget {
                     for (var i = 0; i < plan.items.length; i++) ...[
                       if (i > 0) const Divider(),
                       Padding(
+                        key: ValueKey('progress-plan-$i'),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         child: Row(
                           children: [
@@ -102,12 +106,25 @@ class ProgressScreen extends StatelessWidget {
                               size: 22,
                             ),
                             const SizedBox(width: 12),
+                            // At large text the status goes under the title,
+                            // so the title keeps the row's width.
                             Expanded(
-                              child: Text(l.planItemTitle(plan.items[i].goal, coach),
-                                  style: TextStyle(fontSize: 15, height: 1.3, color: plan.items[i].done ? AppColors.textMuted : AppColors.text)),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  WholeWordsText(l.planItemTitle(plan.items[i].goal, coach),
+                                      style: TextStyle(fontSize: 15, height: 1.3, color: plan.items[i].done ? AppColors.textMuted : AppColors.text)),
+                                  if (large) ...[
+                                    const SizedBox(height: 4),
+                                    status(i),
+                                  ],
+                                ],
+                              ),
                             ),
-                            const SizedBox(width: 16),
-                            Text(plan.items[i].done ? l.planDone : l.planNotYet, style: const TextStyle(fontSize: 13, color: AppColors.faint)),
+                            if (!large) ...[
+                              const SizedBox(width: 16),
+                              status(i),
+                            ],
                           ],
                         ),
                       ),
@@ -134,7 +151,7 @@ class _StatRow extends StatelessWidget {
 
   /// Above this text scale two tiles side by side break words mid-way, so
   /// they stack instead.
-  static const double stackAboveScale = 1.3;
+  static const double stackAboveScale = kStackAboveTextScale;
 
   @override
   Widget build(BuildContext context) {

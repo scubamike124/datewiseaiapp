@@ -284,33 +284,60 @@ class _QuickTiles extends StatelessWidget {
   Widget build(BuildContext context) {
     final shell = context.read<ShellController>();
     final l = context.l10n;
-    Widget tile(int i) {
+    Widget tile(int i, {double? labelWidth}) {
       final a = QuickAction.all[i];
       return _Tile(
         key: ValueKey('tile-${a.id}'),
         icon: a.icon,
         label: a.label(l),
         glow: _backgrounds[i],
+        labelWidth: labelWidth,
         onTap: () => shell.openChat(prompt: a.prompt(l)),
       );
     }
 
-    Widget row(int a, int b) => IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [Expanded(child: tile(a)), const SizedBox(width: 10), Expanded(child: tile(b))],
-          ),
-        );
-    return Column(children: [row(0, 1), const SizedBox(height: 10), row(2, 3)]);
+    // Above kStackAboveTextScale two tiles per row break words mid-way: one
+    // column instead.
+    if (isLargeText(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < QuickAction.all.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            tile(i),
+          ],
+        ],
+      );
+    }
+    return LayoutBuilder(builder: (context, c) {
+      // The label's width in a half-width tile (padding 14 and border 1 each
+      // side), so a word too wide for it is scaled down, never broken.
+      final labelWidth = (c.maxWidth - 10) / 2 - 30;
+      Widget row(int a, int b) => IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: tile(a, labelWidth: labelWidth)),
+                const SizedBox(width: 10),
+                Expanded(child: tile(b, labelWidth: labelWidth)),
+              ],
+            ),
+          );
+      return Column(children: [row(0, 1), const SizedBox(height: 10), row(2, 3)]);
+    });
   }
 }
 
 class _Tile extends StatelessWidget {
-  const _Tile({super.key, required this.icon, required this.label, required this.glow, required this.onTap});
+  const _Tile({super.key, required this.icon, required this.label, required this.glow, required this.onTap, this.labelWidth});
   final IconData icon;
   final String label;
   final Gradient glow;
   final VoidCallback onTap;
+
+  /// The label's width when known (side by side, inside IntrinsicHeight);
+  /// null in the one-column layout, where it is measured.
+  final double? labelWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -348,7 +375,7 @@ class _Tile extends StatelessWidget {
                     child: Icon(icon, size: 19, color: AppColors.gold),
                   ),
                   const SizedBox(height: 10),
-                  Text(label, style: AppText.label.copyWith(height: 1.25)),
+                  WholeWordsText(label, style: AppText.label.copyWith(height: 1.25), maxWidth: labelWidth),
                 ],
               ),
             ),

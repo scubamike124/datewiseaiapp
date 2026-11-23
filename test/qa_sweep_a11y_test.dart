@@ -46,7 +46,7 @@ void main() {
       expect(retry, findsOneWidget);
       final button = t.getSemantics(retry);
       expect(button.label, 'Try again');
-      expect(button.hasFlag(SemanticsFlag.isButton), isTrue);
+      expect(button.getSemanticsData().flagsCollection.isButton, isTrue);
       expect(button.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
 
       final noticeText = t.widget<Text>(find.byKey(const ValueKey('reply-failed-notice'))).data!;
@@ -54,7 +54,7 @@ void main() {
       final noticeNode = t.getSemantics(find.byKey(const ValueKey('reply-failed-notice')));
       expect(noticeNode.id, isNot(button.id));
       expect(noticeNode.label, contains(noticeText));
-      expect(noticeNode.hasFlag(SemanticsFlag.isButton), isFalse, reason: 'the notice is not part of the button');
+      expect(noticeNode.getSemanticsData().flagsCollection.isButton, isFalse, reason: 'the notice is not part of the button');
       handle.dispose();
     });
   }

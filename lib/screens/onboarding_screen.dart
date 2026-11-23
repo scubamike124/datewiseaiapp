@@ -320,7 +320,9 @@ class _OptionTile extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(title, style: AppText.label.copyWith(fontSize: 16)),
+                          // A long word ("conversaciones" at large text) is
+                          // scaled to fit instead of breaking mid-word.
+                          WholeWordsText(title, style: AppText.label.copyWith(fontSize: 16)),
                           if (subtitle != null)
                             Padding(
                               padding: const EdgeInsets.only(top: 2),

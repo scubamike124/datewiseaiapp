@@ -146,7 +146,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get welcomeFootnote =>
-      'Coaches con IA · Solo para mayores de 18 años · English · Español';
+      'Coaches con IA · Solo para mayores de 18 años · English · Español';
 
   @override
   String stepOf(int step, int total) {
@@ -182,7 +182,7 @@ class AppLocalizationsEs extends AppLocalizations {
       'La app y tus coaches lo usarán. Puedes cambiarlo cuando quieras en la pestaña Tú.';
 
   @override
-  String get ageTitle => 'DateWise es solo para adultos.';
+  String get ageTitle => 'DateWise es solo para adultos.';
 
   @override
   String get ageSubtitle => 'Confirma tu edad para continuar.';

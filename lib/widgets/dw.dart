@@ -12,6 +12,57 @@ bool reduceMotion(BuildContext context) =>
 /// [d], or zero when [reduceMotion] is on.
 Duration motion(BuildContext context, Duration d) => reduceMotion(context) ? Duration.zero : d;
 
+/// Above this text scale, side-by-side tiles stack (or go to one column),
+/// as two or three narrow tiles would break words mid-way.
+const double kStackAboveTextScale = 1.3;
+
+/// Whether the text scale is above [kStackAboveTextScale].
+bool isLargeText(BuildContext context) => MediaQuery.textScalerOf(context).scale(1) > kStackAboveTextScale;
+
+/// A [Text] that never breaks inside a word: when its longest word (words
+/// are split at breaking spaces; a non-breaking space joins two) is wider
+/// than the width available, the text is scaled down just enough for that
+/// word to fit. Otherwise it is a plain [Text] at the system text size.
+/// Pass [maxWidth] where the width is known and a LayoutBuilder cannot be
+/// used (inside IntrinsicHeight).
+class WholeWordsText extends StatelessWidget {
+  const WholeWordsText(this.data, {super.key, this.style, this.textAlign, this.maxWidth});
+  final String data;
+  final TextStyle? style;
+  final TextAlign? textAlign;
+  final double? maxWidth;
+
+  /// The text scaler for [text] in [style] so its longest word fits [width].
+  static TextScaler fit(BuildContext context, String text, TextStyle? style, double width) {
+    final scaler = MediaQuery.textScalerOf(context);
+    if (!width.isFinite || width <= 0) return scaler;
+    final effective = DefaultTextStyle.of(context).style.merge(style);
+    var widest = 0.0;
+    for (final word in text.split(RegExp(r'[ \t\n]+'))) {
+      if (word.isEmpty) continue;
+      final tp = TextPainter(
+        text: TextSpan(text: word, style: effective),
+        textDirection: Directionality.maybeOf(context) ?? TextDirection.ltr,
+        textScaler: scaler,
+      )..layout();
+      if (tp.width > widest) widest = tp.width;
+      tp.dispose();
+    }
+    if (widest <= width) return scaler;
+    final size = effective.fontSize ?? 14;
+    // A little under the exact fit, so rounding never pushes a letter over.
+    return TextScaler.linear(scaler.scale(size) / size * width / widest * 0.98);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Widget text(double width) =>
+        Text(data, style: style, textAlign: textAlign, textScaler: fit(context, data, style, width));
+    final w = maxWidth;
+    return w != null ? text(w) : LayoutBuilder(builder: (context, c) => text(c.maxWidth));
+  }
+}
+
 /// Max content width, so phone layouts stay readable on iPad / desktop:
 /// about 75 characters of body text. Phones (at most 440 points wide) never
 /// reach it.

@@ -61,10 +61,16 @@ class WelcomeScreen extends StatelessWidget {
                       ),
                     ),
                     Positioned(top: top + 10, left: 20, child: const SizedBox(height: 44, child: Center(child: BrandMark()))),
+                    // Bounded on both sides, so at large text the chip's
+                    // label wraps instead of running off the screen.
                     Positioned(
                       left: 20,
+                      right: 20,
                       bottom: 6,
-                      child: GlassChip(label: l.chip(coach)),
+                      child: Align(
+                        alignment: Alignment.bottomLeft,
+                        child: GlassChip(key: const ValueKey('welcome-chip'), label: l.chip(coach)),
+                      ),
                     ),
                   ],
                 ),
@@ -97,21 +103,15 @@ class WelcomeScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(child: _Value(icon: Icons.chat_bubble_outline_rounded, label: l.valueConversations)),
-                          const SizedBox(width: 8),
-                          Expanded(child: _Value(icon: Icons.person_outline_rounded, label: l.valueProfile)),
-                          const SizedBox(width: 8),
-                          Expanded(child: _Value(icon: Icons.calendar_today_outlined, label: l.valueDates)),
-                        ],
-                      ),
-                    ),
+                    _Values(values: [
+                      (Icons.chat_bubble_outline_rounded, l.valueConversations),
+                      (Icons.person_outline_rounded, l.valueProfile),
+                      (Icons.calendar_today_outlined, l.valueDates),
+                    ]),
                     const SizedBox(height: 18),
                     Text(
                       l.welcomeFootnote,
+                      key: const ValueKey('welcome-footnote'),
                       textAlign: TextAlign.center,
                       style: const TextStyle(fontSize: 12, color: AppColors.faint),
                     ),
@@ -126,29 +126,86 @@ class WelcomeScreen extends StatelessWidget {
   }
 }
 
-class _Value extends StatelessWidget {
-  const _Value({required this.icon, required this.label});
-  final IconData icon;
-  final String label;
+/// The three value tiles: side by side, or one per row above
+/// [kStackAboveTextScale]. Side by side, a label whose longest word is wider
+/// than its tile is scaled down to fit instead of breaking mid-word.
+class _Values extends StatelessWidget {
+  const _Values({required this.values});
+  final List<(IconData, String)> values;
+
+  static const _gap = 8.0;
+
+  // Tile padding (6 each side) and border (1 each side).
+  static const _inset = 14.0;
 
   @override
   Widget build(BuildContext context) {
+    if (isLargeText(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < values.length; i++) ...[
+            if (i > 0) const SizedBox(height: _gap),
+            _Value(key: ValueKey('welcome-value-$i'), icon: values[i].$1, label: values[i].$2, row: true),
+          ],
+        ],
+      );
+    }
+    return LayoutBuilder(builder: (context, c) {
+      final labelWidth = (c.maxWidth - _gap * (values.length - 1)) / values.length - _inset;
+      return IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < values.length; i++) ...[
+              if (i > 0) const SizedBox(width: _gap),
+              Expanded(
+                child: _Value(key: ValueKey('welcome-value-$i'), icon: values[i].$1, label: values[i].$2, labelWidth: labelWidth),
+              ),
+            ],
+          ],
+        ),
+      );
+    });
+  }
+}
+
+class _Value extends StatelessWidget {
+  const _Value({super.key, required this.icon, required this.label, this.labelWidth, this.row = false});
+  final IconData icon;
+  final String label;
+  final double? labelWidth;
+
+  /// One full-width row (icon, then label) instead of a column tile.
+  final bool row;
+
+  static const _style = TextStyle(fontSize: 12, fontWeight: FontWeight.w500, height: 1.3, color: AppColors.textMuted);
+
+  @override
+  Widget build(BuildContext context) {
+    final iconWidget = Icon(icon, color: AppColors.gold, size: 22);
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+      padding: row ? const EdgeInsets.symmetric(vertical: 12, horizontal: 14) : const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.line),
         color: const Color(0x05FFFFFF),
       ),
-      child: Column(
-        children: [
-          Icon(icon, color: AppColors.gold, size: 22),
-          const SizedBox(height: 8),
-          Text(label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, height: 1.3, color: AppColors.textMuted)),
-        ],
-      ),
+      child: row
+          ? Row(
+              children: [
+                iconWidget,
+                const SizedBox(width: 12),
+                Expanded(child: WholeWordsText(label, style: _style)),
+              ],
+            )
+          : Column(
+              children: [
+                iconWidget,
+                const SizedBox(height: 8),
+                WholeWordsText(label, textAlign: TextAlign.center, style: _style, maxWidth: labelWidth),
+              ],
+            ),
     );
   }
 }
