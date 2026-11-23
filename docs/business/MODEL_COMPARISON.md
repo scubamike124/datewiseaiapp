@@ -26,7 +26,7 @@ brand checks, and a Markdown summary. It is adapted to v2:
 | Automatic checks | `backend/eval/checks.mjs` | PR #24's language and brand checks, extended |
 | Fake endpoint | `backend/eval/fake-fetch.mjs` | the real stream formats of both models |
 | Tests | `backend/eval/model-eval.test.mjs` | `node:test`, as `backend/worker.test.mjs` does |
-| Workflow | `.github/workflows/model-eval.yml` | replaces PR #24's file; manual only |
+| Workflow | `.github/workflows/model-eval.yml` | replaces PR #24's file; live only on a tagged push to this branch or a manual dispatch |
 
 `worker.js` and `coach_prompts.js` are imported, never changed.
 
@@ -169,17 +169,28 @@ case would exceed it, and the report says where it stopped. A failed call that m
      Cloudflare's REST guide says inference needs both
      (https://developers.cloudflare.com/workers-ai/get-started/rest-api/, MEASURED). A token without
      Workers AI permission makes every call fail with an authentication error, which the report shows.
-2. The workflow is `workflow_dispatch` only. GitHub lists a manually triggered workflow only once a file
-   with that name is on the default branch (`main`), so it becomes runnable when this branch reaches `main`
-   (or when the owner merges just `.github/workflows/model-eval.yml` there). Then: **Actions** >
-   **Chat model comparison** > **Run workflow**, choose the branch that holds the harness, part **1**,
-   budget **4000**. On the next UTC day, run part **2**.
-   With the GitHub CLI: `gh workflow run model-eval.yml --ref claude/datewise-model-eval -f part=1 -f budget=4000`.
+2. Start the run. There are two ways; both are owner-controlled.
+   - **Now, without merging to `main`:** push a commit to `claude/datewise-model-eval` whose message contains
+     `[run-eval part=1]`. An empty commit is enough:
+     ```
+     git fetch origin && git checkout claude/datewise-model-eval && git pull
+     git commit --allow-empty -m "Model comparison, English coaches [run-eval part=1]"
+     git push
+     ```
+     On the next UTC day, do the same with `[run-eval part=2]`. An optional budget goes inside the tag, for
+     example `[run-eval part=2 budget=3500]` (1 to 9,500 neurons; the default is 4,000). The workflow runs on every
+     push to this branch, but a push without the tag runs only the offline tests and a dry run, and spends nothing.
+   - **Once `model-eval.yml` is on `main`:** GitHub lists a manually triggered workflow only when a file with that
+     name is on the default branch. Then use **Actions** > **Chat model comparison** > **Run workflow** (part,
+     budget, concurrency), or `gh workflow run model-eval.yml --ref claude/datewise-model-eval -f part=1 -f budget=4000`.
 3. Open the run. The summary shows the estimate and the report. Download the `model-eval-part-1` artifact
    for `model-eval-key.md`. Give `model-eval.md` to the reviewer and keep the key until scoring is done.
 
-The secrets reach only the "Compare models (real API)" step. The offline tests and the estimate run without
-them. GitHub-hosted runner minutes are free for public repositories (GitHub's billing documentation; not
+The secrets reach only the "Compare models (real API)" step. The offline tests, the dry run and the estimate run
+without them. Anyone who can push to this repository can start a run with the tag; that is intentional,
+owner-controlled use of the owner's allowance. Note that GitHub also gives repository secrets to `pull_request`
+runs from branches in the same repository (not to forks). This workflow has no `pull_request` trigger, so opening or
+updating a pull request never starts a live run. GitHub-hosted runner minutes are free for public repositories (GitHub's billing documentation; not
 re-checked from this session, whose network does not reach docs.github.com). Without the secrets the live
 step fails with `BLOCKED` and spends nothing.
 
@@ -196,9 +207,8 @@ report); request bodies identical to what the Worker would send (Llama `max_toke
 request when secrets are missing; the budget stop; HTTP errors; price parity with `MODEL_NEURONS`; and the
 checks (LatAm Spanish, human claims, declines, safety).
 
-The workflow runs the same tests before the live step. `backend-test.yml` lists its test files by name, so
-adding `backend/eval/model-eval.test.mjs` to its `node --test` line would run them on every pull request,
-with no credentials and no neurons. That file is outside this change.
+The tests also run on every pull request in `backend-test.yml` (no credentials, no neurons), and before the
+live step in `model-eval.yml`, together with a dry run.
 
 ## 7. Results
 

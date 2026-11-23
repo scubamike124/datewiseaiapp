@@ -18,4 +18,4 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node --test backend/worker.test.mjs backend/cost_guard.test.mjs
+      - run: node --test backend/worker.test.mjs backend/cost_guard.test.mjs backend/eval/model-eval.test.mjs

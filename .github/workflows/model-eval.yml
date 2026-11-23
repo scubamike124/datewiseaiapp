@@ -2,14 +2,23 @@ name: Chat model comparison
 
 # Real Workers AI replies from Llama 3.3 70B fp8-fast (production) and Gemma 4 26B,
 # with the v2 Worker's own coach prompts (backend/eval/model-eval.mjs). Deploys
-# nothing. Manual only: it never runs on a push or a pull request, so it cannot
-# spend the free Workers AI allowance by itself. See docs/business/MODEL_COMPARISON.md.
+# nothing. See docs/business/MODEL_COMPARISON.md.
+#
+# Two ways to start a live run (both owner-controlled):
+#   1. A push to claude/datewise-model-eval whose head commit message contains
+#      "[run-eval part=1]" or "[run-eval part=2]" (optionally "budget=N", e.g.
+#      "[run-eval part=2 budget=3500]"). Any other push runs only the offline tests
+#      and a dry run, and spends nothing.
+#   2. workflow_dispatch, once this file is on the default branch.
+# There is deliberately no pull_request trigger, so opening or updating a PR never
+# spends the free Workers AI allowance.
 #
 # Needs two repository secrets: CLOUDFLARE_AI_TOKEN (an existing Cloudflare API token
-# that can run Workers AI) and CLOUDFLARE_ACCOUNT_ID. They are passed to the one
-# step that calls the API, never to the offline steps. Without them the live
-# step fails with "BLOCKED" and spends nothing.
+# that can run Workers AI) and CLOUDFLARE_ACCOUNT_ID. They are passed only to the
+# step that calls the API. Without them that step fails with "BLOCKED" and spends nothing.
 on:
+  push:
+    branches: [claude/datewise-model-eval]
   workflow_dispatch:
     inputs:
       part:
@@ -45,27 +54,59 @@ jobs:
           node-version: 22
       - name: Offline harness tests (no credentials)
         run: node --test backend/eval/model-eval.test.mjs
-      - name: Neuron estimate
+      - name: Dry run (fake endpoint, no credentials, no neurons)
+        run: node backend/eval/model-eval.mjs --dry-run --out=dry-run.md --key-out=dry-run-key.md
+      - name: Decide whether to make a live run
+        id: plan
         env:
-          PART: ${{ inputs.part }}
-          BUDGET: ${{ inputs.budget }}
-          CONC: ${{ inputs.concurrency }}
+          EVENT: ${{ github.event_name }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          IN_PART: ${{ inputs.part }}
+          IN_BUDGET: ${{ inputs.budget }}
+          IN_CONC: ${{ inputs.concurrency }}
+        run: |
+          live=false; part=1; budget=4000; conc=10
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            live=true; part="$IN_PART"; budget="$IN_BUDGET"; conc="$IN_CONC"
+          else
+            re='\[run-eval part=([12])( budget=([0-9]+))?\]'
+            if [[ "$COMMIT_MSG" =~ $re ]]; then
+              live=true; part="${BASH_REMATCH[1]}"; budget="${BASH_REMATCH[3]:-4000}"
+            fi
+          fi
+          case "$part" in 1|2|all) ;; *) echo "invalid part"; exit 1 ;; esac
+          if ! [[ "$budget" =~ ^[0-9]+$ ]] || [ "$budget" -lt 1 ] || [ "$budget" -gt 9500 ]; then
+            echo "budget must be 1 to 9500 neurons"; exit 1
+          fi
+          case "$conc" in 0|5|10) ;; *) echo "invalid concurrency"; exit 1 ;; esac
+          echo "live=$live part=$part budget=$budget concurrency=$conc"
+          { echo "live=$live"; echo "part=$part"; echo "budget=$budget"; echo "concurrency=$conc"; } >> "$GITHUB_OUTPUT"
+          if [ "$live" != "true" ]; then
+            echo 'No live run: add "[run-eval part=1]" or "[run-eval part=2]" to the head commit message to start one.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Neuron estimate
+        if: steps.plan.outputs.live == 'true'
+        env:
+          PART: ${{ steps.plan.outputs.part }}
+          BUDGET: ${{ steps.plan.outputs.budget }}
+          CONC: ${{ steps.plan.outputs.concurrency }}
         run: node backend/eval/model-eval.mjs --estimate-only --part="$PART" --budget="$BUDGET" --concurrency="$CONC" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Compare models (real API)
+        if: steps.plan.outputs.live == 'true'
         env:
           CLOUDFLARE_AI_TOKEN: ${{ secrets.CLOUDFLARE_AI_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          PART: ${{ inputs.part }}
-          BUDGET: ${{ inputs.budget }}
-          CONC: ${{ inputs.concurrency }}
+          PART: ${{ steps.plan.outputs.part }}
+          BUDGET: ${{ steps.plan.outputs.budget }}
+          CONC: ${{ steps.plan.outputs.concurrency }}
         run: |
           node backend/eval/model-eval.mjs --part="$PART" --budget="$BUDGET" --concurrency="$CONC" \
             --out=model-eval.md --key-out=model-eval-key.md
           cat model-eval.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && steps.plan.outputs.live == 'true'
         with:
-          name: model-eval-part-${{ inputs.part }}
+          name: model-eval-part-${{ steps.plan.outputs.part }}
           path: |
             model-eval.md
             model-eval-key.md
