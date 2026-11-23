@@ -223,7 +223,8 @@ own; nothing in this runbook happens until you do it.
 1. Merge `claude/datewise-v2-app` (which contains chat-v7 and PRs #34, #37, #38 and #39) into `main` through a
    reviewed PR (ask an agent to open it).
 2. **Side effect:** every push to `main` runs **Deploy to GitHub Pages**, which publishes the v2 web app to the
-   project's GitHub Pages site. The web build has no purchases (it shows "Subscribe in the app on your iPhone or iPad. Purchases are not available on the web.").
+   project's GitHub Pages site. The web build has no purchases (it shows
+   "Subscribe in the app on your iPhone or iPad. Purchases are not available on the web.").
 3. To merge a PR: **Pull requests**, open the PR, then **Merge pull request**, then **Confirm merge**.
 
 ### 2.5 Deploy the staging Worker (github.com in Safari)

@@ -162,7 +162,9 @@ void main() {
       expect(runbook, contains('**Blocked until you decide to merge.**'));
       // The deploy prerequisites include the mandatory main ruleset, done before the merge.
       expect(runbook, contains('WORKER_DEPLOY_RUNBOOK.md sections 1b to 1f'));
-      expect(runbook.indexOf('Do 1f (**Protect `main`**, mandatory) **before** the merge'), lessThan(runbook.indexOf('1. Merge `claude/datewise-v2-app`')));
+      final protectMain = runbook.indexOf('Do 1f (**Protect `main`**, mandatory) **before** the merge');
+      expect(protectMain, greaterThan(-1));
+      expect(protectMain, lessThan(runbook.indexOf('1. Merge `claude/datewise-v2-app`')));
       expect(runbook, contains('every push to `main` runs **Deploy to GitHub Pages**'));
       expect(runbook, contains('`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` or `ID_HASH_SALT` is a repository secret'));
       expect(runbook, contains('**Signed IPA / TestFlight (manual, needs secrets)**'));
