@@ -83,7 +83,15 @@
       }
     }
   },
-  "welcomePortrait": "Ava, an AI dating coach, smiling",
+  "welcomePortrait": "{name}, an AI dating coach, smiling",
+  "@welcomePortrait": {
+    "description": "Semantic label of the welcome hero portrait (Ava in English, Sofía in Spanish).",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "welcomeTitleLead": "Meet your\nAI dating ",
   "welcomeTitleAccent": "coach.",
   "welcomeBody": "Honest help with your profile, your messages and your first date, from a coach who listens.",
@@ -103,7 +111,7 @@
       }
     }
   },
-  "goalsTitle": "What would you like help with?",
+  "goalsTitle": "What would you like help with?",
   "goalsSubtitle": "Pick up to three. They become your plan for the week.",
   "goalConversations": "Better conversations",
   "goalProfile": "A stronger profile",
@@ -118,13 +126,14 @@
   "ageUnder": "I am under 18",
   "underageTitle": "Sorry, DateWise is only for adults.",
   "underageBody": "You need to be 18 or older to use DateWise AI.",
+  "underageClose": "You can close the app now.",
   "chooseCoachTitle": "Choose your dating coach",
-  "chooseCoachSubtitle": "All four are AI coaches. Pick a style; switch any time.",
+  "chooseCoachSubtitle": "All four are AI coaches. Pick a style; switch any time.",
   "coachesEyebrow": "AI dating coaches",
   "greetingMorning": "Good morning.",
   "greetingAfternoon": "Good afternoon.",
   "greetingEvening": "Good evening.",
-  "homeReady": "{name} is ready when you are. Your AI coach, any time.",
+  "homeReady": "{name} is ready when you are. Your AI coach, any time.",
   "@homeReady": {
     "placeholders": {
       "name": {

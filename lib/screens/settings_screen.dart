@@ -51,24 +51,37 @@ class SettingsScreen extends StatelessWidget {
     showModalBottomSheet<void>(
       context: context,
       builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final lang in CoachLanguage.values)
-              ListTile(
-                key: ValueKey('language-${lang.name}'),
-                minTileHeight: 52,
-                title: Text(lang.label, style: AppText.label),
-                subtitle: Text(l.coachesFor(lang), style: AppText.small),
-                trailing: state.language == lang ? const Icon(Icons.check_rounded, color: AppColors.gold) : null,
-                selected: state.language == lang,
-                onTap: () {
-                  state.setLanguage(lang);
-                  Navigator.pop(ctx);
-                },
+        // Scrolls at large text, where the title and both options are taller
+        // than the sheet.
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                child: Semantics(
+                  header: true,
+                  child: Text(l.languageRow,
+                      key: const ValueKey('language-sheet-title'), style: AppText.name.copyWith(fontSize: 22)),
+                ),
               ),
-            const SizedBox(height: 8),
-          ],
+              for (final lang in CoachLanguage.values)
+                ListTile(
+                  key: ValueKey('language-${lang.name}'),
+                  minTileHeight: 52,
+                  title: Text(lang.label, style: AppText.label),
+                  subtitle: Text(l.coachesFor(lang), style: AppText.small),
+                  trailing: state.language == lang ? const Icon(Icons.check_rounded, color: AppColors.gold) : null,
+                  selected: state.language == lang,
+                  onTap: () {
+                    state.setLanguage(lang);
+                    Navigator.pop(ctx);
+                  },
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );
@@ -208,6 +221,7 @@ class SettingsScreen extends StatelessWidget {
                 icon: Icons.delete_forever_outlined,
                 title: l.deleteMyData,
                 subtitle: l.deleteMyDataNote,
+                subtitleMaxLines: null,
                 destructive: true,
                 onTap: () async {
                   if (await _confirm(context, l.deleteMyDataTitle, l.deleteMyDataBody, l.deleteEverything)) {
@@ -237,7 +251,10 @@ class SettingsScreen extends StatelessWidget {
               _Row(
                 icon: Icons.mail_outline_rounded,
                 title: l.support,
-                value: AppLinks.supportEmail,
+                // The address as a subtitle, so it is never truncated and
+                // never squeezes the label at large text.
+                subtitle: AppLinks.supportEmail,
+                subtitleMaxLines: null,
                 onTap: () => _open(context, 'mailto:${AppLinks.supportEmail}'),
               ),
             ]),
@@ -303,6 +320,7 @@ class _Row extends StatelessWidget {
     required this.title,
     this.value,
     this.subtitle,
+    this.subtitleMaxLines = 3,
     this.onTap,
     this.destructive = false,
   });
@@ -311,6 +329,9 @@ class _Row extends StatelessWidget {
   final String title;
   final String? value;
   final String? subtitle;
+
+  /// Null shows the whole subtitle (notes that must not be cut off).
+  final int? subtitleMaxLines;
   final VoidCallback? onTap;
   final bool destructive;
 
@@ -335,7 +356,9 @@ class _Row extends StatelessWidget {
                     if (subtitle != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
-                        child: Text(subtitle!, maxLines: 3, overflow: TextOverflow.ellipsis,
+                        child: Text(subtitle!,
+                            maxLines: subtitleMaxLines,
+                            overflow: subtitleMaxLines == null ? null : TextOverflow.ellipsis,
                             style: const TextStyle(fontSize: 13, height: 1.35, color: AppColors.textMuted)),
                       ),
                   ],

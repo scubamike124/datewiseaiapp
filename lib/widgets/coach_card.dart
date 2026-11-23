@@ -144,6 +144,9 @@ class CoachGrid extends StatelessWidget {
   final String? previewingId;
   final CoachLanguage? preferred;
 
+  /// Above this text scale the cards stack (as ProgressScreen's stat tiles do).
+  static const double stackAboveScale = 1.3;
+
   @override
   Widget build(BuildContext context) {
     final coaches = [...Coaches.all];
@@ -157,6 +160,21 @@ class CoachGrid extends StatelessWidget {
           selected: c.id == selectedId,
           previewing: c.id == previewingId,
         );
+    // At large text two cards side by side break words mid-way
+    // ("autoconfian/za"), so they stack, one per row.
+    if (MediaQuery.textScalerOf(context).scale(1) > stackAboveScale) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < coaches.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            // The card stretches its content to a given height (side by
+            // side, the row's); alone it takes its own intrinsic height.
+            IntrinsicHeight(child: card(coaches[i])),
+          ],
+        ],
+      );
+    }
     Widget row(Coach a, Coach b) => IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,

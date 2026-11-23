@@ -6,15 +6,16 @@ import '../widgets/dw.dart';
 import 'onboarding_screen.dart';
 import '../l10n/l10n.dart';
 
-/// First screen: Ava's portrait, the promise, and "Get started". There is no
+/// First screen: a coach's portrait (Ava in English, Sofía in Spanish, so the
+/// hero follows the locale), the promise, and "Get started". There is no
 /// sign-in: DateWise keeps your data on this device.
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    const coach = Coaches.ava;
     final l = context.l10n;
+    final coach = l.localeName.startsWith('es') ? Coaches.sofia : Coaches.ava;
     final size = MediaQuery.sizeOf(context);
     final top = MediaQuery.paddingOf(context).top;
     final bottom = MediaQuery.paddingOf(context).bottom;
@@ -33,7 +34,7 @@ class WelcomeScreen extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    CoachImage(coach: coach, semanticLabel: l.welcomePortrait),
+                    CoachImage(coach: coach, semanticLabel: l.welcomePortrait(coach.name)),
                     const DecoratedBox(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(

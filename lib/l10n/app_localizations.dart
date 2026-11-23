@@ -284,11 +284,11 @@ abstract class AppLocalizations {
   /// **'{label} tab'**
   String tabSemantics(String label);
 
-  /// No description provided for @welcomePortrait.
+  /// Semantic label of the welcome hero portrait (Ava in English, Sofía in Spanish).
   ///
   /// In en, this message translates to:
-  /// **'Ava, an AI dating coach, smiling'**
-  String get welcomePortrait;
+  /// **'{name}, an AI dating coach, smiling'**
+  String welcomePortrait(String name);
 
   /// No description provided for @welcomeTitleLead.
   ///
@@ -347,7 +347,7 @@ abstract class AppLocalizations {
   /// No description provided for @goalsTitle.
   ///
   /// In en, this message translates to:
-  /// **'What would you like help with?'**
+  /// **'What would you like help with?'**
   String get goalsTitle;
 
   /// No description provided for @goalsSubtitle.
@@ -434,6 +434,12 @@ abstract class AppLocalizations {
   /// **'You need to be 18 or older to use DateWise AI.'**
   String get underageBody;
 
+  /// No description provided for @underageClose.
+  ///
+  /// In en, this message translates to:
+  /// **'You can close the app now.'**
+  String get underageClose;
+
   /// No description provided for @chooseCoachTitle.
   ///
   /// In en, this message translates to:
@@ -443,7 +449,7 @@ abstract class AppLocalizations {
   /// No description provided for @chooseCoachSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'All four are AI coaches. Pick a style; switch any time.'**
+  /// **'All four are AI coaches. Pick a style; switch any time.'**
   String get chooseCoachSubtitle;
 
   /// No description provided for @coachesEyebrow.
@@ -473,7 +479,7 @@ abstract class AppLocalizations {
   /// No description provided for @homeReady.
   ///
   /// In en, this message translates to:
-  /// **'{name} is ready when you are. Your AI coach, any time.'**
+  /// **'{name} is ready when you are. Your AI coach, any time.'**
   String homeReady(String name, String gender);
 
   /// No description provided for @homeResume.

@@ -118,7 +118,9 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String get welcomePortrait => 'Ava, una coach de citas con IA, sonriendo';
+  String welcomePortrait(String name) {
+    return '$name, una coach de citas con IA, sonriendo';
+  }
 
   @override
   String get welcomeTitleLead => 'Conoce a tu\ncoach de citas ';
@@ -180,7 +182,7 @@ class AppLocalizationsEs extends AppLocalizations {
       'La app y tus coaches lo usarán. Puedes cambiarlo cuando quieras en la pestaña Tú.';
 
   @override
-  String get ageTitle => 'DateWise es solo para adultos.';
+  String get ageTitle => 'DateWise es solo para adultos.';
 
   @override
   String get ageSubtitle => 'Confirma tu edad para continuar.';
@@ -192,18 +194,21 @@ class AppLocalizationsEs extends AppLocalizations {
   String get ageUnder => 'Tengo menos de 18 años';
 
   @override
-  String get underageTitle => 'Lo sentimos, DateWise es solo para adultos.';
+  String get underageTitle => 'Lo sentimos, DateWise es solo para adultos.';
 
   @override
   String get underageBody =>
       'Necesitas tener 18 años o más para usar DateWise AI.';
 
   @override
+  String get underageClose => 'Ya puedes cerrar la app.';
+
+  @override
   String get chooseCoachTitle => 'Elige a tu coach de citas';
 
   @override
   String get chooseCoachSubtitle =>
-      'Los cuatro son coaches con IA. Elige un estilo y cámbialo cuando quieras.';
+      'Los cuatro son coaches con IA. Elige un estilo y cámbialo cuando quieras.';
 
   @override
   String get coachesEyebrow => 'Coaches de citas con IA';
@@ -259,12 +264,12 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String planItemConversations(String name) {
-    return 'Practica un primer mensaje con $name';
+    return 'Practica un primer mensaje con $name';
   }
 
   @override
   String planItemProfile(String name) {
-    return 'Reescribe tu biografía con $name';
+    return 'Reescribe tu biografía con $name';
   }
 
   @override
@@ -308,7 +313,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get quickProfilePrompt => 'Ayúdame a mejorar mi perfil de citas.';
 
   @override
-  String get quickDate => 'Prepararme para una cita';
+  String get quickDate => 'Prepararme para una cita';
 
   @override
   String get quickDatePrompt => 'Ayúdame a prepararme para una cita.';

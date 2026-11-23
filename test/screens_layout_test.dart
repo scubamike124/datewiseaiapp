@@ -24,7 +24,7 @@ final Map<String, Pump> screens = {
   },
   'onboarding goals': (t, size, scale) async {
     await pumpScreen(t, const OnboardingScreen(), size: size, scale: scale);
-    expect(find.text('What would you like help with?'), findsOneWidget);
+    expect(find.text('What would you like help\u00a0with?'), findsOneWidget);
   },
   'onboarding language': (t, size, scale) async {
     await pumpScreen(t, const OnboardingScreen(initialStep: 1), size: size, scale: scale);

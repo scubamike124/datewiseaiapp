@@ -126,7 +126,9 @@ void main() {
       await pumpScreen(tester, const WelcomeScreen(), locale: es);
       expect(find.text('Comenzar'), findsOneWidget);
       expect(find.text('Mejores conversaciones'), findsOneWidget);
-      expect(find.text('Ava · coach con IA · Inglés'), findsOneWidget);
+      // The hero follows the locale: Sofía on a Spanish first run.
+      expect(find.text('Sofía · coach con IA · Español'), findsOneWidget);
+      expect(find.bySemanticsLabel('Sofía, una coach de citas con IA, sonriendo'), findsOneWidget);
     });
 
     testWidgets('onboarding steps', (tester) async {

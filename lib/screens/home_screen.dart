@@ -128,7 +128,9 @@ class HomeScreen extends StatelessWidget {
                             Text(
                               resume == null
                                   ? l.homeReady(coach.name, l.gender(coach))
-                                  : l.homeResume(coach.name, l.gender(coach), resume),
+                                  // The title's last two words stay together, so the
+                                  // closing quote never sits alone on a line.
+                                  : l.homeResume(coach.name, l.gender(coach), noWidow(resume)),
                               style: AppText.body.copyWith(fontSize: 15, height: 1.45),
                             ),
                           ],
@@ -351,4 +353,12 @@ class _Tile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// [text] with its last space made non-breaking, so the final word never
+/// wraps onto a line by itself.
+String noWidow(String text) {
+  final t = text.trimRight();
+  final i = t.lastIndexOf(' ');
+  return i <= 0 ? t : '${t.substring(0, i)}\u00a0${t.substring(i + 1)}';
 }

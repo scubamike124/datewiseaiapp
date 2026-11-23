@@ -117,7 +117,9 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get welcomePortrait => 'Ava, an AI dating coach, smiling';
+  String welcomePortrait(String name) {
+    return '$name, an AI dating coach, smiling';
+  }
 
   @override
   String get welcomeTitleLead => 'Meet your\nAI dating ';
@@ -151,7 +153,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get goalsTitle => 'What would you like help with?';
+  String get goalsTitle => 'What would you like help with?';
 
   @override
   String get goalsSubtitle =>
@@ -198,11 +200,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get underageBody => 'You need to be 18 or older to use DateWise AI.';
 
   @override
+  String get underageClose => 'You can close the app now.';
+
+  @override
   String get chooseCoachTitle => 'Choose your dating coach';
 
   @override
   String get chooseCoachSubtitle =>
-      'All four are AI coaches. Pick a style; switch any time.';
+      'All four are AI coaches. Pick a style; switch any time.';
 
   @override
   String get coachesEyebrow => 'AI dating coaches';
@@ -218,7 +223,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String homeReady(String name, String gender) {
-    return '$name is ready when you are. Your AI coach, any time.';
+    return '$name is ready when you are. Your AI coach, any time.';
   }
 
   @override

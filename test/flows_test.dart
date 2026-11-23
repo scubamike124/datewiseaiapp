@@ -22,7 +22,7 @@ void main() {
     // Goals: Continue is disabled until one is picked.
     await tester.tap(find.byKey(const ValueKey('onboarding-continue')));
     await tester.pumpAndSettle();
-    expect(find.text('What would you like help with?'), findsOneWidget);
+    expect(find.text('What would you like help\u00a0with?'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('goal-confidence')));
     await tester.tap(find.byKey(const ValueKey('goal-conversations')));
     await tester.pump();
@@ -41,7 +41,7 @@ void main() {
     // 18+ must be confirmed.
     await tester.tap(find.byKey(const ValueKey('onboarding-continue')));
     await tester.pumpAndSettle();
-    expect(find.text('DateWise es solo para adultos.'), findsOneWidget);
+    expect(find.text('DateWise es solo para\u00a0adultos.'), findsOneWidget);
     expect(find.text('Tengo 18 años o más'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('age-confirm')));
     await tester.pump();
