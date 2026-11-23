@@ -134,18 +134,38 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Sends [text]. From the composer ([fromComposer]), the field is cleared
   /// only once the message is accepted: while a reply is still streaming
-  /// nothing is sent and the text stays in the field.
-  Future<void> _send(String text, {bool fromComposer = false}) async {
+  /// nothing is sent and the text stays in the field. A voice transcript
+  /// ([fromVoice]) that cannot be sent is put in the composer instead of
+  /// being dropped.
+  Future<void> _send(String text, {bool fromComposer = false, bool fromVoice = false}) async {
     if (text.trim().isEmpty) return;
     if (!_state.canChat) {
       showPaywall(context);
       return;
     }
-    if (_state.isResponding) return;
+    if (_state.isResponding) {
+      if (fromVoice) _keepTranscript(text);
+      return;
+    }
     await _voice.stop();
-    await _state.sendMessage(text, onAccepted: () {
+    final sent = await _state.sendMessage(text, onAccepted: () {
       if (fromComposer && mounted && _input.text == text) _input.clear();
     });
+    if (!sent && fromVoice && mounted && _state.canChat) _keepTranscript(text);
+  }
+
+  /// Puts a voice transcript that could not be sent into the composer (after
+  /// any draft already there), so what the user said is never lost.
+  void _keepTranscript(String text) {
+    if (!mounted) return;
+    final words = text.trim();
+    final draft = _input.text.trimRight();
+    _input.text = draft.isEmpty ? words : '$draft $words';
+    _input.selection = TextSelection.collapsed(offset: _input.text.length);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      key: const ValueKey('voice-kept-in-composer'),
+      content: Text(context.l10n.voiceKeptInComposer),
+    ));
   }
 
   // --- Voice session ------------------------------------------------------
@@ -263,7 +283,7 @@ class _ChatScreenState extends State<ChatScreen> {
       _partial = '';
     });
     if (text.trim().isNotEmpty) {
-      _send(text);
+      _send(text, fromVoice: true);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         key: const ValueKey('voice-no-speech'),
@@ -315,7 +335,7 @@ class _ChatScreenState extends State<ChatScreen> {
       _listening = false;
       _partial = '';
     });
-    if (text.trim().isNotEmpty) await _send(text);
+    if (text.trim().isNotEmpty) await _send(text, fromVoice: true);
   }
 
   String get _elapsed {

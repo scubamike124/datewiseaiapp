@@ -895,4 +895,8 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get voiceNoSpeech =>
       'No te escuché. Mantén presionado el botón e inténtalo de nuevo.';
+
+  @override
+  String get voiceKeptInComposer =>
+      'Tu coach todavía está respondiendo. Lo que dijiste está en el cuadro de mensaje.';
 }

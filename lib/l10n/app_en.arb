@@ -608,5 +608,6 @@
     }
   },
   "openSettings": "Open Settings",
-  "voiceNoSpeech": "I didn't catch that. Hold the button and try again."
+  "voiceNoSpeech": "I didn't catch that. Hold the button and try again.",
+  "voiceKeptInComposer": "Your coach is still replying. What you said is in the message box."
 }

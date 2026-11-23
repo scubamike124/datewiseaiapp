@@ -410,6 +410,36 @@ void main() {
       await t.pumpAndSettle(const Duration(seconds: 10));
     });
 
+    testWidgets('a transcript that arrives while a reply streams goes into the composer, not lost', (t) async {
+      final speech = _Speech();
+      final app = await pumpApp(t, prefs: onboardedPrefs(), tab: AppTab.chat, speech: speech);
+      await t.pumpAndSettle();
+      // A draft the user had typed is kept; the transcript goes after it.
+      await t.enterText(find.byKey(const ValueKey('composer')), 'Draft:');
+      await t.tap(find.byKey(const ValueKey('voice-mode')));
+      await t.pumpAndSettle();
+      final g = await t.startGesture(t.getCenter(_talk));
+      await t.pump();
+      expect(find.text('Listening…'), findsOneWidget);
+      // A reply starts streaming meanwhile (for example a quick prompt).
+      unawaited(app.state.sendMessage('Give me a strong opener'));
+      await t.pump();
+      expect(app.state.isResponding, isTrue);
+      speech.onEnded!('Ask her out for coffee');
+      await t.pump();
+      await g.up();
+      await t.pump();
+      expect(find.byKey(const ValueKey('voice-kept-in-composer')), findsOneWidget);
+      expect(find.text('Your coach is still replying. What you said is in the message box.'), findsOneWidget);
+      final users = app.state.activeThread!.messages.where((m) => m.isUser).map((m) => m.text).toList();
+      expect(users, ['Give me a strong opener'], reason: 'the transcript was not sent');
+      await t.pumpAndSettle(const Duration(seconds: 10));
+      // Back to typing: the transcript is in the field, ready to send.
+      await t.tap(find.byTooltip('Type instead'));
+      await t.pumpAndSettle();
+      expect(t.widget<TextField>(find.byKey(const ValueKey('composer'))).controller!.text, 'Draft: Ask her out for coffee');
+    });
+
     testWidgets('disposing the chat while recognition starts cancels it once the start completes', (t) async {
       final speech = await _openVoice(t, _Speech()..holdStart = true);
       final g = await t.startGesture(t.getCenter(_talk));

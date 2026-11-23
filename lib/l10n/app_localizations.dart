@@ -1488,6 +1488,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'I didn\'t catch that. Hold the button and try again.'**
   String get voiceNoSpeech;
+
+  /// No description provided for @voiceKeptInComposer.
+  ///
+  /// In en, this message translates to:
+  /// **'Your coach is still replying. What you said is in the message box.'**
+  String get voiceKeptInComposer;
 }
 
 class _AppLocalizationsDelegate

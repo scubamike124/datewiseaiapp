@@ -230,5 +230,6 @@
   "ageUnderConfirmAction": "Sí, tengo menos de 18",
   "voicePermissionDeniedNote": "El acceso al micrófono o al reconocimiento de voz está desactivado para DateWise. Permítelo en Configuración para hablar con {name}, o escríbele.",
   "openSettings": "Abrir Configuración",
-  "voiceNoSpeech": "No te escuché. Mantén presionado el botón e inténtalo de nuevo."
+  "voiceNoSpeech": "No te escuché. Mantén presionado el botón e inténtalo de nuevo.",
+  "voiceKeptInComposer": "Tu coach todavía está respondiendo. Lo que dijiste está en el cuadro de mensaje."
 }
