@@ -180,18 +180,24 @@ class AvatarFrames {
       // the file, so a large final portrait costs no extra memory here.
       final data = await bundle.load(coach.heroAsset);
       final buffer = await ui.ImmutableBuffer.fromUint8List(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
-      final descriptor = await ui.ImageDescriptor.encoded(buffer);
-      final fileSize = (descriptor.width, descriptor.height);
-      if (fileSize != (manifest.sourceWidth ?? manifest.width, manifest.sourceHeight ?? manifest.height)) {
-        descriptor.dispose();
+      final ui.Image base;
+      ui.ImageDescriptor? descriptor;
+      try {
+        descriptor = await ui.ImageDescriptor.encoded(buffer);
+        final fileSize = (descriptor.width, descriptor.height);
+        if (fileSize != (manifest.sourceWidth ?? manifest.width, manifest.sourceHeight ?? manifest.height)) {
+          return null;
+        }
+        final codec = await descriptor.instantiateCodec(targetWidth: manifest.width, targetHeight: manifest.height);
+        try {
+          base = (await codec.getNextFrame()).image;
+        } finally {
+          codec.dispose();
+        }
+      } finally {
+        descriptor?.dispose();
         buffer.dispose();
-        return null;
       }
-      final codec = await descriptor.instantiateCodec(targetWidth: manifest.width, targetHeight: manifest.height);
-      final base = (await codec.getNextFrame()).image;
-      codec.dispose();
-      descriptor.dispose();
-      buffer.dispose();
       decoded.add(base);
       if (base.width != manifest.width || base.height != manifest.height) {
         base.dispose();

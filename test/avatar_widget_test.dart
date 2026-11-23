@@ -2,10 +2,12 @@
 // animator's states, Reduce Motion fallback, accessibility labels, the
 // voice-stage hook, and a painter frame-time benchmark.
 
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -82,6 +84,20 @@ void main() {
         expect(avatarMemoryBytes(f), lessThan(20 * 1024 * 1024));
       });
     }
+  });
+
+  group('portrait size check', () {
+    test('frames are not used when the portrait file is not the one they were made from', () async {
+      final coach = Coaches.all.first;
+      final real = await rootBundle.loadString('${AvatarManifest.dir(coach.id)}/manifest.json');
+      final m = jsonDecode(real) as Map<String, dynamic>;
+      expect(m['source_width'], isNotNull, reason: 'the generator records the file size');
+      m['source_width'] = (m['source_width'] as int) + 1; // a replaced portrait of another size
+      final bundle = _ManifestOverride(jsonEncode(m));
+      expect(await AvatarFrames.load(coach, bundle: bundle), isNull);
+      // The real manifest loads (control).
+      expect(await AvatarFrames.load(coach, bundle: _ManifestOverride(real)), isNotNull);
+    });
   });
 
   group('animator', () {
@@ -450,4 +466,16 @@ void main() {
     // ignore: avoid_print
     print('Avatar painter (host CPU; raster = software toImage, upper bound): ${results.join(', ')}');
   });
+}
+
+
+/// The app's assets, with the manifest of every coach replaced by [manifest].
+class _ManifestOverride extends CachingAssetBundle {
+  _ManifestOverride(this.manifest);
+  final String manifest;
+  @override
+  Future<ByteData> load(String key) => rootBundle.load(key);
+  @override
+  Future<String> loadString(String key, {bool cache = true}) async =>
+      key.endsWith('manifest.json') ? manifest : rootBundle.loadString(key, cache: cache);
 }

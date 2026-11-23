@@ -14,10 +14,10 @@
     300,
     543,
     452,
-    311
+    310
    ],
-   "identity": 0.852,
-   "master": 0.951
+   "identity": 0.85,
+   "master": 0.947
   },
   "a": {
    "region": "mouth",
@@ -25,10 +25,10 @@
     300,
     543,
     452,
-    311
+    310
    ],
-   "identity": 0.738,
-   "master": 0.818
+   "identity": 0.741,
+   "master": 0.813
   },
   "a2": {
    "region": "mouth",
@@ -36,10 +36,10 @@
     300,
     543,
     452,
-    311
+    310
    ],
-   "identity": 0.764,
-   "master": 0.839
+   "identity": 0.769,
+   "master": 0.842
   },
   "e": {
    "region": "mouth",
@@ -47,10 +47,10 @@
     300,
     543,
     452,
-    311
+    310
    ],
-   "identity": 0.816,
-   "master": 0.865
+   "identity": 0.814,
+   "master": 0.87
   },
   "e2": {
    "region": "mouth",
@@ -58,10 +58,10 @@
     300,
     543,
     452,
-    311
+    310
    ],
-   "identity": 0.857,
-   "master": 0.932
+   "identity": 0.854,
+   "master": 0.927
   },
   "i": {
    "region": "mouth",
@@ -69,10 +69,10 @@
     300,
     543,
     452,
-    311
+    310
    ],
-   "identity": 0.863,
-   "master": 0.942
+   "identity": 0.865,
+   "master": 0.936
   },
   "i2": {
    "region": "mouth",
@@ -80,10 +80,10 @@
     300,
     543,
     452,
-    311
+    310
    ],
-   "identity": 0.872,
-   "master": 0.952
+   "identity": 0.867,
+   "master": 0.954
   },
   "o": {
    "region": "mouth",
@@ -91,10 +91,10 @@
     300,
     543,
     452,
-    311
+    310
    ],
-   "identity": 0.757,
-   "master": 0.85
+   "identity": 0.774,
+   "master": 0.866
   },
   "o2": {
    "region": "mouth",
@@ -102,10 +102,10 @@
     300,
     543,
     452,
-    311
+    310
    ],
-   "identity": 0.792,
-   "master": 0.884
+   "identity": 0.79,
+   "master": 0.882
   },
   "u": {
    "region": "mouth",
@@ -113,10 +113,10 @@
     300,
     543,
     452,
-    311
+    310
    ],
-   "identity": 0.829,
-   "master": 0.915
+   "identity": 0.818,
+   "master": 0.913
   },
   "u2": {
    "region": "mouth",
@@ -124,10 +124,10 @@
     300,
     543,
     452,
-    311
+    310
    ],
    "identity": 0.828,
-   "master": 0.92
+   "master": 0.922
   },
   "fv": {
    "region": "mouth",
@@ -135,10 +135,10 @@
     300,
     543,
     452,
-    311
+    310
    ],
-   "identity": 0.865,
-   "master": 0.96
+   "identity": 0.867,
+   "master": 0.961
   },
   "l": {
    "region": "mouth",
@@ -146,10 +146,10 @@
     300,
     543,
     452,
-    311
+    310
    ],
-   "identity": 0.78,
-   "master": 0.86
+   "identity": 0.772,
+   "master": 0.857
   },
   "th": {
    "region": "mouth",
@@ -157,10 +157,10 @@
     300,
     543,
     452,
-    311
+    310
    ],
-   "identity": 0.839,
-   "master": 0.918
+   "identity": 0.83,
+   "master": 0.904
   },
   "cons": {
    "region": "mouth",
@@ -168,10 +168,10 @@
     300,
     543,
     452,
-    311
+    310
    ],
-   "identity": 0.843,
-   "master": 0.925
+   "identity": 0.835,
+   "master": 0.921
   },
   "sh": {
    "region": "mouth",
@@ -179,10 +179,10 @@
     300,
     543,
     452,
-    311
+    310
    ],
-   "identity": 0.832,
-   "master": 0.93
+   "identity": 0.828,
+   "master": 0.929
   },
   "blink_half": {
    "region": "eyes",
@@ -192,8 +192,8 @@
     483,
     193
    ],
-   "identity": 0.858,
-   "master": 0.921
+   "identity": 0.853,
+   "master": 0.92
   },
   "blink_closed": {
    "region": "eyes",
@@ -203,8 +203,8 @@
     483,
     193
    ],
-   "identity": 0.836,
-   "master": 0.906
+   "identity": 0.841,
+   "master": 0.905
   },
   "gaze": {
    "region": "eyes",
@@ -214,18 +214,18 @@
     483,
     193
    ],
-   "identity": 0.824,
-   "master": 0.894
+   "identity": 0.829,
+   "master": 0.884
   }
  },
  "mouth": [
-  539.1,
-  677.7
+  539.2,
+  677.6
  ],
- "mouth_width": 226.8,
- "chin": 841.0,
+ "mouth_width": 226.3,
+ "chin": 839.9,
  "blink_half_openings": [
-  0.41,
-  0.51
+  0.52,
+  0.48
  ]
 }

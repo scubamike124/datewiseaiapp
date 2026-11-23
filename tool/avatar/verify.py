@@ -102,6 +102,9 @@ def check_frame(img, coach, refs, master, eyes_closed=False, eyes_moved=False):
         # colour shift on unchanged pixels.
         # A gaze frame moves the irises, so it is sampled at its own points.
         t, m = (a["tone"] if eyes_moved else eye_tone(img, master["face"])), master["tone"]
+    else:
+        t = None
+    if t is not None and not eyes_closed and master["tone"] is not None:
         dab = float(np.hypot(t[1] - m[1], t[2] - m[2]))
         dl = float(abs(t[0] - m[0]))
         r["eye_shift"] = {"ab": round(dab, 1), "L": round(dl, 1)}

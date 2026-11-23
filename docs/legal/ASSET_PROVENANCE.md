@@ -10,14 +10,14 @@ placeholders they replace (AI/voice QA report D10, D11, D12).
 
 | File | Pixels | SHA-256 (first 16) | Original pixels* |
 |--|--|--|--|
-| `assets/coaches/ava-hero.jpg` | 1784×2376 | `f72e0487eeb90728` | 56% |
-| `assets/coaches/ava-avatar.jpg` | 1024×1024 | `d4a1344429aa37b9` | crop of the hero |
-| `assets/coaches/ethan-hero.jpg` | 1832×2448 | `fe6b1af67dafb943` | 24% |
-| `assets/coaches/ethan-avatar.jpg` | 1024×1024 | `c677a27eec5471e5` | crop of the hero |
+| `assets/coaches/ava-hero.jpg` | 1784×2376 | `04047ac51fba045f` | 56% |
+| `assets/coaches/ava-avatar.jpg` | 1024×1024 | `4e01864cbf952b60` | crop of the hero |
+| `assets/coaches/ethan-hero.jpg` | 1768×2360 | `6307edf197d83883` | 24% |
+| `assets/coaches/ethan-avatar.jpg` | 1024×1024 | `4cc0806f073c3580` | crop of the hero |
 | `assets/coaches/sofia-hero.jpg` | 1856×2472 | `586f9bd26aa15155` | 46% |
 | `assets/coaches/sofia-avatar.jpg` | 1024×1024 | `5c750a9282fd4bf3` | crop of the hero |
-| `assets/coaches/diego-hero.jpg` | 1968×2624 | `6de39cf58382d61e` | 27% |
-| `assets/coaches/diego-avatar.jpg` | 1024×1024 | `24a54be45490a410` | crop of the hero |
+| `assets/coaches/diego-hero.jpg` | 1968×2624 | `ac4c4afd6e5550b0` | 27% |
+| `assets/coaches/diego-avatar.jpg` | 1024×1024 | `4c6c38e855f9b4f3` | crop of the hero |
 
 \* Share of the hero whose pixels come from the approved portrait (the face,
 hair and, except for Ethan, the upper neck). The rest (clothing, shoulders,
@@ -58,8 +58,8 @@ or API was used.
    image does not change the face.
 2. **Mouth relaxed (the one change to the face).** LivePortrait's own
    retargeting closed the lips and softened the smile, so no teeth show at
-   rest (lip ratio 0; smile −0.6, or −0.3 for Sofía, to stay closer to her
-   reference). Only a feathered mouth region, clipped at the jaw line, is
+   rest (lip ratio 0; smile −0.6, −0.3 for Sofía to stay closer to her
+   reference, and +0.3 for Ethan, which keeps a soft closed-mouth smile). Only a feathered mouth region, clipped at the jaw line, is
    blended in; eyes, nose, brows and face shape are the approved pixels.
 3. **Non-face styling** (colour edits inside a segmentation mask; no
    generation): hair colour (Ava auburn, Sofía near-black, Ethan lighter
@@ -73,8 +73,8 @@ or API was used.
    13 px margin (backdrop and clothing pixels inside that margin are not
    protected), hair, earrings and upper neck. Prompts named only clothing and
    a plain studio backdrop; negative prompts excluded hands, jewellery and
-   bare chests. Outfits: Ava an ivory collared shirt, Ethan a camel crew-neck
-   sweater over a blue tee (this replaces his hand under the chin; neck and
+   bare chests. Outfits: Ava an ivory collared shirt, Ethan a grey fine-knit
+   turtleneck (this replaces his hand under the chin; neck and
    collar are generated), Sofía a black knit top (generated grey, then
    recoloured), Diego a light-blue chambray shirt over a dark tee. The
    generated layer was upscaled (Real-ESRGAN x4 blended with Lanczos), and
@@ -111,6 +111,12 @@ travels with the model on Hugging Face.
 
 InsightFace (non-commercial) was **not** used; YuNet replaces it everywhere.
 
+Fix round 1 (2026-11-23): Ethan's body, clothing and smile were re-made.
+Diego's dark jaw and neck outlines, which come from the source, were
+inpainted into a soft shadow without changing the jaw geometry (OpenCV
+Telea inpainting, BSD), and the generated shirt texture was smoothed. The
+gold stud on Ava's left ear was recoloured silver.
+
 ## Identity and quality gates (2026-11-23)
 
 `portrait_intake.py` (outside the repo; YuNet + SFace): 8/8 accepted. The
@@ -122,10 +128,10 @@ detection: when YuNet finds no face, it retries on a smaller copy (1280 or
 
 | Coach | Identity vs reference (hero / avatar) | Interim | Eye-tone shift hue / brightness (hero) | Avatar roll |
 |--|--|--|--|--|
-| Ava | 0.76 / 0.80 | 0.91 | 7.5 / 11.0 | 1.8° |
-| Ethan | 0.83 / 0.86 | 0.91 | 4.8 / 35.3 | 2.2° |
+| Ava | 0.76 / 0.79 | 0.91 | 8.0 / 10.9 | 1.5° |
+| Ethan | 0.90 / 0.90 | 0.91 | 5.3 / 4.0 | 0.9° |
 | Sofía | 0.70 / 0.69 | 0.87 | 2.1 / 10.6 | 3.7° |
-| Diego | 0.87 / 0.89 | 0.90 | 10.9 / 20.3 | 4.4° |
+| Diego | 0.87 / 0.89 | 0.90 | 11.2 / 20.8 | 4.9° |
 
 Identity drops from the interim scores because the approved reference smiles
 broadly with teeth and the candidates have closed lips. Each candidate is
@@ -153,8 +159,7 @@ Known limits, for the owner's review:
   face is upscaled about 10x in all and looks soft at full size.
 - Ava's head is turned about 13° (yaw), over the 10° goal. Correcting the yaw
   would re-render the whole face, so it was left.
-- Diego's dark jaw outline and Ethan's chin patch are in the approved source
-  and were left as they are.
+- Ethan's chin patch is in the approved source and was left as it is.
 - Faint lighter wisps remain at the edge of Ava's hair.
 
 ## Animated frames (derived from the portraits)
