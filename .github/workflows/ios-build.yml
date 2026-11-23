@@ -9,7 +9,8 @@ name: iOS build
 # The second job (signed-testflight) is a manual-only skeleton: it runs only
 # from "Run workflow" with signed_build ticked, and every step after the
 # secrets check is skipped unless all the signing secrets exist. See
-# docs/appstore/checklist.md ("GitHub secrets") for the exact secrets.
+# docs/appstore/checklist.md, section "6. Optional: CI signing secrets", for
+# the exact secrets.
 on:
   pull_request:
     paths:

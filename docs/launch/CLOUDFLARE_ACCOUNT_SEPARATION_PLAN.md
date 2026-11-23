@@ -158,7 +158,16 @@ From `docs/business/WORKERS_PAID_EVALUATION.md` section 4 (`node docs/business/a
 
 - For comparison, net proceeds at the configured **$9.99** after 15% commission and 3% refunds are about **$824 / $8,237 / $41,184 a month** for 100 / 1,000 / 5,000 subscribers (ASSUMPTION on refunds).
 - The per-subscriber cap (1,500 replies a month) bounds one heavy user at about $5.34 a month on Llama, worst case (MEASURED rule; derived in the evaluation).
-- `DAILY_NEURON_BUDGET` to set: about 2,000 neurons per subscriber per day on Llama, or 450 on Gemma, with 2x peak headroom. For example, Llama at 1,000 subscribers needs 1,915,000, at most $629 a month (`WORKERS_PAID_EVALUATION.md` section 5, ASSUMPTION).
+- `DAILY_NEURON_BUDGET` to set (`WORKERS_PAID_EVALUATION.md` section 5; release checklist A3). ASSUMPTION, derived from MEASURED prices: typical usage, a 2x peak day, the Sandbox slice (35,000 Llama / 10,000 Gemma) and in-flight headroom, divided by 0.8 while v1 is served (`LEGACY_CLIENTS=1`) for the anonymous slice. Start at **285,000 on Llama or 70,000 on Gemma at 100 subscribers**:
+
+  | Subscribers | Llama 3.3 70B (start) | $ / month max | Gemma 4 26B (start) | $ / month max |
+  |---|---|---|---|---|
+  | 100 | **285,000** | $91 | **70,000** | $20 |
+  | 500 | 1,245,000 | $408 | 290,000 | $92 |
+  | 1,000 | 2,440,000 | $802 | 565,000 | $183 |
+  | 5,000 | 12,020,000 | $3,963 | 2,765,000 | $909 |
+
+  "$ / month max" is the most AI can cost in 30 days at that budget after the free 10,000 a day: a ceiling, not a forecast. After v1 is retired (`LEGACY_CLIENTS=0`) the budgets drop by about 20%.
 - The new account's 10,000 free neurons a day (about $3.30 a month of inference) are DateWise's alone.
 
 ## 7. Other deploy tooling
