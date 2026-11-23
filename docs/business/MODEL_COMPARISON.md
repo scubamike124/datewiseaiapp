@@ -1,8 +1,8 @@
 # DateWise chat model comparison: Llama 3.3 70B vs Gemma 4 26B
 
 Status, 2026-11-23: **the harness is ready; live results are BLOCKED.** No model reply in this
-repository is a real result yet. A live run needs two repository secrets that only the owner can add
-(section 4). Until then, `--dry-run` runs the whole harness against a fake endpoint, and its report is
+repository is a real result yet. A live run needs a GitHub Environment and two environment secrets that only the owner can add
+(section 5). Until then, `--dry-run` runs the whole harness against a fake endpoint, and its report is
 headed **DRY RUN** so it cannot be mistaken for model output.
 
 Labels: **MEASURED** = read from an official source (URL and date given) or from code at a named
@@ -26,7 +26,7 @@ brand checks, and a Markdown summary. It is adapted to v2:
 | Automatic checks | `backend/eval/checks.mjs` | PR #24's language and brand checks, extended |
 | Fake endpoint | `backend/eval/fake-fetch.mjs` | the real stream formats of both models |
 | Tests | `backend/eval/model-eval.test.mjs` | `node:test`, as `backend/worker.test.mjs` does |
-| Workflow | `.github/workflows/model-eval.yml` | replaces PR #24's file; live only on a tagged push to this branch or a manual dispatch |
+| Workflow | `.github/workflows/model-eval.yml` | replaces PR #24's file; live only on a tagged push to this branch or a manual dispatch, and only after the owner approves the `model-eval` environment |
 
 `worker.js` and `coach_prompts.js` are imported, never changed. The harness has no copy of any prompt: a test
 checks that every planned request equals `coachMessages()` output byte for byte, so a prompt change on the server
@@ -168,17 +168,30 @@ case would exceed it, and the report says where it stopped. A failed call that m
 
 ## 5. Owner steps to enable the live run
 
-1. In GitHub, open `scubamike124/datewiseaiapp` > **Settings** > **Secrets and variables** > **Actions** >
-   **New repository secret**, and add:
-   - `CLOUDFLARE_ACCOUNT_ID`: the Cloudflare account id (dashboard, Workers & Pages overview, right column).
-   - `CLOUDFLARE_AI_TOKEN`: the value of the **existing** Cloudflare API token you already use for this
-     account, or an existing token that can run Workers AI. Nothing needs to be created or rotated.
-     If you prefer (your choice), a narrowly scoped token is safer: Cloudflare's "Workers AI" token
+The live run uses its own GitHub Environment, `model-eval`, and secrets named `DW_EVAL_CF_*`. Do **not** add
+them as repository secrets and do not name them `CLOUDFLARE_*`. The deploy workflow (`deploy-worker.yml`) stops
+if `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` or `ID_HASH_SALT` exists as a repository secret, because those
+belong to the `production-worker` environment. With these names, the two never collide and nothing has to be
+deleted after the eval.
+
+1. **Create the environment.** In GitHub, open `scubamike124/datewiseaiapp` > **Settings** > **Environments** >
+   **New environment**, name it exactly `model-eval`, and click **Configure environment**:
+   - Tick **Required reviewers** and add yourself. Every live run then waits until you click **Approve and
+     deploy**, so nothing spends neurons without your click.
+   - Optional: under **Deployment branches and tags**, choose **Selected branches and tags** and add
+     `claude/datewise-model-eval` (and `main`, once the workflow is merged).
+   - Create the environment **before** the first tagged run. If a run references `model-eval` before it exists,
+     GitHub creates it with no reviewers; the run then has no secrets and stops with `BLOCKED`, spending nothing,
+     but add the reviewer before you add the secrets.
+2. **Add two environment secrets** on the same page (**Environment secrets** > **Add environment secret**):
+   - `DW_EVAL_CF_ACCOUNT_ID`: the Cloudflare account id (dashboard, Workers & Pages overview, right column).
+   - `DW_EVAL_CF_AI_TOKEN`: a Cloudflare API token that can run Workers AI. Use Cloudflare's "Workers AI" token
      template, or a custom token with only **Workers AI - Read** and **Workers AI - Edit** on this account.
      Cloudflare's REST guide says inference needs both
-     (https://developers.cloudflare.com/workers-ai/get-started/rest-api/, MEASURED). A token without
-     Workers AI permission makes every call fail with an authentication error, which the report shows.
-2. Start the run. There are two ways; both are owner-controlled.
+     (https://developers.cloudflare.com/workers-ai/get-started/rest-api/, MEASURED). Do not reuse the deploy
+     token: it has Workers Scripts permission, which the eval does not need. A token without Workers AI permission
+     makes every call fail with an authentication error, which the report shows.
+3. **Start the run.** There are two ways; both are owner-controlled.
    - **Now, without merging to `main`:** push a commit to `claude/datewise-model-eval` whose message contains
      `[run-eval part=1]`. An empty commit is enough:
      ```
@@ -192,15 +205,19 @@ case would exceed it, and the report says where it stopped. A failed call that m
    - **Once `model-eval.yml` is on `main`:** GitHub lists a manually triggered workflow only when a file with that
      name is on the default branch. Then use **Actions** > **Chat model comparison** > **Run workflow** (part,
      budget, concurrency), or `gh workflow run model-eval.yml --ref claude/datewise-model-eval -f part=1 -f budget=4000`.
-3. Open the run. The summary shows the estimate and the report. Download the `model-eval-part-1` artifact
+4. **Approve.** The `eval` job runs the offline tests and the dry run and prints the neuron estimate in the run
+   summary. The `live` job then shows **Waiting for review**. Read the estimate, then click **Review deployments** >
+   `model-eval` > **Approve and deploy**. Rejecting it (or letting it time out) spends nothing.
+5. Open the run. The summary shows the estimate and the report. Download the `model-eval-part-1` artifact
    for `model-eval-key.md`. Give `model-eval.md` to the reviewer and keep the key until scoring is done.
 
-The secrets reach only the "Compare models (real API)" step. The offline tests, the dry run and the estimate run
-without them. Anyone who can push to this repository can start a run with the tag; that is intentional,
-owner-controlled use of the owner's allowance. Note that GitHub also gives repository secrets to `pull_request`
-runs from branches in the same repository (not to forks). This workflow has no `pull_request` trigger, so opening or
-updating a pull request never starts a live run. GitHub-hosted runner minutes are free for public repositories (GitHub's billing documentation; not
-re-checked from this session, whose network does not reach docs.github.com). Without the secrets the live
+Only the `live` job uses the `model-eval` environment, and only its "Compare models (real API)" step receives
+the two secrets. The offline tests, the dry run and the first estimate run in the `eval` job, which has no
+environment and no secrets. Anyone who can push to this repository can request a run with the tag, but only a
+required reviewer can let it spend. Environment secrets are not given to `pull_request` runs unless the job names
+the environment, and this workflow has no `pull_request` trigger, so opening or updating a pull request never
+starts a live run. GitHub-hosted runner minutes are free for public repositories (GitHub's billing documentation;
+not re-checked from this session, whose network does not reach docs.github.com). Without the secrets the live
 step fails with `BLOCKED` and spends nothing.
 
 ## 6. Testing the harness without credentials
@@ -213,7 +230,7 @@ node backend/eval/model-eval.mjs --dry-run --out=/tmp/model-eval.md --key-out=/t
 The tests cover: the full dry run (80 scenario calls, 2 load batches, report and key, no A/B mapping in the
 report); request bodies identical to what the Worker would send (Llama `max_tokens`, Gemma
 `max_completion_tokens`, thinking off, usage on); the server-built prompt for every coach; `BLOCKED` with no
-request when secrets are missing; the budget stop; HTTP errors; price parity with `MODEL_NEURONS`; and the
+request when secrets are missing; credentials read from the `DW_EVAL_CF_*` names and never from the deploy token; the budget stop; HTTP errors; price parity with `MODEL_NEURONS`; and the
 checks (LatAm Spanish, human claims, declines, safety).
 
 The tests also run on every pull request in `backend-test.yml` (no credentials, no neurons), and before the

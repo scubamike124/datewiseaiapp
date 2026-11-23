@@ -57,7 +57,7 @@ export function makeFakeFetch({ fail = () => 0, delayMs = 5 } = {}) {
     n += 1;
     const model = decodeURIComponent(String(url).split('/ai/run/')[1] || '');
     const body = JSON.parse(init.body);
-    calls.push({ model, body, headers: init.headers });
+    calls.push({ url: String(url), model, body, headers: init.headers });
     await new Promise((r) => setTimeout(r, delayMs));
     const status = fail(model, n);
     if (status) {

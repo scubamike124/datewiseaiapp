@@ -71,4 +71,18 @@ void main() {
     expect(checklist, contains('**Billing Grace Period: keep it OFF**'));
     expect(checklist, contains('covers the **purchase UI only**'));
   });
+
+  test('model-eval: spends only behind the model-eval environment, with secrets the deploy check never sees', () {
+    final s = File('.github/workflows/model-eval.yml').readAsStringSync();
+    final secrets = RegExp(r'secrets\.(\w+)').allMatches(s).map((m) => m[1]).toSet();
+    expect(secrets, {'DW_EVAL_CF_AI_TOKEN', 'DW_EVAL_CF_ACCOUNT_ID'});
+    final live = s.substring(s.indexOf('\n  live:'));
+    expect(live, contains('environment: model-eval'));
+    expect(live, contains('secrets.DW_EVAL_CF_AI_TOKEN'));
+    expect(s.substring(0, s.indexOf('\n  live:')), isNot(contains('secrets.')));
+    // deploy-worker.yml refuses these as repository secrets; the eval must never ask for them.
+    for (final name in ['CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN', 'ID_HASH_SALT']) {
+      expect(secrets, isNot(contains(name)));
+    }
+  });
 }

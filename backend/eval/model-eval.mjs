@@ -2,7 +2,9 @@
 //
 //   node backend/eval/model-eval.mjs --estimate-only          # neuron estimate, no calls
 //   node backend/eval/model-eval.mjs --dry-run                # whole harness on a fake endpoint
-//   CLOUDFLARE_AI_TOKEN=… CLOUDFLARE_ACCOUNT_ID=… node backend/eval/model-eval.mjs --part=1 --budget=4000
+//   DW_EVAL_CF_AI_TOKEN=… DW_EVAL_CF_ACCOUNT_ID=… node backend/eval/model-eval.mjs --part=1 --budget=4000
+//   (in CI these come from the `model-eval` GitHub Environment; locally CLOUDFLARE_AI_TOKEN /
+//   CLOUDFLARE_ACCOUNT_ID also work)
 //
 // Calls Workers AI over Cloudflare's REST API (nothing is deployed) with the
 // exact messages the Worker sends: coachMessages() from ../coach_prompts.js and
@@ -352,10 +354,12 @@ export async function main(argv = process.argv.slice(2), env = process.env, { fe
   const est = estimate(plan, args.models);
   print(formatEstimate(est, args));
   if (args.estimateOnly) return { code: 0, est };
-  const token = env.CLOUDFLARE_AI_TOKEN || env.CLOUDFLARE_API_TOKEN;
-  const account = env.CLOUDFLARE_ACCOUNT_ID;
+  // DW_EVAL_* names, so the eval's secrets can never be mistaken for the deploy workflow's
+  // CLOUDFLARE_* secrets (deploy-worker.yml refuses repository-level copies of those).
+  const token = env.DW_EVAL_CF_AI_TOKEN || env.CLOUDFLARE_AI_TOKEN;
+  const account = env.DW_EVAL_CF_ACCOUNT_ID || env.CLOUDFLARE_ACCOUNT_ID;
   if (!args.dryRun && (!token || !account)) {
-    print('BLOCKED: no live run. Set the CLOUDFLARE_AI_TOKEN and CLOUDFLARE_ACCOUNT_ID repository secrets (see docs/business/MODEL_COMPARISON.md), or use --dry-run to test the harness.');
+    print('BLOCKED: no live run. Add the DW_EVAL_CF_AI_TOKEN and DW_EVAL_CF_ACCOUNT_ID secrets to the model-eval GitHub Environment (see docs/business/MODEL_COMPARISON.md, section 5), or use --dry-run to test the harness.');
     return { code: 2, est };
   }
   const result = await runPlan(plan, {

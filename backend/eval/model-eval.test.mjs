@@ -84,6 +84,21 @@ test('missing credentials: BLOCKED, exit 2, no request', async () => {
   assert.deepEqual(c.files, {});
 });
 
+test('credentials come from the DW_EVAL_* names (the model-eval environment secrets)', async () => {
+  const c = capture();
+  const fetchImpl = makeFakeFetch();
+  const env = { DW_EVAL_CF_AI_TOKEN: 'eval-tok', DW_EVAL_CF_ACCOUNT_ID: 'eval-acc' };
+  const r = await main(['--part=1', '--concurrency=0', '--models=@cf/google/gemma-4-26b-a4b-it', '--budget=400'], env, { ...c, fetchImpl });
+  assert.equal(r.code, 0);
+  assert.ok(fetchImpl.calls.length > 0);
+  assert.ok(fetchImpl.calls.every((x) => x.headers.Authorization === 'Bearer eval-tok' && x.url.includes('/accounts/eval-acc/')));
+  // The deploy token is never picked up as an eval credential.
+  const b = capture();
+  const blocked = await main([], { CLOUDFLARE_API_TOKEN: 'deploy-tok', DW_EVAL_CF_ACCOUNT_ID: 'eval-acc' }, { ...b, fetchImpl: async () => assert.fail('no request') });
+  assert.equal(blocked.code, 2);
+  assert.match(b.lines.find((l) => l.startsWith('BLOCKED')), /model-eval GitHub Environment/);
+});
+
 test('--budget stops before a call that could exceed it', async () => {
   const c = capture();
   const r = await main(['--dry-run', '--budget=400'], {}, c);
