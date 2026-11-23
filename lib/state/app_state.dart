@@ -341,6 +341,31 @@ class AppState extends ChangeNotifier {
     return true;
   }
 
+  // --- Composer drafts ----------------------------------------------------
+
+  /// What the user was typing or saying when a lapsed subscription swapped
+  /// the tabs for the paywall (which closes the chat), per coach and
+  /// conversation. In memory only: never saved on the device and never
+  /// sent; it goes back into the composer once the chat reopens, and is
+  /// cleared by "Delete all conversations" and "Delete my data".
+  final Map<String, String> _drafts = {};
+
+  String get _draftKey => '${selectedCoach.id}/${activeThread?.id ?? ''}';
+
+  /// Whether a draft is waiting for the chat to reopen.
+  bool get hasDraft => _drafts.isNotEmpty;
+
+  /// Keeps [text] for the open conversation (nothing when it is blank). No
+  /// listeners are notified: the chat calls this as it closes.
+  void keepDraft(String text) {
+    final t = text.trim();
+    if (t.isEmpty) return;
+    _drafts[_draftKey] = t;
+  }
+
+  /// The draft kept for the open conversation, removed once taken.
+  String? takeDraft() => _drafts.remove(_draftKey);
+
   // --- Messaging ----------------------------------------------------------
 
   /// Sends a user message to the selected coach and streams the reply.
@@ -555,11 +580,13 @@ class AppState extends ChangeNotifier {
 
   // --- Deleting -----------------------------------------------------------
 
-  /// Invalidates every pending Undo (see [restoreThread]); called before
-  /// anything is awaited, so an Undo tapped meanwhile is refused too.
+  /// Invalidates every pending Undo (see [restoreThread]) and drops any kept
+  /// composer draft; called before anything is awaited, so an Undo tapped
+  /// meanwhile is refused too.
   void _bumpDataEpoch() {
     _dataEpoch++;
     _deletedEpoch.clear();
+    _drafts.clear();
   }
 
   Future<void> deleteAllConversations() async {

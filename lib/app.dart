@@ -85,6 +85,8 @@ class RootGate extends StatelessWidget {
     if (!store.isEntitled && !state.paywallDismissed) {
       return PaywallScreen(onClose: state.dismissPaywall);
     }
-    return HomeShell(initialTab: initialTab);
+    // Back from a paywall that interrupted the chat: straight to the chat,
+    // where the user's draft is waiting.
+    return HomeShell(initialTab: state.hasDraft ? AppTab.chat : initialTab);
   }
 }
