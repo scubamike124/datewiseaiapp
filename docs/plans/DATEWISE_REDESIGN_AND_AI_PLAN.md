@@ -95,6 +95,15 @@ Two visual tracks exist:
 5. Choose the redesign direction: the premium prototype as specified (recommended), or evolve the live theme.
 6. Paid voice and video providers, likeness and voice consent, and booking partners (A5): no work until decided.
 
+### Owner decisions recorded (2026-11-23)
+
+- **No sign-in for v1.** The app keeps no accounts; conversations stay on the device.
+- **Booking is a link-out only.** On first-date plans (Home's "Prepare for a date", the weekly plan's "Plan a first
+  date", the coaches' "Plan a first date" starters) a compact "Find a table" button under the coach's latest reply
+  opens an Apple Maps search for restaurants (`https://maps.apple.com/?q=restaurants`, `restaurantes` in Spanish), on
+  tap only. No accounts, no partner APIs, no API costs, no location permission, no chat content sent. iPhone/iPad only;
+  hidden on the web and Android. Booking partners (A5) stay undecided.
+
 ## 6. Not claimed
 
 - That the live model answers well in Spanish. This is **unverified** until A1 and A3.
