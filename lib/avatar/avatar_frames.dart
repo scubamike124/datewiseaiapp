@@ -29,6 +29,8 @@ class AvatarManifest {
     required this.patches,
     this.mouth,
     this.mouthWidth,
+    this.sourceWidth,
+    this.sourceHeight,
   });
 
   final String coachId;
@@ -37,6 +39,11 @@ class AvatarManifest {
   final int width;
   final int height;
   final Map<String, AvatarPatch> patches;
+
+  /// Pixel size of the portrait file itself, when the generator scaled it
+  /// down to [width] x [height] first (null: the same as [width]/[height]).
+  final int? sourceWidth;
+  final int? sourceHeight;
 
   /// Center of the lips and their width in the portrait (pixels), for the
   /// jaw drop; null in manifests from older generator versions.
@@ -67,6 +74,8 @@ class AvatarManifest {
       height: (m['height'] as num).toInt(),
       mouth: mouth == null ? null : ui.Offset((mouth[0] as num).toDouble(), (mouth[1] as num).toDouble()),
       mouthWidth: (m['mouth_width'] as num?)?.toDouble(),
+      sourceWidth: (m['source_width'] as num?)?.toInt(),
+      sourceHeight: (m['source_height'] as num?)?.toInt(),
       patches: {
         for (final e in frames.entries)
           e.key: AvatarPatch(
@@ -165,7 +174,30 @@ class AvatarFrames {
     final decoded = <ui.Image>[];
     try {
       final manifest = AvatarManifest.parse(coach.id, await bundle.loadString('${AvatarManifest.dir(coach.id)}/manifest.json'));
-      final base = await _decode(bundle, coach.heroAsset);
+      // The portrait file must be the one the frames were made from (same
+      // pixel size). It is decoded at the size the frames were made for
+      // (tool/avatar/gen_frames.py --max-width), which can be smaller than
+      // the file, so a large final portrait costs no extra memory here.
+      final data = await bundle.load(coach.heroAsset);
+      final buffer = await ui.ImmutableBuffer.fromUint8List(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+      final ui.Image base;
+      ui.ImageDescriptor? descriptor;
+      try {
+        descriptor = await ui.ImageDescriptor.encoded(buffer);
+        final fileSize = (descriptor.width, descriptor.height);
+        if (fileSize != (manifest.sourceWidth ?? manifest.width, manifest.sourceHeight ?? manifest.height)) {
+          return null;
+        }
+        final codec = await descriptor.instantiateCodec(targetWidth: manifest.width, targetHeight: manifest.height);
+        try {
+          base = (await codec.getNextFrame()).image;
+        } finally {
+          codec.dispose();
+        }
+      } finally {
+        descriptor?.dispose();
+        buffer.dispose();
+      }
       decoded.add(base);
       if (base.width != manifest.width || base.height != manifest.height) {
         base.dispose();

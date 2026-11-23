@@ -8,7 +8,9 @@ recogniser, iris-tone comparison), applied to every generated frame:
     (an open mouth or a nod lowers SFace similarity a little; identity is
     still decided by the approved reference above);
   * eye colour: the iris colour (CIELAB a*/b* chroma and lightness of the
-    iris band of each eye region) within 5 / 15 of the master's, so a
+    iris band of each eye region, sampled at the master's eye points;
+    at the frame's own points for the gaze frame, which moves the irises)
+    within 5 / 15 of the master's, so a
     brown-to-blue or green change is rejected (skipped for blink frames,
     where the eyes are shut). Lab chroma is used instead of HSV hue, which
     is unstable for dark, low-saturation irises.
@@ -25,10 +27,20 @@ _det = cv2.FaceDetectorYN.create(os.path.join(TOOLS, "models", "yunet.onnx"), ""
 _rec = cv2.FaceRecognizerSF.create(os.path.join(TOOLS, "models", "sface.onnx"), "")
 
 
+DETECT_MAX = 1280  # YuNet misses very large faces: detect on a copy at most this big, map back
+
+
 def faces(img):
-    _det.setInputSize((img.shape[1], img.shape[0]))
-    _, f = _det.detect(img)
-    return [] if f is None else list(f)
+    h, w = img.shape[:2]
+    scale = min(1.0, DETECT_MAX / max(h, w))
+    small = img if scale == 1.0 else cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+    _det.setInputSize((small.shape[1], small.shape[0]))
+    _, f = _det.detect(small)
+    if f is None:
+        return []
+    f = f.copy()
+    f[:, :14] /= scale
+    return list(f)
 
 
 def eye_tone(img, face):
@@ -68,7 +80,7 @@ def reference_embeddings():
     return refs
 
 
-def check_frame(img, coach, refs, master, eyes_closed=False):
+def check_frame(img, coach, refs, master, eyes_closed=False, eyes_moved=False):
     r = {"ok": True, "notes": []}
     a = analyse(img)
     if a is None or a["count"] != 1:
@@ -82,8 +94,17 @@ def check_frame(img, coach, refs, master, eyes_closed=False):
         r["ok"] = False; r["notes"].append(f"closer to {max(sims, key=sims.get)} than to {coach}")
     if r["master"] < MASTER_MIN:
         r["ok"] = False; r["notes"].append(f"similarity to master {r['master']:.2f} < {MASTER_MIN}")
-    if not eyes_closed and a["tone"] is not None and master["tone"] is not None:
-        t, m = a["tone"], master["tone"]
+    if not eyes_closed and master["tone"] is not None:
+        # Measured at the master's eye points: a frame is the master with a
+        # patch blended in, so the eyes are where they were. YuNet's points
+        # can jump by 20-30 px on an open-mouth frame (the face box changes),
+        # which sampled lids and lashes instead of the iris and read as a
+        # colour shift on unchanged pixels.
+        # A gaze frame moves the irises, so it is sampled at its own points.
+        t, m = (a["tone"] if eyes_moved else eye_tone(img, master["face"])), master["tone"]
+    else:
+        t = None
+    if t is not None and not eyes_closed and master["tone"] is not None:
         dab = float(np.hypot(t[1] - m[1], t[2] - m[2]))
         dl = float(abs(t[0] - m[0]))
         r["eye_shift"] = {"ab": round(dab, 1), "L": round(dl, 1)}
