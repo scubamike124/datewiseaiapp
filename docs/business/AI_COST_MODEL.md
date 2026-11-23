@@ -255,7 +255,7 @@ Policy text, for the support page and App Store description. It does not say "un
 | `PER_MINUTE_LIMIT` | 12 a subscriber | A person types more slowly than this; scripts do not | ASSUMPTION |
 | `MAX_CONCURRENT` | 2 a subscriber | Two devices on one Apple ID | ASSUMPTION |
 | `IP_PER_MINUTE_LIMIT` | 60 an IP | Blunts floods and forged-token probing. Generous because carrier NAT puts many users behind one IP | ASSUMPTION |
-| `ANON_DAILY_LIMIT` | 60 a day per IPv4 address or IPv6 /64 (hashed) | For builds that send no token (the v1 App Store build, and v2 before its entitlement loads) while `REQUIRE_SUBSCRIPTION=0` | ASSUMPTION |
+| `ANON_DAILY_LIMIT` | 60 a day per IPv4 address or IPv6 /64 (hashed) | Only for the v1 App Store build (no coachId, no token) while `REQUIRE_SUBSCRIPTION=0`. A v2 request (coachId or token) without a valid token always gets 403 `SUBSCRIPTION_REQUIRED` | ASSUMPTION |
 | `ANON_NEURON_BUDGET` | 20% of the daily budget (2,000) | Token-less traffic shares only this slice, so it cannot use up the subscribers' budget | ASSUMPTION |
 | `SANDBOX_DAILY_LIMIT` | 20 a day | For TestFlight and App Review Sandbox transactions. A missing or `Xcode` environment is refused | ASSUMPTION |
 | `LEGACY_CLIENTS` | 1 | Keeps the v1 chat and photo paths. Set it to 0 when 1.0.2 is retired, so those requests get 426 `APP_UPDATE_REQUIRED` | n/a |
@@ -293,7 +293,8 @@ When real numbers exist (from the guard's count-only logs: messages, estimated n
 - v1 compatibility: only a chat request with **neither a `coachId` nor a StoreKit token** keeps the chat-v6 behaviour,
   with the client's own system prompt. That request comes from App Store 1.0.2, which never sends the token. Any
   request that carries `X-DateWise-Entitlement` gets the server prompt, using the default coach when no `coachId` is
-  given, and is counted on that subscriber. The v1 requests are counted per network bucket and share the anonymous budget
+  given, and is counted on that subscriber. A request with a `coachId` but no valid token gets 403
+  `SUBSCRIPTION_REQUIRED` whatever `REQUIRE_SUBSCRIPTION` says (that switch only governs the v1 requests). The v1 requests are counted per network bucket and share the anonymous budget
   slice. The photo coach reserves its worst case (one vision call per photo plus two 70B converter passes) and is
   settled with the measured usage, overage included. Both v1 paths close with `LEGACY_CLIENTS=0`.
 - **v1 capacity (a rollout decision for the owner).** All 1.0.2 users together share `ANON_NEURON_BUDGET`, which is

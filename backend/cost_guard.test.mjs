@@ -128,9 +128,10 @@ test('the client system prompt is ignored; the server builds the coach prompt', 
 
 test('unknown coach ids are refused; v1 ids map to the v2 coaches', async () => {
   const env = makeEnv();
-  const bad = await send(env, { body: { coachId: 'hacker' } });
+  const jws = await pki.sign(txPayload({ originalTransactionId: otid() }));
+  const bad = await send(env, { jws, body: { coachId: 'hacker' } });
   assert.equal(bad.res.status, 400);
-  const legacy = await send(env, { body: { coachId: 'mateo' } });
+  const legacy = await send(env, { jws, body: { coachId: 'mateo' } });
   assert.equal(legacy.res.status, 200);
   assert.match(env.AI.calls[0].input.messages[0].content, /You are Diego/);
 });
@@ -291,15 +292,43 @@ test('reinstall / reset bypass: a new device, new IP and a renewed transaction s
   }
   const fresh = await pki.sign(txPayload({ originalTransactionId: o, transactionId: 'r-new', purchaseDate: Date.now() }));
   assert.equal((await send(env, { jws: fresh, ip: freshIp() })).json().code, 'DAILY_LIMIT');
-  // Dropping the token: refused outright once REQUIRE_SUBSCRIPTION=1 ...
-  const strict = makeEnv({ DAILY_MESSAGE_LIMIT: '3', REQUIRE_SUBSCRIPTION: '1' }, { ns: env.USAGE_GUARD });
-  assert.equal((await send(strict, {})).json().code, 'SUBSCRIPTION_REQUIRED');
-  // ... and, during the rollout (REQUIRE_SUBSCRIPTION=0), limited to the small per-IP anonymous bucket.
+  // Dropping the token from a v2 request (coachId) is refused outright, whatever REQUIRE_SUBSCRIPTION says.
+  for (const REQUIRE_SUBSCRIPTION of ['0', '1']) {
+    const e = makeEnv({ DAILY_MESSAGE_LIMIT: '3', REQUIRE_SUBSCRIPTION }, { ns: env.USAGE_GUARD });
+    const r = await send(e, { ip: freshIp() });
+    assert.equal(r.res.status, 403);
+    assert.equal(r.json().code, 'SUBSCRIPTION_REQUIRED');
+  }
+  // Posing as the v1 build (no coachId, no token) only reaches the small per-IP anonymous bucket ...
   const ip = freshIp();
   const anon = makeEnv({ ANON_DAILY_LIMIT: '2' });
-  assert.equal((await send(anon, { ip })).res.status, 200);
-  assert.equal((await send(anon, { ip })).res.status, 200);
-  assert.equal((await send(anon, { ip })).json().code, 'DAILY_LIMIT');
+  const v1 = { coachId: undefined };
+  assert.equal((await send(anon, { ip, body: v1 })).res.status, 200);
+  assert.equal((await send(anon, { ip, body: v1 })).res.status, 200);
+  assert.equal((await send(anon, { ip, body: v1 })).json().code, 'DAILY_LIMIT');
+  // ... and is refused once REQUIRE_SUBSCRIPTION=1.
+  assert.equal((await send(makeEnv({ REQUIRE_SUBSCRIPTION: '1' }), { body: v1 })).json().code, 'SUBSCRIPTION_REQUIRED');
+});
+
+test('v2 request without a valid token: 403 SUBSCRIPTION_REQUIRED before any model call, even with REQUIRE_SUBSCRIPTION=0', async () => {
+  const env = makeEnv({ REQUIRE_SUBSCRIPTION: '0' });
+  for (const coachId of ['ava', 'ethan', 'sofia', 'diego']) {
+    const r = await send(env, { body: { coachId } });
+    assert.equal(r.res.status, 403);
+    assert.equal(r.json().code, 'SUBSCRIPTION_REQUIRED');
+  }
+  // An empty entitlement header is not a token.
+  const c = ctx();
+  const req = chat({ body: { coachId: 'ava' } });
+  req.headers.set('X-DateWise-Entitlement', '');
+  const res = await worker.fetch(req, env, c);
+  assert.equal(res.status, 403);
+  assert.equal((await res.json()).code, 'SUBSCRIPTION_REQUIRED');
+  // An invalid token keeps its own code (the app refreshes the entitlement once).
+  assert.equal((await send(env, { jws: 'not-a-jws' })).json().code, 'SUBSCRIPTION_INVALID');
+  assert.equal(env.AI.calls.length, 0);
+  // The legacy v1 path (no coachId, no token) is unchanged.
+  assert.equal((await send(env, { body: { coachId: undefined } })).res.status, 200);
 });
 
 test('budget exhaustion: exact reservations and settlements, refused before any model call', async () => {
@@ -335,7 +364,7 @@ test('anonymous traffic has its own slice of the budget, so it cannot starve sub
   const ai = fakeAi();
   const env = makeEnv({ DAILY_NEURON_BUDGET: '1000', ANON_NEURON_BUDGET: '250', ANON_DAILY_LIMIT: '100' }, { ai });
   const anon = [];
-  for (let i = 0; i < 6; i++) anon.push(await send(env, { ip: freshIp() }));
+  for (let i = 0; i < 6; i++) anon.push(await send(env, { ip: freshIp(), body: { coachId: undefined } }));
   const anonOk = anon.filter((r) => r.res.status === 200).length;
   const reserve = neuronsFor(LLAMA, estimateTokens(ai.calls[0].input.messages), 800);
   assert.equal(anonOk, Math.floor((250 - reserve) / 27) + 1);
@@ -356,10 +385,10 @@ test('anonymous buckets: IPv4 address, IPv6 /64', async () => {
   assert.equal(ipBucket('::ffff:198.51.100.4'), '198.51.100.4');
   // Two addresses in one /64 share a bucket; another /64 does not.
   const env = makeEnv({ ANON_DAILY_LIMIT: '2', IP_PER_MINUTE_LIMIT: '100' });
-  assert.equal((await send(env, { ip: '2001:db8:1:2::a' })).res.status, 200);
-  assert.equal((await send(env, { ip: '2001:db8:1:2:ffff::b' })).res.status, 200);
-  assert.equal((await send(env, { ip: '2001:db8:1:2:1234::c' })).json().code, 'DAILY_LIMIT');
-  assert.equal((await send(env, { ip: '2001:db8:1:3::a' })).res.status, 200);
+  assert.equal((await send(env, { ip: '2001:db8:1:2::a', body: { coachId: undefined } })).res.status, 200);
+  assert.equal((await send(env, { ip: '2001:db8:1:2:ffff::b', body: { coachId: undefined } })).res.status, 200);
+  assert.equal((await send(env, { ip: '2001:db8:1:2:1234::c', body: { coachId: undefined } })).json().code, 'DAILY_LIMIT');
+  assert.equal((await send(env, { ip: '2001:db8:1:3::a', body: { coachId: undefined } })).res.status, 200);
 });
 
 test('a refused budget gives the subscriber their message back', async () => {

@@ -402,11 +402,13 @@ function logUsage(fields) {
 /**
  * Admits (or refuses) one AI request before any model call.
  * kind: 'chat' | 'legacy-chat' | 'photo'; model + estimated input/output
- * tokens (or `neurons`) give the worst-case reservation.
+ * tokens (or `neurons`) give the worst-case reservation. requireToken: the
+ * request must carry a valid StoreKit token whatever REQUIRE_SUBSCRIPTION says
+ * (every v2 chat request); without one it gets 403 SUBSCRIPTION_REQUIRED.
  * Returns { response } to send as-is, or { ticket } with headers to add and
  * finish(actualNeurons, { refund }) to call once when the work is done.
  */
-export async function admit(request, env, cors, { kind, model, inTokens, outTokens, neurons }) {
+export async function admit(request, env, cors, { kind, model, inTokens, outTokens, neurons, requireToken = false }) {
   const cfg = guardConfig(env);
   const now = Date.now();
   if (!env.USAGE_GUARD || typeof env.USAGE_GUARD.idFromName !== 'function') {
@@ -453,7 +455,9 @@ export async function admit(request, env, cors, { kind, model, inTokens, outToke
     tx = await txHash(cfg, r.tx.transactionId);
     const sandbox = r.tx.environment === 'Sandbox';
     limits = { ...base, daily: sandbox ? cfg.SANDBOX_DAILY_LIMIT : cfg.DAILY_MESSAGE_LIMIT, monthly: cfg.MONTHLY_MESSAGE_LIMIT };
-  } else if (cfg.REQUIRE_SUBSCRIPTION) {
+  } else if (requireToken || cfg.REQUIRE_SUBSCRIPTION) {
+    // v2 chat always needs a subscription; REQUIRE_SUBSCRIPTION=1 also refuses
+    // the token-less v1 (legacy) chat and photo requests.
     logUsage({ kind, outcome: 'SUBSCRIPTION_REQUIRED' });
     return { response: guardError('SUBSCRIPTION_REQUIRED', cors) };
   } else {

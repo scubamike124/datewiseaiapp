@@ -12,8 +12,10 @@
  *
  * chat-v7 (cost guard): every AI call passes cost_guard.js first (per-subscriber
  * caps, global neuron budget, StoreKit 2 JWS check), the coach system prompt is
- * built on the server (coach_prompts.js) for requests with a coachId. Requests
- * without one and without a StoreKit token come from the v1 App Store build
+ * built on the server (coach_prompts.js) for requests with a coachId, and those
+ * (v2) requests are served only with a valid StoreKit token (403
+ * SUBSCRIPTION_REQUIRED without one). Requests
+ * without a coachId and without a StoreKit token come from the v1 App Store build
  * (1.0.2): its chat and photo coach keep their chat-v6 behaviour, in the
  * anonymous caps and their budget slice, while LEGACY_CLIENTS=1. See docs/business/AI_COST_MODEL.md.
  */
@@ -545,7 +547,8 @@ async function runChatStream(env, messages, maxTokens = MAX_CHAT_TOKENS) {
 
 // Handles a coaching chat request (chat-v7). With a coachId or a StoreKit
 // token (the v2 app) the server builds the coach's system prompt (the default
-// coach when no coachId is given) and drops client system messages. Only a
+// coach when no coachId is given) and drops client system messages, and the
+// request needs a valid subscription token (403 SUBSCRIPTION_REQUIRED). Only a
 // request with neither (the v1 build, 1.0.2, which never sends the token)
 // keeps the chat-v6 behaviour, while LEGACY_CLIENTS=1, in the anonymous caps. Either way the history is trimmed to the input-token cap,
 // the request is admitted by the cost guard, and the model's reply streams
@@ -572,6 +575,9 @@ async function handleChat(request, env, ctx, body) {
   const inTokens = estimateTokens(fitted);
   const gate = await admit(request, env, corsHeaders(), {
     kind: legacy ? 'legacy-chat' : 'chat',
+    // A v2 request (coachId or token) is served only with a valid StoreKit
+    // token: 403 SUBSCRIPTION_REQUIRED otherwise, whatever REQUIRE_SUBSCRIPTION says.
+    requireToken: !legacy,
     model: CHAT_MODEL,
     inTokens,
     outTokens: maxOut,

@@ -299,9 +299,14 @@ void main() {
       for (final code in ['SUBSCRIPTION_EXPIRED', 'SUBSCRIPTION_REVOKED', 'SUBSCRIPTION_INVALID', 'SUBSCRIPTION_REQUIRED', 'DAILY_LIMIT', 'MONTHLY_LIMIT']) {
         expect(guard, contains(code), reason: code);
       }
-      // Without a token, chat-v7 falls back to the anonymous caps until
-      // REQUIRE_SUBSCRIPTION is switched on (documented in wrangler.toml).
+      // A v2 request (coachId or token) without a valid token is refused with
+      // 403 SUBSCRIPTION_REQUIRED whatever REQUIRE_SUBSCRIPTION says; that
+      // switch only governs the token-less v1 (legacy) requests, which share
+      // the anonymous per-network caps while it is "0" (documented in wrangler.toml).
+      expect(worker, contains('requireToken: !legacy'));
+      expect(guard, contains('requireToken || cfg.REQUIRE_SUBSCRIPTION'));
       expect(wrangler, contains('REQUIRE_SUBSCRIPTION = "0"'));
+      expect(wrangler, contains('v2 chat requests (a coachId or the X-DateWise-Entitlement header) always need'));
       expect(guard, contains("return { response: guardError('SUBSCRIPTION_REQUIRED', cors) };"));
     });
   });

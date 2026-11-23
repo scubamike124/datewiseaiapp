@@ -59,11 +59,13 @@ MAX_OUTPUT_TOKENS = "800"
 # Abuse protection per client IP (best effort, per Worker isolate; also uses
 # a RATE_LIMITER binding when one is configured).
 IP_PER_MINUTE_LIMIT = "60"
-# Requests without a StoreKit token (app builds older than the client hook).
-# Set REQUIRE_SUBSCRIPTION = "1" once the app version that sends the token is
-# widely installed. Until then, these requests share a per-IP bucket.
+# v2 chat requests (a coachId or the X-DateWise-Entitlement header) always need
+# a valid StoreKit token: without one they get 403 SUBSCRIPTION_REQUIRED, whatever
+# this says. REQUIRE_SUBSCRIPTION applies only to token-less v1 (legacy) requests:
+# "1" refuses them with 403 SUBSCRIPTION_REQUIRED; "0" lets them share a per-IP
+# bucket (below) while LEGACY_CLIENTS = "1".
 REQUIRE_SUBSCRIPTION = "0"
-# Per IPv4 address / IPv6 /64.
+# Per IPv4 address / IPv6 /64 (token-less v1 requests only).
 ANON_DAILY_LIMIT = "60"
 ANON_MONTHLY_LIMIT = "600"
 # v1 App Store build (1.0.2: no coachId, no token): chat with its own prompt and the
