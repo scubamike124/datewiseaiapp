@@ -4,6 +4,23 @@ Status as of 2026-11-23. Read this before reviewing PR #27. Where this handoff a
 
 Only PASS results that were actually run are reported as PASS. Anything that needs a physical iPhone, Apple credentials, a signed build or the live backend is marked **BLOCKED**, because it has not been tested.
 
+## 0. Final state (2026-11-23, end of the 8-hour completion session)
+
+This section supersedes the older figures below; the earlier sections are kept as history.
+
+| | |
+|---|---|
+| Release candidate | PR #27 `claude/datewise-v2-app`, head `7fed09c` (draft, not merged, nothing deployed). Price stays $9.99/month; $19.99 is a proposal only. |
+| Merged in (squashed, each independently reviewed YES) | #31 subscription resilience (ASSN v2, opt-in bounded fail-open, lockout fixes, v1 forced-update reply); #32 protected wrangler deploy workflow; #33 on-device talking avatars; QA-sweep and regression fixes; the live AI test kit (`tool/live/`) |
+| Open drafts | #30 Llama vs Gemma model comparison + Workers Paid evaluation (live run BLOCKED on credentials) |
+| Tests (local, at 01754b7 + 7fed09c) | `flutter analyze lib test tool`: 0 issues. `flutter test`: 871 passed. `node --test backend/*.test.mjs tool/live/*.test.mjs`: 96 passed. |
+| CI | Tests, Backend tests and the unsigned iOS release build (compiles the native avatar audio Swift) green on every pushed head, latest verified [01754b7](https://github.com/scubamike124/datewiseaiapp/actions/runs/45148929312) |
+| Final reviews | Code/security/functional: YES (fba0f6a, then deltas to 01754b7). Design: YES 9/10 (1500269). Debug token export: YES (cannot ship in release; no leak via logs, crash paths or reports). Regression QA: 274 interactive checks, 116 screen captures, 144 layout cases; one HIGH defect found (Undo could restore data deleted by a bulk delete) and fixed, reviewed YES. |
+| Talking avatars | On-device, $0, no provider sees conversations. App Store default = flutter_tts word-anchored lip sync (visual review 5/10 on interim portraits; acceptable as "animated coach" with final neutral-lip portraits). Native audio path (loudness-driven jaw, 6/10) is TestFlight-only behind `DW_AVATAR_AUDIO_PATH` until a device test passes. Neither meets "realistic"; that needs the paid provider bake-off (`docs/avatar/PAID_PROVIDER_BAKEOFF.md`, owner approval). No avatar claims in store copy until device-verified. |
+| LIVE AI | **BLOCKED.** Production still serves chat-v5 (HTTP 502). The 36-request live kit has only run SIMULATED (`docs/qa/LIVE_AI_TEST_SIMULATED_SAMPLE.md`: 36 requests, 0 failing checks). A live run needs Cloudflare deploy access and an Apple Sandbox JWS, see `docs/qa/LIVE_AI_TEST_PLAN.md`. Estimated live cost about 1,839 neurons (free allowance). |
+| Device tests | **BLOCKED** (TestFlight): purchases, restore, refunds, voice/STT EN and ES, avatar timing per voice tier, frame time and memory. |
+| Owner actions | The single list is the release checklist at the top of `docs/appstore/checklist.md`. |
+
 ## 1. What to review
 
 | | |
