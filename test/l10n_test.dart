@@ -244,6 +244,13 @@ void main() {
       expect(es.paywallHeadline('Sofía'), 'Coaching diario con Sofía y todo el equipo.');
     });
 
+    test('Delete my data: the subscription is managed by Apple and stays active', () {
+      expect(en.deleteMyDataBody, contains('Your subscription is managed by Apple and stays active'));
+      expect(es.deleteMyDataBody, contains('Tu suscripción la administra Apple y sigue activa'));
+      expect(en.deleteMyDataBody, isNot(contains('subscription status')));
+      expect(es.deleteMyDataBody, isNot(contains('estado guardado')));
+    });
+
     test('Coach memory: turning it off says the note is deleted and none is kept', () {
       expect(en.memoryOff, contains('deletes'));
       expect(en.memoryOff, contains('no note is kept'));

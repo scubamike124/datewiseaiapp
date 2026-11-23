@@ -203,7 +203,7 @@
   "deleteMyData": "Eliminar mis datos",
   "deleteMyDataNote": "No cancela tu suscripción. Cancélala en la configuración de Apple.",
   "deleteMyDataTitle": "¿Eliminar todos tus datos?",
-  "deleteMyDataBody": "Las conversaciones, el plan, el progreso, la memoria del coach, tus preferencias y el estado guardado de la suscripción se borrarán de este dispositivo, y la app empezará de nuevo.\n\nEsto no cancela tu suscripción del App Store. Para cancelarla, ve a Configuración › [tu nombre] › Suscripciones.",
+  "deleteMyDataBody": "Las conversaciones, el plan, el progreso, la memoria del coach y tus preferencias se borrarán de este dispositivo, y la app empezará de nuevo.\n\nTu suscripción la administra Apple y sigue activa: eliminar tus datos no la cancela. Para cancelarla, ve a Configuración › [tu nombre] › Suscripciones.",
   "deleteEverything": "Eliminar todo",
   "sectionAbout": "Acerca de",
   "support": "Soporte",

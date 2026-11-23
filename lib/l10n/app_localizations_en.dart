@@ -768,7 +768,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get deleteMyDataBody =>
-      'Conversations, plan, progress, Coach memory, settings and the saved subscription status will be erased from this device, and the app will start again.\n\nThis does not cancel your App Store subscription. To cancel it, go to Settings › [your name] › Subscriptions.';
+      'Conversations, plan, progress, Coach memory and settings will be erased from this device, and the app will start again.\n\nYour subscription is managed by Apple and stays active: deleting your data does not cancel it. To cancel it, go to Settings › [your name] › Subscriptions.';
 
   @override
   String get deleteEverything => 'Delete everything';
