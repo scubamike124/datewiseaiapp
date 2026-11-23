@@ -6,6 +6,15 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import worker from './worker.js';
+import { _setTrustedRootsForTests } from './cost_guard.js';
+import { fakeDoNamespace, makePki, txPayload } from './test/helpers.mjs';
+
+// chat-v7: every AI path goes through the cost guard (an in-memory Durable
+// Object here). These requests carry a subscription token signed by a
+// throwaway test PKI.
+const pki = await makePki();
+_setTrustedRootsForTests([pki.rootSha256]);
+const JWS = await pki.sign(txPayload());
 
 // Retired on 2026-11-20 (https://developers.cloudflare.com/changelog/post/2026-11-05-planned-model-deprecations/)
 // and earlier (llama-3.1-8b-instruct, 2026-05-30). Requests to them now fail with HTTP 410.
@@ -35,6 +44,8 @@ function fakeEnv(reply) {
           return reply(model, input);
         },
       },
+      USAGE_GUARD: fakeDoNamespace(),
+      DAILY_NEURON_BUDGET: '1000000',
     },
   };
 }
@@ -42,7 +53,7 @@ function fakeEnv(reply) {
 const post = (body) =>
   new Request('https://example.workers.dev/', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Origin: 'https://datewiseai.com' },
+    headers: { 'Content-Type': 'application/json', Origin: 'https://datewiseai.com', 'X-DateWise-Entitlement': JWS },
     body: JSON.stringify(body),
   });
 
@@ -65,7 +76,7 @@ test('no retired model is referenced anywhere in worker.js', () => {
 test('GET ?version names the fix', async () => {
   const res = await worker.fetch(new Request('https://example.workers.dev/?version'), fakeEnv(() => ({})).env);
   const body = await res.json();
-  assert.equal(body.version, 'chat-v6');
+  assert.equal(body.version, 'chat-v7-cost-guard');
 });
 
 test('coach chat streams from the text model and forwards the SSE body unchanged', async () => {

@@ -509,5 +509,45 @@
       }
     }
   },
-  "legalTranslationNote": ""
+  "legalTranslationNote": "",
+  "coachLimitDaily": "You've reached today's coaching limit. It resets at midnight (UTC).",
+  "@coachLimitDaily": {
+    "description": "Chat notice: the server's daily fair-use cap (DAILY_LIMIT)."
+  },
+  "coachLimitMonthly": "You've reached this month's fair-use limit. It resets on the 1st.",
+  "@coachLimitMonthly": {
+    "description": "Chat notice: the monthly fair-use cap (MONTHLY_LIMIT)."
+  },
+  "coachLimitSlowDown": "You're sending messages quickly. Please wait a moment and try again.",
+  "@coachLimitSlowDown": {
+    "description": "Chat notice: RATE_LIMITED or CONCURRENCY_LIMIT."
+  },
+  "coachLimitBusy": "Coaching is busy right now. Please try again later.",
+  "@coachLimitBusy": {
+    "description": "Chat notice: SERVICE_BUDGET_EXHAUSTED or GUARD_UNAVAILABLE."
+  },
+  "coachLimitSubscriptionInactive": "Your DateWise Premium subscription isn't active. Renew it to keep chatting.",
+  "@coachLimitSubscriptionInactive": {
+    "description": "Chat notice: SUBSCRIPTION_EXPIRED or SUBSCRIPTION_REQUIRED."
+  },
+  "coachLimitRevoked": "This purchase was refunded or revoked, so coaching is locked.",
+  "@coachLimitRevoked": {
+    "description": "Chat notice: SUBSCRIPTION_REVOKED."
+  },
+  "coachLimitVerify": "We couldn't confirm your subscription. Tap Restore purchases.",
+  "@coachLimitVerify": {
+    "description": "Chat notice: SUBSCRIPTION_INVALID."
+  },
+  "coachLimitUpdateApp": "Update DateWise to the latest version to keep chatting with your coach.",
+  "@coachLimitUpdateApp": {
+    "description": "Chat notice: APP_UPDATE_REQUIRED."
+  },
+  "coachUsageNoticeDaily": "You're close to today's fair-use limit.",
+  "@coachUsageNoticeDaily": {
+    "description": "Soft notice before the daily cap."
+  },
+  "coachUsageNoticeMonthly": "You're close to this month's fair-use limit.",
+  "@coachUsageNoticeMonthly": {
+    "description": "Soft notice before the monthly cap."
+  }
 }

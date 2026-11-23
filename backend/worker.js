@@ -9,7 +9,17 @@
  *   - mode: "quick" (fast, cheap: score + headline + 1 tip, no dimensions)
  *           "deep"  (default: full 5-dimension breakdown + 3 tips)
  * Response (JSON): a PhotoAnalysis object matching the Flutter model.
+ *
+ * chat-v7 (cost guard): every AI call passes cost_guard.js first (per-subscriber
+ * caps, global neuron budget, StoreKit 2 JWS check), the coach system prompt is
+ * built on the server (coach_prompts.js) for requests with a coachId. Requests
+ * without one and without a StoreKit token come from the v1 App Store build
+ * (1.0.2): its chat and photo coach keep their chat-v6 behaviour, in the
+ * anonymous caps and their budget slice, while LEGACY_CLIENTS=1. See docs/business/AI_COST_MODEL.md.
  */
+import { admit, estimateTokens, fitToInputBudget, guardConfig, guardError, handleAppleNotification, meterStream, meteredAi, neuronsFor, GUARD_VERSION } from './cost_guard.js';
+import { coachMessages, resolveCoachId } from './coach_prompts.js';
+export { UsageGuard } from './cost_guard.js';
 
 const MODEL = '@cf/meta/llama-3.2-11b-vision-instruct';
 // Allow the production apex and the verified Cloudflare Pages builds.
@@ -37,7 +47,7 @@ function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': ACTIVE_CORS_ORIGIN,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, X-DateWise-Entitlement',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
@@ -519,8 +529,8 @@ function sanitizeMessages(messages) {
 
 // Runs the chat model in streaming mode, accepting the one-time Meta Llama
 // license (AiError 5016) on first use, then retrying — same as runModel.
-async function runChatStream(env, messages) {
-  const input = { messages, max_tokens: MAX_CHAT_TOKENS, stream: true };
+async function runChatStream(env, messages, maxTokens = MAX_CHAT_TOKENS) {
+  const input = { messages, max_tokens: maxTokens, stream: true };
   try {
     return await env.AI.run(CHAT_MODEL, input);
   } catch (e) {
@@ -533,33 +543,77 @@ async function runChatStream(env, messages) {
   }
 }
 
-// Handles a coaching chat request: streams the model's reply straight back to
-// the client as Server-Sent Events. The client builds the system prompt (the
-// DateWise persona + the user's dating profile), so this stays generic.
-async function handleChat(env, messages) {
-  const safe = sanitizeMessages(messages);
-  if (!safe) {
-    return json({ error: 'Provide a non-empty "messages" array.' }, 400);
+// Handles a coaching chat request (chat-v7). With a coachId or a StoreKit
+// token (the v2 app) the server builds the coach's system prompt (the default
+// coach when no coachId is given) and drops client system messages. Only a
+// request with neither (the v1 build, 1.0.2, which never sends the token)
+// keeps the chat-v6 behaviour, while LEGACY_CLIENTS=1, in the anonymous caps. Either way the history is trimmed to the input-token cap,
+// the request is admitted by the cost guard, and the model's reply streams
+// back unchanged as Server-Sent Events while it is metered.
+async function handleChat(request, env, ctx, body) {
+  const cfg = guardConfig(env);
+  const legacy =
+    (body.coachId === undefined || body.coachId === null) && !request.headers.get('X-DateWise-Entitlement');
+  let safe;
+  if (legacy) {
+    if (!cfg.LEGACY_CLIENTS) return guardError('APP_UPDATE_REQUIRED', corsHeaders());
+    safe = sanitizeMessages(body.messages);
+  } else {
+    const coachId = resolveCoachId(body.coachId);
+    if (!coachId) return json({ error: 'Unknown coachId.', code: 'UNKNOWN_COACH' }, 400);
+    const built = coachMessages(coachId, body.profile, body.messages);
+    safe = built && sanitizeMessages(built);
   }
+  if (!safe) {
+    return json({ error: 'Provide at least one user message.' }, 400);
+  }
+  const maxOut = Math.min(MAX_CHAT_TOKENS, cfg.MAX_OUTPUT_TOKENS) || MAX_CHAT_TOKENS;
+  const fitted = fitToInputBudget(safe, cfg.MAX_INPUT_TOKENS);
+  const inTokens = estimateTokens(fitted);
+  const gate = await admit(request, env, corsHeaders(), {
+    kind: legacy ? 'legacy-chat' : 'chat',
+    model: CHAT_MODEL,
+    inTokens,
+    outTokens: maxOut,
+  });
+  if (gate.response) return gate.response;
+  const { ticket } = gate;
   let stream;
   try {
-    stream = await runChatStream(env, safe);
+    stream = await runChatStream(env, fitted, maxOut);
   } catch (e) {
+    ctx?.waitUntil?.(ticket.finish(0, { refund: true }));
     return json({ error: 'Workers AI error', detail: String(e) }, 502);
   }
+  const metered = meterStream(stream, (m) => {
+    const actual = neuronsFor(CHAT_MODEL, m.inTokens || inTokens, m.outTokens);
+    // A server-side failure (the model stream broke, or ended with no reply)
+    // gives the message back; a client that hangs up still uses it.
+    const refund = m.outcome === 'error' || (m.outcome === 'done' && !m.produced);
+    const done = ticket.finish(actual, { refund });
+    if (ctx?.waitUntil) ctx.waitUntil(done);
+  });
   // Workers AI returns an SSE ReadableStream ("data: {\"response\":\"…\"}\n\n"
   // … "data: [DONE]"); forward it verbatim with CORS so the app can stream it.
-  return new Response(stream, {
+  return new Response(metered, {
     headers: {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       ...corsHeaders(),
+      ...ticket.headers,
     },
   });
 }
 
+// Worst-case neurons for one photo request: one vision call per photo (about
+// 1,600 image tokens + the prompt, up to 800 out) plus up to two 70B converter
+// passes (JSON mode, then plain JSON) of up to 900 tokens out.
+function photoReserve(count) {
+  return count * neuronsFor(MODEL, 2000, 800) + 2 * neuronsFor(TEXT_MODEL, 1500, 900);
+}
+
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const origin = request.headers.get('Origin') || '';
     ACTIVE_CORS_ORIGIN = isAllowedOrigin(origin) ? origin : 'https://datewiseai.com';
 
@@ -574,7 +628,7 @@ export default {
       const url = new URL(request.url);
       // Quick deploy check: open <worker-url>/?version to confirm this code is live.
       if (url.searchParams.has('version')) {
-        return json({ version: 'chat-v6', note: 'streaming coach chat + single + batch parsing; text model llama-3.3-70b-instruct-fp8-fast' });
+        return json({ version: GUARD_VERSION, note: 'chat-v6 + cost guard (fair-use caps, neuron budget, StoreKit 2 JWS), server-side coach prompts; text model llama-3.3-70b-instruct-fp8-fast' });
       }
       if (url.searchParams.get('agree') === '1') {
         if (!env.AI) return json({ error: 'AI binding "AI" missing' }, 500);
@@ -599,6 +653,10 @@ export default {
     if (request.method !== 'POST') {
       return json({ error: 'Method not allowed' }, 405);
     }
+    // Optional App Store Server Notifications v2 (refunds/revocations); off by default.
+    if (new URL(request.url).pathname === '/apple/notifications') {
+      return await handleAppleNotification(request, env);
+    }
     if (!env.AI) {
       return json(
         { error: 'Workers AI binding "AI" is not configured on this Worker.' },
@@ -615,11 +673,41 @@ export default {
 
     const { imageBase64, images, tier, mode, userNote, messages } = body || {};
 
-    // Coaching chat path (all tiers) — streams a text reply. Checked before the
-    // Magnet gate below, which only guards the photo coach.
+    // Coaching chat path — streams a text reply. Checked before the photo
+    // coach below.
     if (Array.isArray(messages) && messages.length > 0) {
-      return await handleChat(env, messages);
+      return await handleChat(request, env, ctx, body);
     }
+
+    // The photo coach: only the v1 build (1.0.2) uses it (the v2 app sends no
+    // photos). Kept while LEGACY_CLIENTS=1, inside the same caps and budget,
+    // reserved at its worst case and settled with the measured usage.
+    if (!guardConfig(env).LEGACY_CLIENTS) {
+      return guardError('APP_UPDATE_REQUIRED', corsHeaders());
+    }
+    if (tier !== 'magnet') {
+      return json({ error: 'The AI Photo Coach is a Magnet-tier feature.' }, 403);
+    }
+    const photoCount = Array.isArray(images) && images.length > 0 ? Math.min(images.length, MAX_BATCH) : 1;
+    const photoGate = await admit(request, env, corsHeaders(), { kind: 'photo', neurons: photoReserve(photoCount) });
+    if (photoGate.response) return photoGate.response;
+    const meter = meteredAi(env.AI);
+    let photoResponse;
+    try {
+      photoResponse = await handlePhoto({ ...env, AI: meter.ai }, { imageBase64, images, tier, mode, userNote });
+    } catch (e) {
+      photoResponse = json({ error: 'Workers AI error', detail: String(e) }, 502);
+    }
+    const spent = meter.neurons();
+    // Refund the message only when the server failed or no model ran (a bad image).
+    ctx?.waitUntil?.(photoGate.ticket.finish(spent, { refund: photoResponse.status >= 500 || spent === 0 }));
+    for (const [k, v] of Object.entries(photoGate.ticket.headers)) photoResponse.headers.set(k, v);
+    return photoResponse;
+  },
+};
+
+// The v1 photo coach, unchanged from chat-v6 (only moved into a function).
+async function handlePhoto(env, { imageBase64, images, tier, mode, userNote }) {
 
     // Soft tier gate (client-sent; for real paywalls verify a session/payment).
     if (tier !== 'magnet') {
@@ -745,5 +833,4 @@ export default {
       return json({ error: 'Could not format analysis as JSON', raw: critique }, 502);
     }
     return json(normalize(analysis), 200);
-  },
-};
+}

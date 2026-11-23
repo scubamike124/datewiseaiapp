@@ -4,3 +4,85 @@ compatibility_date = "2024-11-01"
 
 [ai]
 binding = "AI"
+
+# chat-v7 cost guard: per-subscriber counters and the global neuron budget.
+# SQLite-backed Durable Objects are available on Workers Free
+# (developers.cloudflare.com/durable-objects/platform/pricing, checked 2026-11-22).
+# Without this binding the Worker refuses AI requests (fails closed).
+[[durable_objects.bindings]]
+name = "USAGE_GUARD"
+class_name = "UsageGuard"
+
+[[migrations]]
+tag = "v1-usage-guard"
+new_sqlite_classes = ["UsageGuard"]
+
+# Per-network request limit (Workers Rate Limiting binding; current syntax per
+# developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit, which
+# replaced the older [[unsafe.bindings]] type = "ratelimit" form; needs
+# wrangler 4.36+). The docs list no charge for it. Counts are approximate and
+# per Cloudflare location; the Durable Object counters stay the strict limits.
+# The key is a salted hash of the IPv4 address or IPv6 /64. Without the
+# binding, the Worker falls back to an in-isolate window.
+# namespace_id must be unique in the Cloudflare account: bindings that share
+# one share counters across Workers. 740219 is reserved for this Worker; check
+# that no other Worker on the account uses it before deploying.
+[[ratelimits]]
+name = "RATE_LIMITER"
+namespace_id = "740219"
+
+  [ratelimits.simple]
+  limit = 60
+  period = 60
+
+# All limits are PROVISIONAL defaults (docs/business/AI_COST_MODEL.md, section 7).
+# The global budget is the main protection. Change values here or in the dashboard.
+[vars]
+# Global circuit breaker, neurons per UTC day for the whole service.
+# 10000 = the Workers AI free daily allowance, so $0 of spending. Raising it
+# needs Workers Paid and the owner's approval.
+DAILY_NEURON_BUDGET = "10000"
+# The share of that budget requests without a StoreKit token may use (the v1
+# App Store build). Unset or "-1" = 20% of DAILY_NEURON_BUDGET.
+ANON_NEURON_BUDGET = "2000"
+# Optional monthly ceiling in neurons ("0" = off).
+MONTHLY_NEURON_BUDGET = "0"
+# Per subscriber (keyed by a salted hash of the App Store originalTransactionId).
+DAILY_MESSAGE_LIMIT = "150"
+MONTHLY_MESSAGE_LIMIT = "1500"
+SOFT_NOTICE_PERCENT = "80"
+PER_MINUTE_LIMIT = "12"
+MAX_CONCURRENT = "2"
+# Per request.
+MAX_INPUT_TOKENS = "6000"
+MAX_OUTPUT_TOKENS = "800"
+# Abuse protection per client IP (best effort, per Worker isolate; also uses
+# a RATE_LIMITER binding when one is configured).
+IP_PER_MINUTE_LIMIT = "60"
+# Requests without a StoreKit token (app builds older than the client hook).
+# Set REQUIRE_SUBSCRIPTION = "1" once the app version that sends the token is
+# widely installed. Until then, these requests share a per-IP bucket.
+REQUIRE_SUBSCRIPTION = "0"
+# Per IPv4 address / IPv6 /64.
+ANON_DAILY_LIMIT = "60"
+ANON_MONTHLY_LIMIT = "600"
+# v1 App Store build (1.0.2: no coachId, no token): chat with its own prompt and the
+# photo coach, counted per network and on ANON_NEURON_BUDGET. Set "0" when v1 is retired
+# (requests then get 426 APP_UPDATE_REQUIRED).
+LEGACY_CLIENTS = "1"
+# Subscription checks (offline StoreKit 2 JWS verification against Apple Root CA - G3).
+APPLE_BUNDLE_ID = "com.datewise.datewiseAi"
+APPLE_PRODUCT_ID = "datewise_premium_monthly"
+# TestFlight and App Review purchases are Sandbox transactions. They get their
+# own small daily cap. A missing or "Xcode" environment is refused.
+ALLOW_SANDBOX = "1"
+SANDBOX_DAILY_LIMIT = "20"
+# Minutes accepted after expiresDate while a renewal reaches the device.
+EXPIRY_LEEWAY_MINUTES = "60"
+# Match App Store Connect's Billing Grace Period (0, 3, 16 or 28 days for monthly plans).
+BILLING_GRACE_DAYS = "0"
+# App Store Server Notifications v2 at POST /apple/notifications (REFUND/REVOKE). Off by default.
+ASSN_ENABLED = "0"
+# ID_HASH_SALT: set as a secret (wrangler secret put ID_HASH_SALT), not here.
+# Rotating it resets every counter and the revoked list. Without it, a public
+# default salt is used and logs carry no `who`.

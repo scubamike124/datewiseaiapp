@@ -1321,6 +1321,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **''**
   String get legalTranslationNote;
+
+  /// Chat notice: the server's daily fair-use cap (DAILY_LIMIT).
+  ///
+  /// In en, this message translates to:
+  /// **'You\'ve reached today\'s coaching limit. It resets at midnight (UTC).'**
+  String get coachLimitDaily;
+
+  /// Chat notice: the monthly fair-use cap (MONTHLY_LIMIT).
+  ///
+  /// In en, this message translates to:
+  /// **'You\'ve reached this month\'s fair-use limit. It resets on the 1st.'**
+  String get coachLimitMonthly;
+
+  /// Chat notice: RATE_LIMITED or CONCURRENCY_LIMIT.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re sending messages quickly. Please wait a moment and try again.'**
+  String get coachLimitSlowDown;
+
+  /// Chat notice: SERVICE_BUDGET_EXHAUSTED or GUARD_UNAVAILABLE.
+  ///
+  /// In en, this message translates to:
+  /// **'Coaching is busy right now. Please try again later.'**
+  String get coachLimitBusy;
+
+  /// Chat notice: SUBSCRIPTION_EXPIRED or SUBSCRIPTION_REQUIRED.
+  ///
+  /// In en, this message translates to:
+  /// **'Your DateWise Premium subscription isn\'t active. Renew it to keep chatting.'**
+  String get coachLimitSubscriptionInactive;
+
+  /// Chat notice: SUBSCRIPTION_REVOKED.
+  ///
+  /// In en, this message translates to:
+  /// **'This purchase was refunded or revoked, so coaching is locked.'**
+  String get coachLimitRevoked;
+
+  /// Chat notice: SUBSCRIPTION_INVALID.
+  ///
+  /// In en, this message translates to:
+  /// **'We couldn\'t confirm your subscription. Tap Restore purchases.'**
+  String get coachLimitVerify;
+
+  /// Chat notice: APP_UPDATE_REQUIRED.
+  ///
+  /// In en, this message translates to:
+  /// **'Update DateWise to the latest version to keep chatting with your coach.'**
+  String get coachLimitUpdateApp;
+
+  /// Soft notice before the daily cap.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re close to today\'s fair-use limit.'**
+  String get coachUsageNoticeDaily;
+
+  /// Soft notice before the monthly cap.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re close to this month\'s fair-use limit.'**
+  String get coachUsageNoticeMonthly;
 }
 
 class _AppLocalizationsDelegate

@@ -203,5 +203,15 @@
   "couldNotOpen": "No se pudo abrir {url}",
   "settingsFootnote": "Tus coaches son IA. Las conversaciones se guardan en este dispositivo.",
   "appVersion": "DateWise AI {version}",
-  "legalTranslationNote": "Esta es una traducción para tu comodidad. Si difiere de la versión en inglés, prevalece la versión en inglés."
+  "legalTranslationNote": "Esta es una traducción para tu comodidad. Si difiere de la versión en inglés, prevalece la versión en inglés.",
+  "coachLimitDaily": "Llegaste al límite de coaching de hoy. Se renueva a la medianoche (UTC).",
+  "coachLimitMonthly": "Llegaste al límite de uso justo de este mes. Se renueva el día 1.",
+  "coachLimitSlowDown": "Estás enviando mensajes muy rápido. Espera un momento e inténtalo de nuevo.",
+  "coachLimitBusy": "El coaching está muy ocupado en este momento. Inténtalo más tarde.",
+  "coachLimitSubscriptionInactive": "Tu suscripción a DateWise Premium no está activa. Renuévala para seguir chateando.",
+  "coachLimitRevoked": "Esta compra fue reembolsada o revocada, así que el coaching está bloqueado.",
+  "coachLimitVerify": "No pudimos confirmar tu suscripción. Toca Restaurar compras.",
+  "coachLimitUpdateApp": "Actualiza DateWise a la última versión para seguir chateando con tu coach.",
+  "coachUsageNoticeDaily": "Te estás acercando al límite de uso justo de hoy.",
+  "coachUsageNoticeMonthly": "Te estás acercando al límite de uso justo de este mes."
 }

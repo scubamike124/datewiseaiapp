@@ -10,15 +10,22 @@ import '../models/coach.dart';
 import '../models/tier.dart';
 import '../models/user_profile.dart';
 import 'ai_service.dart';
+import 'coach_usage.dart';
 import 'persona.dart';
 
 /// Thrown when the coach backend cannot produce a reply: network error,
 /// timeout, a non-200 response or an empty stream. The chat shows a friendly,
 /// localized notice with "Try again"; the user's message is kept.
 class CoachUnavailableException implements Exception {
-  const CoachUnavailableException(this.reason, {this.statusCode});
+  const CoachUnavailableException(this.reason, {this.statusCode, this.code, this.retryAfter});
   final String reason;
   final int? statusCode;
+
+  /// The backend's refusal code (chat-v7), e.g. `DAILY_LIMIT`; see [CoachLimitCode].
+  final String? code;
+
+  /// Seconds until a retry can succeed, from `Retry-After`, when given.
+  final int? retryAfter;
   @override
   String toString() => 'CoachUnavailableException($reason${statusCode == null ? '' : ', HTTP $statusCode'})';
 }
@@ -27,10 +34,11 @@ class CoachUnavailableException implements Exception {
 /// `backend/worker.js`). The app holds no API keys: it only knows the
 /// Worker's public HTTPS URL, and the model runs server-side.
 ///
-/// Chat request (chat-v6): `POST {messages:[{role,content}...], coachId,
-/// profile, tier}`. chat-v6 reads only `messages` (system prompt first) and
-/// ignores the other fields; a later Worker may use `coachId`/`profile` to
-/// build the prompt itself.
+/// Chat request: `POST {messages:[{role,content}...], coachId, profile,
+/// tier}`, with the StoreKit 2 entitlement JWS in `X-DateWise-Entitlement`
+/// when there is one. chat-v6 reads only `messages` (system prompt first);
+/// chat-v7 also checks the entitlement, enforces fair-use caps and refuses
+/// with `{"error": …, "code": …}` (see [CoachLimitCode]).
 ///
 /// Reply: Server-Sent Events, `data: {"response":"…"}` lines ending with
 /// `data: [DONE]` (Workers AI format; OpenAI-style `choices[0].delta.content`
@@ -65,6 +73,12 @@ class BackendAIService implements AIService {
   /// number (MAX_CHAT_MESSAGES), so older turns would only cost upload bytes.
   static const int maxHistoryTurns = 24;
 
+  /// At most this many HTTP requests per reply, whatever the reason for the
+  /// second one: the transient-failure retry in [streamReply] and the
+  /// refresh-once retry after a `SUBSCRIPTION_*` refusal share this budget,
+  /// so they never stack.
+  static const int maxRequestsPerReply = 2;
+
   /// Statuses worth one automatic retry: the Worker or Workers AI is briefly
   /// unavailable.
   static const Set<int> retryableStatuses = {502, 503, 504};
@@ -92,28 +106,62 @@ class BackendAIService implements AIService {
     /// One request. Returns normally when the reply is complete; throws
     /// [CoachUnavailableException]. Sets [emitted] once a token went out.
     var emitted = false;
+
+    /// HTTP requests made for this reply so far (see [maxRequestsPerReply]).
+    var sends = 0;
     Future<void> attempt() async {
       final c = client = _clientFactory();
       try {
-        final req = http.Request('POST', Uri.parse(endpoint))
-          ..headers['Content-Type'] = 'application/json'
-          ..headers['Accept'] = 'text/event-stream'
-          ..body = payload;
-        final http.StreamedResponse res;
-        try {
-          res = await c.send(req).timeout(connectTimeout);
-        } on TimeoutException {
-          throw const CoachUnavailableException('timeout');
-        } catch (e) {
-          throw CoachUnavailableException('network: $e');
+        Future<http.StreamedResponse> send() async {
+          sends++;
+          final req = http.Request('POST', Uri.parse(endpoint))
+            ..headers['Content-Type'] = 'application/json'
+            ..headers['Accept'] = 'text/event-stream'
+            ..body = payload;
+          final entitlement = EntitlementToken.current;
+          if (entitlement != null) req.headers['X-DateWise-Entitlement'] = entitlement;
+          try {
+            return await c.send(req).timeout(connectTimeout);
+          } on TimeoutException {
+            throw const CoachUnavailableException('timeout');
+          } catch (e) {
+            throw CoachUnavailableException('network: $e');
+          }
         }
-        if (canceled) return;
 
-        if (res.statusCode != 200) {
+        Future<CoachUnavailableException> refusal(http.StreamedResponse res) async {
           // Read (a bounded amount of) the error body so the connection is freed.
-          await res.stream.drain<void>().timeout(const Duration(seconds: 5), onTimeout: () {});
-          throw CoachUnavailableException('http', statusCode: res.statusCode);
+          final body = await res.stream
+              .bytesToString()
+              .timeout(const Duration(seconds: 5), onTimeout: () => '');
+          return CoachUnavailableException('http',
+              statusCode: res.statusCode,
+              code: errorCodeFrom(body),
+              retryAfter: int.tryParse(res.headers['retry-after'] ?? ''));
         }
+
+        var res = await send();
+        if (canceled) return;
+        if (res.statusCode != 200) {
+          final error = await refusal(res);
+          final refresh = EntitlementToken.refresher;
+          // An expired or invalid token may only be stale (a renewal not yet
+          // read): re-read the entitlement once and retry once, if this reply
+          // still has a request left (see [maxRequestsPerReply]).
+          if (!CoachLimitCode.refreshable.contains(error.code) || refresh == null || sends >= maxRequestsPerReply) {
+            throw error;
+          }
+          try {
+            await refresh().timeout(const Duration(seconds: 10));
+          } catch (_) {
+            throw error;
+          }
+          if (canceled) return;
+          res = await send();
+          if (canceled) return;
+          if (res.statusCode != 200) throw await refusal(res);
+        }
+        CoachUsage.state.value = CoachUsageState.fromHeaders(res.headers);
 
         try {
           await for (final token in parseSse(res.stream.timeout(idleTimeout))) {
@@ -141,8 +189,11 @@ class BackendAIService implements AIService {
         } on CoachUnavailableException catch (e) {
           // One automatic retry for a transient failure, and only before the
           // first token: a reply that has started is never sent twice.
-          final transient = e.reason.startsWith('network') || retryableStatuses.contains(e.statusCode);
-          if (canceled || emitted || !transient) rethrow;
+          // A coded refusal (chat-v7 guard, e.g. a 503 SERVICE_BUDGET_EXHAUSTED)
+          // is deliberate, not an outage, so it is not retried here.
+          final transient =
+              e.reason.startsWith('network') || (e.code == null && retryableStatuses.contains(e.statusCode));
+          if (canceled || emitted || !transient || sends >= maxRequestsPerReply) rethrow;
           await Future<void>.delayed(retryDelay);
           if (canceled) return;
           await attempt();
@@ -186,6 +237,17 @@ class BackendAIService implements AIService {
     // Reached only when [DONE] never arrived: a proxy, a Worker crash or a
     // cut stream that still closed cleanly. Never save it as complete.
     throw const CoachUnavailableException('truncated');
+  }
+
+  /// The `code` of a chat-v7 refusal body (`{"error": …, "code": "DAILY_LIMIT"}`), or null.
+  @visibleForTesting
+  static String? errorCodeFrom(String body) {
+    if (body.length > 4096) return null;
+    try {
+      final obj = jsonDecode(body);
+      if (obj is Map && obj['code'] is String) return obj['code'] as String;
+    } catch (_) {}
+    return null;
   }
 
   /// The text in one SSE `data:` payload, or null for keep-alives and
