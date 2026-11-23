@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../app_links.dart';
+import '../dev/entitlement_export.dart';
 import '../models/coach.dart';
 import '../services/store_service.dart';
 import '../state/app_state.dart';
@@ -243,6 +245,12 @@ class SettingsScreen extends StatelessWidget {
                 onTap: () => _open(context, 'mailto:${AppLinks.supportEmail}'),
               ),
             ]),
+            // Debug builds only (kDebugMode is a compile-time constant, so release
+            // builds, TestFlight included, never contain this row): see lib/dev/entitlement_export.dart.
+            if (kDebugMode && DevEntitlementExport.enabled) ...[
+              const _SectionLabel('Developer'),
+              const _Group(children: [DevEntitlementRow()]),
+            ],
             const SizedBox(height: 18),
             FutureBuilder<PackageInfo>(
               future: PackageInfo.fromPlatform().catchError((Object _) => PackageInfo(appName: '', packageName: '', version: '', buildNumber: '')),
