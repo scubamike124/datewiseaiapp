@@ -117,10 +117,27 @@ test('live mode refuses to start without DW_TEST_JWS, without --confirm-live, or
   await assert.rejects(runKit({ mode: 'live', confirmLive: true, log: quiet }), /DW_TEST_JWS/);
   await assert.rejects(runKit({ mode: 'live', jws: fakeToken(), log: quiet }), /--confirm-live/);
   const never = () => assert.fail('no request may be sent');
-  await assert.rejects(runKit({ mode: 'live', jws: fakeToken({ environment: 'Production' }), confirmLive: true, fetchImpl: never, log: quiet }), /Production token/);
-  await assert.rejects(runKit({ mode: 'live', jws: fakeToken({ expiresDate: Date.now() - 2 * 3_600_000 }), confirmLive: true, fetchImpl: never, log: quiet }), /expired/);
+  await assert.rejects(runKit({ mode: 'live', jws: fakeToken({ environment: 'Production' }), confirmLive: true, baseUrl: 'https://example.invalid', fetchImpl: never, log: quiet }), /Production token/);
+  await assert.rejects(runKit({ mode: 'live', jws: fakeToken({ expiresDate: Date.now() - 2 * 3_600_000 }), confirmLive: true, baseUrl: 'https://example.invalid', fetchImpl: never, log: quiet }), /expired/);
   await assert.rejects(runKit({ mode: 'local', jws: fakeToken(), log: quiet }), /unset DW_TEST_JWS/);
   assert.equal(await main(['--jws', fakeToken()], {}), 2);
+});
+
+test('live mode refuses a malformed token, a token with stray whitespace inside, and a missing --base-url', async () => {
+  const never = async () => { throw new Error('no request may be sent'); };
+  const good = fakeToken();
+  const [h, p, sig] = good.split('.');
+  for (const bad of [`${h}.${p}.${sig} x`, `${h}.${p}\n.${sig}`, `${h}.${p}`, 'not a token']) {
+    await assert.rejects(
+      runKit({ mode: 'live', jws: bad, confirmLive: true, baseUrl: 'https://example.invalid', fetchImpl: never, log: quiet }),
+      (e) => /not a JWS/.test(e.message) && !e.message.includes(sig),
+    );
+  }
+  // Surrounding whitespace (a trailing newline from a paste) is trimmed, not refused.
+  await assert.rejects(
+    runKit({ mode: 'live', jws: `${good}\n`, confirmLive: true, fetchImpl: never, log: quiet }),
+    /explicit --base-url/,
+  );
 });
 
 test('live mode stops after the version check when the Worker is not chat-v7 (production runs chat-v5)', async () => {

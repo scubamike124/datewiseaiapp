@@ -309,10 +309,16 @@ export async function runKit(opts = {}) {
   let target;
   let jws;
   if (mode === 'live') {
-    jws = opts.jws;
+    jws = typeof opts.jws === 'string' ? opts.jws.trim() : opts.jws;
     if (!jws) throw new KitError('LIVE mode needs a StoreKit Sandbox token in the DW_TEST_JWS environment variable.');
+    // Strict shape check first: a pasted token with a stray space or newline
+    // would make fetch throw an error that quotes the header value.
+    if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(jws)) {
+      throw new KitError('DW_TEST_JWS is not a JWS (three base64url parts, no spaces or line breaks).');
+    }
     if (!opts.confirmLive) throw new KitError('LIVE mode spends Workers AI neurons: run --dry-run for the estimate, then add --confirm-live.');
-    const baseUrl = String(opts.baseUrl ?? PRODUCTION_URL).replace(/\/+$/, '');
+    if (!opts.baseUrl) throw new KitError('LIVE mode needs an explicit --base-url (the deployed sandbox Worker); there is no default live target.');
+    const baseUrl = String(opts.baseUrl).replace(/\/+$/, '');
     const u = new URL(baseUrl);
     if (!(u.protocol === 'https:' || ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname))) throw new KitError('--base-url must be https (or http://localhost for wrangler dev).');
     const doFetch = opts.fetchImpl ?? globalThis.fetch;
@@ -696,7 +702,7 @@ function buildReport({ LABEL, mode, target, info, jws, records, notes, halted, u
 const HELP = `Usage: node tool/live/live_chat_test.mjs [options]
 
   --mode local|live     local (default): SIMULATED, offline, $0. live: real requests.
-  --base-url URL        live target (default ${PRODUCTION_URL})
+  --base-url URL        live target (required for --mode live; no default)
   --budget N            maximum HTTP requests, preflight included (default 40)
   --skip a,b            groups to leave out: ${GROUPS.join(', ')}
   --dry-run             print the plan and the neuron estimate; send nothing
@@ -717,7 +723,7 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
       args: argv,
       options: {
         mode: { type: 'string', default: 'local' },
-        'base-url': { type: 'string', default: PRODUCTION_URL },
+        'base-url': { type: 'string' },
         budget: { type: 'string', default: '40' },
         skip: { type: 'string', default: '' },
         'dry-run': { type: 'boolean', default: false },
@@ -794,5 +800,12 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  main().then((code) => process.exit(code));
+  main().then(
+    (code) => process.exit(code),
+    (e) => {
+      // Any unexpected error: print it only through the redactor.
+      process.stderr.write(`${makeRedactor(process.env.DW_TEST_JWS)(String(e?.stack || e))}\n`);
+      process.exit(1);
+    },
+  );
 }
