@@ -24,12 +24,12 @@ import UIKit
 /// Renders the utterance to PCM with AVSpeechSynthesizer.write (iOS 13+),
 /// plays the buffers through AVAudioEngine, and streams to Dart:
 ///   {"e":"levels", "t0": seconds, "hop": 0.01, "v": [rms...]}  per buffer
-///   {"e":"start"}  when playback starts (audio time 0)
+///   {"e":"start", "latency": seconds}  playback started (audio time 0); latency = output latency
 ///   {"e":"marker", "start": utf16, "end": utf16, "t": seconds}  word markers (iOS 17+)
 ///   {"e":"synthesized"}  all levels sent
-///   {"e":"done"} / {"e":"error", "message": ...}
-/// Everything stays on the device. Dart falls back to flutter_tts if this
-/// channel is missing or reports an error before "start".
+///   {"e":"done"} (also after an interruption, route loss, engine reset or backgrounding)
+///   {"e":"error", "message": ..., "started": bool}  started=false: nothing was heard (Dart falls back)
+/// Everything stays on the device.
 final class SpeechAudioChannel: NSObject, FlutterStreamHandler {
   private static var shared: SpeechAudioChannel?
 
@@ -39,6 +39,7 @@ final class SpeechAudioChannel: NSObject, FlutterStreamHandler {
     let events = FlutterEventChannel(name: "datewise/speech_audio/events", binaryMessenger: registrar.messenger())
     method.setMethodCallHandler { call, result in instance.handle(call, result: result) }
     events.setStreamHandler(instance)
+    instance.observe()
     shared = instance
   }
 
@@ -53,7 +54,10 @@ final class SpeechAudioChannel: NSObject, FlutterStreamHandler {
   private var pendingBuffers = 0
   private var synthesisDone = false
   private var started = false
-  private var sampleRate: Double = 22050
+  private var active = false  // an utterance is being synthesized or played
+  private var sampleRate: Double = 0
+  private var bytesPerFrame: Double = 0
+  private var pendingMarkers: [(Int, Int, Int)] = []  // (start, end, byteSampleOffset)
 
   func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
     sink = events
@@ -68,6 +72,55 @@ final class SpeechAudioChannel: NSObject, FlutterStreamHandler {
   private func send(_ event: [String: Any]) {
     sink?(event)
   }
+
+  // MARK: interruptions
+
+  private func observe() {
+    let nc = NotificationCenter.default
+    nc.addObserver(self, selector: #selector(onInterruption(_:)),
+                   name: AVAudioSession.interruptionNotification, object: nil)
+    nc.addObserver(self, selector: #selector(onRouteChange(_:)),
+                   name: AVAudioSession.routeChangeNotification, object: nil)
+    nc.addObserver(self, selector: #selector(onEngineChange(_:)),
+                   name: .AVAudioEngineConfigurationChange, object: engine)
+    nc.addObserver(self, selector: #selector(onBackground(_:)),
+                   name: UIApplication.didEnterBackgroundNotification, object: nil)
+  }
+
+  @objc private func onInterruption(_ note: Notification) {
+    guard let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+          AVAudioSession.InterruptionType(rawValue: raw) == .began else { return }
+    DispatchQueue.main.async { self.interrupt("interruption") }
+  }
+
+  @objc private func onRouteChange(_ note: Notification) {
+    guard let raw = note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+          let reason = AVAudioSession.RouteChangeReason(rawValue: raw) else { return }
+    // Headphones unplugged / Bluetooth gone: stop, as Apple's guidelines ask.
+    if reason == .oldDeviceUnavailable {
+      DispatchQueue.main.async { self.interrupt("route") }
+    }
+  }
+
+  @objc private func onEngineChange(_ note: Notification) {
+    DispatchQueue.main.async { self.interrupt("engine") }
+  }
+
+  @objc private func onBackground(_ note: Notification) {
+    DispatchQueue.main.async { self.interrupt("background") }
+  }
+
+  /// Ends the current utterance after an interruption: Dart gets "done"
+  /// (never an error, so it neither replays the reply nor turns this path
+  /// off) and clears its speaking state.
+  private func interrupt(_ reason: String) {
+    guard active else { return }
+    stopPlayback()
+    deactivateSession()
+    send(["e": "done", "interrupted": reason])
+  }
+
+  // MARK: channel
 
   func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     switch call.method {
@@ -86,7 +139,10 @@ final class SpeechAudioChannel: NSObject, FlutterStreamHandler {
         pitch: args["pitch"] as? Double ?? 1.0,
         result: result)
     case "stop":
+      // An explicit stop: also release the session so other apps' audio is
+      // no longer ducked.
       stopPlayback()
+      deactivateSession()
       result(nil)
     default:
       result(FlutterMethodNotImplemented)
@@ -95,7 +151,7 @@ final class SpeechAudioChannel: NSObject, FlutterStreamHandler {
 
   private func speak(text: String, voiceId: String?, language: String, rate: Double, pitch: Double,
                      result: @escaping FlutterResult) {
-    stopPlayback()
+    stopPlayback()  // keeps the session active: the next utterance starts right away
     generation += 1
     let gen = generation
     let utterance = AVSpeechUtterance(string: text)
@@ -119,12 +175,18 @@ final class SpeechAudioChannel: NSObject, FlutterStreamHandler {
     pendingBuffers = 0
     synthesisDone = false
     started = false
+    active = true
+    sampleRate = 0
+    bytesPerFrame = 0
+    pendingMarkers = []
     let onBuffer: (AVAudioBuffer) -> Void = { [weak self] buffer in
       DispatchQueue.main.async { self?.received(buffer, gen: gen) }
     }
     if #available(iOS 17.0, *) {
       synthesizer.write(utterance, toBufferCallback: onBuffer, toMarkerCallback: { [weak self] markers in
-        DispatchQueue.main.async { self?.received(markers, gen: gen) }
+        let words = markers.filter { $0.mark == .word }
+          .map { ($0.textRange.location, $0.textRange.location + $0.textRange.length, $0.byteSampleOffset) }
+        DispatchQueue.main.async { self?.received(words, gen: gen) }
       })
     } else {
       synthesizer.write(utterance, toBufferCallback: onBuffer)
@@ -136,9 +198,22 @@ final class SpeechAudioChannel: NSObject, FlutterStreamHandler {
     guard gen == generation, let pcm = buffer as? AVAudioPCMBuffer else { return }
     if pcm.frameLength == 0 {
       synthesisDone = true
+      if scheduledFrames == 0 {
+        // The synthesizer produced no audio at all (missing voice, empty
+        // text after cleaning...): nothing will play, let Dart fall back.
+        stopPlayback()
+        send(["e": "error", "message": "no audio rendered", "started": false])
+        return
+      }
       send(["e": "synthesized"])
       if pendingBuffers == 0 { finish(gen: gen) }
       return
+    }
+    if bytesPerFrame == 0 {
+      // Markers count bytes of the synthesizer's own format.
+      bytesPerFrame = Double(pcm.format.streamDescription.pointee.mBytesPerFrame)
+      sampleRate = pcm.format.sampleRate
+      flushMarkers()
     }
     guard let playable = floatBuffer(pcm) else {
       fail("could not convert audio")
@@ -156,11 +231,13 @@ final class SpeechAudioChannel: NSObject, FlutterStreamHandler {
         return
       }
     }
-    sampleRate = playable.format.sampleRate
-    send(["e": "levels", "t0": Double(scheduledFrames) / sampleRate, "hop": 0.01, "v": levels(playable)])
+    let rate = playable.format.sampleRate
+    send(["e": "levels", "t0": Double(scheduledFrames) / rate, "hop": 0.01, "v": levels(playable)])
     scheduledFrames += AVAudioFramePosition(playable.frameLength)
     pendingBuffers += 1
-    player.scheduleBuffer(playable) { [weak self] in
+    // .dataPlayedBack: called when the samples have actually been heard, so
+    // the tail is never cut and "done" is not early.
+    player.scheduleBuffer(playable, completionCallbackType: .dataPlayedBack) { [weak self] _ in
       DispatchQueue.main.async {
         guard let self = self, gen == self.generation else { return }
         self.pendingBuffers -= 1
@@ -170,18 +247,26 @@ final class SpeechAudioChannel: NSObject, FlutterStreamHandler {
     if !started {
       started = true
       player.play()
-      send(["e": "start"])
+      // What is played now is heard this much later (AirPods: ~0.15-0.25 s).
+      let session = AVAudioSession.sharedInstance()
+      send(["e": "start", "latency": session.outputLatency + session.ioBufferDuration])
     }
   }
 
-  @available(iOS 16.0, *)
-  private func received(_ markers: [AVSpeechSynthesisMarker], gen: Int) {
+  private func received(_ words: [(Int, Int, Int)], gen: Int) {
     guard gen == generation else { return }
-    for m in markers where m.mark == .word {
-      // byteSampleOffset is a sample position in the rendered audio.
-      send(["e": "marker", "start": m.textRange.location, "end": m.textRange.location + m.textRange.length,
-            "t": Double(m.byteSampleOffset) / sampleRate])
+    pendingMarkers.append(contentsOf: words)
+    flushMarkers()
+  }
+
+  /// Sends the buffered word markers once the audio format (bytes per frame,
+  /// sample rate) is known.
+  private func flushMarkers() {
+    guard bytesPerFrame > 0, sampleRate > 0 else { return }
+    for (start, end, bytes) in pendingMarkers {
+      send(["e": "marker", "start": start, "end": end, "t": Double(bytes) / bytesPerFrame / sampleRate])
     }
+    pendingMarkers = []
   }
 
   /// The buffer as 32-bit float (what AVAudioPlayerNode plays everywhere).
@@ -217,20 +302,27 @@ final class SpeechAudioChannel: NSObject, FlutterStreamHandler {
 
   private func finish(gen: Int) {
     guard gen == generation else { return }
+    active = false
     send(["e": "done"])
     player.stop()
     engine.stop()
-    try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    deactivateSession()
   }
 
   private func fail(_ message: String) {
     let wasStarted = started
     stopPlayback()
+    deactivateSession()
     send(["e": "error", "message": message, "started": wasStarted])
+  }
+
+  private func deactivateSession() {
+    try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
   }
 
   private func stopPlayback() {
     generation += 1
+    active = false
     if synthesizer.isSpeaking { synthesizer.stopSpeaking(at: .immediate) }
     player.stop()
     if engine.isRunning { engine.stop() }

@@ -131,4 +131,67 @@ void main() {
     expect(audio.stops, greaterThan(0));
     await s.dispose();
   });
+
+  test('no "start" within the timeout (a silent failure): the reply is spoken through flutter_tts', () async {
+    DeviceVoiceService.audioStartTimeout = const Duration(milliseconds: 50);
+    addTearDown(() => DeviceVoiceService.audioStartTimeout = const Duration(seconds: 3));
+    final audio = FakeAudio();
+    final s = DeviceVoiceService.forTesting(FlutterTts(), voices, audio: audio);
+    await s.speak('Hi, I am Ava.', Coaches.ava);
+    expect(calls.where((c) => c == 'speak'), isEmpty);
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    expect(calls.where((c) => c == 'speak'), hasLength(1), reason: 'watchdog fell back');
+    expect(audio.stops, greaterThan(0), reason: 'the native attempt is stopped');
+    // A late "start" from the abandoned attempt changes nothing.
+    audio.controller.add(const SpeechAudioStarted());
+    await s.dispose();
+  });
+
+  test('the watchdog does not fire once playback started', () async {
+    DeviceVoiceService.audioStartTimeout = const Duration(milliseconds: 50);
+    addTearDown(() => DeviceVoiceService.audioStartTimeout = const Duration(seconds: 3));
+    final audio = FakeAudio();
+    final s = DeviceVoiceService.forTesting(FlutterTts(), voices, audio: audio);
+    await s.speak('Hi, I am Ava.', Coaches.ava);
+    audio.controller.add(const SpeechAudioStarted(latency: 0.2));
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    expect(calls.where((c) => c == 'speak'), isEmpty);
+    expect(s.speaking.value, isTrue);
+    await s.dispose();
+  });
+
+  test('native "no audio rendered" (error, started=false) falls back to flutter_tts', () async {
+    final audio = FakeAudio();
+    final s = DeviceVoiceService.forTesting(FlutterTts(), voices, audio: audio);
+    await s.speak('Hi.', Coaches.ava);
+    audio.controller.add(SpeechAudioEvent.parse({'e': 'error', 'message': 'no audio rendered', 'started': false})!);
+    await Future<void>.delayed(Duration.zero);
+    expect(calls.where((c) => c == 'speak'), hasLength(1));
+    await s.dispose();
+  });
+
+  test('an interruption mid-utterance ends it: speaking cleared, no replay', () async {
+    final audio = FakeAudio();
+    final s = DeviceVoiceService.forTesting(FlutterTts(), voices, audio: audio);
+    await s.speak('Hi, I am Ava.', Coaches.ava);
+    audio.controller.add(const SpeechAudioStarted());
+    expect(s.speaking.value, isTrue);
+    audio.controller.add(SpeechAudioEvent.parse({'e': 'done', 'interrupted': 'interruption'})!);
+    expect(s.speaking.value, isFalse);
+    expect(s.lipSync.active, isFalse);
+    // Interrupted before anything was heard: also "done": no replay, and the
+    // native path stays on for the next reply.
+    await s.speak('Second.', Coaches.ava);
+    audio.controller.add(SpeechAudioEvent.parse({'e': 'done', 'interrupted': 'route'})!);
+    await Future<void>.delayed(Duration.zero);
+    expect(calls.where((c) => c == 'speak'), isEmpty);
+    expect(s.speaking.value, isFalse);
+    await s.speak('Third.', Coaches.ava);
+    expect(audio.spoken, hasLength(3));
+    await s.dispose();
+  });
+
+  test('the native path is off unless the build turns it on (DW_AVATAR_AUDIO_PATH)', () {
+    expect(const bool.fromEnvironment('DW_AVATAR_AUDIO_PATH'), isFalse);
+  });
 }

@@ -53,10 +53,12 @@ void main() {
       }
 
       expect(Coaches.all.map(d).toList(), [
-        'ava:en-US>en-GB>en-AU>en:1.05:0.5',
-        'ethan:en-US>en-GB>en-AU>en:0.92:0.47',
-        'sofia:es-MX>es-US>es-ES>es:1.08:0.49',
-        'diego:es-MX>es-US>es-ES>es:0.9:0.46',
+        // Same-gender pairs ~8% apart in rate (a shared voice still sounds
+        // like two people): Ava/Sofía 0.52/0.48, Ethan/Diego 0.49/0.45.
+        'ava:en-US>en-GB>en-AU>en:1.02:0.52',
+        'ethan:en-US>en-GB>en-AU>en:0.95:0.49',
+        'sofia:es-MX>es-US>es-ES>es:1.1:0.48',
+        'diego:es-MX>es-US>es-ES>es:0.88:0.45',
       ]);
     });
 

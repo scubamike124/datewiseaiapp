@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'lip_sync.dart';
+import 'viseme.dart';
 
 /// An event from the native speech-audio path (ios/Runner/AppDelegate.swift).
 @immutable
@@ -15,7 +16,7 @@ sealed class SpeechAudioEvent {
     if (raw is! Map) return null;
     double d(Object? v) => (v as num?)?.toDouble() ?? 0;
     return switch (raw['e']) {
-      'start' => const SpeechAudioStarted(),
+      'start' => SpeechAudioStarted(latency: d(raw['latency'])),
       'levels' => SpeechAudioLevels(d(raw['t0']), d(raw['hop']), [for (final v in (raw['v'] as List? ?? const [])) d(v)]),
       'marker' => SpeechAudioMarker((raw['start'] as num).toInt(), (raw['end'] as num).toInt(), d(raw['t'])),
       'synthesized' => const SpeechAudioSynthesized(),
@@ -26,9 +27,11 @@ sealed class SpeechAudioEvent {
   }
 }
 
-/// Playback started: audio time 0 is now.
+/// Playback started: audio time 0 is heard [latency] seconds from now
+/// (the output route's latency; larger on Bluetooth headphones).
 class SpeechAudioStarted extends SpeechAudioEvent {
-  const SpeechAudioStarted();
+  const SpeechAudioStarted({this.latency = 0});
+  final double latency;
 }
 
 /// Loudness (RMS) of the rendered speech, one value per [hop] seconds from
@@ -156,9 +159,10 @@ class AudioAlignment {
       _peak = math.max(_peak, v);
       _levels.add(v);
     }
-    // Re-warp once enough new audio arrived (and always at the start).
+    // Re-warp at the start, then only every [rewarpEvery] of new audio
+    // (and once more on [complete]): the warp runs on the UI isolate.
     final steps = (_levels.length * _hop / step).floor();
-    if (_mappedSteps == 0 || steps - _mappedSteps >= 15) _warp(steps);
+    if (_mappedSteps == 0 || (steps - _mappedSteps) * step >= rewarpEvery) _warp(steps);
   }
 
   /// All levels have arrived: warp once more with both ends fixed (the
@@ -185,7 +189,10 @@ class AudioAlignment {
 
   /// Largest DTW matrix (cells); longer replies are warped at a coarser
   /// step (about 3 MB at most).
-  static const int maxCells = 400000;
+  static const int maxCells = 250000;
+
+  /// New audio (seconds) that triggers a fresh warp while synthesis runs.
+  static const double rewarpEvery = 1.0;
 
   void _warp(int steps) {
     if (steps <= 0 || _planFeat.isEmpty) return;
@@ -256,11 +263,83 @@ class AudioAlignment {
         }(),
     ];
     _mappedSteps = steps;
+    _closures = null;
+  }
+
+  List<(double, double)>? _closures;
+
+  /// How far a planned lip closure may move to meet a dip in the loudness.
+  static const double closureSearch = 0.12;
+
+  /// Lips-closed windows (audio seconds): every planned M/B/P closure moved
+  /// onto the quietest moment within ±[closureSearch] of where the plan puts
+  /// it, since closed lips silence the voice. Empty until warped.
+  List<(double, double)> closures() {
+    final cached = _closures;
+    if (cached != null) return cached;
+    final out = <(double, double)>[];
+    if (_map.isEmpty) return out;
+    double audioAt(double plan) {
+      for (var i = 0; i < _map.length; i++) {
+        if (_map[i] >= plan) return i * step;
+      }
+      return (_map.length - 1) * step;
+    }
+
+    double smooth(int i) {
+      var sum = 0.0, n = 0;
+      for (var k = i - 1; k <= i + 1; k++) {
+        if (k >= 0 && k < _levels.length) {
+          sum += _levels[k];
+          n++;
+        }
+      }
+      return n == 0 ? 1e9 : sum / n;
+    }
+
+    for (final c in timeline.cues) {
+      if (c.viseme != Viseme.mbp) continue;
+      final a0 = audioAt(c.start), a1 = audioAt(c.end);
+      final d = math.max(0.05, a1 - a0);
+      final mid = (a0 + a1) / 2;
+      var best = mid, bestLevel = double.infinity;
+      for (var t = mid - closureSearch; t <= mid + closureSearch; t += _hop) {
+        final l = smooth((t / _hop).round());
+        if (l < bestLevel) {
+          bestLevel = l;
+          best = t;
+        }
+      }
+      out.add((best - d / 2, best + d / 2));
+    }
+    return _closures = out;
+  }
+
+  /// Whether audio time [t] falls in a (snapped) lip closure.
+  bool inClosure(double t) {
+    for (final (a, b) in closures()) {
+      if (t >= a && t < b) return true;
+    }
+    return false;
   }
 
   void addMarker(int charStart, double t) {
     final k = timeline.wordAtChar(charStart);
-    if (k >= 0) _markers[k] = t;
+    if (k >= 0 && t >= 0) _markers[k] = t;
+  }
+
+  /// Markers that make sense: in word order, and not past the audio
+  /// (a unit mistake would put them there); otherwise none are used.
+  Map<int, double> _validMarkers() {
+    if (_markers.isEmpty) return const {};
+    final ks = _markers.keys.toList()..sort();
+    final audioLen = _levels.length * _hop;
+    for (var i = 0; i < ks.length; i++) {
+      final t = _markers[ks[i]]!;
+      if (i > 0 && t < _markers[ks[i - 1]]!) return const {};
+      if (_complete && t > audioLen + 0.1) return const {};
+    }
+    return _markers;
   }
 
   /// Loudness at audio time [t], 0..1 relative to the utterance's peak.
@@ -275,22 +354,23 @@ class AudioAlignment {
 
   /// Plan time for audio time [t], or null when nothing maps yet.
   double? planTime(double t) {
-    if (_markers.length >= 2 || (_markers.isNotEmpty && _map.isEmpty)) {
-      final ks = _markers.keys.toList()..sort();
+    final markers = _validMarkers();
+    if (markers.length >= 2 || (markers.isNotEmpty && _map.isEmpty)) {
+      final ks = markers.keys.toList()..sort();
       int? prev;
       for (final k in ks) {
-        if (_markers[k]! <= t) prev = k;
+        if (markers[k]! <= t) prev = k;
       }
       if (prev != null) {
         final i = ks.indexOf(prev);
         final w = timeline.words[prev];
         if (i + 1 < ks.length) {
           final next = ks[i + 1];
-          final t0 = _markers[prev]!, t1 = _markers[next]!;
+          final t0 = markers[prev]!, t1 = markers[next]!;
           final p1 = timeline.words[next].start;
           if (t1 > t0) return w.start + (t - t0) / (t1 - t0) * (p1 - w.start);
         }
-        return w.start + (t - _markers[prev]!);
+        return w.start + (t - markers[prev]!);
       }
     }
     if (_map.isEmpty || t < 0) return null;
