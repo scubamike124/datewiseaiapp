@@ -211,11 +211,14 @@ class SettingsScreen extends StatelessWidget {
                   key: const ValueKey('row-restore'),
                   icon: Icons.restore_rounded,
                   title: l.restorePurchasesRow,
+                  // As on the paywall: a store or network failure says so,
+                  // only a completed restore with nothing found says "none".
                   onTap: () async {
                     final ok = await store.restore();
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text(ok ? l.restoreOk : l.restoreNone),
+                        key: const ValueKey('restore-result'),
+                        content: Text(ok ? l.restoreOk : restoreFailureText(l, store.lastError, l.restoreNone)),
                       ));
                     }
                   },
