@@ -36,7 +36,7 @@ You can do all of these in Safari on the iPhone: appstoreconnect.apple.com, deve
    create anything (B13). IDs can never be reused.
 4. **Create the subscription** (B14, B15):
    - Group **DateWise Premium**, display name `DateWise Premium` (EN and ES).
-   - Product: reference name `DateWise Premium Monthly`, ID `datewise_premium_monthly`, **1 month**, **USD 19.99** (owner decision; `DateWise.storekit` and metadata.md move to 19.99 on `claude/datewise-price-1999`), no
+   - Product: reference name `DateWise Premium Monthly`, ID `datewise_premium_monthly`, **1 month**, **USD 19.99** (owner decision, 2026-11-23), no
      introductory offer, Family Sharing off.
    - Localizations: EN `DateWise Premium Monthly` / `Chat and voice coaching with all four AI coaches.` ES
      `DateWise Premium Mensual` / `Coaching por chat y voz con los cuatro coaches con IA.`
