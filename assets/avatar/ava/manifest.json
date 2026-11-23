@@ -4,116 +4,183 @@
  "width": 1212,
  "height": 762,
  "generator": "LivePortrait (MIT) + YuNet (MIT); tool/avatar/gen_frames.py",
+ "crop_scale": 1.9,
  "frames": {
   "mbp": {
    "region": "mouth",
    "rect": [
-    394,
-    356,
-    463,
-    399
+    404,
+    366,
+    429,
+    301
    ],
-   "identity": 0.896,
-   "master": 0.942
+   "identity": 0.894,
+   "master": 0.935
   },
   "a": {
    "region": "mouth",
    "rect": [
-    394,
-    356,
-    463,
-    399
+    404,
+    366,
+    429,
+    301
    ],
-   "identity": 0.797,
-   "master": 0.866
+   "identity": 0.744,
+   "master": 0.783
+  },
+  "a2": {
+   "region": "mouth",
+   "rect": [
+    404,
+    366,
+    429,
+    301
+   ],
+   "identity": 0.833,
+   "master": 0.894
   },
   "e": {
    "region": "mouth",
    "rect": [
-    394,
-    356,
-    463,
-    399
+    404,
+    366,
+    429,
+    301
    ],
-   "identity": 0.766,
-   "master": 0.828
+   "identity": 0.808,
+   "master": 0.876
+  },
+  "e2": {
+   "region": "mouth",
+   "rect": [
+    404,
+    366,
+    429,
+    301
+   ],
+   "identity": 0.881,
+   "master": 0.928
   },
   "i": {
    "region": "mouth",
    "rect": [
-    394,
-    356,
-    463,
-    399
+    404,
+    366,
+    429,
+    301
    ],
-   "identity": 0.884,
-   "master": 0.936
+   "identity": 0.873,
+   "master": 0.92
+  },
+  "i2": {
+   "region": "mouth",
+   "rect": [
+    404,
+    366,
+    429,
+    301
+   ],
+   "identity": 0.886,
+   "master": 0.929
   },
   "o": {
    "region": "mouth",
    "rect": [
-    394,
-    356,
-    463,
-    399
+    404,
+    366,
+    429,
+    301
    ],
-   "identity": 0.737,
-   "master": 0.793
+   "identity": 0.729,
+   "master": 0.772
+  },
+  "o2": {
+   "region": "mouth",
+   "rect": [
+    404,
+    366,
+    429,
+    301
+   ],
+   "identity": 0.799,
+   "master": 0.82
   },
   "u": {
    "region": "mouth",
    "rect": [
-    394,
-    356,
-    463,
-    399
+    404,
+    366,
+    429,
+    301
    ],
-   "identity": 0.849,
-   "master": 0.899
+   "identity": 0.866,
+   "master": 0.885
+  },
+  "u2": {
+   "region": "mouth",
+   "rect": [
+    404,
+    366,
+    429,
+    301
+   ],
+   "identity": 0.847,
+   "master": 0.912
   },
   "fv": {
    "region": "mouth",
    "rect": [
-    394,
-    356,
-    463,
-    399
+    404,
+    366,
+    429,
+    301
    ],
    "identity": 0.894,
-   "master": 0.956
+   "master": 0.943
   },
   "l": {
    "region": "mouth",
    "rect": [
-    394,
-    356,
-    463,
-    399
+    404,
+    366,
+    429,
+    301
    ],
-   "identity": 0.823,
-   "master": 0.891
+   "identity": 0.826,
+   "master": 0.883
   },
   "th": {
    "region": "mouth",
    "rect": [
-    394,
-    356,
-    463,
-    399
+    404,
+    366,
+    429,
+    301
    ],
-   "identity": 0.89,
-   "master": 0.946
+   "identity": 0.882,
+   "master": 0.932
   },
   "cons": {
    "region": "mouth",
    "rect": [
-    394,
-    356,
-    463,
-    399
+    404,
+    366,
+    429,
+    301
    ],
-   "identity": 0.892,
-   "master": 0.948
+   "identity": 0.882,
+   "master": 0.928
+  },
+  "sh": {
+   "region": "mouth",
+   "rect": [
+    404,
+    366,
+    429,
+    301
+   ],
+   "identity": 0.877,
+   "master": 0.918
   },
   "blink_half": {
    "region": "eyes",
@@ -123,8 +190,8 @@
     475,
     223
    ],
-   "identity": 0.849,
-   "master": 0.902
+   "identity": 0.822,
+   "master": 0.894
   },
   "blink_closed": {
    "region": "eyes",
@@ -134,52 +201,19 @@
     475,
     223
    ],
-   "identity": 0.754,
-   "master": 0.811
+   "identity": 0.771,
+   "master": 0.838
   },
-  "nod_1": {
-   "region": "head",
+  "gaze": {
+   "region": "eyes",
    "rect": [
-    235,
-    0,
-    877,
-    762
+    462,
+    172,
+    475,
+    223
    ],
-   "identity": 0.877,
-   "master": 0.941
-  },
-  "nod_2": {
-   "region": "head",
-   "rect": [
-    235,
-    0,
-    877,
-    762
-   ],
-   "identity": 0.857,
-   "master": 0.924
-  },
-  "attentive": {
-   "region": "head",
-   "rect": [
-    235,
-    0,
-    877,
-    762
-   ],
-   "identity": 0.795,
-   "master": 0.845
-  },
-  "think": {
-   "region": "head",
-   "rect": [
-    235,
-    0,
-    877,
-    762
-   ],
-   "identity": 0.853,
-   "master": 0.912
+   "identity": 0.81,
+   "master": 0.876
   }
  }
 }
