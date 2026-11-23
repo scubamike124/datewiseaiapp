@@ -308,7 +308,6 @@ screenshot shows or implies live video or a real person.
 The web review build's "Review build" paywall note never appears in these
 five screens.
 
-The screenshots in this branch show the interim portraits. The candidate
-final portraits and matching screenshots (same sizes, RGB without alpha) are
-in PR #40 (`claude/datewise-final-portraits`), pending the owner's visual
-approval; upload those once approved, not the ones in this branch.
+The screenshots in `docs/appstore/screenshots/` are **final**: they show the
+owner-approved portraits (PR #40, merged as `de430f7` on 2026-11-23; same
+sizes, RGB without alpha). Regenerate only if the portraits change.
