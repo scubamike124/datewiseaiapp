@@ -1,0 +1,53 @@
+--- a/integration_test/storekit_e2e_test.dart
++++ b/integration_test/storekit_e2e_test.dart	2026-11-24 18:35:23.280598201 +0000
+@@ -259,6 +259,12 @@
+ void _scenario(String name, Future<void> Function(WidgetTester t) body) {
+   testWidgets(name, (t) async {
+     _results[name] = 'did not finish';
++    _asyncErrors.clear();
++    final previousOnError = FlutterError.onError;
++    FlutterError.onError = (d) {
++      _asyncErrors.add(d);
++      previousOnError?.call(d);
++    };
+     await _bridge.invokeMethod<void>('reset');
+     try {
+       await body(t);
+@@ -267,6 +273,7 @@
+       _results[name] = '$e\n${st.toString().split('\n').take(8).join('\n')}';
+       rethrow;
+     } finally {
++      FlutterError.onError = previousOnError;
+       await _teardownApp(t);
+     }
+   }, timeout: const Timeout(Duration(minutes: 6)));
+@@ -295,6 +302,21 @@
+ 
+ _App? _current;
+ 
++/// Errors that escaped the app's own async code during a scenario (a stream
++/// listener throwing, for example). flutter_test ends the test the moment
++/// one is reported while the body keeps running; the body then races the
++/// binding's tear-down and every later scenario fails with `!inTest`. The
++/// scenario body polls this list so it stops, fails once with the real error,
++/// and the next scenario starts clean.
++final _asyncErrors = <FlutterErrorDetails>[];
++
++void _throwIfAsyncError() {
++  if (_asyncErrors.isNotEmpty) {
++    final d = _asyncErrors.first;
++    throw TestFailure('Uncaught async error in the app: ${d.exceptionAsString()}\n${d.stack.toString().split('\n').take(6).join('\n')}');
++  }
++}
++
+ Future<void> _teardownApp(WidgetTester t) async {
+   final old = _current;
+   _current = null;
+@@ -383,6 +405,7 @@
+     {Duration timeout = const Duration(seconds: 30)}) async {
+   final end = DateTime.now().add(timeout);
+   while (true) {
++    _throwIfAsyncError();
+     if (await cond()) {
+       await t.pump();
+       return;

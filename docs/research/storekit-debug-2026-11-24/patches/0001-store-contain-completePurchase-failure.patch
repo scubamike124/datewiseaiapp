@@ -1,0 +1,113 @@
+commit 4fcdcacb0eace2b989fa10458d56f7ce9038cc9f
+Author: Claude <noreply@anthropic.com>
+Date:   Tue Nov 24 18:34:10 2026 +0000
+
+    Store: a failed completePurchase no longer aborts the purchase batch
+    
+    Found by the StoreKit Test E2E run 45454802455 (iOS 26.2 simulator): the
+    first StoreKit Test transaction has id 0, which in_app_purchase_storekit
+    0.4.17 cannot finish (null-check error in completePurchase). The exception
+    escaped _onPurchases, so later transactions in the batch were not handled
+    and listeners were not notified. Finishing errors are now logged and
+    contained; the entitlement still comes from StoreKit's current entitlements.
+    Unit test added (fails without the fix).
+    
+    Reuse check: existing AppStoreService and its scripted-IAP tests.
+    
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_01UBUdYmsJtDfAqW8QfATVTw
+
+diff --git a/lib/services/store_service.dart b/lib/services/store_service.dart
+index f196bde..424282b 100644
+--- a/lib/services/store_service.dart
++++ b/lib/services/store_service.dart
+@@ -628,7 +628,7 @@ class AppStoreService extends StoreService {
+       if (p.productID != StoreConfig.productId) {
+         // Finish stray transactions (e.g. a removed sandbox product) so the
+         // store stops re-delivering them on every launch.
+-        if (p.pendingCompletePurchase) await _iap.completePurchase(p);
++        if (p.pendingCompletePurchase) await _complete(p);
+         continue;
+       }
+       switch (p.status) {
+@@ -690,12 +690,27 @@ class AppStoreService extends StoreService {
+           _finishPending(PurchaseResult.failed);
+       }
+       if (p.pendingCompletePurchase) {
+-        await _iap.completePurchase(p);
++        await _complete(p);
+       }
+     }
+     notifyListeners();
+   }
+ 
++  /// Finishes a transaction. A failure is logged, never thrown: it must not
++  /// stop the rest of the batch from being handled or the UI from updating,
++  /// and the entitlement comes from StoreKit's current entitlements anyway.
++  /// (In_app_purchase_storekit 0.4.17 cannot finish a StoreKit 2 transaction
++  /// whose id is 0, which Xcode's StoreKit Test gives the first purchase:
++  /// it throws a null-check error. StoreKit re-delivers an unfinished
++  /// transaction, so finishing is retried on a later delivery.)
++  Future<void> _complete(PurchaseDetails p) async {
++    try {
++      await _iap.completePurchase(p);
++    } catch (e) {
++      debugPrint('[DW store] completePurchase failed for ${p.productID}: ${e.runtimeType}');
++    }
++  }
++
+   void _finishPending(PurchaseResult r) {
+     final c = _pending;
+     if (c != null && !c.isCompleted) c.complete(r);
+diff --git a/test/qa_subscription_store_test.dart b/test/qa_subscription_store_test.dart
+index e71727c..2e3759b 100644
+--- a/test/qa_subscription_store_test.dart
++++ b/test/qa_subscription_store_test.dart
+@@ -78,6 +78,9 @@ class _ScriptedIap implements InAppPurchase {
+ 
+   final stream = StreamController<List<PurchaseDetails>>.broadcast();
+   final completed = <PurchaseDetails>[];
++  /// Purchase ids whose completePurchase throws (the plugin's null-check
++  /// error for a StoreKit Test transaction with id 0).
++  final Set<String?> completeThrowsFor = {};
+   int buys = 0;
+   int restores = 0;
+ 
+@@ -117,7 +120,10 @@ class _ScriptedIap implements InAppPurchase {
+   }
+ 
+   @override
+-  Future<void> completePurchase(PurchaseDetails purchase) async => completed.add(purchase);
++  Future<void> completePurchase(PurchaseDetails purchase) async {
++    if (completeThrowsFor.contains(purchase.purchaseID)) throw TypeError();
++    completed.add(purchase);
++  }
+ 
+   @override
+   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+@@ -213,6 +219,25 @@ void main() {
+       expect(iap.completed.last.status, PurchaseStatus.purchased);
+     });
+ 
++    test('a completePurchase failure is contained: purchased, entitled, the rest of the batch handled', () async {
++      final iap = _ScriptedIap()..completeThrowsFor.add('tx-purchased');
++      final store = AppStoreService(iap: iap);
++      await store.init();
++      var notified = 0;
++      store.addListener(() => notified++);
++      final r = await store.buy();
++      await _settle();
++      expect(r, PurchaseResult.purchased);
++      expect(store.isEntitled, isTrue);
++      expect(store.busy, isFalse);
++      // A stray transaction delivered after the failing one in the same batch is still finished.
++      notified = 0;
++      iap.emit([_details(PurchaseStatus.purchased), _details(PurchaseStatus.restored, productId: 'old_iap')]);
++      await _settle();
++      expect(iap.completed.map((p) => p.productID), ['old_iap']);
++      expect(notified, greaterThan(0));
++    });
++
+     test('error: failed, purchaseFailed shown, not entitled, transaction still completed', () async {
+       final iap = _ScriptedIap()..onBuy = [PurchaseStatus.error];
+       final store = AppStoreService(iap: iap);

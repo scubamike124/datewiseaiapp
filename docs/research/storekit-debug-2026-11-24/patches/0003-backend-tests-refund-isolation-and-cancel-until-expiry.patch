@@ -1,0 +1,50 @@
+--- a/backend/subscription_resilience.test.mjs
++++ b/backend/subscription_resilience.test.mjs
+@@ -774,3 +774,47 @@
+   // The helper alone.
+   assert.equal(legacyLanguage(new Request('https://x/'), { profile: { language: 'es-ES' } }), 'es');
+ });
++
++// ============================================================================
++// Proposed: a refund of one transaction must not touch an unrelated active
++// renewal of the same subscriber (same originalTransactionId, other transactionId).
++// ============================================================================
++test('ASSN REFUND of one transaction does not revoke the same subscriber\'s active renewal; a refunded copy replays as REVOKED', async () => {
++  const env = makeEnv({ ASSN_ENABLED: '1' });
++  const o = otid();
++  const first = txPayload({ originalTransactionId: o, transactionId: `${o}-1`, expiresDate: Date.now() + 2 * DAY, signedDate: Date.now() - 5 * DAY });
++  const renewal = txPayload({ originalTransactionId: o, transactionId: `${o}-2`, expiresDate: Date.now() + 30 * DAY, signedDate: Date.now() - 4000 });
++  const firstJws = await pki.sign(first);
++  const renewalJws = await pki.sign(renewal);
++  await notify(env, await notification('DID_RENEW', { tx: renewal }));
++  assert.equal((await send(env, { jws: firstJws })).res.status, 200);
++  assert.equal((await send(env, { jws: renewalJws })).res.status, 200);
++  // Apple refunds only the first transaction.
++  const refunded = { ...first, revocationDate: Date.now() - 1000, revocationReason: 0, signedDate: Date.now() - 1000 };
++  assert.equal((await notify(env, await notification('REFUND', { tx: refunded }))).status, 200);
++  // The refunded transaction is refused, including the pre-refund signed copy replayed later.
++  assert.equal((await send(env, { jws: firstJws })).code(), 'SUBSCRIPTION_REVOKED');
++  assert.equal((await send(env, { jws: await pki.sign(refunded) })).code(), 'SUBSCRIPTION_REVOKED');
++  // The active renewal keeps working, and so does a later renewal.
++  assert.equal((await send(env, { jws: renewalJws })).res.status, 200);
++  const third = await sign({ originalTransactionId: o, transactionId: `${o}-3`, expiresDate: Date.now() + 60 * DAY });
++  assert.equal((await send(env, { jws: third })).res.status, 200);
++  // Refunding the renewal later revokes that one as well.
++  await notify(env, await notification('REFUND', { tx: { ...renewal, revocationDate: Date.now(), signedDate: Date.now() } }));
++  assert.equal((await send(env, { jws: renewalJws })).code(), 'SUBSCRIPTION_REVOKED');
++  assert.equal((await send(env, { jws: third })).res.status, 200);
++});
++
++test('cancelled (auto-renew off) but paid: accepted until expiresDate plus the 60 minute leeway, refused after, with and without ASSN', async () => {
++  for (const vars of [{}, { ASSN_ENABLED: '1' }]) {
++    const env = makeEnv(vars);
++    const o = otid();
++    const tx = (expiresDate) => txPayload({ originalTransactionId: o, expiresDate });
++    if (vars.ASSN_ENABLED) {
++      await notify(env, await notification('DID_CHANGE_RENEWAL_STATUS', { subtype: 'AUTO_RENEW_DISABLED', tx: tx(Date.now() + DAY) }));
++    }
++    assert.equal((await send(env, { jws: await pki.sign({ ...tx(Date.now() + DAY), autoRenewStatus: 0 }) })).res.status, 200, 'a day left');
++    assert.equal((await send(env, { jws: await pki.sign(tx(Date.now() - 59 * 60_000)) })).res.status, 200, 'inside the leeway');
++    assert.equal((await send(env, { jws: await pki.sign(tx(Date.now() - 61 * 60_000)) })).code(), 'SUBSCRIPTION_EXPIRED', 'after the leeway');
++  }
++});
