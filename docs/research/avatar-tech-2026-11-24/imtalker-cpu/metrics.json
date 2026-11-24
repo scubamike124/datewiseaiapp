@@ -1,0 +1,106 @@
+{
+ "window_s": [
+  26.0,
+  36.0
+ ],
+ "Ditto": {
+  "frames": 250,
+  "gap_corr_lag0": 0.028,
+  "best_lag_frames": -1,
+  "gap_corr_best": 0.121,
+  "gap_min": 0.038,
+  "gap_speaking_mean": 0.1128,
+  "gap_silent_mean": 0.109,
+  "frames_lips_closed_lt_0.01": 0,
+  "lip_landmark_accel_norm300": 1.22,
+  "blinks": 3,
+  "yaw_range_facefrac": 0.047,
+  "nose_xy_std_facefrac": [
+   0.0152,
+   0.0202
+  ],
+  "face_found_pct": 100.0,
+  "bilabial_min_gap": {
+   "important": 0.0544,
+   "playful,": 0.0511,
+   "specific,": 0.083,
+   "me": 0.0399,
+   "backup": 0.038
+  }
+ },
+ "IMTalker": {
+  "frames": 250,
+  "gap_corr_lag0": 0.053,
+  "best_lag_frames": 1,
+  "gap_corr_best": 0.11,
+  "gap_min": 0.0013,
+  "gap_speaking_mean": 0.0412,
+  "gap_silent_mean": 0.0348,
+  "frames_lips_closed_lt_0.01": 86,
+  "lip_landmark_accel_norm300": 1.83,
+  "blinks": 2,
+  "yaw_range_facefrac": 0.09,
+  "nose_xy_std_facefrac": [
+   0.0294,
+   0.0405
+  ],
+  "face_found_pct": 100.0,
+  "bilabial_min_gap": {
+   "important": 0.0014,
+   "playful,": 0.0027,
+   "specific,": 0.0022,
+   "me": 0.0036,
+   "backup": 0.0022
+  }
+ },
+ "MuseTalk": {
+  "frames": 250,
+  "gap_corr_lag0": -0.128,
+  "best_lag_frames": -4,
+  "gap_corr_best": 0.033,
+  "gap_min": 0.0044,
+  "gap_speaking_mean": 0.0549,
+  "gap_silent_mean": 0.0565,
+  "frames_lips_closed_lt_0.01": 6,
+  "lip_landmark_accel_norm300": 1.17,
+  "blinks": 3,
+  "yaw_range_facefrac": 0.042,
+  "nose_xy_std_facefrac": [
+   0.0162,
+   0.0207
+  ],
+  "face_found_pct": 100.0,
+  "bilabial_min_gap": {
+   "important": 0.0158,
+   "playful,": 0.025,
+   "specific,": 0.0335,
+   "me": 0.0153,
+   "backup": 0.0307
+  }
+ },
+ "IMT-opensmile": {
+  "frames": 250,
+  "gap_corr_lag0": -0.012,
+  "best_lag_frames": 1,
+  "gap_corr_best": 0.011,
+  "gap_min": 0.0004,
+  "gap_speaking_mean": 0.0612,
+  "gap_silent_mean": 0.0609,
+  "frames_lips_closed_lt_0.01": 47,
+  "lip_landmark_accel_norm300": 2.08,
+  "blinks": 2,
+  "yaw_range_facefrac": 0.085,
+  "nose_xy_std_facefrac": [
+   0.0354,
+   0.0492
+  ],
+  "face_found_pct": 100.0,
+  "bilabial_min_gap": {
+   "important": 0.0004,
+   "playful,": 0.0005,
+   "specific,": 0.001,
+   "me": 0.0007,
+   "backup": 0.0028
+  }
+ }
+}
