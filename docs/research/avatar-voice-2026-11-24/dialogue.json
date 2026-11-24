@@ -1,0 +1,27 @@
+{
+  "note": "Same dialogue for every technology. 'user' turns are spoken by a separate voice; the coach video is driven by a coach-only track that is silent during user turns, so each clip also shows listening behavior.",
+  "ava": {"lang": "en", "turns": [
+    ["user", "Hey Ava. I matched with someone last night, and I have no idea what to say first."],
+    ["coach", "Oh, nice! Okay, first: don't overthink it. Tell me, what caught your eye in their profile?"],
+    ["user", "They have a photo hiking with their dog, and their bio says they would travel anywhere for good tacos."],
+    ["coach", "Ha! That's your opener, right there. Try something like: okay, important question, does the dog get tacos after the hike? It's playful, it's specific, and it's really easy to answer. Want me to give you a backup line, just in case?"]
+  ]},
+  "ethan": {"lang": "en", "turns": [
+    ["user", "Hey Ethan. I have a first date on Friday, and honestly, I'm a little nervous."],
+    ["coach", "That's completely normal. Nervous just means you care. Where are you meeting?"],
+    ["user", "At a small coffee place downtown. It was their idea."],
+    ["coach", "Good, coffee is perfect for a first date. Short, relaxed, and easy to extend if it's going well. Here's my advice: pick one thing you're genuinely curious about, ask about it, and then really listen. You don't need a script. Just be curious."]
+  ]},
+  "sofia": {"lang": "es", "turns": [
+    ["user", "Hola Sofía. Anoche hice match con alguien y no sé qué escribirle primero."],
+    ["coach", "¡Qué bien! A ver, primero: no lo pienses tanto. Cuéntame, ¿qué te llamó la atención de su perfil?"],
+    ["user", "Tiene una foto haciendo senderismo con su perro, y dice que viajaría a cualquier lado por unos buenos tacos."],
+    ["coach", "¡Ja! Ahí está tu primer mensaje. Prueba algo así: oye, pregunta importante, ¿el perro también come tacos después de la caminata? Es divertido, es específico y es muy fácil de contestar. ¿Quieres que te dé otra opción, por si acaso?"]
+  ]},
+  "diego": {"lang": "es", "turns": [
+    ["user", "Hola Diego. Tengo una primera cita el viernes y, la verdad, estoy un poco nervioso."],
+    ["coach", "Es totalmente normal. Los nervios solo significan que te importa. ¿Dónde se van a ver?"],
+    ["user", "En un café pequeño del centro. Fue idea suya."],
+    ["coach", "Muy bien, un café es perfecto para una primera cita. Es corto, relajado y fácil de alargar si todo va bien. Mi consejo: piensa en algo que de verdad te dé curiosidad, pregúntalo y luego escucha de verdad. No necesitas un guion. Solo ten curiosidad."]
+  ]}
+}

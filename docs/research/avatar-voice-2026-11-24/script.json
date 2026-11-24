@@ -1,0 +1,37 @@
+{
+  "purpose": "One script for every provider so the owner can compare voice, lip sync, blinking, expression and head movement side by side. About 20-25 seconds per coach: a greeting, a question with a natural pause, a light laugh, and advice.",
+  "coaches": {
+    "ava": {
+      "lang": "en-US",
+      "portrait": "assets/coaches/ava-hero.jpg",
+      "voice_brief": "Warm, confident American woman, late 20s; direct but kind; smiles while talking.",
+      "text": "Hi, I'm Ava. Okay, so tell me... what happened after you sent that first message? ... Ha, honestly, that's more common than you think. Here's what I'd do: keep the next message short, ask about something specific in their profile, and give them an easy way to answer."
+    },
+    "ethan": {
+      "lang": "en-US",
+      "portrait": "assets/coaches/ethan-hero.jpg",
+      "voice_brief": "Relaxed, friendly American man, early 30s; practical, a little playful.",
+      "text": "Hey, I'm Ethan. So, you've got a date on Friday. Nice. ... Let me ask you something first: where are you meeting? ... Good choice. Pick one thing you're curious about, and let the conversation go from there. You don't need a script."
+    },
+    "sofia": {
+      "lang": "es-MX",
+      "portrait": "assets/coaches/sofia-hero.jpg",
+      "voice_brief": "Warm, encouraging Mexican woman, late 20s; natural Latin American Spanish.",
+      "text": "Hola, soy Sofía. A ver, cuéntame... ¿qué te contestó después de tu primer mensaje? ... Ja, tranquilo, eso le pasa a mucha gente. Mi consejo: escribe algo corto, pregunta por un detalle de su perfil y dale una forma fácil de responder."
+    },
+    "diego": {
+      "lang": "es-MX",
+      "portrait": "assets/coaches/diego-hero.jpg",
+      "voice_brief": "Calm, honest Mexican man, early 30s; natural Latin American Spanish.",
+      "text": "Hola, soy Diego. Entonces, ¿ya tienes la cita para el viernes? Qué bien. ... Primero dime: ¿dónde se van a ver? ... Buena elección. Piensa en una cosa que de verdad te dé curiosidad de esa persona, y deja que la plática fluya."
+    }
+  },
+  "what_to_judge": [
+    "Voice: does it sound like a real person (breathing, pauses, intonation, the small laugh)?",
+    "Lip sync: do lips match the actual sounds, at a natural speed?",
+    "Eyes: natural blink rate (about every 3-6 seconds), small eye movements, no staring.",
+    "Face and head: subtle smiles, eyebrows, slight head motion; no warping of the face.",
+    "Identity: is it still clearly the same approved face?",
+    "Listening: in the live demo, does the coach look like it is listening while you talk?"
+  ]
+}
