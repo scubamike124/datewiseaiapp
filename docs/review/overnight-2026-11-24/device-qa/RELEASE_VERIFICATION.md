@@ -99,3 +99,29 @@ Failed the owner's quality expectations (all confirmed on a physical iPhone):
 
 Not yet device-verified: purchase and restore flows, renewal, cancellation and expiry, refund, Spanish chat, follow-up
 continuity, latency, safety replies. Build 203 predates the framing, keyboard, listening and thinking changes.
+
+## Subscription testing status (2026-11-24, PR #54 head 45390c9)
+
+Labels: UNIT = unit/widget tests (simulated); SIMULATOR = Apple StoreKit Test on an iOS simulator in CI (still simulated,
+the test receipt is signed locally so it proves app-side behaviour only, never backend acceptance); DEVICE = a genuine Apple
+sandbox or production purchase on a physical iPhone. Nothing below is DEVICE except the owner's report above.
+
+| Requirement | Evidence | Label |
+|---|---|---|
+| One $19.99 monthly plan, no trial/intro/annual/free plan | catalog scenario; store-metadata tests; App Store Connect read-only check (READY_TO_SUBMIT, 19.99, 0 offers) | SIMULATOR + UNIT + ASC API |
+| Purchase unlocks premium; survives relaunch | scenario passed (run 45473085509, iOS 26.2) | SIMULATOR |
+| Renewal keeps premium | scenario passed | SIMULATOR |
+| Cancel auto-renew: premium until the period ends, then removed | scenario passed (accelerated time); unit tests | SIMULATOR + UNIT |
+| Expiry removes premium and shows the paywall | scenario passed after the lapse fix (96b0ff4) | SIMULATOR |
+| Restore after reinstall (active restored, expired not) | scenario passed | SIMULATOR |
+| Refund/revocation removes premium (and only that transaction) | scenario passed; backend refund-isolation tests | SIMULATOR + UNIT |
+| Ask to Buy pending is not premium until approved | scenario passed | SIMULATOR |
+| Failed / cancelled / interrupted purchases | unit tests (5-minute buy() timeout path has no test) | UNIT |
+| Receipt validation and backend authorization | backend tests (chain to Apple Root CA G3, bundle, product, environment, expiry, revocation, fail closed); live production refuses no-receipt and forged receipts | UNIT + production probes |
+| Genuine Apple sandbox purchase, restore, renewal, cancellation | NOT YET VERIFIED on a device (owner's report: reached chat and Ava replied) | DEVICE pending |
+
+Defect found and fixed by this testing: after a purchase made on the root paywall, an expiry, refund or end of a cancelled
+period while the app was open removed premium but never showed the paywall (the purchase had set paywallDismissed).
+Fixed in 96b0ff4, independently reviewed: APPROVE (no bypass, startup safe, rewritten test equal or stronger).
+Known gaps: App Store Server Notifications are off (ASSN_ENABLED=0), so the backend does not learn of refunds until the
+signed token expires; grace period is off by policy; two small test-coverage gaps noted by the reviewer.
