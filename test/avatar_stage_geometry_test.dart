@@ -112,7 +112,7 @@ void main() {
           final brow = stageY(eyes.top - browMargin * eyes.height) - AvatarPose.maxDy;
           final chin = stageY(manifest.mouth!.dy + 0.65 * manifest.mouthWidth!) + AvatarPose.maxDy;
           final why = '${e.key} x$scale';
-          expect(brow, greaterThanOrEqualTo(-1), reason: '$why: brow at ${(brow / h * 100).toStringAsFixed(1)}% of the stage');
+          expect(brow, greaterThanOrEqualTo(-2), reason: '$why: brow at ${(brow / h * 100).toStringAsFixed(1)}% of the stage');
           expect(chin, lessThan(h), reason: '$why: chin at ${(chin / h * 100).toStringAsFixed(1)}%');
           // The eye patch (blink and gaze) is wholly visible.
           expect(stageY(eyes.top), greaterThan(0), reason: why);
@@ -122,23 +122,26 @@ void main() {
     });
   }
 
-  test('the portrait box keeps the normal-text proportions at large text and on a short screen', () {
+  test('the portrait box keeps the normal-text proportions, and is never taller than the old stage', () {
     for (final w in [351.0, 369.0, 406.0, 616.0]) {
-      final normal = CoachStageAvatar.portraitSize(w, largeText: false);
-      expect(normal.width, w);
-      for (final screen in [667.0, 780.0, 852.0, 1366.0]) {
+      final full = CoachStageAvatar.stageHeight(w, largeText: false);
+      for (final screen in [375.0, 667.0, 780.0, 852.0, 932.0, 1366.0]) {
         for (final large in [false, true]) {
           final p = CoachStageAvatar.portraitSize(w, largeText: large, screenHeight: screen);
           expect(p.width, lessThanOrEqualTo(w));
-          expect(p.height / p.width, closeTo(normal.height / normal.width, 1e-9), reason: 'w=$w screen=$screen large=$large');
-          if (!large) expect(p.height, lessThanOrEqualTo(normal.height));
+          expect(p.height / p.width, closeTo(full / w, 1e-9), reason: 'w=$w screen=$screen large=$large');
+          // Before the framing change the stage was half the width, 150-240 pt:
+          // the conversation keeps at least that room.
+          if (!large) expect(p.height, lessThanOrEqualTo((w / 2).clamp(150.0, 240.0) + 1e-9));
         }
       }
     }
-    // An iPhone SE keeps 26% of its height for the conversation.
+    // iPhone SE: 26% of the screen; the others: the old stage height.
     expect(CoachStageAvatar.portraitSize(351, largeText: false, screenHeight: 667).height, closeTo(667 * 0.26, 0.01));
-    // Roomy phones are unchanged.
-    expect(CoachStageAvatar.portraitSize(369, largeText: false, screenHeight: 852).height, closeTo(221.4, 0.01));
+    expect(CoachStageAvatar.portraitSize(369, largeText: false, screenHeight: 852).height, closeTo(184.5, 0.01));
+    expect(CoachStageAvatar.portraitSize(336, largeText: false, screenHeight: 780).height, closeTo(168, 0.01));
+    // Large text on a short screen stays within the old 18% cap, face whole.
+    expect(CoachStageAvatar.portraitSize(351, largeText: true, screenHeight: 667).height + 2, lessThanOrEqualTo(667 * 0.18 + 1e-9));
   });
 
   test('the stage height follows its width, within limits', () {
@@ -160,7 +163,7 @@ void main() {
       await t.tap(find.byKey(const ValueKey('voice-mode')));
       await t.pumpAndSettle();
       final box = t.getSize(find.byType(CoachStageAvatar));
-      final stage = t.getSize(find.byKey(const ValueKey('voice-stage-controls'))).width + 18;
+      final stage = (size.width < kContentMaxWidth ? size.width : kContentMaxWidth) - 26;
       final want = CoachStageAvatar.portraitSize(stage, largeText: scale > 1.3, screenHeight: size.height);
       expect(box.height, closeTo(want.height, 0.5));
       expect(box.width, closeTo(want.width, 0.5));

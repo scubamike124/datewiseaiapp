@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
 
 import '../l10n/l10n.dart';
@@ -23,17 +25,25 @@ class CoachStageAvatar extends StatelessWidget {
   static double stageHeight(double width, {required bool largeText}) =>
       largeText ? (width / 2.6).clamp(130.0, 170.0) : (width * 0.6).clamp(150.0, 250.0);
 
-  /// The portrait box of the voice stage: [stageHeight] tall, but never taller
-  /// than 26% of the screen ([screenHeight]) at normal text, so a small
-  /// phone keeps room for the conversation. When it is shorter than the
-  /// stage's own height at normal text, the box is narrowed in step (and
-  /// centered), so the face is framed exactly as at normal text, just
-  /// smaller: brows, eyes, mouth and chin stay in view at any size.
+  /// The portrait box of the voice stage. It is never taller than the stage
+  /// was before the framing change (half the width, 150-240 pt), so the
+  /// conversation below keeps at least the room it had; on a short screen it
+  /// is also at most 26% of the height ([screenHeight]), and at large text
+  /// it is [stageHeight]'s shorter height, within 18% of the screen. When it
+  /// is shorter than [stageHeight] at normal text, the box is narrowed in
+  /// step (and centered), so the face is framed exactly as at normal text,
+  /// just smaller: brows, eyes, mouth and chin stay in view at any size.
   static Size portraitSize(double width, {required bool largeText, double screenHeight = double.infinity}) {
     final full = stageHeight(width, largeText: false);
-    var h = stageHeight(width, largeText: largeText);
-    if (!largeText) h = h < screenHeight * 0.26 ? h : (screenHeight * 0.26).clamp(130.0, h);
-    return Size(h >= full ? width : width * h / full, h);
+    double h;
+    if (largeText) {
+      h = stageHeight(width, largeText: true);
+      if (screenHeight.isFinite) h = (screenHeight * 0.18 - 2).clamp(100.0, h);
+    } else {
+      h = math.min(full, (width / 2.0).clamp(150.0, 240.0));
+      if (screenHeight.isFinite) h = (screenHeight * 0.26).clamp(130.0, h);
+    }
+    return Size(width * h / full, h);
   }
 
   /// The portrait is laid out [portraitOverscan] times taller than the

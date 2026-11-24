@@ -658,20 +658,29 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   /// MediaQuery, so this asks the view itself.
   static bool _keyboardOpen(BuildContext context) => MediaQueryData.fromView(View.of(context)).viewInsets.bottom > 0;
 
-  /// Tallest the voice stage may be. With the keyboard up it is the controls
-  /// row and a peek of the captions. Normal text: no cap. Large text: the
+  /// Tallest the voice stage may be. Normal text: no cap. Large text: the
   /// stage scrolls instead of pushing the talk dock off screen, but the cap
-  /// never cuts the face or the controls row (so the brows, eyes, mouth and
-  /// chin stay in view); only the captions below scroll.
+  /// never cuts the face (so the brows, eyes, mouth and chin stay in view)
+  /// and ends at the portrait's edge, so no caption line is cut in half; the
+  /// captions are a scroll away. A landscape phone has no room for the face
+  /// at large text: it keeps the shorter 18% cap it always had. With the
+  /// keyboard up (see [_showStage]) only a peek of the captions is shown.
   double _stageCap(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    final large = MediaQuery.textScalerOf(context).scale(1) > 1.3;
-    // At large text the keyboard leaves room for the controls row only.
-    if (_keyboardOpen(context)) return large ? _Stage.controlsHeight + _Stage.bottomMargin : size.height * 0.18;
-    if (!large) return double.infinity;
+    if (_keyboardOpen(context)) return size.height * 0.18;
+    if (MediaQuery.textScalerOf(context).scale(1) <= 1.3) return double.infinity;
+    if (size.width > size.height) return size.height * 0.18;
     final w = math.min(size.width, kContentMaxWidth) - _Stage.sideMargin - 2;
-    final face = CoachStageAvatar.portraitSize(w, largeText: true).height + _Stage.controlsHeight + _Stage.bottomMargin;
-    return math.max(size.height * 0.18, face + 8);
+    // The card's top border line and the portrait.
+    return CoachStageAvatar.portraitSize(w, largeText: true, screenHeight: size.height).height + 1;
+  }
+
+  /// The voice stage is hidden while the keyboard is up at large text, or
+  /// with captions off (nothing but the portrait would be left to show), so
+  /// the talk dock stays above the keyboard.
+  bool _showStage(BuildContext context) {
+    if (!_keyboardOpen(context)) return true;
+    return _captions && MediaQuery.textScalerOf(context).scale(1) <= 1.3;
   }
 
   @override
@@ -708,12 +717,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       coach: coach,
                       speaking: speaking,
                       onMenu: entitled || readOnly ? _openMenu : null,
+                      // Voice mode: the session timer and the captions toggle
+                      // live here, off the portrait.
+                      elapsed: _voiceMode ? _elapsed : null,
+                      captions: _captions,
+                      onToggleCaptions: () => setState(() => _captions = !_captions),
                     ),
                   ),
                 ],
               ),
             ),
-            if (_voiceMode)
+            if (_voiceMode && _showStage(context))
               // At large text the stage is capped and scrolls, instead of
               // pushing the talk dock off screen; normal text is unchanged.
               ConstrainedBox(
@@ -727,10 +741,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       mood: CoachStageAvatar.moodFor(
                           speaking: speaking, listening: _listening, responding: state.isResponding),
                       lipSync: _voice is LipSyncSource ? (_voice as LipSyncSource).lipSync : null,
-                      elapsed: _elapsed,
                       captions: _captions,
                       caption: _currentCaption(state),
-                      onToggleCaptions: () => setState(() => _captions = !_captions),
                       compact: _keyboardOpen(context),
                     ),
                   ),
@@ -817,10 +829,45 @@ class _SheetTile extends StatelessWidget {
 const double kHeaderSubtitleMaxScale = 1.4;
 
 class _Header extends StatelessWidget {
-  const _Header({required this.coach, required this.speaking, required this.onMenu});
+  const _Header({
+    required this.coach,
+    required this.speaking,
+    required this.onMenu,
+    this.elapsed,
+    this.captions = true,
+    this.onToggleCaptions,
+  });
   final Coach coach;
   final bool speaking;
   final VoidCallback? onMenu;
+
+  /// Voice mode only: the session time (null in text mode, which shows no
+  /// timer or captions toggle).
+  final String? elapsed;
+  final bool captions;
+  final VoidCallback? onToggleCaptions;
+
+  /// Whether the timer fits beside the coach's name on one line. At the
+  /// largest text sizes it would break the name mid-word, so it is left out
+  /// (the captions button stays).
+  bool _timerFits(BuildContext context) {
+    if (elapsed == null) return false;
+    final scaler = MediaQuery.textScalerOf(context);
+    final width = math.min(MediaQuery.sizeOf(context).width, kContentMaxWidth);
+    double textWidth(String t, TextStyle st, TextScaler sc) =>
+        (TextPainter(text: TextSpan(text: t, style: st), textDirection: TextDirection.ltr, textScaler: sc)..layout()).width;
+    final name = textWidth(
+        coach.name,
+        const TextStyle(fontFamily: AppFonts.serif, fontSize: 21, fontWeight: FontWeight.w500, height: 1.15),
+        scaler);
+    final time = textWidth(
+        elapsed!,
+        const TextStyle(fontFamily: AppFonts.sans, fontSize: 12, fontWeight: FontWeight.w600),
+        scaler.clamp(maxScaleFactor: kHeaderSubtitleMaxScale));
+    // Header padding 24, avatar 40 + 10, timer chip (padding, border, dot) 34
+    // + 6, captions button 44 + 6, menu 44, and a little slack.
+    return width - 24 - 50 - (time + 34 + 6) - 50 - 44 - 6 >= name;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -855,6 +902,31 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
+          if (elapsed != null) ...[
+            if (_timerFits(context)) ...[
+            // Not flexible: the name column gets exactly what is left.
+            // Just the time on screen (the header is narrow); VoiceOver
+            // reads "Voice session · 00:12". Capped at 1.4x like the
+            // subtitle, so the name keeps its line at large text.
+            Semantics(
+              label: l.voiceSession(elapsed!),
+              excludeSemantics: true,
+              child: MediaQuery.withClampedTextScaling(
+                maxScaleFactor: kHeaderSubtitleMaxScale,
+                child: GlassChip(key: const ValueKey('voice-timer'), label: elapsed!),
+              ),
+            ),
+            const SizedBox(width: 6),
+            ],
+            // 44 pt, like the menu button beside it.
+            CircleIconButton(
+              icon: captions ? Icons.closed_caption_rounded : Icons.closed_caption_off_outlined,
+              tooltip: captions ? l.hideCaptions : l.showCaptions,
+              onPressed: onToggleCaptions,
+              filled: true,
+            ),
+            const SizedBox(width: 6),
+          ],
           if (onMenu != null)
             CircleIconButton(
               key: const ValueKey('chat-menu'),
@@ -878,10 +950,8 @@ class _Stage extends StatelessWidget {
     required this.speaking,
     required this.mood,
     required this.lipSync,
-    required this.elapsed,
     required this.captions,
     required this.caption,
-    required this.onToggleCaptions,
     this.compact = false,
   });
 
@@ -890,20 +960,15 @@ class _Stage extends StatelessWidget {
   final bool compact;
   static const double sideMargin = 24;
   static const double bottomMargin = 8;
-  static const double controlsHeight = 44;
 
   final Coach coach;
   final bool speaking;
   final AvatarMood mood;
   final LipSyncDriver? lipSync;
-  final String elapsed;
   final bool captions;
   final String caption;
-  final VoidCallback onToggleCaptions;
-
   @override
   Widget build(BuildContext context) {
-    final l = context.l10n;
     return AnimatedContainer(
       // The speaking glow fades in, unless Reduce Motion is on.
       duration: motion(context, const Duration(milliseconds: 400)),
@@ -945,36 +1010,6 @@ class _Stage extends StatelessWidget {
                 );
               },
             ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 6, 0),
-            child: SizedBox(
-              height: controlsHeight,
-              child: Row(
-                key: const ValueKey('voice-stage-controls'),
-                children: [
-                  Expanded(
-                    // One line, scaled down to fit, so the row is always as
-                    // tall as the button at any text size.
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: GlassChip(key: const ValueKey('voice-timer'), label: l.voiceSession(elapsed)),
-                      ),
-                    ),
-                  ),
-                  CircleIconButton(
-                    icon: captions ? Icons.closed_caption_rounded : Icons.closed_caption_off_outlined,
-                    tooltip: captions ? l.hideCaptions : l.showCaptions,
-                    onPressed: onToggleCaptions,
-                    filled: true,
-                    size: controlsHeight,
-                  ),
-                ],
-              ),
-            ),
-          ),
           if (captions)
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
