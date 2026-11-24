@@ -171,6 +171,23 @@ Repo **Settings** (tap **aA**, **Request Desktop Website** if the tab is hidden)
 Then delete the `.p8` from Files (see the risk note above). With `signing: cloud` the job fails visibly with "Signing
 secrets missing" if any of the four is absent. Nothing is built or uploaded in that case.
 
+#### API signing (`signing: api`, App Manager key, iPhone only, UNTESTED)
+
+For a key whose access is **App Manager** (no Admin key needed, no new key). Same four secrets as above. The job makes
+a fresh private key and certificate request on the runner, then through the App Store Connect API: creates an
+**Apple Distribution** certificate, looks up the existing `com.datewise.datewiseAi` identifier (it fails if it is
+missing; it never creates one), creates an **App Store** profile named `DateWise CI api <run>-<attempt>`, signs
+manually, and uploads. A final step that always runs deletes that profile and, with **`revoke_api_cert`** ticked (the
+default), revokes the certificate, after the upload.
+
+Side effects on the Apple account, visible in Certificates, Identifiers & Profiles: one distribution certificate and
+one profile exist during the run. Apple limits distribution certificates per team; if the team is at the limit the
+create step fails with HTTP 409 and nothing is built. If a run is killed before cleanup, revoke the leftover
+"DateWise CI api" certificate and profile by hand. Apple says revoking a distribution certificate does not affect apps
+already on the App Store; it does not clearly say the same for builds still processing or in TestFlight. If a revoked
+run's build misbehaves in TestFlight, run once with `revoke_api_cert` unticked and revoke that certificate later by
+hand.
+
 #### Manual signing (optional, needs a computer)
 
 `signing: manual` needs all seven secrets: the four above (an App Manager key is enough for manual signing) plus:

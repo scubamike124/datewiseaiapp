@@ -23,6 +23,14 @@ name: iOS build
 #     Store Connect API key (-allowProvisioningUpdates -authenticationKey*).
 #     The key needs the Admin role. Everything is done from an iPhone; see
 #     docs/qa/IPHONE_E2E_DEMO.md section 2.1.
+#   api: no certificate or profile secrets and no cloud-managed signing. The
+#     job makes a fresh key and CSR on the runner, then uses only the App
+#     Store Connect API (tool/asc/api_signing.py) to create an Apple
+#     Distribution certificate and an App Store profile for the existing
+#     bundle id, signs manually like `manual`, and in an always() step deletes
+#     the profile and (input revoke_api_cert, default on) revokes the
+#     certificate. For a key whose role may manage certificates and profiles
+#     but not cloud-managed signing (App Manager). See section 2.1 too.
 on:
   pull_request:
     paths:
@@ -57,12 +65,17 @@ on:
           - staging
         default: production
       signing:
-        description: 'Signing of a signed build. "manual" = certificate + profile secrets (needs a computer to make). "cloud" = Xcode cloud-managed signing with only the App Store Connect API key (Admin role); iPhone-only. Needs signed_build.'
+        description: 'Signing of a signed build. "manual" = certificate + profile secrets (needs a computer to make). "cloud" = Xcode cloud-managed signing with only the App Store Connect API key (Admin role); iPhone-only. "api" = a temporary certificate + profile made through the App Store Connect API with only the API key (App Manager role); iPhone-only. Needs signed_build.'
         type: choice
         options:
           - manual
           - cloud
+          - api
         default: manual
+      revoke_api_cert:
+        description: 'signing=api only: revoke the certificate it created at the end of the run (after the TestFlight upload). The profile it created is always deleted.'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -99,6 +112,12 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.signing == 'cloud' && !inputs.signed_build
         run: |
           echo "::error::signing=cloud only applies to the signed TestFlight build. Tick signed_build too; this unsigned build is never signed."
+          exit 1
+
+      - name: signing api needs signed_build
+        if: github.event_name == 'workflow_dispatch' && inputs.signing == 'api' && !inputs.signed_build
+        run: |
+          echo "::error::signing=api only applies to the signed TestFlight build. Tick signed_build too; this unsigned build is never signed."
           exit 1
 
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -205,6 +224,8 @@ jobs:
             manual|"") needed="IOS_DIST_CERT_P12_BASE64 IOS_DIST_CERT_PASSWORD IOS_PROVISIONING_PROFILE_BASE64 APPLE_TEAM_ID APP_STORE_CONNECT_API_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_API_KEY_P8" ;;
             # Cloud signing: only the App Store Connect API key and the team.
             cloud) needed="APPLE_TEAM_ID APP_STORE_CONNECT_API_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_API_KEY_P8" ;;
+            # API signing: the same four; the certificate and profile are made in the run.
+            api) needed="APPLE_TEAM_ID APP_STORE_CONNECT_API_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_API_KEY_P8" ;;
             *) echo "::error::Unknown signing mode"; exit 1 ;;
           esac
           echo "Signing: ${SIGNING:-manual}" >> "$GITHUB_STEP_SUMMARY"
@@ -233,7 +254,7 @@ jobs:
           cache: true
 
       - name: Install certificate and provisioning profile
-        if: steps.secrets.outputs.ready == 'true' && inputs.signing != 'cloud'
+        if: steps.secrets.outputs.ready == 'true' && inputs.signing != 'cloud' && inputs.signing != 'api'
         env:
           IOS_DIST_CERT_P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
           IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
@@ -260,6 +281,67 @@ jobs:
           cp "$RUNNER_TEMP/profile.mobileprovision" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/$UUID.mobileprovision"
           echo "PROFILE_NAME=$NAME" >> "$GITHUB_ENV"
           echo "PROFILE_UUID=$UUID" >> "$GITHUB_ENV"
+
+      - name: API signing - create and install a temporary certificate and profile
+        if: steps.secrets.outputs.ready == 'true' && inputs.signing == 'api'
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+          BUNDLE_ID: com.datewise.datewiseAi
+        run: |
+          # Everything lives in RUNNER_TEMP, readable by this user only, and
+          # is removed by the always() steps below. No key material is printed.
+          umask 077
+          W="$RUNNER_TEMP/api-signing"
+          mkdir -p "$W"
+          python3 -m venv "$W/venv"
+          "$W/venv/bin/pip" install --disable-pip-version-check --quiet 'PyJWT==2.10.1' 'cryptography==44.0.3'
+          # 1. A fresh RSA 2048 key and CSR, made on the runner.
+          openssl req -new -newkey rsa:2048 -nodes -sha256 \
+            -keyout "$W/dist.key" -out "$W/dist.csr" \
+            -subj "/CN=DateWise CI API signing/C=US"
+          # 2-4. Certificate, bundle id lookup, profile (ids saved for cleanup).
+          OUT_DIR="$W" CSR_FILE="$W/dist.csr" STATE_FILE="$W/state.json" \
+            PROFILE_NAME="DateWise CI api ${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            "$W/venv/bin/python" -I tool/asc/api_signing.py create
+          # 5. The certificate must match the runner's key.
+          openssl x509 -inform DER -in "$W/dist.cer" -out "$W/dist.pem"
+          if [ "$(openssl x509 -in "$W/dist.pem" -noout -pubkey | openssl sha256)" != "$(openssl pkey -in "$W/dist.key" -pubout | openssl sha256)" ]; then
+            echo "::error::The certificate Apple returned does not match the runner's key."; exit 1
+          fi
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          P12_PASSWORD="$(uuidgen)"
+          export P12_PASSWORD
+          echo "::add-mask::$KEYCHAIN_PASSWORD"
+          echo "::add-mask::$P12_PASSWORD"
+          # SHA1/3DES p12: the encryption macOS `security import` reads with
+          # OpenSSL 3 and LibreSSL alike.
+          openssl pkcs12 -export -inkey "$W/dist.key" -in "$W/dist.pem" -name "DateWise CI API signing" \
+            -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1 \
+            -passout env:P12_PASSWORD -out "$W/dist.p12"
+          rm -f "$W/dist.key"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$W/dist.p12" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          rm -f "$W/dist.p12"
+          security find-identity -v -p codesigning "$KEYCHAIN" | grep -c 'Apple Distribution' | sed 's/^/Apple Distribution identities in the temporary keychain: /'
+
+          security cms -D -i "$W/profile.mobileprovision" > "$W/profile.plist"
+          UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$W/profile.plist")
+          NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$W/profile.plist")
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$W/profile.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/$UUID.mobileprovision"
+          mkdir -p "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+          cp "$W/profile.mobileprovision" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/$UUID.mobileprovision"
+          # The manual-signing step below uses these, exactly as for `manual`.
+          echo "PROFILE_NAME=$NAME" >> "$GITHUB_ENV"
+          echo "PROFILE_UUID=$UUID" >> "$GITHUB_ENV"
+          echo "API signing: temporary Apple Distribution certificate and App Store profile $UUID" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Manual signing for the Runner target (CI checkout only, not committed)
         if: steps.secrets.outputs.ready == 'true' && inputs.signing != 'cloud'
@@ -480,6 +562,28 @@ jobs:
             --apple-id 6780110141 --bundle-id com.datewise.datewiseAi \
             --bundle-version "$BUILD_NUMBER" --bundle-short-version-string "$VERSION" \
             --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+
+      - name: API signing - delete the profile and revoke the certificate
+        # After the TestFlight upload (it needs the certificate only while
+        # signing; Apple re-signs App Store builds). Runs even if a step failed,
+        # so a partly made certificate or profile is removed too.
+        if: always() && inputs.signing == 'api'
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+          REVOKE_CERT: ${{ inputs.revoke_api_cert && 'true' || 'false' }}
+        run: |
+          W="$RUNNER_TEMP/api-signing"
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
+          rc=0
+          if [ -f "$W/state.json" ]; then
+            STATE_FILE="$W/state.json" "$W/venv/bin/python" -I tool/asc/api_signing.py cleanup || rc=$?
+          else
+            echo "Nothing was created through the API; nothing to delete."
+          fi
+          rm -rf "$W"
+          exit "$rc"
 
       - name: Clean up signing material
         if: always()

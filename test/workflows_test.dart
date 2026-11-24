@@ -60,8 +60,9 @@ void main() {
     final beforeSteps = job.substring(0, job.indexOf('    steps:'));
     expect(beforeSteps, isNot(contains('secrets.')));
     // Each secret value is mapped only into the step(s) that use it.
-    // The .p8: once for the cloud-signing export, once for the TestFlight upload.
-    expect(RegExp(r'secrets\.APP_STORE_CONNECT_API_KEY_P8 \}\}').allMatches(job).length, 2);
+    // The .p8: the cloud-signing export, the API-signing create and cleanup
+    // steps, and the TestFlight upload.
+    expect(RegExp(r'secrets\.APP_STORE_CONNECT_API_KEY_P8 \}\}').allMatches(job).length, 4);
     expect(RegExp(r'secrets\.IOS_DIST_CERT_P12_BASE64 \}\}').allMatches(job).length, 1);
     final cleanup = job.substring(job.indexOf('- name: Clean up signing material'));
     expect(cleanup, contains('if: always()'));
@@ -228,7 +229,7 @@ void main() {
 
     test('signing is a choice input, manual by default', () {
       expect(s, contains('      signing:\n'));
-      expect(s, contains('        type: choice\n        options:\n          - manual\n          - cloud\n        default: manual\n'));
+      expect(s, contains('        type: choice\n        options:\n          - manual\n          - cloud\n          - api\n        default: manual\n'));
     });
 
     test('cloud without signed_build fails in the unsigned job; the unsigned build is unchanged', () {
@@ -247,9 +248,9 @@ void main() {
     });
 
     test('manual steps are skipped for cloud; cloud steps run only for cloud', () {
-      for (final name in ['Install certificate and provisioning profile', 'Manual signing for the Runner target']) {
-        expect(step(name), contains("if: steps.secrets.outputs.ready == 'true' && inputs.signing != 'cloud'\n"), reason: name);
-      }
+      expect(step('Install certificate and provisioning profile'), contains("if: steps.secrets.outputs.ready == 'true' && inputs.signing != 'cloud' && inputs.signing != 'api'\n"));
+      // API signing reuses the manual pbxproj / ExportOptions step.
+      expect(step('Manual signing for the Runner target'), contains("if: steps.secrets.outputs.ready == 'true' && inputs.signing != 'cloud'\n"));
       for (final name in ['Cloud signing for the Runner target', 'Export and sign the IPA with cloud-managed signing']) {
         expect(step(name), contains("if: steps.secrets.outputs.ready == 'true' && inputs.signing == 'cloud'\n"), reason: name);
       }
@@ -309,6 +310,68 @@ void main() {
       for (final t in ['`signing`', '**`cloud`**', 'Admin', 'Team Keys', 'Generate API Key', 'only once', 'Files', 'Secrets and variables', 'Revoke']) {
         expect(runbook, contains(t), reason: t);
       }
+    });
+  });
+
+  group('ios-build.yml: signing api (temporary certificate and profile via the App Store Connect API)', () {
+    final s = File('.github/workflows/ios-build.yml').readAsStringSync();
+    final unsigned = s.substring(s.indexOf('  unsigned:'), s.indexOf('  signed-testflight:'));
+    final job = s.substring(s.indexOf('  signed-testflight:'));
+    String step(String name) {
+      final start = job.indexOf('- name: $name');
+      expect(start, greaterThan(-1), reason: name);
+      final next = job.indexOf(RegExp(r'\n      - (name|uses):'), start + 1);
+      return job.substring(start, next < 0 ? job.length : next);
+    }
+
+    test('api needs signed_build and only the four API secrets; revocation is an input, on by default', () {
+      expect(unsigned, contains("if: github.event_name == 'workflow_dispatch' && inputs.signing == 'api' && !inputs.signed_build"));
+      expect(step('Check signing secrets'), contains('api) needed="APPLE_TEAM_ID APP_STORE_CONNECT_API_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_API_KEY_P8" ;;'));
+      expect(s, contains('      revoke_api_cert:\n'));
+      expect(s.substring(s.indexOf('      revoke_api_cert:')), contains('        type: boolean\n        default: true\n'));
+    });
+
+    test('create: key and CSR on the runner, API script, key matched, temporary keychain, never printed', () {
+      final c = step('API signing - create and install a temporary certificate and profile');
+      expect(c, contains("if: steps.secrets.outputs.ready == 'true' && inputs.signing == 'api'\n"));
+      expect(c, isNot(contains('IOS_')));
+      expect(c, contains('openssl req -new -newkey rsa:2048 -nodes'));
+      expect(c, contains('tool/asc/api_signing.py create'));
+      expect(c, contains('umask 077'));
+      expect(c, contains(r'"$RUNNER_TEMP/signing.keychain-db"'));
+      expect(c, contains(r'echo "::add-mask::$KEYCHAIN_PASSWORD"'));
+      expect(c, contains(r'echo "::add-mask::$P12_PASSWORD"'));
+      expect(c, contains('-passout env:P12_PASSWORD'));
+      expect(c, contains(r'echo "PROFILE_NAME=$NAME" >> "$GITHUB_ENV"'));
+      expect(c, isNot(contains('cat ')));
+      for (final line in c.split('\n').where((l) => l.contains('ASC_KEY_P8'))) {
+        expect(line.trim(), startsWith(r'ASC_KEY_P8: ${{ secrets.'), reason: line);
+      }
+      expect(job.indexOf('- name: API signing - create'), lessThan(job.indexOf('- name: Manual signing for the Runner target')));
+    });
+
+    test('cleanup: always(), after the upload, deletes the profile and revokes the certificate per input', () {
+      final c = step('API signing - delete the profile and revoke the certificate');
+      expect(c, contains("if: always() && inputs.signing == 'api'\n"));
+      expect(c, contains(r"REVOKE_CERT: ${{ inputs.revoke_api_cert && 'true' || 'false' }}"));
+      expect(c, contains('tool/asc/api_signing.py cleanup'));
+      expect(c, contains('security delete-keychain'));
+      expect(c, contains(r'rm -rf "$W"'));
+      final i = job.indexOf('- name: API signing - delete the profile');
+      expect(i, greaterThan(job.indexOf('- name: Upload to App Store Connect (TestFlight)')));
+      expect(i, lessThan(job.indexOf('- name: Clean up signing material')));
+    });
+
+    test('the API script: create/delete only, DISTRIBUTION + IOS_APP_STORE, no bundle id creation, no secrets printed', () {
+      final py = File('tool/asc/api_signing.py').readAsStringSync();
+      expect(py, contains('"certificateType": "DISTRIBUTION"'));
+      expect(py, contains('"profileType": "IOS_APP_STORE"'));
+      expect(py, contains('call("GET", "/v1/bundleIds"'));
+      expect(py, isNot(contains('call("POST", "/v1/bundleIds"')));
+      expect(py, contains('call("DELETE", f"/v1/certificates/{cid}")'));
+      expect(py, contains('call("DELETE", f"/v1/profiles/{pid}")'));
+      expect(py, contains('class NoRedirect'));
+      expect(RegExp(r'print\([^)]*(p8|csr|certificateContent|profileContent|token\(\))').hasMatch(py), isFalse);
     });
   });
 
