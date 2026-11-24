@@ -29,8 +29,12 @@ const textScales = [1.0, 1.3];
 
 /// Prefs for a user who finished onboarding with Ava (or [coach], in
 /// [language]: the UI language follows it).
+/// The user has already agreed to share messages with the AI provider
+/// (`dw_ai_consent`); the consent dialog itself is tested in
+/// ai_consent_test.dart.
 Map<String, Object> onboardedPrefs({String coach = 'ava', String language = 'en'}) => {
       'dw_onboarded': true,
+      'dw_ai_consent': true,
       'dw_coach': coach,
       'dw_profile': '{"goals":["profile","conversations","dates"],"language":"$language"}',
     };

@@ -113,13 +113,13 @@ You can do all of these in Safari on the iPhone: appstoreconnect.apple.com, deve
 | 4 | The v2 legal pages are on `main` but not published to `datewiseai.com`, and legal approval is pending | Owner: step 6 |
 | 5 | ~~Portraits~~ approved and merged (`de430f7`); only the provenance record (step 10) is left | Owner |
 | 6 | No device testing yet (E1–E6) | Owner: step 9 |
-| 7 | **Recommended:** ask for explicit consent before sharing data with third-party AI (risk R1 below) | Owner decides; an agent can add it in one small PR (App Store requirement, allowed by AGENTS.md) |
+| 7 | ~~Ask for explicit consent before sharing data with third-party AI (risk R1 below)~~ **Done** on branch `claude/release-ai-consent`: one-time EN/ES consent before the first message | Owner: review and merge the branch before the build |
 
 ## App Review risks found (2026-11-23)
 
 | Guideline | Risk | Evidence and action |
 |---|---|---|
-| **5.1.2(i)**: personal data shared with third-party AI needs disclosure **and explicit permission** | **R1, medium–high** | Messages go to Cloudflare Workers AI (Meta Llama). This is disclosed only in the Privacy Policy and the store text. The app has no consent screen; the policy relies on "By using the app you consent" (`legal_text.dart`). Fix: a one-time EN/ES sheet before the first message ("Your messages are sent to Cloudflare Workers AI to write replies" + Agree), stored on the device |
+| **5.1.2(i)**: personal data shared with third-party AI needs disclosure **and explicit permission** | **R1, done** (branch `claude/release-ai-consent`) | Messages go to Cloudflare Workers AI (Meta Llama). **Done:** before the first message the chat asks once, in EN/ES, "Share messages with our AI provider?" (Agree / Not now), naming Cloudflare Workers AI and Meta's Llama, with wording that matches the Privacy Policy. Not now sends nothing and keeps the text in the composer. The choice is stored on the device (`dw_ai_consent`); `AppState.sendMessage` and retry refuse without it; Delete my data withdraws it. Tests: `test/ai_consent_test.dart` |
 | 1.4.1 / 1.1: safety in AI replies | Low | The server prompt (`backend/coach_prompts.js`, #46) keeps replies on dating and adds rules for 18+, consent and harassment, professional limits and crisis (emergency services or a crisis line), plus meetup safety. Remaining gaps: no explicit sexual-content rule, no report-reply button |
 | 2.1: completeness | High until blocker 1 is fixed | The backend and the Sandbox budget need to be ready (step 7). Test switches are off in release |
 | 4.0 / 2.4.1: iPad | Medium | The iPad layout is built, and screenshots exist, but it has never run on a real iPad |

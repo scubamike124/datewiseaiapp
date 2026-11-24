@@ -21,7 +21,8 @@ import 'package:datewise_ai/services/voice_service.dart';
 import 'package:datewise_ai/state/app_state.dart';
 
 Future<(AppState, StorageService)> make({Map<String, Object> prefs = const {}, StoreService? store, DateTime? now}) async {
-  SharedPreferences.setMockInitialValues(prefs);
+  // The user already agreed to share messages with the AI provider.
+  SharedPreferences.setMockInitialValues({'dw_ai_consent': true, ...prefs});
   final storage = await StorageService.create();
   final state = AppState(storage: storage, ai: MockAIService(), store: store, clock: now == null ? null : () => now);
   return (state, storage);
@@ -121,7 +122,9 @@ void main() {
       await state.sendMessage('Hola');
       expect(state.threads, isNotEmpty);
 
+      expect(state.aiConsentGiven, isTrue);
       await state.deleteMyData();
+      expect(state.aiConsentGiven, isFalse, reason: 'Delete my data withdraws the AI consent');
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getKeys().where((k) => k.startsWith('dw_')), isEmpty,
           reason: 'conversations, profile, plan, memory, stats and subscription flags are all gone');

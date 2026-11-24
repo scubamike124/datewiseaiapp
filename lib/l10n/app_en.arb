@@ -670,5 +670,21 @@
   "voiceQualityDone": "Got it",
   "@voiceQualityDone": {
     "description": "Premium-voice tip: close button."
+  },
+  "aiConsentTitle": "Share messages with our AI provider?",
+  "@aiConsentTitle": {
+    "description": "AI data-sharing consent (before the first message): title."
+  },
+  "aiConsentBody": "To write your coach's replies, DateWise sends your messages (typed or spoken, as text), your coaching preferences and, if Coach memory is on, your memory note to Cloudflare Workers AI, which runs Meta's Llama model. They are processed only to write the reply: they are not stored on our servers, not used to train AI models and not linked to your identity. See our Privacy Policy for details.",
+  "@aiConsentBody": {
+    "description": "AI data-sharing consent: body. Must match the Privacy Policy."
+  },
+  "aiConsentAgree": "Agree",
+  "@aiConsentAgree": {
+    "description": "AI data-sharing consent: agree button."
+  },
+  "aiConsentNotNow": "Not now",
+  "@aiConsentNotNow": {
+    "description": "AI data-sharing consent: decline button; nothing is sent."
   }
 }

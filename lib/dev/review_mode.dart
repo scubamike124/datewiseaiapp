@@ -66,6 +66,7 @@ class ReviewMode {
     if (screen == 'paywall') return AppTab.home;
     await store.buy();
     await state.togglePlanItem(0);
+    await state.giveAiConsent();
     await state.sendMessage(es ? 'Dame un buen primer mensaje' : 'Give me a strong opener');
     return switch (screen) {
       'coaches' => AppTab.coaches,

@@ -123,6 +123,7 @@ Stream<String> ask(BackendAIService s, {Coach coach = Coaches.ava}) =>
 Future<AppState> appState(BackendAIService ai, {Map<String, Object> prefs = const {}}) async {
   SharedPreferences.setMockInitialValues({
     'dw_onboarded': true,
+    'dw_ai_consent': true,
     'dw_coach': 'ava',
     'dw_profile': '{"goals":["conversations"],"language":"en"}',
     ...prefs,
