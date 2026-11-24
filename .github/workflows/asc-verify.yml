@@ -14,6 +14,7 @@ on:
       - 'tool/asc/verify_asc.py'
       - 'tool/asc/asc-subscriptions.mjs'
       - 'tool/asc/subscriptions.json'
+      - 'tool/asc/approved-plan.txt'
   workflow_dispatch:
 
 permissions:
@@ -53,3 +54,39 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           ASC_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
         run: node tool/asc/asc-subscriptions.mjs plan --spec tool/asc/subscriptions.json
+
+  apply:
+    # Writes to App Store Connect. Runs only for a commit whose message contains [asc-apply], only after the
+    # owner approves the run in the app-store-connect-write environment, and only the plan whose hash is in
+    # tool/asc/approved-plan.txt (create-only; nothing is deleted or edited). Then it proves a second run
+    # creates nothing and that every existing price, country and setting is identical.
+    name: Apply the approved subscription plan (owner approval required)
+    needs: verify
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[asc-apply]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: app-store-connect-write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Apply, re-run to prove no duplicates, compare before and after
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          S=tool/asc/subscriptions.json
+          T="$RUNNER_TEMP"
+          APPROVED=$(tr -d ' \n' < tool/asc/approved-plan.txt)
+          node tool/asc/asc-subscriptions.mjs plan --spec "$S" --json "$T/before.json" > /dev/null
+          echo "## First apply (approved plan $APPROVED)"
+          node tool/asc/asc-subscriptions.mjs apply --spec "$S" --expect-plan "$APPROVED"
+          node tool/asc/asc-subscriptions.mjs plan --spec "$S" --json "$T/after.json" > /dev/null
+          H=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).hash)' "$T/after.json")
+          echo "## Second apply (must create nothing)"
+          node tool/asc/asc-subscriptions.mjs apply --spec "$S" --expect-plan "$H" | tee "$T/second.txt"
+          grep -q '^Created 0:' "$T/second.txt"
+          node tool/asc/asc-subscriptions.mjs plan --spec "$S" --json "$T/final.json" > /dev/null
+          node tool/asc/asc-subscriptions.mjs compare --before "$T/before.json" --after "$T/final.json"

@@ -490,6 +490,27 @@ export async function apply(client, spec, { expectPlan, log = () => {} }) {
   return { created, deferred, after };
 }
 
+/**
+ * Compare a dry run taken before apply with one taken after. Returns a list of problems (empty = proven):
+ * every object that was UNCHANGED or NOTE before is identical after (prices, countries, settings untouched), every
+ * approved CREATE is now UNCHANGED, and nothing is left to create or in conflict.
+ */
+export function compareRuns(before, after) {
+  const problems = [];
+  const norm = (d) => String(d).replace(/, state [A-Z_]+$/, "");
+  const afterByWhat = new Map(after.steps.map((x) => [x.what, x]));
+  for (const b of before.steps) {
+    const a = afterByWhat.get(b.what);
+    if (!a) problems.push(`${b.what}: missing after apply`);
+    else if (b.op === "create" && a.op !== "unchanged") problems.push(`${b.what}: approved CREATE is ${a.op.toUpperCase()} after apply`);
+    else if ((b.op === "unchanged" || b.op === "note") && (a.op !== b.op || norm(a.detail) !== norm(b.detail))) problems.push(`${b.what}: changed (${b.op} "${b.detail}" -> ${a.op} "${a.detail}")`);
+  }
+  for (const a of after.steps) if (!before.steps.some((b) => b.what === a.what)) problems.push(`${a.what}: new after apply (${a.op})`);
+  if (after.creates) problems.push(`${after.creates} item(s) still to create`);
+  if (after.conflicts) problems.push(`${after.conflicts} conflict(s) after apply`);
+  return problems;
+}
+
 // ---------------------------------------------------------------- CLI
 
 function arg(name) {
@@ -499,8 +520,15 @@ function arg(name) {
 
 async function main() {
   const mode = process.argv[2];
+  if (mode === "compare") {
+    const problems = compareRuns(JSON.parse(readFileSync(arg("--before"), "utf8")), JSON.parse(readFileSync(arg("--after"), "utf8")));
+    const out = problems.length ? `Compare FAILED:\n- ${problems.join("\n- ")}\n` : "Compare passed: approved items created; every existing price, country, localization and setting is identical before and after.\n";
+    process.stdout.write(out);
+    if (process.env.GITHUB_STEP_SUMMARY) writeFileSync(process.env.GITHUB_STEP_SUMMARY, `\n${out}`, { flag: "a" });
+    process.exit(problems.length ? 1 : 0);
+  }
   if (mode !== "plan" && mode !== "apply") {
-    console.error("usage: asc-subscriptions.mjs plan|apply --spec file.json [--report out.md] [--json out.json] [--expect-plan sha256]");
+    console.error("usage: asc-subscriptions.mjs plan|apply|compare --spec file.json [--report out.md] [--json out.json] [--expect-plan sha256] [--before a.json --after b.json]");
     process.exit(2);
   }
   const spec = JSON.parse(readFileSync(arg("--spec") || "subscriptions.json", "utf8"));
