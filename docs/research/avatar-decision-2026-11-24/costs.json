@@ -1,0 +1,1390 @@
+{
+ "assumptions": {
+  "price": 19.99,
+  "refund": 0.03,
+  "es_vat": 0.21,
+  "duty": 0.6666666666666666,
+  "turns_per_min": 2,
+  "levels": [
+   15,
+   30,
+   60,
+   120,
+   300
+  ],
+  "revenue": {
+   "US/CA/MX @15% (Small Business)": 16.48,
+   "US/CA/MX @30%": 13.57,
+   "ES @15% (VAT 21% incl.)": 13.62,
+   "ES @30% (VAT 21% incl.)": 11.22
+  },
+  "budgets": [
+   4.0,
+   5.0
+  ],
+  "tts_per_speech_min": 0.027,
+  "kokoro": 0.002,
+  "livekit_per_wall_min": 0.0114,
+  "turn_per_min": 0.0004
+ },
+ "options": {
+  "simli": {
+   "name": "Simli (Trinity), audio-in",
+   "kind": "hosted",
+   "status": "verified price; hint = enterprise \"as low as $0.005\"",
+   "source": "simli.com/pricing 2026-11-24",
+   "voice": "neural",
+   "text": "ours",
+   "floor_monthly": 15.0,
+   "floor_note": "Hobby $10 (1 custom avatar/mo, 1,000 min); Pro $49 for 5 custom avatars",
+   "avatar_rate_wall_min": 0.01,
+   "levels": {
+    "15": {
+     "avatar": 0.15,
+     "voice": 0.27,
+     "text": 0.038,
+     "transport": 0.006,
+     "total": 0.464,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 16.02,
+      "US/CA/MX @30%": 13.11,
+      "ES @15% (VAT 21% incl.)": 13.16,
+      "ES @30% (VAT 21% incl.)": 10.75
+     },
+     "total_at_volume_rate": 0.456,
+     "total_at_hint_rate": 0.389
+    },
+    "30": {
+     "avatar": 0.3,
+     "voice": 0.54,
+     "text": 0.076,
+     "transport": 0.012,
+     "total": 0.928,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 15.55,
+      "US/CA/MX @30%": 12.65,
+      "ES @15% (VAT 21% incl.)": 12.69,
+      "ES @30% (VAT 21% incl.)": 10.29
+     },
+     "total_at_volume_rate": 0.913,
+     "total_at_hint_rate": 0.778
+    },
+    "60": {
+     "avatar": 0.6,
+     "voice": 1.08,
+     "text": 0.151,
+     "transport": 0.024,
+     "total": 1.855,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 14.63,
+      "US/CA/MX @30%": 11.72,
+      "ES @15% (VAT 21% incl.)": 11.77,
+      "ES @30% (VAT 21% incl.)": 9.36
+     },
+     "total_at_volume_rate": 1.825,
+     "total_at_hint_rate": 1.555
+    },
+    "120": {
+     "avatar": 1.2,
+     "voice": 2.16,
+     "text": 0.463,
+     "transport": 0.048,
+     "total": 3.871,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 12.61,
+      "US/CA/MX @30%": 9.7,
+      "ES @15% (VAT 21% incl.)": 9.75,
+      "ES @30% (VAT 21% incl.)": 7.35
+     },
+     "total_at_volume_rate": 3.811,
+     "total_at_hint_rate": 3.271
+    },
+    "300": {
+     "avatar": 3.0,
+     "voice": 5.4,
+     "text": 1.158,
+     "transport": 0.12,
+     "total": 9.678,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 6.8,
+      "US/CA/MX @30%": 3.9,
+      "ES @15% (VAT 21% incl.)": 3.94,
+      "ES @30% (VAT 21% incl.)": 1.54
+     },
+     "total_at_volume_rate": 9.528,
+     "total_at_hint_rate": 8.178
+    }
+   },
+   "avatar_rate_wall_min_volume": 0.0095,
+   "avatar_rate_wall_min_hint": 0.005,
+   "cap_minutes_at_4usd": 123,
+   "cap_minutes_at_5usd": 154,
+   "marginal_cost_per_wall_min": 0.03226,
+   "all_in_60min_with_floor": {
+    "100": 2.0,
+    "1000": 1.87
+   }
+  },
+  "anam": {
+   "name": "Anam Cara (audio passthrough)",
+   "kind": "hosted",
+   "status": "verified list; hint = enterprise \"from $0.04\" (sales)",
+   "source": "anam.ai/pricing 2026-11-24",
+   "voice": "neural",
+   "text": "ours",
+   "floor_monthly": 54.0,
+   "floor_note": "Explorer $49 = 250 min ($0.196/min effective); Professional $999 = 8,000 min",
+   "avatar_rate_wall_min": 0.16,
+   "levels": {
+    "15": {
+     "avatar": 2.4,
+     "voice": 0.27,
+     "text": 0.038,
+     "transport": 0.0,
+     "total": 2.708,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 13.77,
+      "US/CA/MX @30%": 10.87,
+      "ES @15% (VAT 21% incl.)": 10.91,
+      "ES @30% (VAT 21% incl.)": 8.51
+     },
+     "total_at_volume_rate": 1.958,
+     "total_at_hint_rate": 0.908
+    },
+    "30": {
+     "avatar": 4.8,
+     "voice": 0.54,
+     "text": 0.076,
+     "transport": 0.0,
+     "total": 5.416,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 11.07,
+      "US/CA/MX @30%": 8.16,
+      "ES @15% (VAT 21% incl.)": 8.21,
+      "ES @30% (VAT 21% incl.)": 5.8
+     },
+     "total_at_volume_rate": 3.916,
+     "total_at_hint_rate": 1.816
+    },
+    "60": {
+     "avatar": 9.6,
+     "voice": 1.08,
+     "text": 0.151,
+     "transport": 0.0,
+     "total": 10.831,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 5.65,
+      "US/CA/MX @30%": 2.74,
+      "ES @15% (VAT 21% incl.)": 2.79,
+      "ES @30% (VAT 21% incl.)": 0.39
+     },
+     "total_at_volume_rate": 7.831,
+     "total_at_hint_rate": 3.631
+    },
+    "120": {
+     "avatar": 19.2,
+     "voice": 2.16,
+     "text": 0.463,
+     "transport": 0.0,
+     "total": 21.823,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": -5.34,
+      "US/CA/MX @30%": -8.25,
+      "ES @15% (VAT 21% incl.)": -8.2,
+      "ES @30% (VAT 21% incl.)": -10.61
+     },
+     "total_at_volume_rate": 15.823,
+     "total_at_hint_rate": 7.423
+    },
+    "300": {
+     "avatar": 48.0,
+     "voice": 5.4,
+     "text": 1.158,
+     "transport": 0.0,
+     "total": 54.558,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": -38.08,
+      "US/CA/MX @30%": -40.98,
+      "ES @15% (VAT 21% incl.)": -40.94,
+      "ES @30% (VAT 21% incl.)": -43.34
+     },
+     "total_at_volume_rate": 39.558,
+     "total_at_hint_rate": 18.558
+    }
+   },
+   "avatar_rate_wall_min_volume": 0.11,
+   "avatar_rate_wall_min_hint": 0.04,
+   "cap_minutes_at_4usd": 21,
+   "cap_minutes_at_5usd": 27,
+   "marginal_cost_per_wall_min": 0.18186,
+   "all_in_60min_with_floor": {
+    "100": 11.37,
+    "1000": 10.88
+   }
+  },
+  "bithuman_cloud": {
+   "name": "bitHuman cloud (LiveKit), audio-in",
+   "kind": "hosted",
+   "status": "verified",
+   "source": "bithuman.ai/pricing 2026-11-24",
+   "voice": "neural",
+   "text": "ours",
+   "floor_monthly": 75.0,
+   "floor_note": "Creator $20 (+250 credits=$2.50 per Essence avatar) + LiveKit Ship $50",
+   "avatar_rate_wall_min": 0.04,
+   "levels": {
+    "15": {
+     "avatar": 0.6,
+     "voice": 0.27,
+     "text": 0.038,
+     "transport": 0.171,
+     "total": 1.079,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 15.4,
+      "US/CA/MX @30%": 12.49,
+      "ES @15% (VAT 21% incl.)": 12.54,
+      "ES @30% (VAT 21% incl.)": 10.14
+     },
+     "total_at_volume_rate": 1.079
+    },
+    "30": {
+     "avatar": 1.2,
+     "voice": 0.54,
+     "text": 0.076,
+     "transport": 0.342,
+     "total": 2.158,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 14.32,
+      "US/CA/MX @30%": 11.42,
+      "ES @15% (VAT 21% incl.)": 11.46,
+      "ES @30% (VAT 21% incl.)": 9.06
+     },
+     "total_at_volume_rate": 2.158
+    },
+    "60": {
+     "avatar": 2.4,
+     "voice": 1.08,
+     "text": 0.151,
+     "transport": 0.684,
+     "total": 4.315,
+     "fit": "fits<=$5 only",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 12.17,
+      "US/CA/MX @30%": 9.26,
+      "ES @15% (VAT 21% incl.)": 9.31,
+      "ES @30% (VAT 21% incl.)": 6.9
+     },
+     "total_at_volume_rate": 4.315
+    },
+    "120": {
+     "avatar": 4.8,
+     "voice": 2.16,
+     "text": 0.463,
+     "transport": 1.368,
+     "total": 8.791,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 7.69,
+      "US/CA/MX @30%": 4.78,
+      "ES @15% (VAT 21% incl.)": 4.83,
+      "ES @30% (VAT 21% incl.)": 2.43
+     },
+     "total_at_volume_rate": 8.791
+    },
+    "300": {
+     "avatar": 12.0,
+     "voice": 5.4,
+     "text": 1.158,
+     "transport": 3.42,
+     "total": 21.978,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": -5.5,
+      "US/CA/MX @30%": -8.4,
+      "ES @15% (VAT 21% incl.)": -8.36,
+      "ES @30% (VAT 21% incl.)": -10.76
+     },
+     "total_at_volume_rate": 21.978
+    }
+   },
+   "avatar_rate_wall_min_volume": 0.04,
+   "cap_minutes_at_4usd": 54,
+   "cap_minutes_at_5usd": 68,
+   "marginal_cost_per_wall_min": 0.07326,
+   "all_in_60min_with_floor": {
+    "100": 5.07,
+    "1000": 4.39
+   }
+  },
+  "bithuman_device": {
+   "name": "bitHuman on-device (native Swift SDK, iPhone 16 Pro+)",
+   "kind": "hosted-device",
+   "status": "verified price; NATIVE plugin required (AGENTS.md: not allowed in v1 Flutter)",
+   "source": "bithuman.ai/pricing 2026-11-24",
+   "voice": "device",
+   "text": "ours",
+   "floor_monthly": 25.0,
+   "floor_note": "Creator $20; SDK charges speaking seconds only",
+   "avatar_rate_wall_min": 0.01333,
+   "levels": {
+    "15": {
+     "avatar": 0.2,
+     "voice": 0.0,
+     "text": 0.038,
+     "transport": 0.0,
+     "total": 0.238,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 16.24,
+      "US/CA/MX @30%": 13.34,
+      "ES @15% (VAT 21% incl.)": 13.38,
+      "ES @30% (VAT 21% incl.)": 10.98
+     },
+     "total_at_volume_rate": 0.238
+    },
+    "30": {
+     "avatar": 0.4,
+     "voice": 0.0,
+     "text": 0.076,
+     "transport": 0.0,
+     "total": 0.476,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 16.01,
+      "US/CA/MX @30%": 13.1,
+      "ES @15% (VAT 21% incl.)": 13.15,
+      "ES @30% (VAT 21% incl.)": 10.74
+     },
+     "total_at_volume_rate": 0.476
+    },
+    "60": {
+     "avatar": 0.8,
+     "voice": 0.0,
+     "text": 0.151,
+     "transport": 0.0,
+     "total": 0.951,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 15.53,
+      "US/CA/MX @30%": 12.62,
+      "ES @15% (VAT 21% incl.)": 12.67,
+      "ES @30% (VAT 21% incl.)": 10.27
+     },
+     "total_at_volume_rate": 0.951
+    },
+    "120": {
+     "avatar": 1.6,
+     "voice": 0.0,
+     "text": 0.463,
+     "transport": 0.0,
+     "total": 2.063,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 14.42,
+      "US/CA/MX @30%": 11.51,
+      "ES @15% (VAT 21% incl.)": 11.56,
+      "ES @30% (VAT 21% incl.)": 9.15
+     },
+     "total_at_volume_rate": 2.063
+    },
+    "300": {
+     "avatar": 4.0,
+     "voice": 0.0,
+     "text": 1.158,
+     "transport": 0.0,
+     "total": 5.158,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 11.32,
+      "US/CA/MX @30%": 8.42,
+      "ES @15% (VAT 21% incl.)": 8.46,
+      "ES @30% (VAT 21% incl.)": 6.06
+     },
+     "total_at_volume_rate": 5.158
+    }
+   },
+   "avatar_rate_wall_min_volume": 0.01333,
+   "cap_minutes_at_4usd": 232,
+   "cap_minutes_at_5usd": 290,
+   "marginal_cost_per_wall_min": 0.01719,
+   "all_in_60min_with_floor": {
+    "100": 1.2,
+    "1000": 0.98
+   }
+  },
+  "liveavatar_lite": {
+   "name": "HeyGen LiveAvatar LITE (audio-in)",
+   "kind": "hosted",
+   "status": "verified list; hint $0.01 = secondary source (unverified)",
+   "source": "docs.liveavatar.com/docs/faq/credits 2026-11-24",
+   "voice": "neural",
+   "text": "ours",
+   "floor_monthly": 154.0,
+   "floor_note": "Essential $99 (1,110 credits = 1,110 LITE min) + LiveKit Ship $50",
+   "avatar_rate_wall_min": 0.095,
+   "levels": {
+    "15": {
+     "avatar": 1.425,
+     "voice": 0.27,
+     "text": 0.038,
+     "transport": 0.171,
+     "total": 1.904,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 14.58,
+      "US/CA/MX @30%": 11.67,
+      "ES @15% (VAT 21% incl.)": 11.72,
+      "ES @30% (VAT 21% incl.)": 9.31
+     },
+     "total_at_volume_rate": 1.829,
+     "total_at_hint_rate": 0.629
+    },
+    "30": {
+     "avatar": 2.85,
+     "voice": 0.54,
+     "text": 0.076,
+     "transport": 0.342,
+     "total": 3.808,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 12.67,
+      "US/CA/MX @30%": 9.77,
+      "ES @15% (VAT 21% incl.)": 9.81,
+      "ES @30% (VAT 21% incl.)": 7.41
+     },
+     "total_at_volume_rate": 3.658,
+     "total_at_hint_rate": 1.258
+    },
+    "60": {
+     "avatar": 5.7,
+     "voice": 1.08,
+     "text": 0.151,
+     "transport": 0.684,
+     "total": 7.615,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 8.87,
+      "US/CA/MX @30%": 5.96,
+      "ES @15% (VAT 21% incl.)": 6.01,
+      "ES @30% (VAT 21% incl.)": 3.6
+     },
+     "total_at_volume_rate": 7.315,
+     "total_at_hint_rate": 2.515
+    },
+    "120": {
+     "avatar": 11.4,
+     "voice": 2.16,
+     "text": 0.463,
+     "transport": 1.368,
+     "total": 15.391,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 1.09,
+      "US/CA/MX @30%": -1.82,
+      "ES @15% (VAT 21% incl.)": -1.77,
+      "ES @30% (VAT 21% incl.)": -4.17
+     },
+     "total_at_volume_rate": 14.791,
+     "total_at_hint_rate": 5.191
+    },
+    "300": {
+     "avatar": 28.5,
+     "voice": 5.4,
+     "text": 1.158,
+     "transport": 3.42,
+     "total": 38.478,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": -22.0,
+      "US/CA/MX @30%": -24.9,
+      "ES @15% (VAT 21% incl.)": -24.86,
+      "ES @30% (VAT 21% incl.)": -27.26
+     },
+     "total_at_volume_rate": 36.978,
+     "total_at_hint_rate": 12.978
+    }
+   },
+   "avatar_rate_wall_min_volume": 0.09,
+   "avatar_rate_wall_min_hint": 0.01,
+   "cap_minutes_at_4usd": 31,
+   "cap_minutes_at_5usd": 38,
+   "marginal_cost_per_wall_min": 0.12826,
+   "all_in_60min_with_floor": {
+    "100": 9.16,
+    "1000": 7.77
+   }
+  },
+  "liveavatar_full": {
+   "name": "HeyGen LiveAvatar FULL (vendor STT+LLM+TTS)",
+   "kind": "hosted",
+   "status": "verified; vendor sees whole conversation; our coach prompts bypassed",
+   "source": "docs.liveavatar.com/docs/faq/credits 2026-11-24",
+   "voice": "bundled",
+   "text": "vendor",
+   "floor_monthly": 104.0,
+   "floor_note": "Essential $99 (555 FULL min)",
+   "avatar_rate_wall_min": 0.19,
+   "levels": {
+    "15": {
+     "avatar": 2.85,
+     "voice": 0.0,
+     "text": 0.0,
+     "transport": 0.0,
+     "total": 2.85,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 13.63,
+      "US/CA/MX @30%": 10.72,
+      "ES @15% (VAT 21% incl.)": 10.77,
+      "ES @30% (VAT 21% incl.)": 8.37
+     },
+     "total_at_volume_rate": 2.7
+    },
+    "30": {
+     "avatar": 5.7,
+     "voice": 0.0,
+     "text": 0.0,
+     "transport": 0.0,
+     "total": 5.7,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 10.78,
+      "US/CA/MX @30%": 7.87,
+      "ES @15% (VAT 21% incl.)": 7.92,
+      "ES @30% (VAT 21% incl.)": 5.52
+     },
+     "total_at_volume_rate": 5.4
+    },
+    "60": {
+     "avatar": 11.4,
+     "voice": 0.0,
+     "text": 0.0,
+     "transport": 0.0,
+     "total": 11.4,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 5.08,
+      "US/CA/MX @30%": 2.17,
+      "ES @15% (VAT 21% incl.)": 2.22,
+      "ES @30% (VAT 21% incl.)": -0.18
+     },
+     "total_at_volume_rate": 10.8
+    },
+    "120": {
+     "avatar": 22.8,
+     "voice": 0.0,
+     "text": 0.0,
+     "transport": 0.0,
+     "total": 22.8,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": -6.32,
+      "US/CA/MX @30%": -9.23,
+      "ES @15% (VAT 21% incl.)": -9.18,
+      "ES @30% (VAT 21% incl.)": -11.58
+     },
+     "total_at_volume_rate": 21.6
+    },
+    "300": {
+     "avatar": 57.0,
+     "voice": 0.0,
+     "text": 0.0,
+     "transport": 0.0,
+     "total": 57.0,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": -40.52,
+      "US/CA/MX @30%": -43.43,
+      "ES @15% (VAT 21% incl.)": -43.38,
+      "ES @30% (VAT 21% incl.)": -45.78
+     },
+     "total_at_volume_rate": 54.0
+    }
+   },
+   "avatar_rate_wall_min_volume": 0.18,
+   "cap_minutes_at_4usd": 21,
+   "cap_minutes_at_5usd": 26,
+   "marginal_cost_per_wall_min": 0.19,
+   "all_in_60min_with_floor": {
+    "100": 12.44,
+    "1000": 11.5
+   }
+  },
+  "tavus": {
+   "name": "Tavus CVI (custom LLM endpoint)",
+   "kind": "hosted",
+   "status": "verified (page also shows an older conflicting table)",
+   "source": "tavus.io/pricing 2026-11-24",
+   "voice": "bundled",
+   "text": "ours",
+   "floor_monthly": 64.0,
+   "floor_note": "Builder $59 = 175 min, 3 custom faces; Business $975 = 4,000 min",
+   "avatar_rate_wall_min": 0.35,
+   "levels": {
+    "15": {
+     "avatar": 5.25,
+     "voice": 0.0,
+     "text": 0.038,
+     "transport": 0.0,
+     "total": 5.288,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 11.19,
+      "US/CA/MX @30%": 8.29,
+      "ES @15% (VAT 21% incl.)": 8.33,
+      "ES @30% (VAT 21% incl.)": 5.93
+     },
+     "total_at_volume_rate": 3.938
+    },
+    "30": {
+     "avatar": 10.5,
+     "voice": 0.0,
+     "text": 0.076,
+     "transport": 0.0,
+     "total": 10.576,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 5.91,
+      "US/CA/MX @30%": 3.0,
+      "ES @15% (VAT 21% incl.)": 3.05,
+      "ES @30% (VAT 21% incl.)": 0.64
+     },
+     "total_at_volume_rate": 7.876
+    },
+    "60": {
+     "avatar": 21.0,
+     "voice": 0.0,
+     "text": 0.151,
+     "transport": 0.0,
+     "total": 21.151,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": -4.67,
+      "US/CA/MX @30%": -7.58,
+      "ES @15% (VAT 21% incl.)": -7.53,
+      "ES @30% (VAT 21% incl.)": -9.93
+     },
+     "total_at_volume_rate": 15.751
+    },
+    "120": {
+     "avatar": 42.0,
+     "voice": 0.0,
+     "text": 0.463,
+     "transport": 0.0,
+     "total": 42.463,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": -25.98,
+      "US/CA/MX @30%": -28.89,
+      "ES @15% (VAT 21% incl.)": -28.84,
+      "ES @30% (VAT 21% incl.)": -31.25
+     },
+     "total_at_volume_rate": 31.663
+    },
+    "300": {
+     "avatar": 105.0,
+     "voice": 0.0,
+     "text": 1.158,
+     "transport": 0.0,
+     "total": 106.158,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": -89.68,
+      "US/CA/MX @30%": -92.58,
+      "ES @15% (VAT 21% incl.)": -92.54,
+      "ES @30% (VAT 21% incl.)": -94.94
+     },
+     "total_at_volume_rate": 79.158
+    }
+   },
+   "avatar_rate_wall_min_volume": 0.26,
+   "cap_minutes_at_4usd": 11,
+   "cap_minutes_at_5usd": 14,
+   "marginal_cost_per_wall_min": 0.35386,
+   "all_in_60min_with_floor": {
+    "100": 21.79,
+    "1000": 21.21
+   }
+  },
+  "did": {
+   "name": "D-ID Agents (Expressive, LiveKit)",
+   "kind": "hosted",
+   "status": "UNVERIFIED: no official per-minute streaming rate found; $0.69-0.90 derived by third parties",
+   "source": "activepieces/creatify blogs (derived from plan allowances), d-id.com/pricing/api page empty to fetch",
+   "voice": "bundled",
+   "text": "ours",
+   "floor_monthly": 73.0,
+   "floor_note": "API Build from $18/mo (third party) + LiveKit Ship $50",
+   "avatar_rate_wall_min": 0.7,
+   "levels": {
+    "15": {
+     "avatar": 10.5,
+     "voice": 0.0,
+     "text": 0.038,
+     "transport": 0.171,
+     "total": 10.709,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 5.77,
+      "US/CA/MX @30%": 2.86,
+      "ES @15% (VAT 21% incl.)": 2.91,
+      "ES @30% (VAT 21% incl.)": 0.51
+     },
+     "total_at_volume_rate": 10.559
+    },
+    "30": {
+     "avatar": 21.0,
+     "voice": 0.0,
+     "text": 0.076,
+     "transport": 0.342,
+     "total": 21.418,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": -4.94,
+      "US/CA/MX @30%": -7.84,
+      "ES @15% (VAT 21% incl.)": -7.8,
+      "ES @30% (VAT 21% incl.)": -10.2
+     },
+     "total_at_volume_rate": 21.118
+    },
+    "60": {
+     "avatar": 42.0,
+     "voice": 0.0,
+     "text": 0.151,
+     "transport": 0.684,
+     "total": 42.835,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": -26.35,
+      "US/CA/MX @30%": -29.26,
+      "ES @15% (VAT 21% incl.)": -29.21,
+      "ES @30% (VAT 21% incl.)": -31.62
+     },
+     "total_at_volume_rate": 42.235
+    },
+    "120": {
+     "avatar": 84.0,
+     "voice": 0.0,
+     "text": 0.463,
+     "transport": 1.368,
+     "total": 85.831,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": -69.35,
+      "US/CA/MX @30%": -72.26,
+      "ES @15% (VAT 21% incl.)": -72.21,
+      "ES @30% (VAT 21% incl.)": -74.61
+     },
+     "total_at_volume_rate": 84.631
+    },
+    "300": {
+     "avatar": 210.0,
+     "voice": 0.0,
+     "text": 1.158,
+     "transport": 3.42,
+     "total": 214.578,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": -198.1,
+      "US/CA/MX @30%": -201.0,
+      "ES @15% (VAT 21% incl.)": -200.96,
+      "ES @30% (VAT 21% incl.)": -203.36
+     },
+     "total_at_volume_rate": 211.578
+    }
+   },
+   "avatar_rate_wall_min_volume": 0.69,
+   "cap_minutes_at_4usd": 5,
+   "cap_minutes_at_5usd": 6,
+   "marginal_cost_per_wall_min": 0.71526,
+   "all_in_60min_with_floor": {
+    "100": 43.56,
+    "1000": 42.91
+   }
+  },
+  "musetalk": {
+   "name": "MuseTalk 1.5 via LiveTalking (4090 Secure, 1.5 streams)",
+   "kind": "self-hosted",
+   "status": "weights MIT but HDTF/CelebAMask notice; offline CPU test 2026-11-24: soft teeth, mouth barely opens",
+   "source": "costs-capacity.md, COST_AUDIT.md, free-gpu-and-licensing.md",
+   "voice": "kokoro",
+   "text": "ours",
+   "floor_monthly": 1304.4,
+   "floor_note": "2 warm GPU(s) 24/7 at $0.89/h x 730 h",
+   "avatar_rate_wall_min": 0.01319,
+   "levels": {
+    "15": {
+     "avatar": 0.198,
+     "voice": 0.02,
+     "text": 0.038,
+     "transport": 0.0,
+     "total": 0.256,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 16.23,
+      "US/CA/MX @30%": 13.32,
+      "ES @15% (VAT 21% incl.)": 13.37,
+      "ES @30% (VAT 21% incl.)": 10.96
+     }
+    },
+    "30": {
+     "avatar": 0.396,
+     "voice": 0.04,
+     "text": 0.076,
+     "transport": 0.0,
+     "total": 0.511,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 15.97,
+      "US/CA/MX @30%": 13.06,
+      "ES @15% (VAT 21% incl.)": 13.11,
+      "ES @30% (VAT 21% incl.)": 10.71
+     }
+    },
+    "60": {
+     "avatar": 0.791,
+     "voice": 0.08,
+     "text": 0.151,
+     "transport": 0.0,
+     "total": 1.022,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 15.46,
+      "US/CA/MX @30%": 12.55,
+      "ES @15% (VAT 21% incl.)": 12.6,
+      "ES @30% (VAT 21% incl.)": 10.2
+     }
+    },
+    "120": {
+     "avatar": 1.582,
+     "voice": 0.16,
+     "text": 0.463,
+     "transport": 0.0,
+     "total": 2.205,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 14.28,
+      "US/CA/MX @30%": 11.37,
+      "ES @15% (VAT 21% incl.)": 11.42,
+      "ES @30% (VAT 21% incl.)": 9.01
+     }
+    },
+    "300": {
+     "avatar": 3.956,
+     "voice": 0.4,
+     "text": 1.158,
+     "transport": 0.0,
+     "total": 5.514,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 10.97,
+      "US/CA/MX @30%": 8.06,
+      "ES @15% (VAT 21% incl.)": 8.11,
+      "ES @30% (VAT 21% incl.)": 5.7
+     }
+    }
+   },
+   "cap_minutes_at_4usd": 217,
+   "cap_minutes_at_5usd": 272,
+   "marginal_cost_per_wall_min": 0.01838,
+   "all_in_60min_with_floor": {
+    "100": 14.07,
+    "1000": 2.33
+   }
+  },
+  "flashhead_lite": {
+   "name": "SoulX-FlashHead Lite via Mynah (4090, 1 stream)",
+   "kind": "self-hosted",
+   "status": "BLOCKED: weights \"license: other\", LTX-VAE terms",
+   "source": "costs-capacity.md, COST_AUDIT.md, free-gpu-and-licensing.md",
+   "voice": "kokoro",
+   "text": "ours",
+   "floor_monthly": 1304.4,
+   "floor_note": "2 warm GPU(s) 24/7 at $0.89/h x 730 h",
+   "avatar_rate_wall_min": 0.01978,
+   "levels": {
+    "15": {
+     "avatar": 0.297,
+     "voice": 0.02,
+     "text": 0.038,
+     "transport": 0.0,
+     "total": 0.354,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 16.13,
+      "US/CA/MX @30%": 13.22,
+      "ES @15% (VAT 21% incl.)": 13.27,
+      "ES @30% (VAT 21% incl.)": 10.86
+     }
+    },
+    "30": {
+     "avatar": 0.593,
+     "voice": 0.04,
+     "text": 0.076,
+     "transport": 0.0,
+     "total": 0.709,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 15.77,
+      "US/CA/MX @30%": 12.86,
+      "ES @15% (VAT 21% incl.)": 12.91,
+      "ES @30% (VAT 21% incl.)": 10.51
+     }
+    },
+    "60": {
+     "avatar": 1.187,
+     "voice": 0.08,
+     "text": 0.151,
+     "transport": 0.0,
+     "total": 1.418,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 15.06,
+      "US/CA/MX @30%": 12.16,
+      "ES @15% (VAT 21% incl.)": 12.2,
+      "ES @30% (VAT 21% incl.)": 9.8
+     }
+    },
+    "120": {
+     "avatar": 2.373,
+     "voice": 0.16,
+     "text": 0.463,
+     "transport": 0.0,
+     "total": 2.997,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 13.49,
+      "US/CA/MX @30%": 10.58,
+      "ES @15% (VAT 21% incl.)": 10.62,
+      "ES @30% (VAT 21% incl.)": 8.22
+     }
+    },
+    "300": {
+     "avatar": 5.933,
+     "voice": 0.4,
+     "text": 1.158,
+     "transport": 0.0,
+     "total": 7.491,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 8.99,
+      "US/CA/MX @30%": 6.08,
+      "ES @15% (VAT 21% incl.)": 6.13,
+      "ES @30% (VAT 21% incl.)": 3.73
+     }
+    }
+   },
+   "cap_minutes_at_4usd": 160,
+   "cap_minutes_at_5usd": 200,
+   "marginal_cost_per_wall_min": 0.02497,
+   "all_in_60min_with_floor": {
+    "100": 14.46,
+    "1000": 2.72
+   }
+  },
+  "oac": {
+   "name": "OpenAvatarChat + FlashHead (GPU busy while idle, 1 stream)",
+   "kind": "self-hosted",
+   "status": "BLOCKED as FlashHead; 1 session per GPU in shipped config",
+   "source": "costs-capacity.md, COST_AUDIT.md, free-gpu-and-licensing.md",
+   "voice": "kokoro",
+   "text": "ours",
+   "floor_monthly": 1304.4,
+   "floor_note": "2 warm GPU(s) 24/7 at $0.89/h x 730 h",
+   "avatar_rate_wall_min": 0.02967,
+   "levels": {
+    "15": {
+     "avatar": 0.445,
+     "voice": 0.02,
+     "text": 0.038,
+     "transport": 0.0,
+     "total": 0.503,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 15.98,
+      "US/CA/MX @30%": 13.07,
+      "ES @15% (VAT 21% incl.)": 13.12,
+      "ES @30% (VAT 21% incl.)": 10.71
+     }
+    },
+    "30": {
+     "avatar": 0.89,
+     "voice": 0.04,
+     "text": 0.076,
+     "transport": 0.0,
+     "total": 1.006,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 15.48,
+      "US/CA/MX @30%": 12.57,
+      "ES @15% (VAT 21% incl.)": 12.62,
+      "ES @30% (VAT 21% incl.)": 10.21
+     }
+    },
+    "60": {
+     "avatar": 1.78,
+     "voice": 0.08,
+     "text": 0.151,
+     "transport": 0.0,
+     "total": 2.011,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 14.47,
+      "US/CA/MX @30%": 11.56,
+      "ES @15% (VAT 21% incl.)": 11.61,
+      "ES @30% (VAT 21% incl.)": 9.21
+     }
+    },
+    "120": {
+     "avatar": 3.56,
+     "voice": 0.16,
+     "text": 0.463,
+     "transport": 0.0,
+     "total": 4.183,
+     "fit": "fits<=$5 only",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 12.3,
+      "US/CA/MX @30%": 9.39,
+      "ES @15% (VAT 21% incl.)": 9.44,
+      "ES @30% (VAT 21% incl.)": 7.03
+     }
+    },
+    "300": {
+     "avatar": 8.9,
+     "voice": 0.4,
+     "text": 1.158,
+     "transport": 0.0,
+     "total": 10.458,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 6.02,
+      "US/CA/MX @30%": 3.12,
+      "ES @15% (VAT 21% incl.)": 3.16,
+      "ES @30% (VAT 21% incl.)": 0.76
+     }
+    }
+   },
+   "cap_minutes_at_4usd": 114,
+   "cap_minutes_at_5usd": 143,
+   "marginal_cost_per_wall_min": 0.03486,
+   "all_in_60min_with_floor": {
+    "100": 15.05,
+    "1000": 3.32
+   }
+  },
+  "imtalker": {
+   "name": "IMTalker (4090, 1.5 streams est.)",
+   "kind": "self-hosted",
+   "status": "licences clean (Apache/MIT); real-time unmeasured; CPU test: best lip closure, noisier, 512 crop only",
+   "source": "costs-capacity.md, COST_AUDIT.md, free-gpu-and-licensing.md",
+   "voice": "kokoro",
+   "text": "ours",
+   "floor_monthly": 1304.4,
+   "floor_note": "2 warm GPU(s) 24/7 at $0.89/h x 730 h",
+   "avatar_rate_wall_min": 0.01319,
+   "levels": {
+    "15": {
+     "avatar": 0.198,
+     "voice": 0.02,
+     "text": 0.038,
+     "transport": 0.0,
+     "total": 0.256,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 16.23,
+      "US/CA/MX @30%": 13.32,
+      "ES @15% (VAT 21% incl.)": 13.37,
+      "ES @30% (VAT 21% incl.)": 10.96
+     }
+    },
+    "30": {
+     "avatar": 0.396,
+     "voice": 0.04,
+     "text": 0.076,
+     "transport": 0.0,
+     "total": 0.511,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 15.97,
+      "US/CA/MX @30%": 13.06,
+      "ES @15% (VAT 21% incl.)": 13.11,
+      "ES @30% (VAT 21% incl.)": 10.71
+     }
+    },
+    "60": {
+     "avatar": 0.791,
+     "voice": 0.08,
+     "text": 0.151,
+     "transport": 0.0,
+     "total": 1.022,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 15.46,
+      "US/CA/MX @30%": 12.55,
+      "ES @15% (VAT 21% incl.)": 12.6,
+      "ES @30% (VAT 21% incl.)": 10.2
+     }
+    },
+    "120": {
+     "avatar": 1.582,
+     "voice": 0.16,
+     "text": 0.463,
+     "transport": 0.0,
+     "total": 2.205,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 14.28,
+      "US/CA/MX @30%": 11.37,
+      "ES @15% (VAT 21% incl.)": 11.42,
+      "ES @30% (VAT 21% incl.)": 9.01
+     }
+    },
+    "300": {
+     "avatar": 3.956,
+     "voice": 0.4,
+     "text": 1.158,
+     "transport": 0.0,
+     "total": 5.514,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 10.97,
+      "US/CA/MX @30%": 8.06,
+      "ES @15% (VAT 21% incl.)": 8.11,
+      "ES @30% (VAT 21% incl.)": 5.7
+     }
+    }
+   },
+   "cap_minutes_at_4usd": 217,
+   "cap_minutes_at_5usd": 272,
+   "marginal_cost_per_wall_min": 0.01838,
+   "all_in_60min_with_floor": {
+    "100": 14.07,
+    "1000": 2.33
+   }
+  },
+  "leaptalk": {
+   "name": "LeapTalk (FlashHead Pro class, 1 stream on 2x5090 est.)",
+   "kind": "self-hosted",
+   "status": "licences look clean; consumer-GPU speed unpublished; unproven",
+   "source": "costs-capacity.md, COST_AUDIT.md, free-gpu-and-licensing.md",
+   "voice": "kokoro",
+   "text": "ours",
+   "floor_monthly": 1976.0,
+   "floor_note": "2 warm GPU(s) 24/7 at $1.35/h x 730 h",
+   "avatar_rate_wall_min": 0.03,
+   "levels": {
+    "15": {
+     "avatar": 0.45,
+     "voice": 0.02,
+     "text": 0.038,
+     "transport": 0.0,
+     "total": 0.508,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 15.97,
+      "US/CA/MX @30%": 13.07,
+      "ES @15% (VAT 21% incl.)": 13.11,
+      "ES @30% (VAT 21% incl.)": 10.71
+     }
+    },
+    "30": {
+     "avatar": 0.9,
+     "voice": 0.04,
+     "text": 0.076,
+     "transport": 0.0,
+     "total": 1.016,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 15.47,
+      "US/CA/MX @30%": 12.56,
+      "ES @15% (VAT 21% incl.)": 12.61,
+      "ES @30% (VAT 21% incl.)": 10.2
+     }
+    },
+    "60": {
+     "avatar": 1.8,
+     "voice": 0.08,
+     "text": 0.151,
+     "transport": 0.0,
+     "total": 2.031,
+     "fit": "FITS<=$4",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 14.45,
+      "US/CA/MX @30%": 11.54,
+      "ES @15% (VAT 21% incl.)": 11.59,
+      "ES @30% (VAT 21% incl.)": 9.19
+     }
+    },
+    "120": {
+     "avatar": 3.6,
+     "voice": 0.16,
+     "text": 0.463,
+     "transport": 0.0,
+     "total": 4.223,
+     "fit": "fits<=$5 only",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 12.26,
+      "US/CA/MX @30%": 9.35,
+      "ES @15% (VAT 21% incl.)": 9.4,
+      "ES @30% (VAT 21% incl.)": 6.99
+     }
+    },
+    "300": {
+     "avatar": 9.0,
+     "voice": 0.4,
+     "text": 1.158,
+     "transport": 0.0,
+     "total": 10.558,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 5.92,
+      "US/CA/MX @30%": 3.02,
+      "ES @15% (VAT 21% incl.)": 3.06,
+      "ES @30% (VAT 21% incl.)": 0.66
+     }
+    }
+   },
+   "cap_minutes_at_4usd": 113,
+   "cap_minutes_at_5usd": 142,
+   "marginal_cost_per_wall_min": 0.03519,
+   "all_in_60min_with_floor": {
+    "100": 21.79,
+    "1000": 4.01
+   }
+  },
+  "liveavatar_open": {
+   "name": "Alibaba Live Avatar / FlashTalk (5-8 H800, ~$15/h, 1 stream)",
+   "kind": "self-hosted",
+   "status": "Apache-2.0 but InsightFace dep; real-time only on 5-8 H800 (alternatives.md)",
+   "source": "costs-capacity.md, COST_AUDIT.md, free-gpu-and-licensing.md",
+   "voice": "kokoro",
+   "text": "ours",
+   "floor_monthly": 10955.0,
+   "floor_note": "1 warm GPU(s) 24/7 at $15.0/h x 730 h",
+   "avatar_rate_wall_min": 0.5,
+   "levels": {
+    "15": {
+     "avatar": 7.5,
+     "voice": 0.02,
+     "text": 0.038,
+     "transport": 0.0,
+     "total": 7.558,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 8.92,
+      "US/CA/MX @30%": 6.02,
+      "ES @15% (VAT 21% incl.)": 6.06,
+      "ES @30% (VAT 21% incl.)": 3.66
+     }
+    },
+    "30": {
+     "avatar": 15.0,
+     "voice": 0.04,
+     "text": 0.076,
+     "transport": 0.0,
+     "total": 15.116,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": 1.37,
+      "US/CA/MX @30%": -1.54,
+      "ES @15% (VAT 21% incl.)": -1.49,
+      "ES @30% (VAT 21% incl.)": -3.9
+     }
+    },
+    "60": {
+     "avatar": 30.0,
+     "voice": 0.08,
+     "text": 0.151,
+     "transport": 0.0,
+     "total": 30.231,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": -13.75,
+      "US/CA/MX @30%": -16.66,
+      "ES @15% (VAT 21% incl.)": -16.61,
+      "ES @30% (VAT 21% incl.)": -19.01
+     }
+    },
+    "120": {
+     "avatar": 60.0,
+     "voice": 0.16,
+     "text": 0.463,
+     "transport": 0.0,
+     "total": 60.623,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": -44.14,
+      "US/CA/MX @30%": -47.05,
+      "ES @15% (VAT 21% incl.)": -47.0,
+      "ES @30% (VAT 21% incl.)": -49.41
+     }
+    },
+    "300": {
+     "avatar": 150.0,
+     "voice": 0.4,
+     "text": 1.158,
+     "transport": 0.0,
+     "total": 151.558,
+     "fit": "OVER",
+     "remaining": {
+      "US/CA/MX @15% (Small Business)": -135.08,
+      "US/CA/MX @30%": -137.98,
+      "ES @15% (VAT 21% incl.)": -137.94,
+      "ES @30% (VAT 21% incl.)": -140.34
+     }
+    }
+   },
+   "cap_minutes_at_4usd": 7,
+   "cap_minutes_at_5usd": 9,
+   "marginal_cost_per_wall_min": 0.50519,
+   "all_in_60min_with_floor": {
+    "100": 139.78,
+    "1000": 41.19
+   }
+  }
+ },
+ "text_ai_free_allowance": {
+  "15": {
+   "neurons_per_sub_month": 3444,
+   "neurons_per_sub_day": 114.8,
+   "subs_covered_by_free_10k_per_day": 87,
+   "text_cost_list": 0.038
+  },
+  "30": {
+   "neurons_per_sub_month": 6888,
+   "neurons_per_sub_day": 229.6,
+   "subs_covered_by_free_10k_per_day": 43,
+   "text_cost_list": 0.076
+  },
+  "60": {
+   "neurons_per_sub_month": 13776,
+   "neurons_per_sub_day": 459.2,
+   "subs_covered_by_free_10k_per_day": 21,
+   "text_cost_list": 0.151
+  },
+  "120": {
+   "neurons_per_sub_month": 42072,
+   "neurons_per_sub_day": 1402.4,
+   "subs_covered_by_free_10k_per_day": 7,
+   "text_cost_list": 0.463
+  },
+  "300": {
+   "neurons_per_sub_month": 105180,
+   "neurons_per_sub_day": 3506.0,
+   "subs_covered_by_free_10k_per_day": 2,
+   "text_cost_list": 1.158
+  }
+ }
+}
