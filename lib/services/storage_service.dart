@@ -60,6 +60,9 @@ class StorageService {
   bool get aiConsent => _prefs.getBool(_kAiConsent) ?? false;
   Future<void> setAiConsent() => _prefs.setBool(_kAiConsent, true);
 
+  /// Withdraws only that permission (You › Privacy); all other data stays.
+  Future<void> clearAiConsent() => _prefs.remove(_kAiConsent);
+
   // --- Intro slider (first-launch walkthrough) ----------------------------
 
   bool get hasSeenIntro => _prefs.getBool(_kIntroSeen) ?? false;

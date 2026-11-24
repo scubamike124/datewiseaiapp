@@ -1570,7 +1570,7 @@ abstract class AppLocalizations {
   /// AI data-sharing consent: body. Must match the Privacy Policy.
   ///
   /// In en, this message translates to:
-  /// **'To write your coach\'s replies, DateWise sends your messages (typed or spoken, as text), your coaching preferences and, if Coach memory is on, your memory note to Cloudflare Workers AI, which runs Meta\'s Llama model. They are processed only to write the reply: they are not stored on our servers, not used to train AI models and not linked to your identity. See our Privacy Policy for details.'**
+  /// **'To write your coach\'s replies, DateWise sends your messages (typed or spoken, as text), your coaching preferences, your country (US, Canada, Mexico or Spain only, for the right crisis lines) and, if Coach memory is on, your memory note to Cloudflare Workers AI, which runs Meta\'s Llama model. They are processed only to write the reply: they are not stored on our servers, not used to train AI models and not linked to your identity. See our Privacy Policy for details.'**
   String get aiConsentBody;
 
   /// AI data-sharing consent: agree button.
@@ -1584,6 +1584,168 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Not now'**
   String get aiConsentNotNow;
+
+  /// Snackbar when copying a reply option failed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t copy that. Try again.'**
+  String get copyFailed;
+
+  /// Chat notice for PAYLOAD_TOO_LARGE (HTTP 413).
+  ///
+  /// In en, this message translates to:
+  /// **'That message is too long for your coach. Shorten it and try again, or start a new conversation.'**
+  String get coachLimitTooLong;
+
+  /// Above the locked composer when the subscription lapsed and saved conversations are shown read-only.
+  ///
+  /// In en, this message translates to:
+  /// **'Your conversations are saved. Subscribe to keep chatting with {name}.'**
+  String lockedHistoryNote(String name);
+
+  /// You tab section label.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy'**
+  String get sectionPrivacy;
+
+  /// You › Privacy switch that grants or withdraws AI data-sharing consent.
+  ///
+  /// In en, this message translates to:
+  /// **'Share messages with the AI provider'**
+  String get aiSharingTitle;
+
+  /// Subtitle of the AI sharing switch when on.
+  ///
+  /// In en, this message translates to:
+  /// **'On. Your messages go to Cloudflare Workers AI only to write each reply.'**
+  String get aiSharingOn;
+
+  /// Subtitle of the AI sharing switch when off.
+  ///
+  /// In en, this message translates to:
+  /// **'Off. Nothing is sent and your coach can\'t reply. Your conversations stay on this device.'**
+  String get aiSharingOff;
+
+  /// You tab section label.
+  ///
+  /// In en, this message translates to:
+  /// **'Safety'**
+  String get sectionSafety;
+
+  /// Row / menu item / title of the static crisis-lines screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Get help now'**
+  String get getHelpNow;
+
+  /// Subtitle of the Get help now row.
+  ///
+  /// In en, this message translates to:
+  /// **'Crisis and emergency lines'**
+  String get getHelpSubtitle;
+
+  /// Intro of the Get help now screen.
+  ///
+  /// In en, this message translates to:
+  /// **'If you or someone else is in danger, call your local emergency number now. These official lines are confidential and open 24 hours. DateWise is not a crisis service.'**
+  String get getHelpIntro;
+
+  /// Country heading.
+  ///
+  /// In en, this message translates to:
+  /// **'United States'**
+  String get helpCountryUS;
+
+  /// Country heading.
+  ///
+  /// In en, this message translates to:
+  /// **'Canada'**
+  String get helpCountryCA;
+
+  /// Country heading.
+  ///
+  /// In en, this message translates to:
+  /// **'Mexico'**
+  String get helpCountryMX;
+
+  /// Country heading.
+  ///
+  /// In en, this message translates to:
+  /// **'Spain'**
+  String get helpCountryES;
+
+  /// Emergency number label.
+  ///
+  /// In en, this message translates to:
+  /// **'Emergencies'**
+  String get helpEmergency;
+
+  /// US 988.
+  ///
+  /// In en, this message translates to:
+  /// **'988 Suicide & Crisis Lifeline: call or text (free, 24/7, Spanish available)'**
+  String get helpUsSuicide;
+
+  /// US DV hotline.
+  ///
+  /// In en, this message translates to:
+  /// **'National Domestic Violence Hotline (free, 24/7)'**
+  String get helpUsAbuse;
+
+  /// US DV text line.
+  ///
+  /// In en, this message translates to:
+  /// **'Domestic violence: text START to 88788'**
+  String get helpUsAbuseText;
+
+  /// Canada 9-8-8. Do not call it free.
+  ///
+  /// In en, this message translates to:
+  /// **'9-8-8 Suicide Crisis Helpline: call or text (24/7, English or French)'**
+  String get helpCaSuicide;
+
+  /// Canada has no national DV line.
+  ///
+  /// In en, this message translates to:
+  /// **'Family or gender-based violence: contact your province\'s or territory\'s crisis line, or 9-1-1 in an emergency.'**
+  String get helpCaAbuse;
+
+  /// Mexico 800 911 2000.
+  ///
+  /// In en, this message translates to:
+  /// **'Línea de la Vida (free, 24/7)'**
+  String get helpMxSuicide;
+
+  /// Mexico 079 option 1.
+  ///
+  /// In en, this message translates to:
+  /// **'Línea de las Mujeres, gender-based violence: dial 079, then option 1 (free, 24/7)'**
+  String get helpMxWomen;
+
+  /// Spain 024.
+  ///
+  /// In en, this message translates to:
+  /// **'024 suicide crisis line (free, confidential, 24/7)'**
+  String get helpEsSuicide;
+
+  /// Spain 016.
+  ///
+  /// In en, this message translates to:
+  /// **'016 violence against women (free, 24/7, not shown on the phone bill)'**
+  String get helpEsAbuse;
+
+  /// Spain 016 WhatsApp 600 000 016.
+  ///
+  /// In en, this message translates to:
+  /// **'016 on WhatsApp'**
+  String get helpEsWhatsApp;
+
+  /// Footnote of the Get help now screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Numbers checked on official government and service websites, November 2026. In another country, call your local emergency number.'**
+  String get helpFootnote;
 }
 
 class _AppLocalizationsDelegate

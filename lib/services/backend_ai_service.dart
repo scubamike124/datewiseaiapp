@@ -17,9 +17,18 @@ import 'persona.dart';
 /// timeout, a non-200 response or an empty stream. The chat shows a friendly,
 /// localized notice with "Try again"; the user's message is kept.
 class CoachUnavailableException implements Exception {
-  const CoachUnavailableException(this.reason, {this.statusCode, this.code, this.retryAfter});
+  const CoachUnavailableException(this.reason,
+      {this.statusCode, this.code, this.retryAfter, this.entitlementRefreshed = false});
   final String reason;
   final int? statusCode;
+
+  /// True when [BackendAIService] already re-read the StoreKit entitlement
+  /// for this reply (refresh-once, see [CoachLimitCode.refreshable]), so the
+  /// app does not read it a second time (code review m4).
+  final bool entitlementRefreshed;
+
+  CoachUnavailableException _refreshed() => CoachUnavailableException(reason,
+      statusCode: statusCode, code: code, retryAfter: retryAfter, entitlementRefreshed: true);
 
   /// The backend's refusal code (chat-v7), e.g. `DAILY_LIMIT`; see [CoachLimitCode].
   final String? code;
@@ -72,6 +81,10 @@ class BackendAIService implements AIService {
   /// The newest complete turns sent as history. The Worker keeps the same
   /// number (MAX_CHAT_MESSAGES), so older turns would only cost upload bytes.
   static const int maxHistoryTurns = 24;
+
+  /// Longest text sent per turn, as the Worker trims it (`coach_prompts.js`,
+  /// 6,000 characters). The composer has the same limit.
+  static const int maxMessageChars = 6000;
 
   /// At most this many HTTP requests per reply, whatever the reason for the
   /// second one: the transient-failure retry in [streamReply] and the
@@ -154,12 +167,12 @@ class BackendAIService implements AIService {
           try {
             await refresh().timeout(const Duration(seconds: 10));
           } catch (_) {
-            throw error;
+            throw error._refreshed();
           }
           if (canceled) return;
           res = await send();
           if (canceled) return;
-          if (res.statusCode != 200) throw await refusal(res);
+          if (res.statusCode != 200) throw (await refusal(res))._refreshed();
         }
         CoachUsage.state.value = CoachUsageState.fromHeaders(res.headers);
 
@@ -315,6 +328,10 @@ class BackendAIService implements AIService {
         if (!m.hadPhoto) continue;
         text = m.isUser ? '[shared a photo for review]' : '[gave a photo critique]';
       }
+      // The Worker keeps at most [maxMessageChars] per turn; capping here too
+      // keeps one very long paste from making every later request too large
+      // (code review m3).
+      if (text.length > maxMessageChars) text = text.substring(0, maxMessageChars);
       turns.add({'role': m.isUser ? 'user' : 'assistant', 'content': text});
     }
     messages.addAll(turns.skip(math.max(0, turns.length - maxHistoryTurns)));

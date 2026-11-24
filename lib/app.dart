@@ -87,6 +87,7 @@ class RootGate extends StatelessWidget {
     }
     // Back from a paywall that interrupted the chat: straight to the chat,
     // where the user's draft is waiting.
-    return HomeShell(initialTab: state.hasDraft ? AppTab.chat : initialTab);
+    // Likewise right after onboarding, whose last button is "Chat with <coach>".
+    return HomeShell(initialTab: state.hasDraft || state.openChatFirst ? AppTab.chat : initialTab);
   }
 }

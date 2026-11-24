@@ -10,6 +10,7 @@ import '../models/chat_message.dart';
 import '../models/coach.dart';
 import '../models/reply_options.dart';
 import '../services/coach_limit_messages.dart';
+import '../services/backend_ai_service.dart' show BackendAIService;
 import '../services/coach_usage.dart';
 import '../services/reply_language.dart';
 import '../services/speech_service.dart';
@@ -20,6 +21,7 @@ import '../theme/app_theme.dart';
 import '../widgets/coach_text.dart';
 import '../widgets/dw.dart';
 import '../widgets/find_table_link.dart';
+import 'get_help_screen.dart';
 import 'paywall_screen.dart';
 import 'shell.dart';
 import '../l10n/l10n.dart';
@@ -460,6 +462,7 @@ class _ChatScreenState extends State<ChatScreen> {
          child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (_state.canChat)
             _SheetTile(
               key: const ValueKey('menu-new'),
               icon: Icons.add_comment_outlined,
@@ -485,6 +488,15 @@ class _ChatScreenState extends State<ChatScreen> {
               onTap: () {
                 Navigator.pop(ctx);
                 context.read<ShellController>().go(AppTab.coaches);
+              },
+            ),
+            _SheetTile(
+              key: const ValueKey('menu-get-help'),
+              icon: Icons.health_and_safety_outlined,
+              label: l.getHelpNow,
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.of(context).push(GetHelpScreen.route(firstCountry: _state.deviceCountry));
               },
             ),
             if (!_speech.available)
@@ -630,6 +642,10 @@ class _ChatScreenState extends State<ChatScreen> {
     context.watch<StoreService>();
     final coach = state.selectedCoach;
     final entitled = state.canChat;
+    // A lapsed subscription locks the composer, but the user's own saved
+    // conversations stay readable, and the menu (Past conversations, delete
+    // one) stays usable (QA M-1).
+    final readOnly = !entitled && state.threadsFor(coach).any((t) => t.messages.any((m) => m.isUser));
     final top = MediaQuery.paddingOf(context).top;
 
     return ValueListenableBuilder<bool>(
@@ -652,7 +668,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: _Header(
                       coach: coach,
                       speaking: speaking,
-                      onMenu: entitled ? _openMenu : null,
+                      onMenu: entitled || readOnly ? _openMenu : null,
                     ),
                   ),
                 ],
@@ -684,16 +700,18 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
             Expanded(
-              child: entitled
+              child: entitled || readOnly
                   ? _MessageList(
                       coach: coach,
                       compact: _voiceMode,
                       onStarter: _send,
                       showIntro: !_voiceMode,
                       speaking: speaking,
+                      readOnly: !entitled,
                     )
                   : _Locked(coach: coach),
             ),
+            if (readOnly) ContentWidth(child: _LockedBar(coach: coach)),
             if (entitled) const ContentWidth(child: _UsageNotice()),
             if (entitled)
               ContentWidth(
@@ -917,6 +935,7 @@ class _MessageList extends StatelessWidget {
     required this.onStarter,
     required this.showIntro,
     required this.speaking,
+    this.readOnly = false,
   });
 
   final Coach coach;
@@ -924,6 +943,10 @@ class _MessageList extends StatelessWidget {
   final ValueChanged<String> onStarter;
   final bool showIntro;
   final bool speaking;
+
+  /// Saved conversations shown without a subscription: no starters and no
+  /// "Try again" (nothing can be sent).
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -944,9 +967,9 @@ class _MessageList extends StatelessWidget {
           coach: coach,
           showOptions: i == messages.length - 1,
           showFindTable: datePlan && i == messages.length - 1,
-          onRetry: i == messages.length - 1 && state.canRetry ? state.retryLastReply : null,
+          onRetry: !readOnly && i == messages.length - 1 && state.canRetry ? state.retryLastReply : null,
         ),
-      if (!hasUser) _Starters(coach: coach, onTap: onStarter),
+      if (!hasUser && !readOnly) _Starters(coach: coach, onTap: onStarter),
     ];
 
     // Newest at the bottom (reversed list), but a short conversation starts
@@ -1122,6 +1145,30 @@ class _ReplyOptions extends StatelessWidget {
   const _ReplyOptions({required this.options});
   final List<ReplyOption> options;
 
+  /// Copies [text] and says "Copied" only when the copy worked (QA m-1); a
+  /// failure says so instead. The snackbar floats above the composer, like
+  /// the other chat snackbars.
+  static Future<void> _copy(BuildContext context, String text) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final l = context.l10n;
+    final margin = context.findAncestorStateOfType<_ChatScreenState>()?._aboveDock() ??
+        const EdgeInsets.fromLTRB(15, 5, 15, 10);
+    var ok = true;
+    try {
+      await Clipboard.setData(ClipboardData(text: text));
+    } catch (_) {
+      ok = false;
+    }
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        key: ValueKey(ok ? 'copy-ok' : 'copy-failed'),
+        behavior: SnackBarBehavior.floating,
+        margin: margin,
+        content: WholeWordsText(ok ? l.copiedReply : l.copyFailed),
+      ));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Wrap(
@@ -1136,10 +1183,7 @@ class _ReplyOptions extends StatelessWidget {
             child: InkWell(
               key: ValueKey('option-${o.label}'),
               borderRadius: BorderRadius.circular(14),
-              onTap: () {
-                Clipboard.setData(ClipboardData(text: o.text));
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.copiedReply)));
-              },
+              onTap: () => _copy(context, o.text),
               child: Container(
                 constraints: const BoxConstraints(minHeight: 44, maxWidth: 240),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -1249,6 +1293,15 @@ class _Composer extends StatelessWidget {
                 focusNode: focus,
                 minLines: 1,
                 maxLines: 5,
+                // The Worker reads at most this much per message (code review m3); the
+                // counter appears only near the limit.
+                maxLength: BackendAIService.maxMessageChars,
+                maxLengthEnforcement: MaxLengthEnforcement.enforced,
+                buildCounter: (_, {required currentLength, required isFocused, maxLength}) =>
+                    maxLength != null && currentLength > maxLength - 500
+                        ? Text('$currentLength/$maxLength',
+                            key: const ValueKey('composer-counter'), style: AppText.small)
+                        : null,
                 textCapitalization: TextCapitalization.sentences,
                 textInputAction: TextInputAction.send,
                 // While a reply streams, Enter does nothing: the text and the
@@ -1457,6 +1510,40 @@ class _Locked extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The premium card above the locked composer while saved conversations are
+/// shown read-only (QA M-1).
+class _LockedBar extends StatelessWidget {
+  const _LockedBar({required this.coach});
+  final Coach coach;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    return Padding(
+      key: const ValueKey('locked-bar'),
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+      child: DwCard(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(l.premiumEyebrow.toUpperCase(), style: AppText.eyebrow),
+            const SizedBox(height: 6),
+            WholeWordsText(l.lockedHistoryNote(coach.name), key: const ValueKey('locked-history-note'), style: AppText.body),
+            const SizedBox(height: 10),
+            DwButton(
+              key: const ValueKey('locked-subscribe'),
+              label: l.seePremium,
+              expand: true,
+              onPressed: () => showPaywall(context),
             ),
           ],
         ),

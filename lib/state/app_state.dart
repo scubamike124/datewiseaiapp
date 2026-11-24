@@ -27,10 +27,12 @@ class AppState extends ChangeNotifier {
     required AIService ai,
     StoreService? store,
     DateTime Function()? clock,
+    String? Function()? deviceRegion,
   })  : _storage = storage,
         _ai = ai,
         _store = store,
-        _clock = clock ?? DateTime.now {
+        _clock = clock ?? DateTime.now,
+        _deviceRegion = deviceRegion ?? _platformRegion {
     _load();
   }
 
@@ -38,6 +40,7 @@ class AppState extends ChangeNotifier {
   final AIService _ai;
   final StoreService? _store;
   final DateTime Function() _clock;
+  final String? Function() _deviceRegion;
   final _uuid = const Uuid();
 
   /// DateWise has one premium plan; the backend protocol still names a tier,
@@ -92,12 +95,24 @@ class AppState extends ChangeNotifier {
 
   /// True once the user agreed, in the chat, to share their messages with
   /// the third-party AI provider (Cloudflare Workers AI). Nothing is sent
-  /// before that ([sendMessage] refuses). Cleared by [deleteMyData].
+  /// before that ([sendMessage] refuses). Cleared by [revokeAiConsent] (the
+  /// You › Privacy switch, which keeps all data) and by [deleteMyData].
   bool get aiConsentGiven => _aiConsent;
 
   Future<void> giveAiConsent() async {
     _aiConsent = true;
     await _storage.setAiConsent();
+    notifyListeners();
+  }
+
+  /// Withdraws the AI data-sharing consent (You › Privacy switch, Guideline
+  /// 5.1.1(ii)) without deleting anything: conversations, plan, progress and
+  /// memory stay on the device. A reply that is streaming is stopped, and
+  /// nothing more is sent until the user agrees again.
+  Future<void> revokeAiConsent() async {
+    _aiConsent = false;
+    await cancelReply();
+    await _storage.clearAiConsent();
     notifyListeners();
   }
 
@@ -117,10 +132,18 @@ class AppState extends ChangeNotifier {
     await _storage.savePlan(_plan!);
     await selectCoach(coachId);
     _onboarded = true;
+    _openChatFirst = true;
     await _storage.setOnboarded();
     notifyListeners();
     return true;
   }
+
+  bool _openChatFirst = false;
+
+  /// True after onboarding ended with "Chat with {coach}" in this session: the
+  /// app (after the paywall) opens on the Chat tab, not Home (QA m-4).
+  /// Not stored: a later launch opens on Home as usual.
+  bool get openChatFirst => _openChatFirst;
 
   Future<void> setLanguage(CoachLanguage lang) async {
     _profile = (_profile ?? const UserProfile()).copyWith(language: lang);
@@ -174,9 +197,20 @@ class AppState extends ChangeNotifier {
   UserProfile? get profileForCoach {
     final base = _profile;
     final memory = _memoryEnabled && _memoryText.trim().isNotEmpty ? _memoryText.trim() : null;
-    if (base == null) return memory == null ? null : UserProfile(memory: memory);
-    return memory == null ? base.copyWith(clearMemory: true) : base.copyWith(memory: memory);
+    final country = deviceCountry;
+    if (base == null) {
+      return memory == null && country == null ? null : UserProfile(memory: memory, country: country);
+    }
+    return memory == null
+        ? base.copyWith(clearMemory: true, country: country)
+        : base.copyWith(memory: memory, country: country);
   }
+
+  /// The device region when it has its own crisis lines (US, CA, MX, ES),
+  /// else null (the coach then lists all four). Read from the device locale.
+  String? get deviceCountry => UserProfile.crisisCountryOf(_deviceRegion());
+
+  static String? _platformRegion() => PlatformDispatcher.instance.locale.countryCode;
 
   // --- Weekly plan --------------------------------------------------------
 
@@ -520,7 +554,11 @@ class AppState extends ChangeNotifier {
                 coachMsg.failure = replyFailureFor(e);
                 // The server knows about a refund, revocation or expiry before the device may: re-read the
                 // entitlement now, so the composer locks and Settings stops saying "Active" (UI review M2).
-                if (CoachLimitCode.entitlementChanged.contains(coachMsg.failedCode)) unawaited(_store?.refresh());
+                // Not twice: BackendAIService may already have re-read it for this reply (code review m4).
+                if (CoachLimitCode.entitlementChanged.contains(coachMsg.failedCode) &&
+                    !(e is CoachUnavailableException && e.entitlementRefreshed)) {
+                  unawaited(_store?.refresh());
+                }
                 finish();
               },
               onDone: finish,
@@ -649,6 +687,7 @@ class AppState extends ChangeNotifier {
     _onboarded = false;
     _paywallDismissed = false;
     _aiConsent = false;
+    _openChatFirst = false;
     notifyListeners();
   }
 

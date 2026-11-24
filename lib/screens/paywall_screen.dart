@@ -177,32 +177,29 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         end: Alignment.bottomRight,
                         colors: [Color(0xFF2E2019), AppColors.surface],
                       ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(StoreConfig.productTitle, style: AppText.label),
-                                const SizedBox(height: 2),
-                                Text(l.monthlyAutoRenews, style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          // The price takes only the width it needs (up to 140), so the plan name and
-                          // "Monthly · auto-renews" keep the rest instead of a 50/50 split (UI review M1).
-                          // scaleDown: a long localized StoreKit price ("MX$399.00") at large Dynamic Type
-                          // shrinks to fit instead of overflowing.
+                      // Narrow screens and large Dynamic Type (320 pt at 200%): the price goes under the
+                      // plan name instead of beside it, so the name keeps the full width and never
+                      // breaks inside a word (code review m9).
+                      child: LayoutBuilder(builder: (context, c) {
+                        final stacked = c.maxWidth - 148 < 140 * MediaQuery.textScalerOf(context).scale(1);
+                        final name = Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const WholeWordsText(StoreConfig.productTitle, key: ValueKey('paywall-plan-name'), style: AppText.label),
+                            const SizedBox(height: 2),
+                            WholeWordsText(l.monthlyAutoRenews, style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                          ],
+                        );
+                        final priceColumn =
                           ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 140),
+                            constraints: BoxConstraints(maxWidth: stacked ? double.infinity : 140),
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
+                              crossAxisAlignment: stacked ? CrossAxisAlignment.start : CrossAxisAlignment.end,
                               children: [
                                 if (price != null) ...[
                                   FittedBox(
                                     fit: BoxFit.scaleDown,
-                                    alignment: Alignment.centerRight,
+                                    alignment: stacked ? Alignment.centerLeft : Alignment.centerRight,
                                     child: Text(
                                       price,
                                       key: const ValueKey('paywall-price'),
@@ -217,15 +214,30 @@ class _PaywallScreenState extends State<PaywallScreen> {
                                     child: Text(
                                       l.priceFromAppStore,
                                       key: const ValueKey('paywall-price'),
-                                      textAlign: TextAlign.end,
+                                      textAlign: stacked ? TextAlign.start : TextAlign.end,
                                       style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
                                     ),
                                   ),
                               ],
                             ),
-                          ),
-                        ],
-                      ),
+                          );
+                        return stacked
+                            ? Column(
+                                key: const ValueKey('paywall-plan-stacked'),
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [name, const SizedBox(height: 10), priceColumn],
+                              )
+                            : Row(
+                                children: [
+                                  Expanded(child: name),
+                                  const SizedBox(width: 8),
+                                  // The price takes only the width it needs (up to 140), so the plan name and
+                                  // "Monthly · auto-renews" keep the rest (UI review M1). scaleDown: a long
+                                  // localized StoreKit price ("MX$399.00") shrinks to fit instead of overflowing.
+                                  priceColumn,
+                                ],
+                              );
+                      }),
                     ),
                     const SizedBox(height: 16),
                     if (unsupported)

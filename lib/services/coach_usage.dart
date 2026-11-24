@@ -49,12 +49,16 @@ class CoachLimitCode {
   static const entitlementChanged = {subscriptionRevoked, subscriptionExpired, subscriptionRequired};
   static const appUpdateRequired = 'APP_UPDATE_REQUIRED';
 
+  /// HTTP 413: the request was too large (a very long message).
+  static const payloadTooLarge = 'PAYLOAD_TOO_LARGE';
+
   /// Codes that a fresh StoreKit entitlement may fix (one refresh, one retry).
   static const refreshable = {subscriptionExpired, subscriptionInvalid, subscriptionRequired};
 
   /// Codes that an immediate retry cannot fix, so the chat offers none:
-  /// the daily and monthly caps, a refunded purchase and an outdated app.
-  static const noInstantRetry = {dailyLimit, monthlyLimit, subscriptionRevoked, appUpdateRequired};
+  /// the daily and monthly caps, a refunded purchase, an outdated app and a
+  /// message that is too long.
+  static const noInstantRetry = {dailyLimit, monthlyLimit, subscriptionRevoked, appUpdateRequired, payloadTooLarge};
 
   /// Codes whose chat notice also offers the paywall (Subscribe and Restore
   /// purchases): the subscription is not active, was refunded or revoked, or

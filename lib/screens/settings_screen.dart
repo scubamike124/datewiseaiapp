@@ -12,6 +12,7 @@ import '../services/store_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/dw.dart';
+import 'get_help_screen.dart';
 import 'legal_screen.dart';
 import 'paywall_screen.dart';
 import 'shell.dart';
@@ -191,6 +192,38 @@ class SettingsScreen extends StatelessWidget {
                   },
                 ),
             ]),
+            _SectionLabel(l.sectionPrivacy),
+            _Group(children: [
+              _SwitchRow(
+                key: const ValueKey('row-ai-sharing'),
+                icon: Icons.cloud_outlined,
+                title: l.aiSharingTitle,
+                subtitle: state.aiConsentGiven ? l.aiSharingOn : l.aiSharingOff,
+                value: state.aiConsentGiven,
+                onChanged: (on) async {
+                  if (!on) {
+                    // Withdraws only the permission; every conversation stays (Guideline 5.1.1(ii)).
+                    await state.revokeAiConsent();
+                    return;
+                  }
+                  // Turning it on is the same informed agreement as in the chat.
+                  if (await showConfirmDialog(context, l.aiConsentTitle, l.aiConsentBody, l.aiConsentAgree,
+                      actionColor: AppColors.gold, cancelLabel: l.aiConsentNotNow)) {
+                    await state.giveAiConsent();
+                  }
+                },
+              ),
+            ]),
+            _SectionLabel(l.sectionSafety),
+            _Group(children: [
+              _Row(
+                key: const ValueKey('row-get-help'),
+                icon: Icons.health_and_safety_outlined,
+                title: l.getHelpNow,
+                subtitle: l.getHelpSubtitle,
+                onTap: () => Navigator.of(context).push(GetHelpScreen.route(firstCountry: state.deviceCountry)),
+              ),
+            ]),
             _SectionLabel(l.sectionData),
             _Group(children: [
               _Row(
@@ -360,7 +393,8 @@ class _Row extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: TextStyle(fontSize: 15.5, color: color, height: 1.3)),
+                    // Whole words at large text: "Language" never breaks as "Languag / e" (QA m-2).
+                    WholeWordsText(title, style: TextStyle(fontSize: 15.5, color: color, height: 1.3)),
                     if (subtitle != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
@@ -433,7 +467,7 @@ class _SwitchRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(fontSize: 15.5, color: AppColors.text, height: 1.3)),
+                    WholeWordsText(title, style: const TextStyle(fontSize: 15.5, color: AppColors.text, height: 1.3)),
                     const SizedBox(height: 2),
                     Text(subtitle, style: const TextStyle(fontSize: 13, height: 1.35, color: AppColors.textMuted)),
                   ],

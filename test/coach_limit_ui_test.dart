@@ -229,24 +229,14 @@ void main() {
       setSurface(tester, const Size(390, 844), 1);
       SharedPreferences.setMockInitialValues(onboardedPrefs());
       final storage = await StorageService.create();
-      final store = _CountingStore();
+      final store = FakeStoreService(entitled: true);
       final app = TestApp(AppState(storage: storage, ai: _RefusingAI(403, code), store: store), store, storage);
       await tester.pumpWidget(wrap(app, const DateWiseApp(initialTab: AppTab.chat)));
       await tester.pump();
-      final before = store.refreshes;
+      final before = store.refreshCalls;
       await _send(tester, 'Hi');
-      expect(store.refreshes - before, rereads);
+      expect(store.refreshCalls - before, rereads);
     });
-  }
-}
-
-class _CountingStore extends FakeStoreService {
-  _CountingStore() : super(entitled: true);
-  int refreshes = 0;
-  @override
-  Future<void> refresh() async {
-    refreshes++;
-    await super.refresh();
   }
 }
 

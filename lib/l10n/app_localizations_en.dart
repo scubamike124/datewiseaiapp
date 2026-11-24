@@ -1,6 +1,5 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
-
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -925,11 +924,105 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aiConsentBody =>
-      'To write your coach\'s replies, DateWise sends your messages (typed or spoken, as text), your coaching preferences and, if Coach memory is on, your memory note to Cloudflare Workers AI, which runs Meta\'s Llama model. They are processed only to write the reply: they are not stored on our servers, not used to train AI models and not linked to your identity. See our Privacy Policy for details.';
+      'To write your coach\'s replies, DateWise sends your messages (typed or spoken, as text), your coaching preferences, your country (US, Canada, Mexico or Spain only, for the right crisis lines) and, if Coach memory is on, your memory note to Cloudflare Workers AI, which runs Meta\'s Llama model. They are processed only to write the reply: they are not stored on our servers, not used to train AI models and not linked to your identity. See our Privacy Policy for details.';
 
   @override
   String get aiConsentAgree => 'Agree';
 
   @override
   String get aiConsentNotNow => 'Not now';
+
+  @override
+  String get copyFailed => 'Couldn\'t copy that. Try again.';
+
+  @override
+  String get coachLimitTooLong =>
+      'That message is too long for your coach. Shorten it and try again, or start a new conversation.';
+
+  @override
+  String lockedHistoryNote(String name) {
+    return 'Your conversations are saved. Subscribe to keep chatting with $name.';
+  }
+
+  @override
+  String get sectionPrivacy => 'Privacy';
+
+  @override
+  String get aiSharingTitle => 'Share messages with the AI provider';
+
+  @override
+  String get aiSharingOn =>
+      'On. Your messages go to Cloudflare Workers AI only to write each reply.';
+
+  @override
+  String get aiSharingOff =>
+      'Off. Nothing is sent and your coach can\'t reply. Your conversations stay on this device.';
+
+  @override
+  String get sectionSafety => 'Safety';
+
+  @override
+  String get getHelpNow => 'Get help now';
+
+  @override
+  String get getHelpSubtitle => 'Crisis and emergency lines';
+
+  @override
+  String get getHelpIntro =>
+      'If you or someone else is in danger, call your local emergency number now. These official lines are confidential and open 24 hours. DateWise is not a crisis service.';
+
+  @override
+  String get helpCountryUS => 'United States';
+
+  @override
+  String get helpCountryCA => 'Canada';
+
+  @override
+  String get helpCountryMX => 'Mexico';
+
+  @override
+  String get helpCountryES => 'Spain';
+
+  @override
+  String get helpEmergency => 'Emergencies';
+
+  @override
+  String get helpUsSuicide =>
+      '988 Suicide & Crisis Lifeline: call or text (free, 24/7, Spanish available)';
+
+  @override
+  String get helpUsAbuse => 'National Domestic Violence Hotline (free, 24/7)';
+
+  @override
+  String get helpUsAbuseText => 'Domestic violence: text START to 88788';
+
+  @override
+  String get helpCaSuicide =>
+      '9-8-8 Suicide Crisis Helpline: call or text (24/7, English or French)';
+
+  @override
+  String get helpCaAbuse =>
+      'Family or gender-based violence: contact your province\'s or territory\'s crisis line, or 9-1-1 in an emergency.';
+
+  @override
+  String get helpMxSuicide => 'Línea de la Vida (free, 24/7)';
+
+  @override
+  String get helpMxWomen =>
+      'Línea de las Mujeres, gender-based violence: dial 079, then option 1 (free, 24/7)';
+
+  @override
+  String get helpEsSuicide =>
+      '024 suicide crisis line (free, confidential, 24/7)';
+
+  @override
+  String get helpEsAbuse =>
+      '016 violence against women (free, 24/7, not shown on the phone bill)';
+
+  @override
+  String get helpEsWhatsApp => '016 on WhatsApp';
+
+  @override
+  String get helpFootnote =>
+      'Numbers checked on official government and service websites, November 2026. In another country, call your local emergency number.';
 }

@@ -665,7 +665,7 @@ class AppLocalizationsEs extends AppLocalizations {
       other: '$count días',
       one: '1 día',
     );
-    return 'En total, has hablado con un coach $_temp0.';
+    return 'En total, hablaste con un coach $_temp0.';
   }
 
   @override
@@ -948,11 +948,106 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get aiConsentBody =>
-      'Para escribir las respuestas de tu coach, DateWise envía tus mensajes (escritos o dichos en voz alta, como texto), tus preferencias de coaching y, si la Memoria del coach está activada, tu nota a Cloudflare Workers AI, que ejecuta el modelo Llama de Meta. Solo se procesan para escribir la respuesta: no se guardan en nuestros servidores, no se usan para entrenar modelos de IA y no se vinculan con tu identidad. Consulta nuestra Política de privacidad para más detalles.';
+      'Para escribir las respuestas de tu coach, DateWise envía tus mensajes (escritos o dichos en voz alta, como texto), tus preferencias de coaching, tu país (solo Estados Unidos, Canadá, México o España, para las líneas de crisis correctas) y, si la Memoria del coach está activada, tu nota a Cloudflare Workers AI, que ejecuta el modelo Llama de Meta. Solo se procesan para escribir la respuesta: no se guardan en nuestros servidores, no se usan para entrenar modelos de IA y no se vinculan con tu identidad. Consulta nuestra Política de privacidad para más detalles.';
 
   @override
   String get aiConsentAgree => 'Aceptar';
 
   @override
   String get aiConsentNotNow => 'Ahora no';
+
+  @override
+  String get copyFailed => 'No se pudo copiar. Inténtalo de nuevo.';
+
+  @override
+  String get coachLimitTooLong =>
+      'Ese mensaje es demasiado largo para tu coach. Acórtalo y vuelve a intentarlo, o empieza una conversación nueva.';
+
+  @override
+  String lockedHistoryNote(String name) {
+    return 'Tus conversaciones están guardadas. Suscríbete para seguir chateando con $name.';
+  }
+
+  @override
+  String get sectionPrivacy => 'Privacidad';
+
+  @override
+  String get aiSharingTitle => 'Compartir mensajes con el proveedor de IA';
+
+  @override
+  String get aiSharingOn =>
+      'Activado. Tus mensajes van a Cloudflare Workers AI solo para escribir cada respuesta.';
+
+  @override
+  String get aiSharingOff =>
+      'Desactivado. No se envía nada y tu coach no puede responder. Tus conversaciones se quedan en este dispositivo.';
+
+  @override
+  String get sectionSafety => 'Seguridad';
+
+  @override
+  String get getHelpNow => 'Ayuda inmediata';
+
+  @override
+  String get getHelpSubtitle => 'Líneas de crisis y emergencia';
+
+  @override
+  String get getHelpIntro =>
+      'Si tú u otra persona están en peligro, llama ahora al número de emergencias. Estas líneas oficiales son confidenciales y atienden las 24 horas. DateWise no es un servicio de crisis.';
+
+  @override
+  String get helpCountryUS => 'Estados Unidos';
+
+  @override
+  String get helpCountryCA => 'Canadá';
+
+  @override
+  String get helpCountryMX => 'México';
+
+  @override
+  String get helpCountryES => 'España';
+
+  @override
+  String get helpEmergency => 'Emergencias';
+
+  @override
+  String get helpUsSuicide =>
+      '988 Suicide & Crisis Lifeline: llama o envía un mensaje (gratuita, las 24 horas, en español)';
+
+  @override
+  String get helpUsAbuse =>
+      'Línea Nacional contra la Violencia Doméstica (gratuita, las 24 horas)';
+
+  @override
+  String get helpUsAbuseText => 'Violencia doméstica: envía START al 88788';
+
+  @override
+  String get helpCaSuicide =>
+      '9-8-8 Suicide Crisis Helpline: llama o envía un mensaje (las 24 horas, en inglés o francés)';
+
+  @override
+  String get helpCaAbuse =>
+      'Violencia familiar o de género: llama a la línea de crisis de tu provincia o territorio, o al 9-1-1 en una emergencia.';
+
+  @override
+  String get helpMxSuicide => 'Línea de la Vida (gratuita, las 24 horas)';
+
+  @override
+  String get helpMxWomen =>
+      'Línea de las Mujeres, violencia de género: marca 079 y elige la opción 1 (gratuita, las 24 horas)';
+
+  @override
+  String get helpEsSuicide =>
+      '024, línea de atención a la conducta suicida (gratuita, confidencial, las 24 horas)';
+
+  @override
+  String get helpEsAbuse =>
+      '016, violencia machista (gratuito, las 24 horas, no aparece en la factura)';
+
+  @override
+  String get helpEsWhatsApp => '016 por WhatsApp';
+
+  @override
+  String get helpFootnote =>
+      'Números verificados en los sitios oficiales en noviembre de 2026. En otro país, llama al número de emergencias local.';
 }
