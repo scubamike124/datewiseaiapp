@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../l10n/l10n.dart';
+import '../services/owner_access.dart';
 import '../services/store_service.dart';
 import '../theme/app_theme.dart';
 
@@ -76,6 +77,12 @@ class StoreStatusSheet extends StatelessWidget {
                   onPressed: () => Clipboard.setData(ClipboardData(text: text)),
                   child: Text(l.storeStatusCopy),
                 ),
+                // Hidden owner-only access (not localized, never shown to customers): see docs/OWNER_ACCESS.md.
+                TextButton(
+                  key: const ValueKey('owner-code-open'),
+                  onPressed: () => _ownerCode(context),
+                  child: Text(OwnerAccess.instance.active ? 'Owner access: on' : 'Owner code'),
+                ),
                 if (d != null)
                   TextButton(
                     key: const ValueKey('store-status-retry'),
@@ -109,3 +116,31 @@ String storeStatusLabel(AppLocalizations l, StoreStatusField f) => switch (f) {
       StoreStatusField.statusRead => l.storeStatusStatusRead,
       StoreStatusField.paywallError => l.storeStatusPaywallError,
     };
+
+Future<void> _ownerCode(BuildContext context) async {
+  final ctl = TextEditingController();
+  final code = await showDialog<String>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Owner code'),
+      content: TextField(key: const ValueKey('owner-code-field'), controller: ctl, obscureText: true, autocorrect: false, enableSuggestions: false),
+      actions: [
+        if (OwnerAccess.instance.active)
+          TextButton(onPressed: () => Navigator.pop(ctx, '\u0000clear'), child: const Text('Turn off')),
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+        TextButton(key: const ValueKey('owner-code-submit'), onPressed: () => Navigator.pop(ctx, ctl.text), child: const Text('OK')),
+      ],
+    ),
+  );
+  ctl.dispose();
+  if (code == null || code.isEmpty) return;
+  var ok = true;
+  if (code == '\u0000clear') {
+    await OwnerAccess.instance.clear();
+  } else {
+    ok = await OwnerAccess.instance.redeem(code);
+  }
+  if (context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Done' : 'Not accepted')));
+  }
+}

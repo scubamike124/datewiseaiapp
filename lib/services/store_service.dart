@@ -7,6 +7,7 @@ import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart' show InA
 import 'package:in_app_purchase_storekit/store_kit_2_wrappers.dart';
 
 import 'coach_usage.dart';
+import 'owner_access.dart';
 
 /// DateWise has exactly one product: an auto-renewable monthly subscription.
 /// No free plan, no trial, no annual plan.
@@ -313,6 +314,7 @@ class AppStoreService extends StoreService {
       : _iap = iap ?? InAppPurchase.instance,
         _appStoreSync = appStoreSync ?? (() => AppStore().sync()) {
     EntitlementToken.refresher = refresh;
+    OwnerAccess.instance.addListener(notifyListeners);
   }
 
   final InAppPurchase _iap;
@@ -358,6 +360,12 @@ class AppStoreService extends StoreService {
   bool _loadingProduct = false;
 
   @override
+  void dispose() {
+    OwnerAccess.instance.removeListener(notifyListeners);
+    super.dispose();
+  }
+
+  @override
   bool get ready => _ready;
 
   @override
@@ -376,7 +384,7 @@ class AppStoreService extends StoreService {
   @override
   bool get canPurchase => _available && _product != null;
   @override
-  bool get isEntitled => _entitled;
+  bool get isEntitled => _entitled || OwnerAccess.instance.active;
   @override
   String? get storePrice => _product?.price;
   @override

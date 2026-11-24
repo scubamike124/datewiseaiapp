@@ -24,6 +24,7 @@
  * Every limit is a Worker variable (wrangler.toml [vars]). The defaults are
  * provisional; see docs/business/AI_COST_MODEL.md.
  */
+import { ownerAttemptOp, verifyOwnerToken, ownerKey, handleOwner } from './owner_access.js';
 import { JwsError, sha256Hex, verifyAppleJws } from './apple_jws.js';
 
 export const GUARD_VERSION = 'chat-v7-cost-guard';
@@ -343,6 +344,7 @@ export class UsageGuard {
       'set-revoked': () => this.setRevoked(body),
       'sub-event': () => this.subEvent(body),
       'sub-status': () => this.subStatus(body),
+      'owner-attempt': () => ownerAttemptOp(this.storage, body),
     };
     if (!Object.hasOwn(ops, op)) return new Response('not found', { status: 404 });
     return new Response(JSON.stringify(await ops[op]()), { headers: { 'Content-Type': 'application/json' } });
@@ -616,7 +618,14 @@ export async function admit(request, env, cors, { kind, model, inTokens, outToke
     softPercent: cfg.SOFT_NOTICE_PERCENT,
     leaseMs: cfg.LEASE_SECONDS * 1000,
   };
-  if (jws) {
+  // Owner-only premium (owner_access.js): a valid owner token counts as a Production subscriber with the
+  // normal limits. Absent, invalid, expired or disabled: the request is judged as before, by the JWS.
+  const ownerTok = request.headers.get('X-DateWise-Owner');
+  const owner = ownerTok ? await verifyOwnerToken(ownerTok, env, now) : null;
+  if (owner) {
+    key = await ownerKey(cfg, owner.deviceId);
+    limits = { ...base, daily: cfg.DAILY_MESSAGE_LIMIT, monthly: cfg.MONTHLY_MESSAGE_LIMIT };
+  } else if (jws) {
     let r = await checkEntitlement(jws, cfg, now);
     if (r.code === 'SUBSCRIPTION_EXPIRED' && r.tx && cfg.ASSN_ENABLED && hasGuard) {
       // The device may still hold the previous period's token (a renewal that
@@ -661,7 +670,7 @@ export async function admit(request, env, cors, { kind, model, inTokens, outToke
     key = netKey;
     limits = { ...base, daily: cfg.ANON_DAILY_LIMIT, monthly: cfg.ANON_MONTHLY_LIMIT };
   }
-  const anon = !jws;
+  const anon = !jws && !owner;
   const sandbox = verified?.environment === 'Sandbox';
   const who = cfg.SALT_SET ? key.slice(0, key.indexOf(':') + 13) : undefined;
   const reserveNeurons = neurons ?? neuronsFor(model, inTokens, outTokens);
@@ -771,6 +780,18 @@ export async function admit(request, env, cors, { kind, model, inTokens, outToke
  * outcome is 'done', 'error' (the upstream stream failed: a server-side
  * error) or 'canceled' (the client went away: what was produced still counts).
  */
+/** Owner redeem/renew routes: the durable attempt counter lives in the UsageGuard Durable Object. */
+export async function ownerRoute(request, env, cors, path) {
+  const cfg = guardConfig(env);
+  const now = Date.now();
+  const netKey = await anonKey(cfg, request.headers.get('CF-Connecting-IP') || 'unknown');
+  const attempt = async (name, max) => {
+    if (!(env.USAGE_GUARD && typeof env.USAGE_GUARD.idFromName === 'function')) throw new Error('no guard');
+    return (await callDo(env, name, 'owner-attempt', { now, max })).ok;
+  };
+  return handleOwner(request, env, cors, { path, ipHash: netKey.slice(5, 37), now, attempt });
+}
+
 export function meterStream(stream, onEnd) {
   const decoder = new TextDecoder();
   const reader = stream.getReader();

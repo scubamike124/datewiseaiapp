@@ -19,7 +19,7 @@
  * (1.0.2): its chat and photo coach keep their chat-v6 behaviour, in the
  * anonymous caps and their budget slice, while LEGACY_CLIENTS=1. See docs/business/AI_COST_MODEL.md.
  */
-import { admit, estimateTokens, fitToInputBudget, guardConfig, guardError, handleAppleNotification, meterStream, meteredAi, neuronsFor, readBodyCapped, upstreamErrorDetail, GUARD_VERSION } from './cost_guard.js';
+import { admit, estimateTokens, fitToInputBudget, guardConfig, guardError, handleAppleNotification, ownerRoute, meterStream, meteredAi, neuronsFor, readBodyCapped, upstreamErrorDetail, GUARD_VERSION } from './cost_guard.js';
 import { cleanClientText, coachMessages, resolveCoachId } from './coach_prompts.js';
 export { UsageGuard } from './cost_guard.js';
 
@@ -52,7 +52,7 @@ function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': DEFAULT_ORIGIN,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-DateWise-Entitlement',
+    'Access-Control-Allow-Headers': 'Content-Type, X-DateWise-Entitlement, X-DateWise-Owner',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
@@ -615,7 +615,7 @@ function legacyUpdateNotice(request, body) {
 async function handleChat(request, env, ctx, body) {
   const cfg = guardConfig(env);
   const legacy =
-    (body.coachId === undefined || body.coachId === null) && !request.headers.get('X-DateWise-Entitlement');
+    (body.coachId === undefined || body.coachId === null) && !request.headers.get('X-DateWise-Entitlement') && !request.headers.get('X-DateWise-Owner');
   let safe;
   if (legacy) {
     if (!cfg.LEGACY_CLIENTS) return legacyUpdateNotice(request, body);
@@ -742,7 +742,11 @@ async function route(request, env, ctx) {
       return json({ error: 'Method not allowed' }, 405);
     }
     // Optional App Store Server Notifications v2 (refunds/revocations); off by default.
-    if (new URL(request.url).pathname === '/apple/notifications') {
+    const pathname = new URL(request.url).pathname;
+    if (pathname === '/owner/redeem' || pathname === '/owner/renew') {
+      return await ownerRoute(request, env, corsHeaders(), pathname);
+    }
+    if (pathname === '/apple/notifications') {
       return await handleAppleNotification(request, env);
     }
     if (!env.AI) {
@@ -760,7 +764,7 @@ async function route(request, env, ctx) {
     // base64 images well over the v2 cap. Once v1 is no longer served it gets the same "please update" notice as
     // a small v1 photo request (v1 shows the body text), not a bare 413 (code review M1). Nothing is parsed.
     const tooLarge = () =>
-      !legacyServed && !request.headers.get('X-DateWise-Entitlement')
+      !legacyServed && !request.headers.get('X-DateWise-Entitlement') && !request.headers.get('X-DateWise-Owner')
         ? guardError('APP_UPDATE_REQUIRED', corsHeaders(), { message: 'Please update DateWise from the App Store.' })
         : json({ error: 'Request too large', code: 'PAYLOAD_TOO_LARGE' }, 413);
     const declared = Number(request.headers.get('Content-Length') || 0);
