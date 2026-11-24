@@ -142,8 +142,14 @@ class _PaywallScreenState extends State<PaywallScreen> {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    CoachImage(coach: coach, semanticLabel: l.coachPortrait(coach.name)),
-                    const FadeToBackground(stops: [0.4, 1]),
+                    // The band is short (UI audit 12/13), so frame the whole face (brows to chin) and
+                    // start the fade below the mouth instead of at the nose (independent review, major 1).
+                    CoachImage(
+                      coach: coach,
+                      semanticLabel: l.coachPortrait(coach.name),
+                      alignment: Alignment(coach.heroFocus.x, (coach.heroFocus.y + 0.25).clamp(-1.0, 1.0)),
+                    ),
+                    const FadeToBackground(stops: [0.62, 1]),
                     const Positioned(
                       left: 0,
                       right: 0,
