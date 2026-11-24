@@ -1,0 +1,231 @@
+{
+ "coach": "ethan",
+ "source": "ethan-hero.jpg",
+ "width": 1080,
+ "height": 1442,
+ "source_width": 1768,
+ "source_height": 2360,
+ "generator": "LivePortrait (MIT) + YuNet (MIT); tool/avatar/gen_frames.py",
+ "crop_scale": 1.9,
+ "frames": {
+  "mbp": {
+   "region": "mouth",
+   "rect": [
+    326,
+    724,
+    432,
+    299
+   ],
+   "identity": 0.896,
+   "master": 0.972
+  },
+  "a": {
+   "region": "mouth",
+   "rect": [
+    326,
+    724,
+    432,
+    299
+   ],
+   "identity": 0.829,
+   "master": 0.917
+  },
+  "a2": {
+   "region": "mouth",
+   "rect": [
+    326,
+    724,
+    432,
+    299
+   ],
+   "identity": 0.844,
+   "master": 0.928
+  },
+  "e": {
+   "region": "mouth",
+   "rect": [
+    326,
+    724,
+    432,
+    299
+   ],
+   "identity": 0.84,
+   "master": 0.916
+  },
+  "e2": {
+   "region": "mouth",
+   "rect": [
+    326,
+    724,
+    432,
+    299
+   ],
+   "identity": 0.878,
+   "master": 0.959
+  },
+  "i": {
+   "region": "mouth",
+   "rect": [
+    326,
+    724,
+    432,
+    299
+   ],
+   "identity": 0.868,
+   "master": 0.944
+  },
+  "i2": {
+   "region": "mouth",
+   "rect": [
+    326,
+    724,
+    432,
+    299
+   ],
+   "identity": 0.863,
+   "master": 0.952
+  },
+  "o": {
+   "region": "mouth",
+   "rect": [
+    326,
+    724,
+    432,
+    299
+   ],
+   "identity": 0.815,
+   "master": 0.905
+  },
+  "o2": {
+   "region": "mouth",
+   "rect": [
+    326,
+    724,
+    432,
+    299
+   ],
+   "identity": 0.847,
+   "master": 0.944
+  },
+  "u": {
+   "region": "mouth",
+   "rect": [
+    326,
+    724,
+    432,
+    299
+   ],
+   "identity": 0.869,
+   "master": 0.956
+  },
+  "u2": {
+   "region": "mouth",
+   "rect": [
+    326,
+    724,
+    432,
+    299
+   ],
+   "identity": 0.855,
+   "master": 0.953
+  },
+  "fv": {
+   "region": "mouth",
+   "rect": [
+    326,
+    724,
+    432,
+    299
+   ],
+   "identity": 0.895,
+   "master": 0.965
+  },
+  "l": {
+   "region": "mouth",
+   "rect": [
+    326,
+    724,
+    432,
+    299
+   ],
+   "identity": 0.825,
+   "master": 0.92
+  },
+  "th": {
+   "region": "mouth",
+   "rect": [
+    326,
+    724,
+    432,
+    299
+   ],
+   "identity": 0.869,
+   "master": 0.949
+  },
+  "cons": {
+   "region": "mouth",
+   "rect": [
+    326,
+    724,
+    432,
+    299
+   ],
+   "identity": 0.871,
+   "master": 0.955
+  },
+  "sh": {
+   "region": "mouth",
+   "rect": [
+    326,
+    724,
+    432,
+    299
+   ],
+   "identity": 0.876,
+   "master": 0.953
+  },
+  "blink_half": {
+   "region": "eyes",
+   "rect": [
+    317,
+    532,
+    481,
+    191
+   ],
+   "identity": 0.897,
+   "master": 0.929
+  },
+  "blink_closed": {
+   "region": "eyes",
+   "rect": [
+    317,
+    532,
+    481,
+    191
+   ],
+   "identity": 0.861,
+   "master": 0.897
+  },
+  "gaze": {
+   "region": "eyes",
+   "rect": [
+    317,
+    532,
+    481,
+    191
+   ],
+   "identity": 0.865,
+   "master": 0.907
+  }
+ },
+ "mouth": [
+  554.9,
+  862.0
+ ],
+ "mouth_width": 213.5,
+ "chin": 1010.4,
+ "blink_half_openings": [
+  0.44,
+  0.49
+ ]
+}
