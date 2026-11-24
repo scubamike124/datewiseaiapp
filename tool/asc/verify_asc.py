@@ -151,7 +151,7 @@ def main():
     s_, b_ = get(f"/v1/apps/{app['id']}/appAvailabilityV2", token)
     note("app availability record", f"HTTP {s_}; available in new territories: {((b_.get('data') or {}).get('attributes') or {}).get('availableInNewTerritories')}")
     if s_ == 200 and b_.get("data"):
-        s2_, b2_ = get(f"/v2/appAvailabilities/{b_['data']['id']}/territoryAvailabilities", token, {"include": "territory", "limit": "200", "fields[territoryAvailabilities]": "available,contentStatuses"})
+        s2_, b2_ = get(f"/v2/appAvailabilities/{b_['data']['id']}/territoryAvailabilities", token, {"include": "territory", "limit": "200", "fields[territoryAvailabilities]": "available,contentStatuses,territory"})
         avail = sorted(((x.get("relationships", {}).get("territory", {}).get("data") or {}).get("id") for x in b2_.get("data") or [] if x["attributes"].get("available")), key=str)
         note("app sold in", f"{len(avail)} territories; USA {'USA' in avail}, CAN {'CAN' in avail}, MEX {'MEX' in avail}, ESP {'ESP' in avail} (HTTP {s2_})")
     s_, b_ = get(f"/v1/apps/{app['id']}/appStoreVersions", token, {"limit": "5", "fields[appStoreVersions]": "versionString,appStoreState,platform"})
