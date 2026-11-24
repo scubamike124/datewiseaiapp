@@ -86,6 +86,21 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // --- AI data-sharing consent -------------------------------------------
+
+  bool _aiConsent = false;
+
+  /// True once the user agreed, in the chat, to share their messages with
+  /// the third-party AI provider (Cloudflare Workers AI). Nothing is sent
+  /// before that ([sendMessage] refuses). Cleared by [deleteMyData].
+  bool get aiConsentGiven => _aiConsent;
+
+  Future<void> giveAiConsent() async {
+    _aiConsent = true;
+    await _storage.setAiConsent();
+    notifyListeners();
+  }
+
   /// Finishes onboarding: goals, language, 18+ confirmed, coach chosen.
   /// Refused (returns false, nothing saved) unless [adultConfirmed] is true
   /// and the user has not said they are under 18.
@@ -224,6 +239,7 @@ class AppState extends ChangeNotifier {
     // onboarding once (see StorageService.migrateFromV1).
     _storage.migrateFromV1();
     _underage = _storage.underage;
+    _aiConsent = _storage.aiConsent;
     _onboarded = _storage.hasOnboarded && !_underage;
     _profile = _storage.loadProfile();
     _coachId = _storage.loadCoachId();
@@ -375,8 +391,9 @@ class AppState extends ChangeNotifier {
   // --- Messaging ----------------------------------------------------------
 
   /// Sends a user message to the selected coach and streams the reply.
-  /// Returns false (and sends nothing) without an active subscription or
-  /// while another reply is streaming. [onAccepted] is called as soon as the
+  /// Returns false (and sends nothing) without an active subscription,
+  /// without the user's AI data-sharing consent ([aiConsentGiven]) or while
+  /// another reply is streaming. [onAccepted] is called as soon as the
   /// message is added to the conversation (the returned future completes
   /// only when the reply has finished).
   Future<bool> sendMessage(String text, {void Function()? onAccepted}) async {
@@ -387,6 +404,7 @@ class AppState extends ChangeNotifier {
     if (stopping != null) await stopping;
     if (_isResponding) return false;
     if (!canChat) return false;
+    if (!_aiConsent) return false;
     // Claimed before anything is awaited, so a second send cannot slip in.
     _isResponding = true;
 
@@ -578,7 +596,7 @@ class AppState extends ChangeNotifier {
     final stopping = _stopping;
     if (stopping != null) await stopping;
     final thread = activeThread;
-    if (thread == null || !canRetry || !canChat) return false;
+    if (thread == null || !canRetry || !canChat || !_aiConsent) return false;
     thread.messages.removeLast();
     await _streamCoachReply(thread);
     return true;
@@ -627,6 +645,7 @@ class AppState extends ChangeNotifier {
     _activeDays = {};
     _onboarded = false;
     _paywallDismissed = false;
+    _aiConsent = false;
     notifyListeners();
   }
 

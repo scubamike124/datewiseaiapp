@@ -101,7 +101,7 @@ Where two docs disagree, this list names the one that wins. Docs marked
 | # | Item | Who | Why | Detail |
 |---|---|---|---|---|
 | B21 | **Confirm ownership of `datewiseai.com`**: GoDaddy DNS and Microsoft 365 mail. Decide the API host: option A (new workers.dev URL, default for 2.0) or B (move DNS to Cloudflare and use `api.datewiseai.com`, copying every MX, autodiscover, SPF, DMARC and DKIM record first) | Owner-only | A stable host avoids an app update at the next move; a DNS move done wrong breaks support mail | [cfsep] §3.2 |
-| B22 | **Legal and support URLs live**: legal approval of the v2 Privacy Policy and Terms, published at `https://datewiseai.com/privacy-policy` and `/terms-of-service` (via `web/.htaccess` on the `datewiseai.com` host or `web/_redirects` on Netlify; the GitHub Pages workflow cannot serve these clean URLs, see [meta] §1); a Support URL; `support@datewiseai.com` receives mail | Owner-only | The app opens these URLs, and Apple requires working privacy, EULA and support links for subscriptions | Details steps 6–9 |
+| B22 | **Legal and support URLs live**: legal approval of the v2 Privacy Policy and Terms, published at `https://datewise-legal.lovable.app/privacy-policy` and `/terms-of-service` (**published by the owner on Lovable, 2026-11-24**, with the Spanish pages at `/privacy-es.html` and `/terms-es.html`; see [meta] §1); a Support URL; `support@datewiseai.com` receives mail | Owner-only | The app opens these URLs, and Apple requires working privacy, EULA and support links for subscriptions | Details steps 6–9 |
 
 ### C. Assets
 
@@ -192,7 +192,7 @@ to. Where they differ from the table above, the table wins.
 
 6. Have the v2 **Privacy Policy** and **Terms of Use** reviewed and approved,
    and publish them at the URLs the app opens (`lib/app_links.dart`):
-   `https://datewiseai.com/privacy-policy`, `https://datewiseai.com/terms-of-service`.
+   `https://datewise-legal.lovable.app/privacy-policy`, `https://datewise-legal.lovable.app/terms-of-service`.
    The privacy policy must match the App Privacy answers in `metadata.md` §3.
 7. Choose the **Support URL** (a live page with a way to contact you, e.g.
    showing support@datewiseai.com) and confirm the support mailbox works.

@@ -89,6 +89,10 @@ void main() {
     expect(find.text('Escríbele a Sofía…'), findsOneWidget);
     await tester.enterText(find.byKey(const ValueKey('composer')), 'Quiero una cita');
     await tester.tap(find.byKey(const ValueKey('send')));
+    await tester.pumpAndSettle();
+    // First message: permission to share it with the AI provider.
+    expect(find.text('¿Compartir tus mensajes con nuestro proveedor de IA?'), findsOneWidget);
+    await tester.tap(find.text('Aceptar'));
     await tester.pump();
     await settleReply(tester, app.state);
     expect(app.state.activeThread!.messages.last.text, contains('lugar público'));

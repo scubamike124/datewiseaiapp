@@ -194,11 +194,28 @@ class _ChatScreenState extends State<ChatScreen> {
       if (fromVoice) _keepTranscript(text);
       return;
     }
+    if (!_state.aiConsentGiven && !await _askAiConsent()) {
+      // "Not now": nothing is sent; what was said waits in the composer.
+      if (fromVoice) _keepTranscript(text, note: false);
+      return;
+    }
     await _voice.stop();
     final sent = await _state.sendMessage(text, onAccepted: () {
       if (fromComposer && mounted && _input.text == text) _input.clear();
     });
     if (!sent && fromVoice && mounted) _keepTranscript(text, note: _state.canChat);
+  }
+
+  /// Asks once, before anything is sent, for permission to share the user's
+  /// messages with the third-party AI provider (App Store Guideline
+  /// 5.1.2(i)). True (and stored) when the user agreed.
+  Future<bool> _askAiConsent() async {
+    final l = context.l10n;
+    final ok = await showConfirmDialog(context, l.aiConsentTitle, l.aiConsentBody, l.aiConsentAgree,
+        actionColor: AppColors.gold, cancelLabel: l.aiConsentNotNow);
+    if (!ok || !mounted) return false;
+    await _state.giveAiConsent();
+    return true;
   }
 
   /// Puts a voice transcript that could not be sent into the composer (after

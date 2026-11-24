@@ -535,14 +535,14 @@ const double kDialogStackAboveScale = 1.5;
 /// A confirmation dialog whose body scrolls, so long text at large sizes is
 /// never clipped. True when the user chose [action].
 Future<bool> showConfirmDialog(BuildContext context, String title, String body, String action,
-    {Color actionColor = AppColors.danger}) async {
+    {Color actionColor = AppColors.danger, String? cancelLabel}) async {
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) {
       final cancel = TextButton(
           key: const ValueKey('confirm-cancel'),
           onPressed: () => Navigator.pop(ctx, false),
-          child: Text(ctx.l10n.cancel, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.text)));
+          child: Text(cancelLabel ?? ctx.l10n.cancel, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.text)));
       final confirm = TextButton(
         key: const ValueKey('confirm-action'),
         onPressed: () => Navigator.pop(ctx, true),

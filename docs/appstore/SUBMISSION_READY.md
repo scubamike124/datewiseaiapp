@@ -45,11 +45,11 @@ You can do all of these in Safari on the iPhone: appstoreconnect.apple.com, deve
 5. **API key and 4 GitHub secrets** for cloud signing: [IPHONE_E2E_DEMO.md §2.1](../qa/IPHONE_E2E_DEMO.md) a–c. The
    key needs **Admin** access. The secrets are `APPLE_TEAM_ID`, `APP_STORE_CONNECT_API_KEY_ID`,
    `APP_STORE_CONNECT_ISSUER_ID` and `APP_STORE_CONNECT_API_KEY_P8`. Delete the `.p8` file afterwards.
-6. **Legal pages live** (B22). Approve the v2 Privacy Policy and Terms. Publish `web/privacy.html`, `privacy-es.html`,
-   `terms.html`, `terms-es.html` and the rewrite rules in `web/.htaccess` to the `datewiseai.com` host. Then open
-   `https://datewiseai.com/privacy-policy` and `/terms-of-service` in Safari: both must show "Last updated: November
-   23, 2026". The repository's GitHub Pages workflow **cannot** serve these URLs ([metadata.md §1](metadata.md)).
-   Confirm that mail sent to support@datewiseai.com arrives.
+6. **Legal pages live** (B22). **Done 2026-11-24:** the owner published the four v2 pages on Lovable:
+   `https://datewise-legal.lovable.app/privacy-policy`, `/terms-of-service`, `/privacy-es.html` and `/terms-es.html`.
+   All four return 200 and match `web/*.html` on `main` word for word ("Last updated: November 23, 2026"). The app
+   (`lib/app_links.dart`) and the metadata use these URLs; no DNS change is needed. Still to do: confirm that mail
+   sent to support@datewiseai.com arrives.
 7. **Backend.** `main` is protected and already holds v2 (#43). First, the `SANDBOX_NEURON_BUDGET = "6000"` change for
    the review window (A4; at 1,000 App Review gets about 7 replies a day) goes into `main` in a PR that passes the
    required checks. Then deploy chat-v7 from `main`: Actions › **Deploy coach Worker**, target `chat-v7-cost-guard`,
@@ -72,7 +72,7 @@ You can do all of these in Safari on the iPhone: appstoreconnect.apple.com, deve
 12. **App Information** (EN, then ES):
     - Name `DateWise AI` (optional; the current name is fine). Subtitle `Your AI dating coach` /
       `Tu coach de citas con IA`. Category **Lifestyle**.
-    - Privacy Policy URL `https://datewiseai.com/privacy-policy`.
+    - Privacy Policy URL `https://datewise-legal.lovable.app/privacy-policy`.
     - **Content Rights:** "Does your app contain, show, or access third-party content?" Answer **Yes**, then "I have
       the necessary rights". The AI replies come from Meta Llama on Cloudflare; the fonts use the OFL licence; the
       portraits are owner-generated.
@@ -88,7 +88,7 @@ You can do all of these in Safari on the iPhone: appstoreconnect.apple.com, deve
     [metadata.md §3](metadata.md#3-app-privacy-nutrition-label).
 14. **Version 2.0.0 page:**
     - Paste the promo text, description, keywords and What's New from [metadata.md](metadata.md), EN and ES.
-    - Support URL `https://datewiseai.com/terms-of-service`. Leave the Marketing URL blank.
+    - Support URL `https://datewise-legal.lovable.app/terms-of-service`. Leave the Marketing URL blank.
     - Screenshots (final): upload `docs/appstore/screenshots/<en|es>/6.9/` and `.../ipad-13/` (01 to 05, in order) for each language.
     - App Review Information: sign-in **not required**, plus your name, phone and email. Paste the notes block in
       [metadata.md §4](metadata.md#4-app-review-information) (AI provider, 18+ gate, Sandbox path, fair use, Find a
@@ -110,16 +110,16 @@ You can do all of these in Safari on the iPhone: appstoreconnect.apple.com, deve
 | 1 | The coach backend is not live for v2. Production last ran chat-v5, which returned HTTP 502 ([LAUNCH_READINESS](../launch/LAUNCH_READINESS.md)), and chat-v7 is not deployed. A reviewer who gets no reply rejects the app under 2.1 | Owner: step 7 (deploy, sandbox budget). If the Worker moves to a new Cloudflare account (B6), an agent first opens the URL PR (D7) |
 | 2 | No TestFlight build exists. The workflow needs the 4 secrets, and cloud signing is untested | Owner: steps 5, 7, 8 |
 | 3 | The subscription product, agreements and Sandbox testers do not exist yet or are unconfirmed | Owner: steps 1–4 |
-| 4 | The v2 legal pages are on `main` but not published to `datewiseai.com`, and legal approval is pending | Owner: step 6 |
+| 4 | ~~The v2 legal pages are not published~~ **Done 2026-11-24:** published on `datewise-legal.lovable.app` (step 6) | Owner: confirm support mail |
 | 5 | ~~Portraits~~ approved and merged (`de430f7`); only the provenance record (step 10) is left | Owner |
 | 6 | No device testing yet (E1–E6) | Owner: step 9 |
-| 7 | **Recommended:** ask for explicit consent before sharing data with third-party AI (risk R1 below) | Owner decides; an agent can add it in one small PR (App Store requirement, allowed by AGENTS.md) |
+| 7 | ~~Ask for explicit consent before sharing data with third-party AI (risk R1 below)~~ **Done** on branch `claude/release-ai-consent`: one-time EN/ES consent before the first message | Owner: review and merge the branch before the build |
 
 ## App Review risks found (2026-11-23)
 
 | Guideline | Risk | Evidence and action |
 |---|---|---|
-| **5.1.2(i)**: personal data shared with third-party AI needs disclosure **and explicit permission** | **R1, medium–high** | Messages go to Cloudflare Workers AI (Meta Llama). This is disclosed only in the Privacy Policy and the store text. The app has no consent screen; the policy relies on "By using the app you consent" (`legal_text.dart`). Fix: a one-time EN/ES sheet before the first message ("Your messages are sent to Cloudflare Workers AI to write replies" + Agree), stored on the device |
+| **5.1.2(i)**: personal data shared with third-party AI needs disclosure **and explicit permission** | **R1, done** (branch `claude/release-ai-consent`) | Messages go to Cloudflare Workers AI (Meta Llama). **Done:** before the first message the chat asks once, in EN/ES, "Share messages with our AI provider?" (Agree / Not now), naming Cloudflare Workers AI and Meta's Llama, with wording that matches the Privacy Policy. Not now sends nothing and keeps the text in the composer. The choice is stored on the device (`dw_ai_consent`); `AppState.sendMessage` and retry refuse without it; Delete my data withdraws it. Tests: `test/ai_consent_test.dart` |
 | 1.4.1 / 1.1: safety in AI replies | Low | The server prompt (`backend/coach_prompts.js`, #46) keeps replies on dating and adds rules for 18+, consent and harassment, professional limits and crisis (emergency services or a crisis line), plus meetup safety. Remaining gaps: no explicit sexual-content rule, no report-reply button |
 | 2.1: completeness | High until blocker 1 is fixed | The backend and the Sandbox budget need to be ready (step 7). Test switches are off in release |
 | 4.0 / 2.4.1: iPad | Medium | The iPad layout is built, and screenshots exist, but it has never run on a real iPad |

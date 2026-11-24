@@ -919,4 +919,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get voiceQualityDone => 'Got it';
+
+  @override
+  String get aiConsentTitle => 'Share messages with our AI provider?';
+
+  @override
+  String get aiConsentBody =>
+      'To write your coach\'s replies, DateWise sends your messages (typed or spoken, as text), your coaching preferences and, if Coach memory is on, your memory note to Cloudflare Workers AI, which runs Meta\'s Llama model. They are processed only to write the reply: they are not stored on our servers, not used to train AI models and not linked to your identity. See our Privacy Policy for details.';
+
+  @override
+  String get aiConsentAgree => 'Agree';
+
+  @override
+  String get aiConsentNotNow => 'Not now';
 }

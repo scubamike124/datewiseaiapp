@@ -30,6 +30,7 @@ class StorageService {
   static const _kMemoryText = 'dw_memory_text';
   static const _kActiveDays = 'dw_active_days';
   static const _kUnderage = 'dw_underage';
+  static const _kAiConsent = 'dw_ai_consent';
 
   static Future<StorageService> create() async {
     final prefs = await SharedPreferences.getInstance();
@@ -53,6 +54,11 @@ class StorageService {
   /// Set when the user said they are under 18 (the app then stays closed).
   bool get underage => _prefs.getBool(_kUnderage) ?? false;
   Future<void> setUnderage() => _prefs.setBool(_kUnderage, true);
+
+  /// Set once the user agreed to share their messages with the AI provider
+  /// (App Store Guideline 5.1.2(i)). Removed by "Delete my data".
+  bool get aiConsent => _prefs.getBool(_kAiConsent) ?? false;
+  Future<void> setAiConsent() => _prefs.setBool(_kAiConsent, true);
 
   // --- Intro slider (first-launch walkthrough) ----------------------------
 

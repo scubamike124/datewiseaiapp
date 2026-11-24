@@ -242,5 +242,9 @@
   "voiceQualityRow": "Voces más naturales para tu coach",
   "voiceQualityTitle": "Consigue voces más naturales",
   "voiceQualityBody": "Los coaches hablan con las voces de tu iPhone, en tu dispositivo. Para un sonido más natural, descarga una voz Premium o Mejorada de Apple:\n\n1. Abre la app Configuración › Accesibilidad › Contenido leído › Voces.\n2. Elige Español o Inglés.\n3. Descarga una voz marcada como Premium o Mejorada (por ejemplo Paulina o Juan, Ava o Evan).\n\nDateWise la usa automáticamente la próxima vez que hable tu coach. Cada coach conserva una voz distinta si tienes varias instaladas.",
-  "voiceQualityDone": "Entendido"
+  "voiceQualityDone": "Entendido",
+  "aiConsentTitle": "¿Compartir tus mensajes con nuestro proveedor de IA?",
+  "aiConsentBody": "Para escribir las respuestas de tu coach, DateWise envía tus mensajes (escritos o dichos en voz alta, como texto), tus preferencias de coaching y, si la Memoria del coach está activada, tu nota a Cloudflare Workers AI, que ejecuta el modelo Llama de Meta. Solo se procesan para escribir la respuesta: no se guardan en nuestros servidores, no se usan para entrenar modelos de IA y no se vinculan con tu identidad. Consulta nuestra Política de privacidad para más detalles.",
+  "aiConsentAgree": "Aceptar",
+  "aiConsentNotNow": "Ahora no"
 }

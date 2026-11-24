@@ -6,13 +6,15 @@ class AppLinks {
   /// Support / contact email (used by "Contact support" → mail composer).
   static const String supportEmail = 'support@datewiseai.com';
 
-  /// Public Privacy Policy / Terms URLs on datewiseai.com. They serve
-  /// web/privacy.html and web/terms.html (generated from
-  /// lib/content/legal_text.dart by tool/legal_pages.dart) through the clean-URL
-  /// rules in web/_redirects (Netlify) and web/.htaccess (Apache). The in-app
-  /// legal screens also offer a "View online" link to them.
-  static const String privacyPolicyUrl = 'https://datewiseai.com/privacy-policy';
-  static const String termsUrl = 'https://datewiseai.com/terms-of-service';
+  /// Public Privacy Policy / Terms URLs, published by the owner on Lovable
+  /// (owner decision, 2026-11-24). They serve web/privacy.html and
+  /// web/terms.html (generated from lib/content/legal_text.dart by
+  /// tool/legal_pages.dart); the Spanish pages are at /privacy-es.html and
+  /// /terms-es.html on the same host. web/_redirects and web/.htaccess keep the
+  /// same clean paths for any other host. These URLs are also the App Store
+  /// Connect Privacy Policy and Support URLs.
+  static const String privacyPolicyUrl = 'https://datewise-legal.lovable.app/privacy-policy';
+  static const String termsUrl = 'https://datewise-legal.lovable.app/terms-of-service';
 
   /// Android Play Store listing (for "Rate the app"). Matches the release
   /// `applicationId` in android/app/build.gradle.kts.

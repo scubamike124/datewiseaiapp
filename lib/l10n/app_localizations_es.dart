@@ -942,4 +942,18 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get voiceQualityDone => 'Entendido';
+
+  @override
+  String get aiConsentTitle =>
+      '¿Compartir tus mensajes con nuestro proveedor de IA?';
+
+  @override
+  String get aiConsentBody =>
+      'Para escribir las respuestas de tu coach, DateWise envía tus mensajes (escritos o dichos en voz alta, como texto), tus preferencias de coaching y, si la Memoria del coach está activada, tu nota a Cloudflare Workers AI, que ejecuta el modelo Llama de Meta. Solo se procesan para escribir la respuesta: no se guardan en nuestros servidores, no se usan para entrenar modelos de IA y no se vinculan con tu identidad. Consulta nuestra Política de privacidad para más detalles.';
+
+  @override
+  String get aiConsentAgree => 'Aceptar';
+
+  @override
+  String get aiConsentNotNow => 'Ahora no';
 }

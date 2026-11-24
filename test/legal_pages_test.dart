@@ -49,7 +49,7 @@ void main() {
     final htaccess = File('web/.htaccess').readAsStringSync();
     for (final (url, file) in [(AppLinks.privacyPolicyUrl, 'privacy.html'), (AppLinks.termsUrl, 'terms.html')]) {
       final path = Uri.parse(url).path; // /privacy-policy, /terms-of-service
-      expect(url, startsWith('https://datewiseai.com/'));
+      expect(url, startsWith('https://datewise-legal.lovable.app/'));
       expect(File('web/$file').existsSync(), isTrue);
       expect(RegExp('^${RegExp.escape(path)}\\s+/${RegExp.escape(file)}\\s+200\$', multiLine: true).hasMatch(redirects), isTrue,
           reason: '$path must map to /$file before the SPA fallback');

@@ -1560,6 +1560,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Got it'**
   String get voiceQualityDone;
+
+  /// AI data-sharing consent (before the first message): title.
+  ///
+  /// In en, this message translates to:
+  /// **'Share messages with our AI provider?'**
+  String get aiConsentTitle;
+
+  /// AI data-sharing consent: body. Must match the Privacy Policy.
+  ///
+  /// In en, this message translates to:
+  /// **'To write your coach\'s replies, DateWise sends your messages (typed or spoken, as text), your coaching preferences and, if Coach memory is on, your memory note to Cloudflare Workers AI, which runs Meta\'s Llama model. They are processed only to write the reply: they are not stored on our servers, not used to train AI models and not linked to your identity. See our Privacy Policy for details.'**
+  String get aiConsentBody;
+
+  /// AI data-sharing consent: agree button.
+  ///
+  /// In en, this message translates to:
+  /// **'Agree'**
+  String get aiConsentAgree;
+
+  /// AI data-sharing consent: decline button; nothing is sent.
+  ///
+  /// In en, this message translates to:
+  /// **'Not now'**
+  String get aiConsentNotNow;
 }
 
 class _AppLocalizationsDelegate
