@@ -60,23 +60,29 @@ jobs:
 
       - run: flutter pub get
 
-      - name: Pick and boot an iPhone simulator (newest iOS runtime)
+      - name: Pick and boot an iPhone simulator
         id: sim
+        # iOS 26.3-26.5 simulators ignore SKTestSession.disableDialogs: the
+        # purchase sheet appears and Product.purchase never returns (Apple
+        # Developer Forums thread 830493; Apple: fixed in the iOS 26.6
+        # simulator). So the newest runtime >= 26.6 is used when installed,
+        # else the newest runtime before 26.3, else the newest there is.
         run: |
+          xcrun simctl list runtimes
           UDID=$(xcrun simctl list devices available -j | python3 -c '
           import json, re, sys
           d = json.load(sys.stdin)["devices"]
           def ver(rt):
               m = re.search(r"iOS-(\d+)-(\d+)", rt)
               return (int(m[1]), int(m[2])) if m else (0, 0)
-          best = None
-          for rt in sorted((r for r in d if "iOS" in r), key=ver, reverse=True):
-              phones = [x for x in d[rt] if x["name"].startswith("iPhone") and x.get("isAvailable", True)]
-              if phones:
-                  best = phones[0]
-                  print(best["udid"])
-                  print("%s on %s" % (best["name"], rt), file=sys.stderr)
-                  break
+          rts = [r for r in d if "iOS" in r and any(x["name"].startswith("iPhone") for x in d[r])]
+          fixed = [r for r in rts if ver(r) >= (26, 6)]
+          before = [r for r in rts if ver(r) < (26, 3)]
+          pool = fixed or before or rts
+          rt = max(pool, key=ver)
+          phone = [x for x in d[rt] if x["name"].startswith("iPhone")][0]
+          print(phone["udid"])
+          print("%s on %s" % (phone["name"], rt), file=sys.stderr)
           ')
           test -n "$UDID"
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
@@ -91,12 +97,22 @@ jobs:
           set -o pipefail
           mkdir -p build
           grep FLUTTER_TARGET ios/Flutter/Generated.xcconfig
+          # Evidence while the test runs: a screenshot every 30 s and the
+          # StoreKit log of the booted simulator (no parallel clones).
+          mkdir -p build/screens
+          ( for i in $(seq 1 40); do sleep 30; xcrun simctl io "${{ steps.sim.outputs.udid }}" screenshot "build/screens/$i.png" >/dev/null 2>&1 || true; done ) &
+          SHOTS=$!
+          xcrun simctl spawn "${{ steps.sim.outputs.udid }}" log stream --style compact \
+            --predicate 'subsystem BEGINSWITH "com.apple.storekit" OR process == "Runner"' > build/simulator.log 2>&1 &
+          LOGS=$!
+          trap 'kill $SHOTS $LOGS 2>/dev/null || true' EXIT
           xcodebuild test \
             -workspace ios/Runner.xcworkspace \
             -scheme Runner \
             -configuration Debug \
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -only-testing:RunnerTests/StoreKitE2ETests \
+            -parallel-testing-enabled NO \
             -resultBundlePath build/storekit-e2e.xcresult \
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee build/storekit-e2e.log
@@ -119,5 +135,7 @@ jobs:
           path: |
             build/storekit-e2e.log
             build/storekit-e2e.xcresult
+            build/simulator.log
+            build/screens
           retention-days: 7
           if-no-files-found: ignore
