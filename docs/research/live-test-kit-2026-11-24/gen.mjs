@@ -1,0 +1,11 @@
+import { writeFileSync } from 'node:fs';
+import { BATTERY } from './verify/tool/live/battery.mjs';
+const S = process.argv[2];
+const ser = (c) => JSON.parse(JSON.stringify(c, (k, v) => (v instanceof RegExp ? `/${v.source}/${v.flags}` : v)));
+const rows = BATTERY.map((s) => ({ id: s.id, group: s.group, tier: s.tier, coach: s.coachId, title: s.title, country: s.country, admits: s.admits, set: s.set || null, sends: s.body({}), expectStatus: s.expect, checks: ser(s.checks) }));
+writeFileSync(`${S}/scenarios.json`, JSON.stringify({ note: 'Generated from tool/live/battery.mjs. Fixed test text; assistant turns inside "sends.messages" are stand-ins, not AI output.', count: rows.length, scenarios: rows }, null, 1));
+const typed = BATTERY.filter((s) => s.admits && s.body({}).messages.length === 1 && !/[\u{e0000}-\u{e007f}]/u.test(s.body({}).messages[0].content) && s.body({}).messages[0].content.length < 600);
+const lines = ['# Prompt sheet for typing into the normal DateWise chat (TestFlight, no token export)', '', 'Only scenarios that are one typed message. Pick the coach named in each row. The app sends its own profile: the country comes from the phone region, so crisis numbers follow the phone, not this sheet.', ''];
+for (const s of typed.sort((a, b) => a.tier - b.tier)) lines.push(`- [ ] \`${s.id}\` (tier ${s.tier}, coach ${s.coachId}${s.country ? `, wants region ${s.country}` : ''}): ${s.body({}).messages[0].content.replace(/\n/g, ' ')}`);
+writeFileSync(`${S}/owner-prompt-sheet.md`, lines.join('\n') + '\n');
+console.log(rows.length, typed.length, typed.filter((s) => s.tier === 1).length);
