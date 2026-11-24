@@ -215,7 +215,7 @@ export async function readState(client, spec) {
       const [locs, prices, avail, offers] = await Promise.all([
         client.getAll(`/v1/subscriptions/${s.id}/subscriptionLocalizations?limit=50`),
         client.getAll(`/v1/subscriptions/${s.id}/prices?include=subscriptionPricePoint,territory&limit=200`),
-        client.get(`/v1/subscriptions/${s.id}/subscriptionAvailability?include=availableTerritories&limit[availableTerritories]=200`).catch((e) => {
+        client.get(`/v1/subscriptions/${s.id}/subscriptionAvailability`).catch((e) => {
           if (e.kind === "not_found") return null;
           throw e;
         }),
@@ -241,7 +241,7 @@ export async function readState(client, spec) {
         familySharable: s.familySharable,
         localizations: Object.fromEntries(locs.data.map((l) => [l.attributes.locale, { id: l.id, name: l.attributes.name, description: l.attributes.description }])),
         prices: priceByTerritory,
-        availability: avail && avail.data ? { id: avail.data.id, availableInNewTerritories: avail.data.attributes.availableInNewTerritories, territories: (avail.included || []).filter((x) => x.type === "territories").map((x) => x.id).sort() } : null,
+        availability: avail && avail.data ? { id: avail.data.id, availableInNewTerritories: avail.data.attributes.availableInNewTerritories, territories: (await client.getAll(`/v1/subscriptionAvailabilities/${avail.data.id}/availableTerritories?limit=200`)).data.map((x) => x.id).sort() } : null,
         introductoryOffers: offers.data.length,
       };
     }
