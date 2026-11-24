@@ -1,0 +1,751 @@
+{
+ "ava-en": {
+  "seconds": 15.0,
+  "speaking_s": 7.8,
+  "listening_s": 5.7,
+  "thinking_s": 0.57,
+  "blinks": 3,
+  "blink_times": [
+   2.63,
+   6.37,
+   10.67
+  ],
+  "blink_gaps": [
+   3.73,
+   4.3
+  ],
+  "blink_sequences": [
+   "hhchh",
+   "hhchh",
+   "hhchh"
+  ],
+  "mouth_changes_per_s": 7.31,
+  "shape_hist": {
+   "rest": 106,
+   "cons": 42,
+   "o": 20,
+   "i2": 16,
+   "e2": 13,
+   "o2": 10,
+   "i": 7,
+   "l": 7,
+   "fv": 4,
+   "mbp": 4,
+   "u2": 3,
+   "th": 2
+  },
+  "rest_frames_while_audible": 1,
+  "audible_frames": 90,
+  "open_mouth_frames_while_silent": 9,
+  "silent_frames": 68,
+  "longest_hold_audible_frames": 7,
+  "jaw_vs_loudness_corr": 0.894,
+  "listening_dy_range": [
+   -0.56,
+   3.54
+  ],
+  "thinking_layers": [
+   "gaze",
+   "mbp"
+  ],
+  "frame_diff_mean": 0.85,
+  "frame_diff_p99": 4.1,
+  "biggest_jumps": [
+   [
+    75,
+    6.96,
+    "speaking",
+    "rest->o2",
+    "gaze->-"
+   ],
+   [
+    88,
+    4.34,
+    "speaking",
+    "cons->rest",
+    "-->-"
+   ],
+   [
+    67,
+    4.24,
+    "thinking",
+    "rest->rest",
+    "gaze->gaze"
+   ],
+   [
+    211,
+    4.23,
+    "speaking",
+    "l->mbp",
+    "-->-"
+   ],
+   [
+    152,
+    4.2,
+    "speaking",
+    "rest->cons",
+    "-->-"
+   ]
+  ]
+ },
+ "ava-es": {
+  "seconds": 15.0,
+  "speaking_s": 5.93,
+  "listening_s": 7.9,
+  "thinking_s": 0.57,
+  "blinks": 4,
+  "blink_times": [
+   2.57,
+   6.17,
+   6.47,
+   12.4
+  ],
+  "blink_gaps": [
+   3.6,
+   0.3,
+   5.93
+  ],
+  "blink_sequences": [
+   "hhcch",
+   "hhcch",
+   "hhcch",
+   "hhcch"
+  ],
+  "mouth_changes_per_s": 8.6,
+  "shape_hist": {
+   "rest": 44,
+   "cons": 36,
+   "e2": 31,
+   "i2": 15,
+   "mbp": 13,
+   "o2": 13,
+   "a2": 8,
+   "e": 6,
+   "a": 6,
+   "l": 4,
+   "u2": 2
+  },
+  "rest_frames_while_audible": 1,
+  "audible_frames": 88,
+  "open_mouth_frames_while_silent": 14,
+  "silent_frames": 48,
+  "longest_hold_audible_frames": 4,
+  "jaw_vs_loudness_corr": 0.794,
+  "listening_dy_range": [
+   -0.55,
+   3.54
+  ],
+  "thinking_layers": [
+   "gaze",
+   "mbp"
+  ],
+  "frame_diff_mean": 0.78,
+  "frame_diff_p99": 3.93,
+  "biggest_jumps": [
+   [
+    75,
+    7.39,
+    "speaking",
+    "rest->cons",
+    "gaze->-"
+   ],
+   [
+    171,
+    4.38,
+    "speaking",
+    "e2->rest",
+    "-->-"
+   ],
+   [
+    67,
+    4.24,
+    "thinking",
+    "rest->rest",
+    "gaze->gaze"
+   ],
+   [
+    79,
+    4.22,
+    "speaking",
+    "e2->e",
+    "blink_half->blink_closed"
+   ],
+   [
+    103,
+    3.95,
+    "speaking",
+    "rest->a",
+    "-->-"
+   ]
+  ]
+ },
+ "diego-en": {
+  "seconds": 15.0,
+  "speaking_s": 7.17,
+  "listening_s": 6.03,
+  "thinking_s": 1.2,
+  "blinks": 3,
+  "blink_times": [
+   3.97,
+   7.67,
+   12.23
+  ],
+  "blink_gaps": [
+   3.7,
+   4.57
+  ],
+  "blink_sequences": [
+   "hhcch",
+   "hhcch",
+   "hhchh"
+  ],
+  "mouth_changes_per_s": 8.65,
+  "shape_hist": {
+   "rest": 58,
+   "cons": 48,
+   "i2": 28,
+   "e2": 12,
+   "a2": 12,
+   "o2": 11,
+   "mbp": 8,
+   "u2": 8,
+   "sh": 8,
+   "e": 7,
+   "fv": 6,
+   "u": 3,
+   "th": 2,
+   "l": 2,
+   "i": 2
+  },
+  "rest_frames_while_audible": 0,
+  "audible_frames": 86,
+  "open_mouth_frames_while_silent": 15,
+  "silent_frames": 69,
+  "longest_hold_audible_frames": 5,
+  "jaw_vs_loudness_corr": 0.881,
+  "listening_dy_range": [
+   -0.56,
+   3.54
+  ],
+  "thinking_layers": [
+   "blink_closed",
+   "blink_half",
+   "gaze",
+   "mbp"
+  ],
+  "frame_diff_mean": 0.89,
+  "frame_diff_p99": 4.65,
+  "biggest_jumps": [
+   [
+    75,
+    5.91,
+    "speaking",
+    "rest->th",
+    "gaze->-"
+   ],
+   [
+    178,
+    5.79,
+    "speaking",
+    "u2->e",
+    "-->-"
+   ],
+   [
+    370,
+    5.65,
+    "speaking",
+    "rest->cons",
+    "blink_closed->blink_half"
+   ],
+   [
+    372,
+    5.41,
+    "speaking",
+    "cons->u",
+    "blink_half->-"
+   ],
+   [
+    390,
+    4.8,
+    "speaking",
+    "cons->o2",
+    "-->-"
+   ]
+  ]
+ },
+ "diego-es": {
+  "seconds": 15.0,
+  "speaking_s": 8.13,
+  "listening_s": 5.1,
+  "thinking_s": 1.17,
+  "blinks": 5,
+  "blink_times": [
+   3.87,
+   4.17,
+   8.27,
+   11.33,
+   11.63
+  ],
+  "blink_gaps": [
+   0.3,
+   4.1,
+   3.07,
+   0.3
+  ],
+  "blink_sequences": [
+   "hhchh",
+   "hhcch",
+   "hhcch",
+   "hhcch",
+   "hhcch"
+  ],
+  "mouth_changes_per_s": 9.71,
+  "shape_hist": {
+   "rest": 63,
+   "cons": 51,
+   "e2": 25,
+   "a2": 21,
+   "mbp": 18,
+   "i2": 18,
+   "o2": 16,
+   "i": 6,
+   "e": 6,
+   "l": 4,
+   "o": 4,
+   "u2": 4,
+   "fv": 2,
+   "sh": 2,
+   "a": 2,
+   "u": 2
+  },
+  "rest_frames_while_audible": 4,
+  "audible_frames": 149,
+  "open_mouth_frames_while_silent": 18,
+  "silent_frames": 68,
+  "longest_hold_audible_frames": 5,
+  "jaw_vs_loudness_corr": 0.75,
+  "listening_dy_range": [
+   -0.54,
+   3.54
+  ],
+  "thinking_layers": [
+   "blink_closed",
+   "blink_half",
+   "gaze",
+   "mbp"
+  ],
+  "frame_diff_mean": 1.02,
+  "frame_diff_p99": 4.8,
+  "biggest_jumps": [
+   [
+    75,
+    6.01,
+    "speaking",
+    "rest->e2",
+    "gaze->-"
+   ],
+   [
+    363,
+    5.77,
+    "speaking",
+    "rest->i2",
+    "gaze->-"
+   ],
+   [
+    124,
+    5.17,
+    "speaking",
+    "l->o",
+    "-->-"
+   ],
+   [
+    389,
+    5.06,
+    "speaking",
+    "a->e2",
+    "-->-"
+   ],
+   [
+    395,
+    4.81,
+    "speaking",
+    "e->mbp",
+    "-->-"
+   ]
+  ]
+ },
+ "ethan-en": {
+  "seconds": 15.0,
+  "speaking_s": 7.17,
+  "listening_s": 6.03,
+  "thinking_s": 1.2,
+  "blinks": 3,
+  "blink_times": [
+   2.6,
+   6.37,
+   11.93
+  ],
+  "blink_gaps": [
+   3.77,
+   5.57
+  ],
+  "blink_sequences": [
+   "hhchh",
+   "hhchh",
+   "hhcch"
+  ],
+  "mouth_changes_per_s": 8.51,
+  "shape_hist": {
+   "rest": 60,
+   "cons": 47,
+   "i2": 22,
+   "o2": 13,
+   "a2": 13,
+   "mbp": 10,
+   "e2": 9,
+   "u2": 9,
+   "sh": 9,
+   "fv": 8,
+   "e": 6,
+   "u": 3,
+   "th": 2,
+   "l": 2,
+   "i": 2
+  },
+  "rest_frames_while_audible": 0,
+  "audible_frames": 86,
+  "open_mouth_frames_while_silent": 15,
+  "silent_frames": 69,
+  "longest_hold_audible_frames": 6,
+  "jaw_vs_loudness_corr": 0.88,
+  "listening_dy_range": [
+   -0.56,
+   3.54
+  ],
+  "thinking_layers": [
+   "blink_closed",
+   "blink_half",
+   "gaze",
+   "mbp"
+  ],
+  "frame_diff_mean": 0.82,
+  "frame_diff_p99": 4.08,
+  "biggest_jumps": [
+   [
+    370,
+    5.99,
+    "speaking",
+    "rest->cons",
+    "gaze->-"
+   ],
+   [
+    75,
+    5.58,
+    "speaking",
+    "rest->th",
+    "gaze->-"
+   ],
+   [
+    178,
+    5.14,
+    "speaking",
+    "u2->e",
+    "-->-"
+   ],
+   [
+    372,
+    4.18,
+    "speaking",
+    "cons->u",
+    "-->-"
+   ],
+   [
+    186,
+    4.1,
+    "speaking",
+    "a2->mbp",
+    "-->-"
+   ]
+  ]
+ },
+ "ethan-es": {
+  "seconds": 15.0,
+  "speaking_s": 8.13,
+  "listening_s": 5.1,
+  "thinking_s": 1.17,
+  "blinks": 3,
+  "blink_times": [
+   3.97,
+   9.07,
+   11.87
+  ],
+  "blink_gaps": [
+   5.1,
+   2.8
+  ],
+  "blink_sequences": [
+   "hhcch",
+   "hhcch",
+   "hhcch"
+  ],
+  "mouth_changes_per_s": 9.59,
+  "shape_hist": {
+   "rest": 60,
+   "cons": 53,
+   "e2": 26,
+   "a2": 20,
+   "i2": 20,
+   "mbp": 18,
+   "o2": 18,
+   "u2": 7,
+   "i": 4,
+   "l": 4,
+   "o": 4,
+   "e": 4,
+   "u": 4,
+   "a": 2
+  },
+  "rest_frames_while_audible": 1,
+  "audible_frames": 149,
+  "open_mouth_frames_while_silent": 13,
+  "silent_frames": 68,
+  "longest_hold_audible_frames": 5,
+  "jaw_vs_loudness_corr": 0.778,
+  "listening_dy_range": [
+   -0.54,
+   3.54
+  ],
+  "thinking_layers": [
+   "blink_closed",
+   "blink_half",
+   "gaze",
+   "mbp"
+  ],
+  "frame_diff_mean": 0.88,
+  "frame_diff_p99": 4.11,
+  "biggest_jumps": [
+   [
+    124,
+    5.74,
+    "speaking",
+    "l->o",
+    "blink_half->-"
+   ],
+   [
+    75,
+    5.66,
+    "speaking",
+    "rest->e2",
+    "gaze->-"
+   ],
+   [
+    363,
+    5.47,
+    "speaking",
+    "rest->u2",
+    "gaze->-"
+   ],
+   [
+    201,
+    4.44,
+    "speaking",
+    "cons->o2",
+    "-->-"
+   ],
+   [
+    126,
+    4.15,
+    "speaking",
+    "o->cons",
+    "-->-"
+   ]
+  ]
+ },
+ "sofia-en": {
+  "seconds": 15.0,
+  "speaking_s": 8.13,
+  "listening_s": 5.7,
+  "thinking_s": 0.57,
+  "blinks": 5,
+  "blink_times": [
+   2.27,
+   5.9,
+   9.1,
+   12.33,
+   12.63
+  ],
+  "blink_gaps": [
+   3.63,
+   3.2,
+   3.23,
+   0.3
+  ],
+  "blink_sequences": [
+   "hhchh",
+   "hhcch",
+   "hhcch",
+   "hhcch",
+   "hhcch"
+  ],
+  "mouth_changes_per_s": 6.64,
+  "shape_hist": {
+   "rest": 117,
+   "cons": 42,
+   "i2": 19,
+   "o": 18,
+   "o2": 12,
+   "e2": 12,
+   "l": 6,
+   "mbp": 4,
+   "u2": 3,
+   "a": 3,
+   "i": 2,
+   "fv": 2,
+   "e": 2,
+   "th": 2
+  },
+  "rest_frames_while_audible": 2,
+  "audible_frames": 90,
+  "open_mouth_frames_while_silent": 9,
+  "silent_frames": 76,
+  "longest_hold_audible_frames": 7,
+  "jaw_vs_loudness_corr": 0.895,
+  "listening_dy_range": [
+   -0.56,
+   3.54
+  ],
+  "thinking_layers": [
+   "blink_closed",
+   "blink_half",
+   "gaze",
+   "mbp"
+  ],
+  "frame_diff_mean": 0.95,
+  "frame_diff_p99": 4.68,
+  "biggest_jumps": [
+   [
+    75,
+    7.9,
+    "speaking",
+    "rest->o2",
+    "gaze->-"
+   ],
+   [
+    228,
+    5.43,
+    "speaking",
+    "u2->a",
+    "-->-"
+   ],
+   [
+    142,
+    5.21,
+    "speaking",
+    "fv->e",
+    "-->-"
+   ],
+   [
+    120,
+    4.88,
+    "speaking",
+    "o->cons",
+    "-->-"
+   ],
+   [
+    152,
+    4.69,
+    "speaking",
+    "rest->cons",
+    "-->-"
+   ]
+  ]
+ },
+ "sofia-es": {
+  "seconds": 15.0,
+  "speaking_s": 5.93,
+  "listening_s": 7.9,
+  "thinking_s": 0.57,
+  "blinks": 3,
+  "blink_times": [
+   3.43,
+   7.0,
+   12.17
+  ],
+  "blink_gaps": [
+   3.57,
+   5.17
+  ],
+  "blink_sequences": [
+   "hhchh",
+   "hhcch",
+   "hhchh"
+  ],
+  "mouth_changes_per_s": 8.26,
+  "shape_hist": {
+   "rest": 45,
+   "cons": 42,
+   "e2": 30,
+   "i2": 12,
+   "mbp": 10,
+   "o2": 10,
+   "a2": 8,
+   "u2": 7,
+   "e": 6,
+   "a": 6,
+   "l": 2
+  },
+  "rest_frames_while_audible": 1,
+  "audible_frames": 88,
+  "open_mouth_frames_while_silent": 14,
+  "silent_frames": 48,
+  "longest_hold_audible_frames": 4,
+  "jaw_vs_loudness_corr": 0.792,
+  "listening_dy_range": [
+   -0.55,
+   3.54
+  ],
+  "thinking_layers": [
+   "gaze",
+   "mbp"
+  ],
+  "frame_diff_mean": 0.84,
+  "frame_diff_p99": 4.41,
+  "biggest_jumps": [
+   [
+    75,
+    8.45,
+    "speaking",
+    "rest->cons",
+    "gaze->-"
+   ],
+   [
+    103,
+    5.38,
+    "speaking",
+    "rest->a",
+    "-->blink_half"
+   ],
+   [
+    105,
+    5.11,
+    "speaking",
+    "a->a2",
+    "blink_half->blink_closed"
+   ],
+   [
+    171,
+    4.72,
+    "speaking",
+    "e2->rest",
+    "-->-"
+   ],
+   [
+    67,
+    4.67,
+    "thinking",
+    "rest->rest",
+    "gaze->gaze"
+   ]
+  ]
+ }
+}
