@@ -799,5 +799,48 @@
   "helpFootnote": "Numbers checked on official government and service websites, November 2026. In another country, call your local emergency number.",
   "@helpFootnote": {
     "description": "Footnote of the Get help now screen."
-  }
+  },
+  "lockedPreviewLabel": "How {name} starts a conversation",
+  "@lockedPreviewLabel": {
+    "description": "Label above the coach greeting preview in the locked chat (before subscribing).",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "storeStatusTitle": "Store status",
+  "storeStatusCopy": "Copy",
+  "storeStatusQueryAgain": "Query again",
+  "storeStatusQuerying": "Querying…",
+  "storeStatusStore": "Store",
+  "storeStatusNoStoreKit": "{store} (no StoreKit in this build)",
+  "@storeStatusNoStoreKit": {
+    "placeholders": {
+      "store": {
+        "type": "String"
+      }
+    }
+  },
+  "storeStatusProductId": "Product id queried",
+  "storeStatusQueries": "Queries run",
+  "storeStatusLastQuery": "Last query",
+  "storeStatusProductsReturned": "Products returned",
+  "storeStatusReturnedIds": "Returned ids",
+  "storeStatusNotFoundIds": "notFoundIDs",
+  "storeStatusErrorCode": "Error code",
+  "storeStatusErrorMessage": "Error message",
+  "storeStatusCanMakePayments": "Can make payments",
+  "storeStatusStorefront": "Storefront",
+  "storeStatusStoreKit2": "StoreKit 2",
+  "storeStatusPrice": "Price from store",
+  "storeStatusSubscribed": "Subscribed",
+  "storeStatusStatusRead": "Status read",
+  "storeStatusPaywallError": "Paywall error",
+  "storeStatusNotYet": "not yet",
+  "storeStatusUnknown": "unknown",
+  "storeStatusNotApplicable": "n/a",
+  "storeStatusUnavailable": "unavailable",
+  "storeStatusYes": "yes",
+  "storeStatusNo": "no"
 }

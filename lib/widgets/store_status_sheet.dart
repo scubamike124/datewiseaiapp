@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/l10n.dart';
 import '../services/store_service.dart';
 import '../theme/app_theme.dart';
 
@@ -12,7 +13,8 @@ import '../theme/app_theme.dart';
 /// transaction, receipt or JWS) and changes nothing: "Query again" only
 /// re-runs the product query.
 ///
-/// Not localized: it is a technical readout for the owner and support.
+/// Shown in the UI language (English or Spanish). Copy copies the English
+/// readout, so support always gets the same labels.
 Future<void> showStoreStatus(BuildContext context) {
   return showModalBottomSheet<void>(
     context: context,
@@ -27,9 +29,20 @@ class StoreStatusSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<StoreService>();
+    final l = context.l10n;
     final d = store.diagnostics;
-    final rows = d?.rows() ?? [('Store', '${store.runtimeType} (no StoreKit in this build)')];
-    final text = d?.toString() ?? rows.map((r) => '${r.$1}: ${r.$2}').join('\n');
+    final words = StoreStatusWords(
+      notYet: l.storeStatusNotYet,
+      unknown: l.storeStatusUnknown,
+      notApplicable: l.storeStatusNotApplicable,
+      unavailable: l.storeStatusUnavailable,
+      yes: l.storeStatusYes,
+      no: l.storeStatusNo,
+    );
+    final rows = d != null
+        ? [for (final (f, v) in d.entries(words)) (storeStatusLabel(l, f), v)]
+        : [(l.storeStatusStore, l.storeStatusNoStoreKit('${store.runtimeType}'))];
+    final text = d?.toString() ?? 'Store: ${store.runtimeType} (no StoreKit in this build)';
     return SafeArea(
       child: SingleChildScrollView(
         key: const ValueKey('store-status'),
@@ -40,7 +53,7 @@ class StoreStatusSheet extends StatelessWidget {
           children: [
             Semantics(
               header: true,
-              child: Text('Store status', style: AppText.name.copyWith(fontSize: 22)),
+              child: Text(l.storeStatusTitle, style: AppText.name.copyWith(fontSize: 22)),
             ),
             const SizedBox(height: 12),
             for (final (label, value) in rows)
@@ -61,13 +74,13 @@ class StoreStatusSheet extends StatelessWidget {
                 TextButton(
                   key: const ValueKey('store-status-copy'),
                   onPressed: () => Clipboard.setData(ClipboardData(text: text)),
-                  child: const Text('Copy'),
+                  child: Text(l.storeStatusCopy),
                 ),
                 if (d != null)
                   TextButton(
                     key: const ValueKey('store-status-retry'),
                     onPressed: store.loadingProduct ? null : store.retryProduct,
-                    child: Text(store.loadingProduct ? 'Querying…' : 'Query again'),
+                    child: Text(store.loadingProduct ? l.storeStatusQuerying : l.storeStatusQueryAgain),
                   ),
               ],
             ),
@@ -77,3 +90,22 @@ class StoreStatusSheet extends StatelessWidget {
     );
   }
 }
+
+/// The readout label for [f] in the UI language.
+String storeStatusLabel(AppLocalizations l, StoreStatusField f) => switch (f) {
+      StoreStatusField.productId => l.storeStatusProductId,
+      StoreStatusField.queries => l.storeStatusQueries,
+      StoreStatusField.lastQuery => l.storeStatusLastQuery,
+      StoreStatusField.productsReturned => l.storeStatusProductsReturned,
+      StoreStatusField.returnedIds => l.storeStatusReturnedIds,
+      StoreStatusField.notFoundIds => l.storeStatusNotFoundIds,
+      StoreStatusField.errorCode => l.storeStatusErrorCode,
+      StoreStatusField.errorMessage => l.storeStatusErrorMessage,
+      StoreStatusField.canMakePayments => l.storeStatusCanMakePayments,
+      StoreStatusField.storefront => l.storeStatusStorefront,
+      StoreStatusField.storeKit2 => l.storeStatusStoreKit2,
+      StoreStatusField.price => l.storeStatusPrice,
+      StoreStatusField.subscribed => l.storeStatusSubscribed,
+      StoreStatusField.statusRead => l.storeStatusStatusRead,
+      StoreStatusField.paywallError => l.storeStatusPaywallError,
+    };

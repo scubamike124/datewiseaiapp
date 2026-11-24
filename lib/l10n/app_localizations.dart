@@ -1746,6 +1746,174 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Numbers checked on official government and service websites, November 2026. In another country, call your local emergency number.'**
   String get helpFootnote;
+
+  /// Label above the coach greeting preview in the locked chat (before subscribing).
+  ///
+  /// In en, this message translates to:
+  /// **'How {name} starts a conversation'**
+  String lockedPreviewLabel(String name);
+
+  /// No description provided for @storeStatusTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Store status'**
+  String get storeStatusTitle;
+
+  /// No description provided for @storeStatusCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get storeStatusCopy;
+
+  /// No description provided for @storeStatusQueryAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Query again'**
+  String get storeStatusQueryAgain;
+
+  /// No description provided for @storeStatusQuerying.
+  ///
+  /// In en, this message translates to:
+  /// **'Querying…'**
+  String get storeStatusQuerying;
+
+  /// No description provided for @storeStatusStore.
+  ///
+  /// In en, this message translates to:
+  /// **'Store'**
+  String get storeStatusStore;
+
+  /// No description provided for @storeStatusNoStoreKit.
+  ///
+  /// In en, this message translates to:
+  /// **'{store} (no StoreKit in this build)'**
+  String storeStatusNoStoreKit(String store);
+
+  /// No description provided for @storeStatusProductId.
+  ///
+  /// In en, this message translates to:
+  /// **'Product id queried'**
+  String get storeStatusProductId;
+
+  /// No description provided for @storeStatusQueries.
+  ///
+  /// In en, this message translates to:
+  /// **'Queries run'**
+  String get storeStatusQueries;
+
+  /// No description provided for @storeStatusLastQuery.
+  ///
+  /// In en, this message translates to:
+  /// **'Last query'**
+  String get storeStatusLastQuery;
+
+  /// No description provided for @storeStatusProductsReturned.
+  ///
+  /// In en, this message translates to:
+  /// **'Products returned'**
+  String get storeStatusProductsReturned;
+
+  /// No description provided for @storeStatusReturnedIds.
+  ///
+  /// In en, this message translates to:
+  /// **'Returned ids'**
+  String get storeStatusReturnedIds;
+
+  /// No description provided for @storeStatusNotFoundIds.
+  ///
+  /// In en, this message translates to:
+  /// **'notFoundIDs'**
+  String get storeStatusNotFoundIds;
+
+  /// No description provided for @storeStatusErrorCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Error code'**
+  String get storeStatusErrorCode;
+
+  /// No description provided for @storeStatusErrorMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Error message'**
+  String get storeStatusErrorMessage;
+
+  /// No description provided for @storeStatusCanMakePayments.
+  ///
+  /// In en, this message translates to:
+  /// **'Can make payments'**
+  String get storeStatusCanMakePayments;
+
+  /// No description provided for @storeStatusStorefront.
+  ///
+  /// In en, this message translates to:
+  /// **'Storefront'**
+  String get storeStatusStorefront;
+
+  /// No description provided for @storeStatusStoreKit2.
+  ///
+  /// In en, this message translates to:
+  /// **'StoreKit 2'**
+  String get storeStatusStoreKit2;
+
+  /// No description provided for @storeStatusPrice.
+  ///
+  /// In en, this message translates to:
+  /// **'Price from store'**
+  String get storeStatusPrice;
+
+  /// No description provided for @storeStatusSubscribed.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscribed'**
+  String get storeStatusSubscribed;
+
+  /// No description provided for @storeStatusStatusRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Status read'**
+  String get storeStatusStatusRead;
+
+  /// No description provided for @storeStatusPaywallError.
+  ///
+  /// In en, this message translates to:
+  /// **'Paywall error'**
+  String get storeStatusPaywallError;
+
+  /// No description provided for @storeStatusNotYet.
+  ///
+  /// In en, this message translates to:
+  /// **'not yet'**
+  String get storeStatusNotYet;
+
+  /// No description provided for @storeStatusUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'unknown'**
+  String get storeStatusUnknown;
+
+  /// No description provided for @storeStatusNotApplicable.
+  ///
+  /// In en, this message translates to:
+  /// **'n/a'**
+  String get storeStatusNotApplicable;
+
+  /// No description provided for @storeStatusUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'unavailable'**
+  String get storeStatusUnavailable;
+
+  /// No description provided for @storeStatusYes.
+  ///
+  /// In en, this message translates to:
+  /// **'yes'**
+  String get storeStatusYes;
+
+  /// No description provided for @storeStatusNo.
+  ///
+  /// In en, this message translates to:
+  /// **'no'**
+  String get storeStatusNo;
 }
 
 class _AppLocalizationsDelegate

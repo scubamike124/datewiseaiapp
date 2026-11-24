@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart' show InAppPurchaseStoreKitPlatform;
 import 'package:in_app_purchase_storekit/store_kit_2_wrappers.dart';
@@ -76,27 +77,80 @@ class StoreDiagnostics {
   bool ready = false;
   String? lastError;
 
-  /// Label and value pairs for the readout and for copying (no secrets).
-  List<(String, String)> rows() => [
-        ('Product id queried', productId),
-        ('Queries run', '$queries'),
-        ('Last query', lastQueryAt?.toLocal().toIso8601String() ?? 'not yet'),
-        ('Products returned', productsReturned?.toString() ?? 'not yet'),
-        ('Returned ids', returnedIds.isEmpty ? '-' : returnedIds.join(', ')),
-        ('notFoundIDs', notFoundIds.isEmpty ? '-' : notFoundIds.join(', ')),
-        ('Error code', errorCode ?? '-'),
-        ('Error message', errorMessage ?? '-'),
-        ('Can make payments', canMakePayments?.toString() ?? 'unknown'),
-        ('Storefront', storefront ?? (storefrontError == null ? 'unknown' : 'unavailable ($storefrontError)')),
-        ('StoreKit 2', storeKit2?.toString() ?? 'n/a'),
-        ('Price from store', price ?? '-'),
-        ('Subscribed', '$entitled'),
-        ('Status read', '$ready'),
-        ('Paywall error', lastError ?? '-'),
-      ];
+  /// Field and value pairs for the readout (no secrets). [w] gives the
+  /// words used in values ("not yet", "unknown", yes and no), so the sheet
+  /// can show them in the UI language.
+  List<(StoreStatusField, String)> entries([StoreStatusWords w = StoreStatusWords.en]) {
+    String yn(bool b) => b ? w.yes : w.no;
+    return [
+      (StoreStatusField.productId, productId),
+      (StoreStatusField.queries, '$queries'),
+      (StoreStatusField.lastQuery, lastQueryAt?.toLocal().toIso8601String() ?? w.notYet),
+      (StoreStatusField.productsReturned, productsReturned?.toString() ?? w.notYet),
+      (StoreStatusField.returnedIds, returnedIds.isEmpty ? '-' : returnedIds.join(', ')),
+      (StoreStatusField.notFoundIds, notFoundIds.isEmpty ? '-' : notFoundIds.join(', ')),
+      (StoreStatusField.errorCode, errorCode ?? '-'),
+      (StoreStatusField.errorMessage, errorMessage ?? '-'),
+      (StoreStatusField.canMakePayments, canMakePayments == null ? w.unknown : yn(canMakePayments!)),
+      (
+        StoreStatusField.storefront,
+        storefront ?? (storefrontError == null ? w.unknown : '${w.unavailable} ($storefrontError)'),
+      ),
+      (StoreStatusField.storeKit2, storeKit2 == null ? w.notApplicable : yn(storeKit2!)),
+      (StoreStatusField.price, price ?? '-'),
+      (StoreStatusField.subscribed, yn(entitled)),
+      (StoreStatusField.statusRead, yn(ready)),
+      (StoreStatusField.paywallError, lastError ?? '-'),
+    ];
+  }
+
+  /// English label and value pairs, for copying and the log.
+  List<(String, String)> rows() => [for (final (f, v) in entries()) (f.english, v)];
 
   @override
   String toString() => rows().map((r) => '${r.$1}: ${r.$2}').join('\n');
+}
+
+/// The rows of the "Store status" readout.
+enum StoreStatusField {
+  productId('Product id queried'),
+  queries('Queries run'),
+  lastQuery('Last query'),
+  productsReturned('Products returned'),
+  returnedIds('Returned ids'),
+  notFoundIds('notFoundIDs'),
+  errorCode('Error code'),
+  errorMessage('Error message'),
+  canMakePayments('Can make payments'),
+  storefront('Storefront'),
+  storeKit2('StoreKit 2'),
+  price('Price from store'),
+  subscribed('Subscribed'),
+  statusRead('Status read'),
+  paywallError('Paywall error');
+
+  const StoreStatusField(this.english);
+
+  /// The English label (copy and log).
+  final String english;
+}
+
+/// Words used in the readout's values.
+class StoreStatusWords {
+  const StoreStatusWords({
+    required this.notYet,
+    required this.unknown,
+    required this.notApplicable,
+    required this.unavailable,
+    required this.yes,
+    required this.no,
+  });
+
+  /// English, as the copied readout has always read.
+  static const en = StoreStatusWords(
+      notYet: 'not yet', unknown: 'unknown', notApplicable: 'n/a', unavailable: 'unavailable', yes: 'true', no: 'false');
+
+  final String notYet, unknown, notApplicable, unavailable, yes, no;
 }
 
 /// Shortens a plugin message for the readout and the log.
@@ -141,6 +195,10 @@ abstract class StoreService extends ChangeNotifier {
 
   /// Restores purchases; returns whether an active subscription was found.
   Future<bool> restore();
+
+  /// Whether the last [restore] ended because the user canceled the Apple
+  /// Account sign-in prompt. That is not an error: the UI shows nothing.
+  bool get lastRestoreCanceled => false;
 
   /// Re-reads the entitlement (called whenever the app comes back to the
   /// foreground, so a subscription canceled or expired meanwhile locks chat).
@@ -443,6 +501,9 @@ class AppStoreService extends StoreService {
         'error=${code ?? '-'} ${message ?? ''} canMakePayments=${_diag.canMakePayments} '
         'storefront=${_diag.storefront ?? _diag.storefrontError ?? 'unknown'} '
         'price=${_product?.price ?? '-'}');
+    // A query that finishes after a caller's timeout already notified must
+    // still redraw the paywall (price, Subscribe).
+    if (!_disposed) notifyListeners();
   }
 
   /// Reads the storefront country (StoreKit 2 `Storefront.current` through
@@ -672,6 +733,23 @@ class AppStoreService extends StoreService {
     return list.reduce((a, b) => expiry(b) > expiry(a) ? b : a);
   }
 
+  bool _restoreCanceled = false;
+
+  @override
+  bool get lastRestoreCanceled => _restoreCanceled;
+
+  /// Whether an `AppStore.sync` error is the user canceling the sign-in
+  /// prompt. The plugin reports every sync failure with one code
+  /// (`storekit2_failed_to_sync_to_app_store`) and puts the Swift error in
+  /// `details` (`userCancelled` from StoreKit 2, or SKError
+  /// `paymentCancelled`).
+  @visibleForTesting
+  static bool isSyncCanceled(Object e) {
+    if (e is! PlatformException) return false;
+    final d = '${e.details ?? ''} ${e.message ?? ''}'.toLowerCase();
+    return d.contains('usercancelled') || d.contains('usercanceled') || d.contains('paymentcancelled');
+  }
+
   @override
   Future<bool> restore() async {
     // iOS can read its local entitlements even when purchases are unavailable.
@@ -684,6 +762,7 @@ class AppStoreService extends StoreService {
       // StoreKit already holds, so the local read still happens. Android: the
       // refresh itself asks Play to re-deliver and waits for the result.
       var syncFailed = false;
+      _restoreCanceled = false;
       if (_isIOS) {
         // AppStore.sync asks the App Store for this Apple ID's transactions
         // (it may ask the user to sign in); the plugin's restorePurchases
@@ -693,7 +772,12 @@ class AppStoreService extends StoreService {
           await _appStoreSync();
         } catch (e) {
           debugPrint('[DW store] AppStore.sync failed: ${e.runtimeType}');
-          syncFailed = true;
+          // The user canceled the Apple Account prompt: not a failure.
+          if (isSyncCanceled(e)) {
+            _restoreCanceled = true;
+          } else {
+            syncFailed = true;
+          }
         }
         try {
           await _iap.restorePurchases();
@@ -704,6 +788,11 @@ class AppStoreService extends StoreService {
       await _refreshEntitlement();
       if (_entitled) {
         _error = null;
+        _restoreCanceled = false;
+      } else if (_restoreCanceled && !syncFailed) {
+        // Canceled sign-in and nothing held locally: the paywall stays as it
+        // was (a product error stays), with no restore error.
+        if (_error == StoreError.restoreFailed) _error = null;
       } else if (syncFailed) {
         _error = StoreError.restoreFailed;
       } else {
@@ -749,8 +838,11 @@ class AppStoreService extends StoreService {
     notifyListeners();
   }
 
+  bool _disposed = false;
+
   @override
   void dispose() {
+    _disposed = true;
     _sub?.cancel();
     super.dispose();
   }

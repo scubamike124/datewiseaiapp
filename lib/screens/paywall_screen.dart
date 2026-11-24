@@ -104,6 +104,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
     final error = store.lastError;
     if (ok) {
       widget.onClose();
+    } else if (store.lastRestoreCanceled) {
+      // The user canceled the Apple Account prompt: nothing to report.
+      return;
     } else {
       setState(() => _message = (l) => restoreFailureText(l, error, l.noSubscriptionForAppleId));
     }

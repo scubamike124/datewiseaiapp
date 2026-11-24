@@ -185,7 +185,8 @@ class SettingsScreen extends StatelessWidget {
                   // only a completed restore with nothing found says "none".
                   onTap: () async {
                     final ok = await store.restore();
-                    if (context.mounted) {
+                    // A canceled Apple Account prompt is not an error.
+                    if (context.mounted && (ok || !store.lastRestoreCanceled)) {
                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                         key: const ValueKey('restore-result'),
                         content: Text(ok ? l.restoreOk : restoreFailureText(l, store.lastError, l.restoreNone)),

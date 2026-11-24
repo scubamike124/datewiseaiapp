@@ -1050,4 +1050,92 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get helpFootnote =>
       'Números verificados en los sitios oficiales en noviembre de 2026. En otro país, llama al número de emergencias local.';
+
+  @override
+  String lockedPreviewLabel(String name) {
+    return 'Así empieza $name una conversación';
+  }
+
+  @override
+  String get storeStatusTitle => 'Estado de la tienda';
+
+  @override
+  String get storeStatusCopy => 'Copiar';
+
+  @override
+  String get storeStatusQueryAgain => 'Consultar de nuevo';
+
+  @override
+  String get storeStatusQuerying => 'Consultando…';
+
+  @override
+  String get storeStatusStore => 'Tienda';
+
+  @override
+  String storeStatusNoStoreKit(String store) {
+    return '$store (sin StoreKit en esta versión)';
+  }
+
+  @override
+  String get storeStatusProductId => 'Id del producto consultado';
+
+  @override
+  String get storeStatusQueries => 'Consultas realizadas';
+
+  @override
+  String get storeStatusLastQuery => 'Última consulta';
+
+  @override
+  String get storeStatusProductsReturned => 'Productos recibidos';
+
+  @override
+  String get storeStatusReturnedIds => 'Ids recibidos';
+
+  @override
+  String get storeStatusNotFoundIds => 'notFoundIDs (no encontrados)';
+
+  @override
+  String get storeStatusErrorCode => 'Código de error';
+
+  @override
+  String get storeStatusErrorMessage => 'Mensaje de error';
+
+  @override
+  String get storeStatusCanMakePayments => 'Puede hacer pagos';
+
+  @override
+  String get storeStatusStorefront => 'País de la tienda';
+
+  @override
+  String get storeStatusStoreKit2 => 'StoreKit 2';
+
+  @override
+  String get storeStatusPrice => 'Precio de la tienda';
+
+  @override
+  String get storeStatusSubscribed => 'Suscrito';
+
+  @override
+  String get storeStatusStatusRead => 'Estado leído';
+
+  @override
+  String get storeStatusPaywallError => 'Error en la pantalla de suscripción';
+
+  @override
+  String get storeStatusNotYet => 'todavía no';
+
+  @override
+  String get storeStatusUnknown => 'desconocido';
+
+  @override
+  String get storeStatusNotApplicable => 'no aplica';
+
+  @override
+  String get storeStatusUnavailable => 'no disponible';
+
+  @override
+  String get storeStatusYes => 'sí';
+
+  @override
+  String get storeStatusNo => 'no';
 }

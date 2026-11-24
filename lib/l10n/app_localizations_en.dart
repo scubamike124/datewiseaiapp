@@ -1025,4 +1025,92 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get helpFootnote =>
       'Numbers checked on official government and service websites, November 2026. In another country, call your local emergency number.';
+
+  @override
+  String lockedPreviewLabel(String name) {
+    return 'How $name starts a conversation';
+  }
+
+  @override
+  String get storeStatusTitle => 'Store status';
+
+  @override
+  String get storeStatusCopy => 'Copy';
+
+  @override
+  String get storeStatusQueryAgain => 'Query again';
+
+  @override
+  String get storeStatusQuerying => 'Querying…';
+
+  @override
+  String get storeStatusStore => 'Store';
+
+  @override
+  String storeStatusNoStoreKit(String store) {
+    return '$store (no StoreKit in this build)';
+  }
+
+  @override
+  String get storeStatusProductId => 'Product id queried';
+
+  @override
+  String get storeStatusQueries => 'Queries run';
+
+  @override
+  String get storeStatusLastQuery => 'Last query';
+
+  @override
+  String get storeStatusProductsReturned => 'Products returned';
+
+  @override
+  String get storeStatusReturnedIds => 'Returned ids';
+
+  @override
+  String get storeStatusNotFoundIds => 'notFoundIDs';
+
+  @override
+  String get storeStatusErrorCode => 'Error code';
+
+  @override
+  String get storeStatusErrorMessage => 'Error message';
+
+  @override
+  String get storeStatusCanMakePayments => 'Can make payments';
+
+  @override
+  String get storeStatusStorefront => 'Storefront';
+
+  @override
+  String get storeStatusStoreKit2 => 'StoreKit 2';
+
+  @override
+  String get storeStatusPrice => 'Price from store';
+
+  @override
+  String get storeStatusSubscribed => 'Subscribed';
+
+  @override
+  String get storeStatusStatusRead => 'Status read';
+
+  @override
+  String get storeStatusPaywallError => 'Paywall error';
+
+  @override
+  String get storeStatusNotYet => 'not yet';
+
+  @override
+  String get storeStatusUnknown => 'unknown';
+
+  @override
+  String get storeStatusNotApplicable => 'n/a';
+
+  @override
+  String get storeStatusUnavailable => 'unavailable';
+
+  @override
+  String get storeStatusYes => 'yes';
+
+  @override
+  String get storeStatusNo => 'no';
 }

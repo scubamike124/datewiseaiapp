@@ -17,6 +17,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart' show SK2PurchaseDetails;
@@ -118,6 +119,9 @@ class _SK2 implements InAppPurchase2API {
   int syncs = 0;
   bool syncFails = false;
 
+  /// Thrown by sync instead (the plugin's PlatformException).
+  Object? syncError;
+
   @override
   Future<List<SK2TransactionMessage>> currentEntitlements() async => [
         for (final id in entitled)
@@ -128,6 +132,7 @@ class _SK2 implements InAppPurchase2API {
   Future<void> sync() async {
     syncs++;
     if (syncFails) throw StateError('AppStore.sync failed');
+    if (syncError != null) throw syncError!;
   }
 
   @override
@@ -536,6 +541,211 @@ void main() {
       await pumpApp(tester, prefs: onboardedPrefs(), store: UnsupportedStoreService());
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('paywall-retry')), findsNothing);
+    });
+  });
+
+  // --- StoreKit review minors (2026-11-24) -----------------------------------------------------
+  group('review minors: late product answer, canceled Restore sign-in, Store status in Spanish', () {
+    late _SK2 sk2;
+    setUp(() {
+      sk2 = _SK2();
+      setInAppPurchaseHostApis(api2: sk2);
+      EntitlementToken.update(null);
+    });
+    tearDown(() {
+      debugDefaultTargetPlatformOverride = null;
+      EntitlementToken.update(null);
+      EntitlementToken.refresher = null;
+    });
+
+    final canceled = PlatformException(
+        code: 'storekit2_failed_to_sync_to_app_store',
+        message: 'Storekit has failed to sync to the app store.',
+        details: 'userCancelled');
+
+    test('isSyncCanceled: only the user canceling the prompt counts', () {
+      expect(AppStoreService.isSyncCanceled(canceled), isTrue);
+      expect(
+          AppStoreService.isSyncCanceled(PlatformException(
+              code: 'storekit2_failed_to_sync_to_app_store', details: 'Error Domain=SKErrorDomain paymentCancelled')),
+          isTrue);
+      expect(
+          AppStoreService.isSyncCanceled(PlatformException(
+              code: 'storekit2_failed_to_sync_to_app_store', details: 'networkError(NSURLErrorDomain -1009)')),
+          isFalse);
+      expect(AppStoreService.isSyncCanceled(StateError('userCancelled')), isFalse, reason: 'not a plugin error');
+    });
+
+    testWidgets('a product answer that arrives after the retry timed out still notifies (redraws the paywall)',
+        (tester) async {
+      final iap = _Iap();
+      final store = _store(iap);
+      await tester.runAsync(store.init);
+      expect(store.canPurchase, isFalse);
+      iap
+        ..products = [_product()]
+        ..queryGate = Completer<void>();
+      var notified = 0;
+      store.addListener(() => notified++);
+      final retry = store.retryProduct();
+      // Let the query start (and pass the fake's own checks) before time moves.
+      for (var i = 0; i < 10 && iap.queries < 2; i++) {
+        await Future<void>.value();
+      }
+      expect(iap.queries, 2);
+      await tester.pump(const Duration(seconds: 11));
+      // retryProduct gave up waiting (10 s) and notified; the query still runs.
+      expect(store.loadingProduct, isFalse);
+      expect(store.canPurchase, isFalse);
+      final before = notified;
+      iap.queryGate!.complete();
+      await tester.pump(const Duration(milliseconds: 10));
+      await retry;
+      expect(store.canPurchase, isTrue);
+      expect(store.storePrice, r'$19.99');
+      expect(notified, greaterThan(before), reason: 'the late result notifies listeners itself');
+      expect(store.isEntitled, isFalse, reason: 'loading the product never unlocks');
+    });
+
+    testWidgets('the paywall redraws when that late answer arrives: price and Subscribe enabled', (tester) async {
+      final iap = _Iap();
+      final store = _store(iap);
+      await tester.runAsync(store.init);
+      iap
+        ..products = [_product()]
+        ..queryGate = Completer<void>();
+      await pumpApp(tester, prefs: onboardedPrefs(), store: store);
+      // Opening the paywall retried; it times out after 10 s.
+      await tester.pump(const Duration(seconds: 11));
+      expect(tester.widget<DwButton>(find.byKey(const ValueKey('paywall-subscribe'))).onPressed, isNull);
+      iap.queryGate!.complete();
+      await tester.pump(const Duration(milliseconds: 10));
+      await tester.pump();
+      final subscribe = tester.widget<DwButton>(find.byKey(const ValueKey('paywall-subscribe')));
+      expect(subscribe.onPressed, isNotNull);
+      expect(subscribe.label, contains(r'$19.99'));
+      await tester.pumpAndSettle();
+    });
+
+    test('Restore: the user cancels the Apple Account prompt: no error, nothing unlocked', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      sk2.syncError = canceled;
+      final iap = _Iap()..products = [_product()];
+      final store = _store(iap);
+      await store.init();
+      expect(await store.restore(), isFalse);
+      expect(store.lastRestoreCanceled, isTrue);
+      expect(store.lastError, isNull);
+      expect(store.isEntitled, isFalse);
+      expect(iap.restores, 1, reason: 'the local entitlement read still happens');
+    });
+
+    test('Restore: canceled prompt but StoreKit holds the subscription: restored', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      sk2
+        ..syncError = canceled
+        ..entitled = [StoreConfig.productId];
+      final store = _store(_Iap()..products = [_product()]);
+      await store.init();
+      expect(await store.restore(), isTrue);
+      expect(store.lastRestoreCanceled, isFalse);
+      expect(store.lastError, isNull);
+    });
+
+    test('Restore: a canceled prompt keeps a product error (Try again stays)', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      sk2.syncError = canceled;
+      final store = _store(_Iap());
+      await store.init();
+      expect(await store.restore(), isFalse);
+      expect(store.lastError, StoreError.productUnavailable);
+    });
+
+    test('Restore: any other sync failure is still restoreFailed', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      sk2.syncError = PlatformException(
+          code: 'storekit2_failed_to_sync_to_app_store', details: 'networkError(NSURLErrorDomain -1009)');
+      final store = _store(_Iap()..products = [_product()]);
+      await store.init();
+      expect(await store.restore(), isFalse);
+      expect(store.lastRestoreCanceled, isFalse);
+      expect(store.lastError, StoreError.restoreFailed);
+    });
+
+    testWidgets('paywall: canceling the Restore sign-in shows no message', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      sk2.syncError = canceled;
+      final store = _store(_Iap()..products = [_product()]);
+      await tester.runAsync(store.init);
+      await pumpApp(tester, prefs: onboardedPrefs(), store: store);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const ValueKey('paywall-restore')));
+      await tester.runAsync(() async {
+        await tester.tap(find.byKey(const ValueKey('paywall-restore')));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
+      await tester.pumpAndSettle();
+      expect(sk2.syncs, 1);
+      expect(find.byKey(const ValueKey('paywall-message')), findsNothing);
+      expect(find.byKey(const ValueKey('paywall')), findsOneWidget, reason: 'still locked');
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    testWidgets('You › Restore: canceling the sign-in shows no snackbar', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      sk2
+        ..syncError = canceled
+        ..entitled = [StoreConfig.productId];
+      final store = _store(_Iap()..products = [_product()]);
+      await tester.runAsync(store.init);
+      await pumpApp(tester, prefs: onboardedPrefs(), store: store, tab: AppTab.you);
+      await tester.pumpAndSettle();
+      // Subscribed, so You is reachable; now the subscription is gone and the
+      // user cancels the sign-in.
+      sk2.entitled = [];
+      final row = find.byKey(const ValueKey('row-restore'));
+      await tester.scrollUntilVisible(row, 200, scrollable: find.byType(Scrollable).first);
+      await tester.runAsync(() async {
+        await tester.tap(row);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
+      await tester.pump();
+      expect(sk2.syncs, 1);
+      expect(find.byKey(const ValueKey('restore-result')), findsNothing);
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    testWidgets('Store status readout in Spanish', (tester) async {
+      final store = _store(_Iap());
+      await tester.runAsync(store.init);
+      await pumpApp(tester, prefs: spanishPrefs(), store: store);
+      await tester.pumpAndSettle();
+      await tester.longPress(find.byKey(const ValueKey('paywall-plan')));
+      await tester.pumpAndSettle();
+      expect(find.text('Estado de la tienda'), findsOneWidget);
+      expect(find.text('Store status'), findsNothing);
+      expect(find.text('Consultar de nuevo'), findsOneWidget);
+      expect(find.text('Copiar'), findsOneWidget);
+      expect(find.textContaining('Productos recibidos: '), findsOneWidget);
+      expect(find.textContaining('Id del producto consultado: '), findsOneWidget);
+      expect(find.textContaining('datewise_premium_monthly'), findsWidgets);
+      for (final f in StoreStatusField.values) {
+        expect(find.textContaining('${f.english}: '), f == StoreStatusField.storeKit2 ? findsOneWidget : findsNothing,
+            reason: '${f.name} is translated (StoreKit 2 is a name)');
+      }
+      // Copy keeps the English readout for support.
+      expect(store.diagnostics.toString(), contains('Products returned: '));
+    });
+
+    testWidgets('Store status readout without StoreKit, in Spanish', (tester) async {
+      await pumpApp(tester, prefs: spanishPrefs(), store: FakeStoreService(entitled: true), tab: AppTab.you);
+      await tester.pumpAndSettle();
+      final footnote = find.byKey(const ValueKey('settings-footnote'));
+      await tester.scrollUntilVisible(footnote, 300, scrollable: find.byType(Scrollable).first);
+      await tester.longPress(footnote);
+      await tester.pumpAndSettle();
+      expect(find.text('Estado de la tienda'), findsOneWidget);
+      expect(find.textContaining('sin StoreKit en esta versión'), findsOneWidget);
     });
   });
 
