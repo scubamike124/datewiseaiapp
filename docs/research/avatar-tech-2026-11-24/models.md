@@ -1,0 +1,70 @@
+# Real-time photoreal avatar engines for DateWise AI: LiveTalking, MuseTalk 1.5, SoulX-FlashHead
+
+Research date: 2026-11-24. Baseline: Ditto (Apache-2.0, CPU), reviewed at 4/10 because the lips never close on m/b/p, listening behaviour is limited, and it reads as an animated photo.
+Each claim carries its source. **[verified]** means I checked it in cloned source code (both repos were shallow-cloned to `avatar-research/src/`). **[est]** means my own estimate, not a measurement. I ran no model during this research.
+
+## 1. Comparison table
+
+| | **LiveTalking** (lipku) | **MuseTalk 1.5** (TMElyralab / Tencent Music) | **SoulX-FlashHead** (Soul AI Lab) |
+|---|---|---|---|
+| What it is | Real-time streaming framework (WebRTC/WHEP/RTMP, LLM+TTS+ASR glue). It is not a model. Engines: MuseTalk, Wav2Lip(256), ER-NeRF, Ultralight-Digital-Human | Lip-sync model. It inpaints the lower half of the face in each frame (256x256, single-step latent inpainting, not diffusion) | Talking-head generator: 1.3B DiT (Wan-2.1 based), streaming, from one image plus audio |
+| Single photo vs needs video | Avatars are built from an **uploaded video** (wav2lip/musetalk avatar API: `video_file`/`video_path` required). ER-NeRF and Ultralight need per-person training on minutes of video | Accepts an image, an image folder or a video [verified, `scripts/inference.py`: `input_img_list = [video_path]` for an image]. **From a still image the head stays frozen and only the mouth moves.** Natural output needs a source video | **Single image** (`--cond_image examples/girl.png` plus `--audio_path`) [verified, `inference_script_single_gpu_lite.sh`]. The model generates head motion |
+| Mouth closure / teeth | Depends on the engine | v1.5 adds a sync loss and a GAN loss. No explicit claim about bilabial closure. Issues report lip jitter between frames (#389), a blurry mouth (#335) and a "black box in mouth" (#400). 256px face, so teeth are soft; README suggests GFPGAN. Mouth openness is tunable (`bbox_shift`, `parsing_mode=jaw`) | Paper Sync-C on HDTF: **Pro 5.73, Lite 4.21, Ditto 3.57**; Sync-D: 8.77 / 9.49 / 10.49 (lower is better). Lite: maintainers confirm **blurry or disappearing teeth** caused by LTX VAE compression (#21) |
+| Listening / idle, blink, breathing, head motion | Loops the avatar's source video frames while silent (idle = the source clip). Supports interruption | None of its own: copies whatever the input video does | Model generates head motion. Blinking can't be controlled by prompt (#76). Paper doesn't cover silence or listening behaviour. Limited to face and head |
+| Spanish | Engine-dependent | Audio features from whisper-tiny (multilingual encoder). README lists zh/en/ja as supported. Spanish untested but phoneme-agnostic | wav2vec2-base-960h (English-pretrained) audio encoder, but training data (VividHead) spans **15 languages**; official example uses Sichuan-dialect audio. Spanish untested |
+| Real-time / WebRTC / interruption | **Yes**: WebRTC via aiortc, WHEP (Aug 2026), RTMP, virtual camera. Interruption supported. Fixed an 80 ms lip lag (Aug 2026 commit) | Not by itself. `realtime_inference` precomputes avatar latents, then streams. "30fps+ on V100". Integrated into LiveTalking | Streaming Gradio app (single GPU). Paper uses ~1.32 s audio fragments and 33-frame chunks (`infer_params.yaml`), so expect roughly 1–2 s first-frame latency [est]. Issue #83: A/V desync when streaming. Community LiveKit attempt (#78). No interruption logic shipped |
+| GPU / fps | Wav2Lip256: 60 fps on 3060, 120 on 3080Ti. MuseTalk: 42 fps on 3080Ti, 45 on 3090, **72 on 4090**. Real time needs at least 25 fps | V100 30+ fps. 3050Ti 4 GB fp16: an 8 s clip took about 5 min | **Lite: 96 fps or 3x real-time streams on one 4090** (paper evaluation says H20, so the hardware claim is inconsistent). **Pro: 10.8 fps on 4090; real time needs 2x RTX 5090 + SageAttention**. Users report under 20 fps on 2x5090 (#27) and low fps on 2x L40S (#24). audio.cpp port (Lite): RTF 0.215–0.49 and 5–8.9 GiB VRAM on a 5090 |
+| Concurrency per GPU and cost on rented GPU | MuseTalk on 4090: about 2 speaking streams at 25 fps. Idle sessions are cheap (LiveTalking README says the CPU limits idle sessions) | Same as left | Lite: 3 streams per 4090. Pro: 1 stream per **2x5090** |
+| Cost per streamed minute [est] | 4090 at $0.34–0.69/h ÷ 2 streams ≈ **$0.003–0.006/min**. L4 at $0.39–0.59/h with about 1 stream [est] ≈ $0.007–0.010/min | Same as left | Lite ≈ **$0.002–0.004/min**. Pro ≈ $0.02–0.04/min (2x5090) |
+| CPU feasibility | Not for real time | **Yes for offline test clips.** CPU fallback exists in inference and preprocessing [verified: `torch.device("cuda" if available else "cpu")` in `inference.py` and `preprocessing.py`] | Not designed for CPU. Pipeline hard-codes `device="cuda"` (`flash_head_pipeline.py:61`, `wan/modules/vae.py:960`) and calls `torch.cuda.synchronize()`, but attention falls back to `F.scaled_dot_product_attention` when flash-attn is missing [verified]. Lite might run on CPU with a small patch; Pro is impractical |
+| Code licence | Apache-2.0 (LICENSE is plain Apache). **README "declaration" (not in LICENSE):** videos posted to Bilibili, WeChat Channels or Douyin must carry the LiveTalking watermark and logo. A paid commercial edition exists (wav2lipls) | **MIT** (LICENSE plus NOTICE added 2026-11-19) | **Apache-2.0** |
+| Weights licence | wav2lip256.pth: **provenance and licence not stated** (Quark/Google Drive). Original Wav2Lip weights are non-commercial, so avoid. MuseTalk weights: see next column | HF repo tagged MIT; "available for any purpose, even commercially". **Caveat:** NOTICE says it was trained on HDTF plus a private set; "communicate with the HDTF owner about commercialization issues" | DiT weights Apache-2.0; Wan-2.1 VAE (Pro) Apache-2.0; **LTX-Video-0.9 VAE (Lite) Open RAIL-M** (commercial use allowed, with use-based restrictions that must be passed on); wav2vec2-base-960h Apache-2.0 (maintainer, #86, 2026-11-19; HF card) |
+| Key deps | aiortc (BSD), flask, edge_tts (uses Microsoft's online TTS service; we'd use our own TTS), dashscope/openai clients. No InsightFace in requirements | sd-vae-ft-mse MIT; whisper MIT; face-parsing.PyTorch MIT (**weights trained on CelebAMask-HQ, a non-commercial research dataset: flag**); DWPose Apache-2.0; mmpose/mmcv/mmdet Apache-2.0; face-alignment BSD-3; S3FD licence not stated in NOTICE; LatentSync SyncNet Apache-2.0 (training only). **No InsightFace, no GPL found** | torch, xfuser (`import` required), flash-attn (optional per code), ffmpeg. No InsightFace seen |
+| Maturity | 11.1k stars, active (last commit 2026-10-20) | v1.5 since Apr 2025. Commits sparse since Jul 2025 (licence docs only, Nov 2026). Widely forked and used | New (code Feb 2026), paper arXiv 2602.07449, 42 issues, ComfyUI node. "Pretrained" checkpoint still "coming soon" |
+| Free HF Space (anonymous) | None found | Official Space **broken** (runtime error, missing weights). Community `cpu-basic` Spaces running (henrybit/musetalk-1-5, trymonolith/MuseTalk, banao-tech/musetalk-avatar), with no GPU quota but slower than our local CPU. Avoid uploading coach portraits to third parties | Official `Soul-AILab/SoulX-FlashHead` **running on ZeroGPU** (zero-a10g), so it is quota-limited. Anonymous users get only a small daily allowance. Also running: fleshapron/SoulX-FlashHead-Long, hugging-apps/leaptalk-talking-head (both ZeroGPU). No non-ZeroGPU Space found |
+
+## 2. Detail
+
+### 2.1 LiveTalking
+- Sources: https://github.com/lipku/LiveTalking , README, LICENSE, `requirements.txt`, `docs/avatar_api.md`, commit history.
+- Role for us: the **streaming and server layer**, not the face model. It already does what we would otherwise build: WebRTC/WHEP output, interruption, per-session management, and an idle loop while silent. It pairs naturally with MuseTalk.
+- Avatar = a folder of precomputed frames and latents generated from a **source video** (`avatars/musetalk/genavatar.py`, `version v15` default). Listening behaviour is therefore whatever that clip shows.
+- Licence: Apache-2.0. The watermark clause appears only in the README declaration, it targets videos published on Chinese platforms, and it is not in the LICENSE file. Low risk for an in-app coach, but record it. Do not use its `wav2lip256` weights (unknown provenance; Wav2Lip lineage is non-commercial). ER-NeRF and Ultralight need per-person training on minutes of real video, which we don't have for AI-generated coaches.
+- iPhone/Flutter: LiveTalking serves WebRTC/WHEP, so the client is `flutter_webrtc` (MIT) and the WHEP endpoint goes behind our Cloudflare Worker for auth and signalling. It needs a GPU host; the Worker can't run it. Alternatively the White Glove web path uses browser WebRTC directly.
+
+### 2.2 MuseTalk 1.5
+- Sources: https://github.com/TMElyralab/MuseTalk (README, LICENSE, NOTICE, issues, commits), https://huggingface.co/TMElyralab/MuseTalk
+- How it works: for each frame, it detects the face (S3FD via face-alignment, plus DWPose landmarks via mmpose) and masks the lower half of a 256x256 crop. It inpaints the mouth from whisper-tiny audio features and a reference, then blends the result back with a face-parsing mask (`jaw` mode). The upper face, head pose and blinks come from the input frames unchanged.
+- Strengths: audio-feature lip sync that is language-agnostic; MIT code and weights; real time on a consumer GPU; inference and preprocessing run on CPU.
+- Weaknesses: 256px mouth (soft teeth), per-frame jitter, and an identity drift on lip colour or shape that the README itself admits. No explicit bilabial-closure claim, so m/b/p closure has to be checked by eye. The HDTF training-data commercial caveat goes to the owner.
+
+#### Combination: Ditto output + MuseTalk lip-sync (recommended first test)
+- MuseTalk accepts a video as `video_path` and replaces only the mouth and jaw region. Feeding it **Ditto's rendered video (natural head motion, blinks) plus the same coach audio** keeps Ditto's motion and swaps in MuseTalk's mouth, which should fix lip closure if MuseTalk closes on bilabials.
+- Risks: bounding-box jitter on a moving head (#389), so try a small `extra_margin` and smoothing. A seam where Ditto's jaw outline differs from the inpainted mouth: driving Ditto with the same audio keeps jaw and cheeks roughly consistent. Also test Ditto driven by low-amplitude audio, so the head moves while the mouth stays mostly closed.
+- Live version of the same idea: render a **10–20 s idle loop of each coach with Ditto** (mouth closed, blinks, small nods; mirror-looped). Use it as the LiveTalking MuseTalk avatar video. When silent, LiveTalking plays the loop (listening). When speaking, MuseTalk lip-syncs over it in real time. Ditto then runs only offline, once per coach, and the real-time path is LiveTalking + MuseTalk on one GPU.
+
+#### CPU test here (4 cores, 15 GB RAM; about 6 GB was free when checked, so other processes are using about 9 GB)
+- Feasible within about 1 hour [est]. Setup:
+  - `uv` Python 3.10 venv with torch 2.0.1 CPU.
+  - mmcv 2.0.1 CPU wheel from `download.openmmlab.com/mmcv/dist/cpu/torch2.0/`, plus mmdet 3.1.0 and mmpose 1.1.0.
+  - Drop `tensorflow` from requirements (TensorBoard only).
+  - Weights: musetalkV15 unet, sd-vae-ft-mse, whisper-tiny, dwpose, face-parse, resnet18, a few GB in total.
+  - Face-parse weights come from Google Drive via gdown, and the `--id` flag is broken (#427). Use a URL or a mirror; the proxy may block Drive.
+- Run fp32 (no `--use_float16` on CPU). Estimated 1–2 s per frame for UNet + VAE plus about 0.5–1 s per frame for landmarks, so 5–10 s at 25 fps (125–250 frames) takes roughly 5–15 min after an install of about 15–20 min [est].
+
+### 2.3 SoulX-FlashHead
+- Sources: https://github.com/Soul-AILab/SoulX-FlashHead , https://huggingface.co/Soul-AILab/SoulX-FlashHead-1_3B , https://arxiv.org/html/2602.07449 , issues #21, #24, #27, #76, #83, #85, #86.
+- The only one of the three that animates **a single portrait** with generated motion. Best published lip-sync numbers here (Pro Sync-C 5.73 vs Ditto 3.57 on HDTF), 512x512 output.
+- Trade-off: Pro (Apache all the way through) is high quality but needs 2x5090 for real time, and users see less than claimed. Lite is real time (3 streams per 4090) but has blurry teeth and carries the RAIL-M VAE.
+- Silence and listening behaviour isn't documented. No interruption logic is shipped. A/V desync has been reported in streaming. It is very new.
+- CPU test here [est]: Lite would mean patching hard-coded `cuda` devices and sync calls and installing xfuser. RAM fits (1.3B fp32 ≈ 5.2 GB, but tight with the current 6 GB free). Rough compute: about 1.3k tokens per 33-frame chunk, so minutes per 1.3 s chunk, giving about 20–60 min for 5–10 s. **Possible but risky; it is the second test.** Pro on CPU: about 7x more tokens, impractical.
+- Quicker look: the official ZeroGPU Space (quota-limited; uploads a coach portrait to a third party, so use a non-sensitive test face or get owner OK).
+- iPhone path: no WebRTC server shipped. Would need LiveTalking-style wrapping (or the audio.cpp server, licence unverified), then `flutter_webrtc`.
+
+## 3. Ranking
+1. **MuseTalk 1.5 over Ditto output** (offline now). Later, **LiveTalking + MuseTalk with a Ditto idle loop** for live WebRTC. Commercially clean apart from the HDTF and CelebAMask-HQ caveats, testable on this CPU, about $0.003–0.006 per streamed minute on a 4090 later.
+2. **SoulX-FlashHead**: best single-photo quality on paper. Pro is too heavy for real time; Lite has teeth blur and RAIL-M. Re-evaluate once we have a GPU. Try the ZeroGPU Space or a patched Lite on CPU second.
+3. **LiveTalking's other engines** (wav2lip256, ER-NeRF, Ultralight): rejected because of unclear weights or the need for per-person training video. Keep LiveTalking itself as the streaming layer.
+
+Hosted FlashHead (fal.ai, WaveSpeed) is paid, so it is excluded under the $0 rule.
+GPU prices from RunPod pages and aggregators, which conflict: https://www.runpod.io/pricing , https://www.runpod.io/gpu-pricing
