@@ -1,0 +1,146 @@
+{
+ "ava-A": {
+  "reply1": {
+   "seconds": 8.67,
+   "changes": 35,
+   "avg_per_s": 4.04,
+   "worst_1s": 8
+  },
+  "reply2": {
+   "seconds": 3.08,
+   "changes": 22,
+   "avg_per_s": 7.14,
+   "worst_1s": 8
+  },
+  "all": {
+   "avg_per_s": 4.85,
+   "worst_1s": 8
+  }
+ },
+ "ava-B": {
+  "reply1": {
+   "seconds": 8.67,
+   "changes": 35,
+   "avg_per_s": 4.04,
+   "worst_1s": 8
+  },
+  "reply2": {
+   "seconds": 3.08,
+   "changes": 22,
+   "avg_per_s": 7.14,
+   "worst_1s": 8
+  },
+  "all": {
+   "avg_per_s": 4.85,
+   "worst_1s": 8
+  }
+ },
+ "ethan-A": {
+  "reply1": {
+   "seconds": 5.0,
+   "changes": 26,
+   "avg_per_s": 5.2,
+   "worst_1s": 8
+  },
+  "reply2": {
+   "seconds": 2.88,
+   "changes": 15,
+   "avg_per_s": 5.22,
+   "worst_1s": 7
+  },
+  "all": {
+   "avg_per_s": 5.2,
+   "worst_1s": 8
+  }
+ },
+ "ethan-B": {
+  "reply1": {
+   "seconds": 5.0,
+   "changes": 26,
+   "avg_per_s": 5.2,
+   "worst_1s": 8
+  },
+  "reply2": {
+   "seconds": 2.88,
+   "changes": 15,
+   "avg_per_s": 5.22,
+   "worst_1s": 7
+  },
+  "all": {
+   "avg_per_s": 5.2,
+   "worst_1s": 8
+  }
+ },
+ "sofia-A": {
+  "reply1": {
+   "seconds": 6.46,
+   "changes": 36,
+   "avg_per_s": 5.57,
+   "worst_1s": 8
+  },
+  "reply2": {
+   "seconds": 2.46,
+   "changes": 16,
+   "avg_per_s": 6.51,
+   "worst_1s": 8
+  },
+  "all": {
+   "avg_per_s": 5.83,
+   "worst_1s": 8
+  }
+ },
+ "sofia-B": {
+  "reply1": {
+   "seconds": 6.46,
+   "changes": 36,
+   "avg_per_s": 5.57,
+   "worst_1s": 8
+  },
+  "reply2": {
+   "seconds": 2.46,
+   "changes": 16,
+   "avg_per_s": 6.51,
+   "worst_1s": 8
+  },
+  "all": {
+   "avg_per_s": 5.83,
+   "worst_1s": 8
+  }
+ },
+ "diego-A": {
+  "reply1": {
+   "seconds": 5.71,
+   "changes": 31,
+   "avg_per_s": 5.43,
+   "worst_1s": 8
+  },
+  "reply2": {
+   "seconds": 3.38,
+   "changes": 18,
+   "avg_per_s": 5.33,
+   "worst_1s": 8
+  },
+  "all": {
+   "avg_per_s": 5.39,
+   "worst_1s": 8
+  }
+ },
+ "diego-B": {
+  "reply1": {
+   "seconds": 5.71,
+   "changes": 31,
+   "avg_per_s": 5.43,
+   "worst_1s": 8
+  },
+  "reply2": {
+   "seconds": 3.38,
+   "changes": 18,
+   "avg_per_s": 5.33,
+   "worst_1s": 8
+  },
+  "all": {
+   "avg_per_s": 5.39,
+   "worst_1s": 8
+  }
+ }
+}
