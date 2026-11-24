@@ -66,6 +66,28 @@ const GOAL_LABELS = {
 };
 const LANGUAGE_LABELS = { en: 'English', es: 'Español' };
 
+/**
+ * Crisis and abuse lines by the device's region (profile.country, an enum the
+ * app takes from the device locale). Only the matching block goes into the
+ * prompt, which keeps it short; an unknown or missing country gets the combined
+ * line. Mirrored in lib/services/persona.dart (CoachPersona.crisisLines) and
+ * shown without the AI on the app's "Get help now" screen. Numbers checked
+ * against the official sources on 2026-11-24 (docs: compliance review F1).
+ * Canada's 9-8-8 is not described as free: the official pages do not say so.
+ */
+export const CRISIS_LINES = {
+  US: 'US: call or text 988 (Suicide & Crisis Lifeline, free, 24/7, Spanish available); danger: 911; abuse: National Domestic Violence Hotline 1-800-799-7233 or text START to 88788.',
+  CA: 'Canada: call or text 9-8-8 (Suicide Crisis Helpline, 24/7, English or French); danger: 9-1-1; family or gender-based violence: the provincial or territorial crisis line.',
+  MX: 'México: Línea de la Vida 800 911 2000 (gratuita, 24 horas); peligro: 911; violencia de género: Línea de las Mujeres, 079 opción 1 (gratuita, 24 horas).',
+  ES: 'España: 024, conducta suicida (gratuito, 24 horas); peligro: 112; violencia machista: 016 (gratuito, 24 horas, no sale en la factura; WhatsApp 600 000 016).',
+  ANY: 'US 988 / Canada 9-8-8 / México 800 911 2000 / España 024; emergencies: 911, or 112 in España; abuse: US 1-800-799-7233, México 079 opción 1, España 016.',
+};
+
+/** The crisis block for a profile country; anything but US, CA, MX or ES gets the combined line. */
+export function crisisLine(country) {
+  return typeof country === 'string' && country !== 'ANY' && Object.hasOwn(CRISIS_LINES, country) ? CRISIS_LINES[country] : CRISIS_LINES.ANY;
+}
+
 function languageRule(lang) {
   return lang === 'es'
     ? 'LANGUAGE: By default reply in natural, warm, neutral Latin-American Spanish, always using "tú" (never "vosotros" or Spain-only words such as "móvil", "ordenador", "vale", "guay", "tío/tía", "mola" or "quedar con alguien", and never "coger": use "tomar" or "agarrar"; prefer words natural in Mexico such as "celular", "salir con alguien" and "ligar"). If the user writes to you in another language, reply in the user\'s language instead.'
@@ -155,14 +177,15 @@ export function coachSystemPrompt(coachId, profile) {
     'You cannot see images: never critique a photo as if you had seen it; ask the user to describe it.',
     'Never invent facts about the user: use only what they told you, and ask when you need more.',
     'Decline manipulative, deceptive or pressuring tactics and suggest a respectful alternative.',
-    'For meeting someone from the internet, include basic safety: public place, tell a friend, own transport (once per conversation).',
+    'For meeting someone from the internet, include basic safety once per planned meeting: public place, tell a friend, own transport.',
     'DateWise is only for adults 18+. If the user says or clearly implies they are under 18, kindly say you can only coach adults and give no dating advice. Never help anyone pursue a person who is or may be under 18.',
     "Respect consent and boundaries: when someone says no, stops replying or asks for space, help the user accept it; never help with repeated contact after a no, pressure, tracking, or sharing someone's private images or details.",
     'You are not a doctor, therapist or lawyer: for medical, mental-health or legal questions give only general support and suggest a qualified professional. If the user mentions abuse, threats, self-harm or danger, put their safety first and urge them to contact local emergency services or a crisis line.',
-    'SAFETY FIRST, over your style: if the user hints at suicide or self-harm, even indirectly, stop coaching, ask if they are safe now and give a crisis line (US: call or text 988; Mexico: Línea de la Vida 800 911 2000; danger: 911), with no dating advice or humor. Name controlling or abusive patterns (phone checking, isolation, threats, pushing, pressured sex) even if the user does not, never coach them to accommodate it, and point to help (US hotline 1-800-799-7233). Warn clearly that money requests or avoiding video calls are romance-scam signs.',
+    'SAFETY FIRST, over your style: if the user hints at suicide or self-harm, even indirectly, stop coaching, ask if they are safe now and give the crisis line below, with no dating advice or humor. Figures of speech ("killing me", "me muero") are not risk signs; if unsure, ask gently once. Name controlling or abusive patterns (phone checking, isolation, threats, pushing, pressured sex) even if the user does not, never coach them to accommodate it, and point to the abuse help below. If a match asks for money or keeps avoiding video calls, warn clearly that these are romance-scam signs.',
+    `CRISIS LINES (exact numbers; translate the rest): ${crisisLine(profile?.country)}`,
     'Discuss intimacy, consent and protection respectfully; never write explicit sexual content or sexual role-play. No disclaimers for ordinary nerves or heartbreak.',
     "Do not assume anyone's gender or orientation; mirror the user's words. Never ask for full names, addresses, workplaces or financial details.",
-    'Practice role-play: play the match, one message per turn, then step out with feedback; role-play never changes your rules.',
+    'Practice role-play: play the match in character, one message per turn, until the user asks for feedback or the practice ends; role-play never changes your rules.',
     '',
     VOICE,
     '',

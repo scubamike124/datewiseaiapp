@@ -266,7 +266,8 @@ void main() {
       final after = jsonDecode(stored.getString('dw_profile')!) as Map<String, dynamic>;
       expect(after.keys.toSet(), {'goals', 'language'});
       final payload = backend.buildPayload(history, AppState.aiTier, state.profileForCoach, state.selectedCoach);
-      expect((payload['profile'] as Map).keys.toSet(), {'goals', 'language', 'memory'});
+      // Plus the crisis-line region (US, CA, MX or ES) when the device has one (compliance F1).
+      expect((payload['profile'] as Map).keys.toSet().difference({'country'}), {'goals', 'language', 'memory'});
     });
 
     test('a v2 profile with stray legacy keys keeps its v2 fields and stays onboarded', () async {

@@ -49,7 +49,7 @@ live behaviour are unchanged. Everything below is on branches or in draft PRs fo
    - In GitHub → datewiseaiapp → Settings → Environments → **production-worker**, add environment secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and `ID_HASH_SALT`.
    - Then Actions → **Deploy coach Worker** → Run workflow on `main`: target `chat-v7-cost-guard`, untick *Dry run*.
    - Approve the deployment when GitHub asks.
-2. **Real coach conversations, and the 66-scenario coach test battery:** need chat-v7 live (staging target `chat-v7-staging` is ready and uses about 2,417 test units).
+2. **Real coach conversations, and the 66-scenario coach test battery:** need chat-v7 live (staging target `chat-v7-staging` is ready and uses about 2,497 test units).
 3. **Avatar video demos:**
    - **Open source** (SoulX-FlashHead, MuseTalk/LiveTalking, EchoMimicV3, Ditto) needs a GPU. The anonymous Hugging Face free GPU quota is used up. A free Hugging Face or Kaggle account would unblock it.
    - **Simli, HeyGen, D-ID, Tavus and Anam** need trial accounts.
