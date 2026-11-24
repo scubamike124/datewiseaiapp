@@ -177,6 +177,22 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // --- Voice conversation: avatar shown or hidden --------------------------
+
+  bool? _voiceAvatarCollapsed;
+
+  /// The user's choice to hide the avatar in the voice conversation, or null
+  /// when they have not chosen (the chat screen then decides by screen size
+  /// and text size).
+  bool? get voiceAvatarCollapsed => _voiceAvatarCollapsed;
+
+  Future<void> setVoiceAvatarCollapsed(bool collapsed) async {
+    if (_voiceAvatarCollapsed == collapsed) return;
+    _voiceAvatarCollapsed = collapsed;
+    notifyListeners();
+    await _storage.setVoiceAvatarCollapsed(collapsed);
+  }
+
   // --- Coach memory (OFF by default) --------------------------------------
 
   bool _memoryEnabled = false;
@@ -289,6 +305,7 @@ class AppState extends ChangeNotifier {
     _profile = _storage.loadProfile();
     _coachId = _storage.loadCoachId();
     _memoryEnabled = _storage.memoryEnabled;
+    _voiceAvatarCollapsed = _storage.voiceAvatarCollapsed;
     _memoryText = _storage.memoryText;
     _activeDays = _storage.loadActiveDays();
     final plan = _storage.loadPlan();
@@ -693,6 +710,7 @@ class AppState extends ChangeNotifier {
     _coachId = null;
     _plan = null;
     _memoryEnabled = false;
+    _voiceAvatarCollapsed = null;
     _memoryText = '';
     _activeDays = {};
     _onboarded = false;

@@ -22,6 +22,7 @@ import '../theme/app_theme.dart';
 import '../widgets/coach_text.dart';
 import '../widgets/dw.dart';
 import '../widgets/find_table_link.dart';
+import '../widgets/subtitle_chunk.dart';
 import 'get_help_screen.dart';
 import 'paywall_screen.dart';
 import 'shell.dart';
@@ -121,7 +122,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   // MediaQuery, so the voice stage is rebuilt from here.
   @override
   void didChangeMetrics() {
-    if (mounted && _voiceMode) setState(() {});
+    if (mounted) setState(() {});
   }
 
   @override
@@ -658,20 +659,33 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   /// MediaQuery, so this asks the view itself.
   static bool _keyboardOpen(BuildContext context) => MediaQueryData.fromView(View.of(context)).viewInsets.bottom > 0;
 
-  /// Tallest the voice stage may be. With the keyboard up it is the controls
-  /// row and a peek of the captions. Normal text: no cap. Large text: the
-  /// stage scrolls instead of pushing the talk dock off screen, but the cap
-  /// never cuts the face or the controls row (so the brows, eyes, mouth and
-  /// chin stay in view); only the captions below scroll.
-  double _stageCap(BuildContext context) {
+  /// Whether the avatar is hidden in the voice conversation: the user's saved
+  /// choice, else by screen. A small phone (iPhone SE, 12 mini), a short
+  /// (landscape) screen and large text start with the avatar hidden, so the
+  /// conversation always has room; tall screens start with it shown.
+  static bool avatarCollapsed(BuildContext context, bool? saved) {
+    if (saved != null) return saved;
     final size = MediaQuery.sizeOf(context);
     final large = MediaQuery.textScalerOf(context).scale(1) > 1.3;
-    // At large text the keyboard leaves room for the controls row only.
-    if (_keyboardOpen(context)) return large ? _Stage.controlsHeight + _Stage.bottomMargin : size.height * 0.18;
-    if (!large) return double.infinity;
-    final w = math.min(size.width, kContentMaxWidth) - _Stage.sideMargin - 2;
-    final face = CoachStageAvatar.portraitSize(w, largeText: true).height + _Stage.controlsHeight + _Stage.bottomMargin;
-    return math.max(size.height * 0.18, face + 8);
+    return large || size.width <= kSmallPhoneWidth || size.height < kTallScreenHeight;
+  }
+
+  /// Widest phone treated as small (iPhone SE and 12 mini are 375 pt).
+  static const double kSmallPhoneWidth = 380;
+
+  /// Screens shorter than this start with the avatar hidden.
+  static const double kTallScreenHeight = 800;
+
+  /// Tallest the voice stage may be: with the keyboard up the controls row
+  /// and a peek of the subtitle; otherwise half the screen (it scrolls
+  /// beyond that, so the talk dock is never pushed off screen).
+  double _stageCap(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    if (_keyboardOpen(context)) {
+      final large = MediaQuery.textScalerOf(context).scale(1) > 1.3;
+      return large ? _Stage.controlsHeight + _Stage.bottomMargin : math.max(size.height * 0.18, _Stage.controlsHeight + _Stage.bottomMargin + 8);
+    }
+    return size.height * 0.5;
   }
 
   @override
@@ -686,6 +700,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     // one) stays usable (QA M-1).
     final readOnly = !entitled && state.threadsFor(coach).any((t) => t.messages.any((m) => m.isUser));
     final top = MediaQuery.paddingOf(context).top;
+    final avatarHidden = avatarCollapsed(context, state.voiceAvatarCollapsed);
 
     return ValueListenableBuilder<bool>(
       valueListenable: _voice.speaking,
@@ -729,8 +744,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       lipSync: _voice is LipSyncSource ? (_voice as LipSyncSource).lipSync : null,
                       elapsed: _elapsed,
                       captions: _captions,
-                      caption: _currentCaption(state),
+                      replyText: _latestReplyText(state),
+                      responding: state.isResponding,
                       onToggleCaptions: () => setState(() => _captions = !_captions),
+                      avatarHidden: avatarHidden,
+                      onToggleAvatar: () => state.setVoiceAvatarCollapsed(!avatarHidden),
                       compact: _keyboardOpen(context),
                     ),
                   ),
@@ -750,7 +768,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   : _Locked(coach: coach),
             ),
             if (readOnly) ContentWidth(child: _LockedBar(coach: coach)),
-            if (entitled) const ContentWidth(child: _UsageNotice()),
+            // With the keyboard up at large text the room is needed for the
+            // conversation and the controls; the notice returns with it closed.
+            if (entitled &&
+                MediaQuery.sizeOf(context).height >= 500 &&
+                !(_keyboardOpen(context) && MediaQuery.textScalerOf(context).scale(1) > 1.3))
+              const ContentWidth(child: _UsageNotice()),
             if (entitled)
               ContentWidth(
                 key: _dockKey,
@@ -786,15 +809,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
   }
 
-  String _currentCaption(AppState state) {
+  /// The text of the coach's latest reply (or the greeting): the source of
+  /// the live subtitle. The reply itself is shown in the message list only.
+  String _latestReplyText(AppState state) {
     final msgs = state.activeThread?.messages ?? const <ChatMessage>[];
     for (var i = msgs.length - 1; i >= 0; i--) {
-      if (!msgs[i].isUser) {
-        // The whole reply: the caption box scrolls instead of cutting it.
-        return parseReply(msgs[i].text).body.replaceAll(RegExp(r'\*\*'), '').replaceAll('\n', ' ');
-      }
+      if (!msgs[i].isUser) return parseReply(msgs[i].text).body.replaceAll('**', '');
     }
-    return state.selectedCoach.greeting.replaceAll('**', '').replaceAll('\n', ' ');
+    return state.selectedCoach.greeting.replaceAll('**', '');
   }
 }
 
@@ -845,8 +867,9 @@ class _Header extends StatelessWidget {
                 // still reads it in full). "AI" comes first, so it always shows.
                 MediaQuery.withClampedTextScaling(
                   maxScaleFactor: kHeaderSubtitleMaxScale,
-                  child: Text(l.aiLabel(coach),
+                  child: Text(l.aiLabelShort,
                       key: const ValueKey('ai-label'),
+                      semanticsLabel: l.aiLabel(coach),
                       maxLines: 1,
                       softWrap: false,
                       overflow: TextOverflow.ellipsis,
@@ -871,7 +894,9 @@ class _Header extends StatelessWidget {
 /// Voice-mode stage: the coach as an animated portrait (lib/avatar/:
 /// on-device frame compositing with lip-sync to the device's speech; the
 /// still portrait under Reduce Motion), a soft glow while speaking, the
-/// session timer and the live captions. Not video.
+/// session timer and a short live subtitle. Not video. The avatar can be
+/// hidden ([avatarHidden]): the stage is then only the controls row and the
+/// subtitle, and the coach stays as the circle in the header.
 class _Stage extends StatelessWidget {
   const _Stage({
     required this.coach,
@@ -880,15 +905,17 @@ class _Stage extends StatelessWidget {
     required this.lipSync,
     required this.elapsed,
     required this.captions,
-    required this.caption,
+    required this.replyText,
+    required this.responding,
     required this.onToggleCaptions,
+    required this.avatarHidden,
+    required this.onToggleAvatar,
     this.compact = false,
   });
 
   /// With the keyboard open the portrait is dropped (the controls row and
-  /// captions stay), so the talk dock stays above the keyboard.
+  /// subtitle stay), so the talk dock stays above the keyboard.
   final bool compact;
-  static const double sideMargin = 24;
   static const double bottomMargin = 8;
   static const double controlsHeight = 44;
 
@@ -898,12 +925,69 @@ class _Stage extends StatelessWidget {
   final LipSyncDriver? lipSync;
   final String elapsed;
   final bool captions;
-  final String caption;
+
+  /// The coach's latest reply: the subtitle shows one sentence of it.
+  final String replyText;
+  final bool responding;
   final VoidCallback onToggleCaptions;
+  final bool avatarHidden;
+  final VoidCallback onToggleAvatar;
 
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
+    final showPortrait = !compact && !avatarHidden;
+    final controls = SizedBox(
+      height: controlsHeight,
+      child: Row(
+        key: const ValueKey('voice-stage-controls'),
+        children: [
+          Expanded(
+            // One line, scaled down to fit, so the row is always as tall as
+            // the buttons at any text size.
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: GlassChip(key: const ValueKey('voice-timer'), label: l.voiceSession(elapsed)),
+              ),
+            ),
+          ),
+          CircleIconButton(
+            key: const ValueKey('toggle-captions'),
+            icon: captions ? Icons.closed_caption_rounded : Icons.closed_caption_off_outlined,
+            tooltip: captions ? l.hideCaptions : l.showCaptions,
+            onPressed: onToggleCaptions,
+            filled: true,
+            size: controlsHeight,
+          ),
+          const SizedBox(width: 4),
+          CircleIconButton(
+            key: const ValueKey('toggle-avatar'),
+            icon: avatarHidden ? Icons.face_rounded : Icons.expand_less_rounded,
+            tooltip: avatarHidden ? l.showAvatar : l.hideAvatar,
+            onPressed: onToggleAvatar,
+            filled: true,
+            size: controlsHeight,
+          ),
+        ],
+      ),
+    );
+    // A short (landscape) screen keeps its room for the conversation: no subtitle.
+    final short = MediaQuery.sizeOf(context).height < 500;
+    final subtitle = captions && !short
+        ? Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: _Subtitle(
+              key: const ValueKey('voice-subtitle'),
+              speaking: speaking,
+              responding: responding,
+              lipSync: lipSync,
+              replyText: replyText,
+            ),
+          )
+        : const SizedBox.shrink();
     return AnimatedContainer(
       // The speaking glow fades in, unless Reduce Motion is on.
       duration: motion(context, const Duration(milliseconds: 400)),
@@ -915,92 +999,146 @@ class _Stage extends StatelessWidget {
         boxShadow: speaking ? const [BoxShadow(color: Color(0x40DDB67F), blurRadius: 28, spreadRadius: 1)] : const [],
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (!compact)
-            LayoutBuilder(
-              // The portrait's height follows the stage width, so the face
-              // and mouth keep their place on iPad and at large text. Nothing
-              // is drawn over the face: the timer and captions button sit in
-              // the row below it.
-              builder: (context, box) {
-                final size = CoachStageAvatar.portraitSize(box.maxWidth,
-                    largeText: MediaQuery.textScalerOf(context).scale(1) > 1.3,
-                    screenHeight: MediaQuery.sizeOf(context).height);
-                return SizedBox(
-                  height: size.height,
-                  child: Center(
-                    child: SizedBox(
-                      width: size.width,
-                      child: Stack(
-                        fit: StackFit.expand,
+      child: showPortrait
+          // The avatar window on the left (the whole face, from the hair to
+          // the chin; nothing is drawn over it), the timer, buttons and the
+          // live subtitle beside it.
+          ? LayoutBuilder(builder: (context, box) {
+              final win = CoachStageAvatar.windowSize(box.maxWidth, screenHeight: MediaQuery.sizeOf(context).height);
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(10, 10, 4, 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      key: const ValueKey('avatar-window'),
+                      width: win.width,
+                      height: win.height,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppColors.line2),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: CoachStageAvatar(coach: coach, mood: mood, lipSync: lipSync),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          CoachStageAvatar(coach: coach, mood: mood, lipSync: lipSync),
-                          const FadeToBackground(stops: [CoachStageAvatar.fadeStart, 1], color: AppColors.surface),
+                          controls,
+                          Padding(padding: const EdgeInsets.only(right: 8), child: subtitle),
                         ],
                       ),
                     ),
-                  ),
-                );
-              },
+                  ],
+                ),
+              );
+            })
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(padding: const EdgeInsets.fromLTRB(12, 0, 6, 0), child: controls),
+                if (captions && !short) Padding(padding: const EdgeInsets.fromLTRB(14, 0, 14, 10), child: subtitle),
+              ],
             ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 6, 0),
-            child: SizedBox(
-              height: controlsHeight,
-              child: Row(
-                key: const ValueKey('voice-stage-controls'),
-                children: [
-                  Expanded(
-                    // One line, scaled down to fit, so the row is always as
-                    // tall as the button at any text size.
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: GlassChip(key: const ValueKey('voice-timer'), label: l.voiceSession(elapsed)),
-                      ),
-                    ),
-                  ),
-                  CircleIconButton(
-                    icon: captions ? Icons.closed_caption_rounded : Icons.closed_caption_off_outlined,
-                    tooltip: captions ? l.hideCaptions : l.showCaptions,
-                    onPressed: onToggleCaptions,
-                    filled: true,
-                    size: controlsHeight,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (captions)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(coach.name.toUpperCase(), style: AppText.eyebrow.copyWith(fontSize: 11)),
-                  const SizedBox(height: 4),
-                  // The whole reply, never truncated: it scrolls inside a
-                  // capped height, so long replies at large text stay readable.
-                  // It starts at the end, the part being read aloud last.
-                  ConstrainedBox(
-                    constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.22),
-                    child: SingleChildScrollView(
-                      key: const ValueKey('voice-caption-scroll'),
-                      reverse: true,
-                      child: Text(caption,
-                          key: const ValueKey('voice-caption'),
-                          style: const TextStyle(fontSize: 13.5, height: 1.45, color: AppColors.text)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
+    );
+  }
+}
+
+/// The live subtitle: the sentence being spoken, at most three lines, never
+/// the whole reply (that is in the message list). It follows the speech
+/// through the lip-sync timeline's word that is being said; before and
+/// between speech it shows the first sentence of the latest reply, and
+/// nothing while the coach is still writing. Its text size stops growing at
+/// 1.3x so it stays short.
+class _Subtitle extends StatefulWidget {
+  const _Subtitle({super.key, required this.speaking, required this.responding, required this.lipSync, required this.replyText});
+  final bool speaking;
+  final bool responding;
+  final LipSyncDriver? lipSync;
+  final String replyText;
+
+  static const double fontSize = 13.5;
+  static const double lineHeight = 1.35;
+  static const double maxTextScale = 1.3;
+  static const int maxLines = 3;
+
+  @override
+  State<_Subtitle> createState() => _SubtitleState();
+}
+
+class _SubtitleState extends State<_Subtitle> {
+  Timer? _poll;
+
+  @override
+  void initState() {
+    super.initState();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(_Subtitle old) {
+    super.didUpdateWidget(old);
+    _sync();
+  }
+
+  /// Polls the speech position, only while something is being spoken.
+  void _sync() {
+    if (widget.speaking && _poll == null) {
+      _poll = Timer.periodic(const Duration(milliseconds: 200), (_) {
+        if (mounted) setState(() {});
+      });
+    } else if (!widget.speaking) {
+      _poll?.cancel();
+      _poll = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    super.dispose();
+  }
+
+  String _text(int maxChars) {
+    if (widget.responding) return '';
+    final d = widget.lipSync;
+    final tl = d?.timeline;
+    if (widget.speaking && d != null && tl != null && d.active) {
+      final t = d.planTime();
+      if (t != null && tl.words.isNotEmpty) {
+        var k = 0;
+        for (var i = 0; i < tl.words.length; i++) {
+          if (tl.words[i].start <= t) k = i;
+        }
+        return subtitleAt(tl.text, tl.words[k].charStart, maxChars: maxChars);
+      }
+    }
+    return firstSubtitle(widget.replyText, maxChars: maxChars);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(context).clamp(maxScaleFactor: _Subtitle.maxTextScale);
+    final size = scaler.scale(_Subtitle.fontSize);
+    return MediaQuery.withClampedTextScaling(
+      maxScaleFactor: _Subtitle.maxTextScale,
+      child: LayoutBuilder(builder: (context, box) {
+        // About how many characters three lines hold here, so a chunk fits.
+        final perLine = box.maxWidth / (size * 0.5);
+        final maxChars = (perLine * _Subtitle.maxLines * 0.85).floor().clamp(24, 120);
+        return ConstrainedBox(
+          // Reserves two lines, so the stage does not jump between sentences.
+          constraints: BoxConstraints(minHeight: size * _Subtitle.lineHeight * 2),
+          child: Text(_text(maxChars),
+              key: const ValueKey('voice-caption'),
+              textAlign: TextAlign.start,
+              maxLines: _Subtitle.maxLines,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: _Subtitle.fontSize, height: _Subtitle.lineHeight, color: AppColors.text)),
+        );
+      }),
     );
   }
 }
@@ -1058,13 +1196,17 @@ class _MessageList extends StatelessWidget {
     return ContentWidth(
       child: Align(
         alignment: Alignment.topCenter,
-        child: ListView.builder(
-          key: ValueKey('messages-${coach.id}'),
-          reverse: true,
-          shrinkWrap: true,
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-          itemCount: items.length,
-          itemBuilder: (_, i) => items[items.length - 1 - i],
+        // Long-press selects and copies any part of a reply (SelectionArea),
+        // and the list scrolls, so a long reply is never cut off.
+        child: SelectionArea(
+          child: ListView.builder(
+            key: ValueKey('messages-${coach.id}'),
+            reverse: true,
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            itemCount: items.length,
+            itemBuilder: (_, i) => items[items.length - 1 - i],
+          ),
         ),
       ),
     );
@@ -1542,6 +1684,9 @@ class _VoiceDock extends StatelessWidget {
               ),
             ],
           ),
+          // The hint is dropped on a short (landscape) screen, which needs the
+          // room for the conversation.
+          if (MediaQuery.sizeOf(context).height >= 500) ...[
           const SizedBox(height: 12),
           // With VoiceOver/TalkBack the talk button toggles with a tap.
           Text(
@@ -1552,6 +1697,7 @@ class _VoiceDock extends StatelessWidget {
             textAlign: TextAlign.center,
             style: AppText.small,
           ),
+          ],
         ],
       ),
     );

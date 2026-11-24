@@ -58,6 +58,9 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String get coachAiLabelShort => 'Coach con IA';
+
+  @override
   String coachPortrait(String name) {
     return 'Retrato de $name, coach con IA';
   }
@@ -368,6 +371,12 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get showCaptions => 'Mostrar subtítulos';
+
+  @override
+  String get hideAvatar => 'Ocultar avatar';
+
+  @override
+  String get showAvatar => 'Mostrar avatar';
 
   @override
   String coachTyping(String name) {

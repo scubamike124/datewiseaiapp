@@ -188,6 +188,12 @@ abstract class AppLocalizations {
   /// **'AI dating coach · {language}'**
   String coachAiLabel(String language);
 
+  /// No description provided for @coachAiLabelShort.
+  ///
+  /// In en, this message translates to:
+  /// **'AI coach'**
+  String get coachAiLabelShort;
+
   /// No description provided for @coachPortrait.
   ///
   /// In en, this message translates to:
@@ -703,6 +709,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Show captions'**
   String get showCaptions;
+
+  /// No description provided for @hideAvatar.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide avatar'**
+  String get hideAvatar;
+
+  /// No description provided for @showAvatar.
+  ///
+  /// In en, this message translates to:
+  /// **'Show avatar'**
+  String get showAvatar;
 
   /// No description provided for @coachTyping.
   ///

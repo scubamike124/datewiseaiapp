@@ -29,6 +29,7 @@ class StorageService {
   static const _kMemoryOn = 'dw_memory_on';
   static const _kMemoryText = 'dw_memory_text';
   static const _kActiveDays = 'dw_active_days';
+  static const _kVoiceAvatarCollapsed = 'dw_voice_avatar_collapsed';
   static const _kUnderage = 'dw_underage';
   static const _kAiConsent = 'dw_ai_consent';
   static const _kAiConsentVersion = 'dw_ai_consent_version';
@@ -120,6 +121,12 @@ class StorageService {
 
   bool get memoryEnabled => _prefs.getBool(_kMemoryOn) ?? false;
   Future<void> setMemoryEnabled(bool on) => _prefs.setBool(_kMemoryOn, on);
+
+  /// Whether the user hid the avatar in the voice conversation; null when
+  /// they never chose (the screen then picks by its size). Removed by
+  /// [clearAll] with the other `dw_` keys.
+  bool? get voiceAvatarCollapsed => _prefs.getBool(_kVoiceAvatarCollapsed);
+  Future<void> setVoiceAvatarCollapsed(bool collapsed) => _prefs.setBool(_kVoiceAvatarCollapsed, collapsed);
 
   String get memoryText => _prefs.getString(_kMemoryText) ?? '';
   Future<void> saveMemoryText(String text) => _prefs.setString(_kMemoryText, text);

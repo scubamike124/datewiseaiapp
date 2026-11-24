@@ -25,6 +25,7 @@
     }
   },
   "coachAiLabel": "AI dating coach · {language}",
+  "coachAiLabelShort": "AI coach",
   "@coachAiLabel": {
     "placeholders": {
       "language": {
@@ -250,6 +251,8 @@
   },
   "hideCaptions": "Hide captions",
   "showCaptions": "Show captions",
+  "hideAvatar": "Hide avatar",
+  "showAvatar": "Show avatar",
   "coachTyping": "{name} is typing",
   "@coachTyping": {
     "placeholders": {

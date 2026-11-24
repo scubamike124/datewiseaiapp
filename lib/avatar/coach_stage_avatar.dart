@@ -16,41 +16,33 @@ class CoachStageAvatar extends StatelessWidget {
   final AvatarMood mood;
   final LipSyncDriver? lipSync;
 
-  /// Height of the voice stage's portrait for a stage [width]: 0.6 of the
-  /// width (so the face keeps its size on wide screens and the brows fit),
-  /// within 150-250 pt; shorter at large text (130-170 pt), which leaves
-  /// room for the captions.
-  static double stageHeight(double width, {required bool largeText}) =>
-      largeText ? (width / 2.6).clamp(130.0, 170.0) : (width * 0.6).clamp(150.0, 250.0);
+  /// The window is 4:5 (width : height): tall enough for the whole face,
+  /// from the hair above the forehead to the chin, in a small tile.
+  static const double windowAspect = 0.8;
 
-  /// The portrait box of the voice stage: [stageHeight] tall, but never taller
-  /// than 26% of the screen ([screenHeight]) at normal text, so a small
-  /// phone keeps room for the conversation. When it is shorter than the
-  /// stage's own height at normal text, the box is narrowed in step (and
-  /// centered), so the face is framed exactly as at normal text, just
-  /// smaller: brows, eyes, mouth and chin stay in view at any size.
-  static Size portraitSize(double width, {required bool largeText, double screenHeight = double.infinity}) {
-    final full = stageHeight(width, largeText: false);
-    var h = stageHeight(width, largeText: largeText);
-    if (!largeText) h = h < screenHeight * 0.26 ? h : (screenHeight * 0.26).clamp(130.0, h);
-    return Size(h >= full ? width : width * h / full, h);
+  /// The avatar window's size in a stage card [cardWidth] wide: about a third
+  /// of the card (112-160 pt wide), never taller than 24% of the screen
+  /// ([screenHeight]) or shorter than 120 pt, so a small phone keeps room for
+  /// the conversation. The face is framed the same at every size.
+  static Size windowSize(double cardWidth, {double screenHeight = double.infinity}) {
+    var w = (cardWidth * 0.36).clamp(112.0, 160.0);
+    var h = w / windowAspect;
+    final cap = screenHeight * 0.24;
+    if (h > cap) h = cap < 120 ? 120 : cap;
+    w = h * windowAspect;
+    return Size(w, h);
   }
 
   /// The portrait is laid out [portraitOverscan] times taller than the
-  /// stage, from the top, and the bottom is clipped. The painter puts the
-  /// mouth at 55% of the portrait's height, so this lands it at about 66%
-  /// of the stage and shows the brows above the eyes. The chin and the
-  /// lower lip stay above the caption fade. Patches are painted inside the
-  /// portrait, so blink and gaze stay aligned. Not used at large text,
-  /// whose stage is shorter but is framed the same way.
+  /// window, from the top, and the bottom is clipped. The painter puts the
+  /// mouth at 55% of the portrait's height, so this lands it at about 66% of
+  /// the window, with the hair, forehead, brows and eyes above it and the
+  /// chin and lower lip inside the bottom edge. Patches are painted inside
+  /// the portrait, so blink and gaze stay aligned.
   static const double portraitOverscan = 1.2;
 
-  /// The overscan for the stage at this text size.
+  /// The overscan for the window.
   static double overscanFor({required bool largeText}) => portraitOverscan;
-
-  /// Where the caption fade starts (fraction of the stage height): below
-  /// the chin, so the mouth is never faded.
-  static const double fadeStart = 0.85;
 
   /// The mood for the chat screen's state.
   static AvatarMood moodFor({required bool speaking, required bool listening, required bool responding}) =>
