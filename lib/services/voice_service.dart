@@ -7,6 +7,7 @@ import '../avatar/lip_sync.dart';
 import '../avatar/speech_audio.dart';
 import '../models/coach.dart';
 import 'reply_language.dart';
+import 'speech_text.dart';
 
 /// Reads coach text aloud with the device's own text-to-speech voices
 /// (flutter_tts, MIT). Nothing is sent to a server.
@@ -64,20 +65,32 @@ class CoachVoiceProfile {
   static const _esMale = ['Juan', 'Jorge', 'Diego', 'Carlos', 'Eddy', 'Reed'];
 
   static const _enLocales = ['en-US', 'en-GB', 'en-AU', 'en'];
-  static const _esLocales = ['es-MX', 'es-US', 'es-ES', 'es'];
+  /// Mexican Spanish first (the owner's choice), then US and Latin-American
+  /// Spanish; Spain's es-ES only as a last resort.
+  static const _esLocales = ['es-MX', 'es-US', 'es-419', 'es-ES', 'es'];
 
-  // When two coaches of the same gender share the only installed voice of
-  // a language (Ava answering in Spanish with Sofía's voice, Ethan with
-  // Diego's), rate and pitch keep them apart: Ava and Sofía about 16% in
-  // rate and 2 semitones in pitch, Ethan and Diego about 8% and 1.3.
+  // Rates (flutter_tts: iOS AVSpeechUtterance.rate, Android rate*2; 0.5 is the
+  // platform default of about 170 words a minute, see SpeechPace). The owner
+  // found build 203 (Ava 0.54, about 185 wpm) much too fast, so every coach
+  // now sits at 140-165 wpm of speech, plus 380 ms between sentences:
+  //   Ava 0.45 (~158 wpm en), Ethan 0.44 (~155), Sofia 0.455 (~143 es),
+  //   Diego 0.445 (~140.5 es; Spanish words are longer, so the same rate
+  //   gives fewer words a minute).
+  //
+  // Pitch: system voices turn synthetic when pitch is pushed (AVSpeech
+  // sounds artificial beyond roughly +-1.5 semitones). Ava keeps her own
+  // voice unshifted (1.0). The others only lean a little so a device with a
+  // single voice per language still tells them apart: Ethan 0.97 (-0.5
+  // semitone), Sofia 1.05 (+0.8), Diego 0.92 (-1.4), instead of the old
+  // +-2 semitone shifts.
   static const ava = CoachVoiceProfile(
-      locales: _enLocales, preferredNames: _enFemale, otherGenderNames: _enMale, pitch: 0.98, rate: 0.54);
+      locales: _enLocales, preferredNames: _enFemale, otherGenderNames: _enMale, pitch: 1.0, rate: 0.45);
   static const ethan = CoachVoiceProfile(
-      locales: _enLocales, preferredNames: _enMale, otherGenderNames: _enFemale, pitch: 0.91, rate: 0.49);
+      locales: _enLocales, preferredNames: _enMale, otherGenderNames: _enFemale, pitch: 0.97, rate: 0.44);
   static const sofia = CoachVoiceProfile(
-      locales: _esLocales, preferredNames: _esFemale, otherGenderNames: _esMale, pitch: 1.1, rate: 0.46);
+      locales: _esLocales, preferredNames: _esFemale, otherGenderNames: _esMale, pitch: 1.05, rate: 0.455);
   static const diego = CoachVoiceProfile(
-      locales: _esLocales, preferredNames: _esMale, otherGenderNames: _esFemale, pitch: 0.88, rate: 0.45);
+      locales: _esLocales, preferredNames: _esMale, otherGenderNames: _esFemale, pitch: 0.92, rate: 0.445);
 
   /// The voice (locales and names) for [coach] speaking [language]: their
   /// own profile, or for the other language the profile of the same-gender
@@ -167,18 +180,42 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
     });
     _tts.setCompletionHandler(() {
       if (!_ttsCurrent) return;
-      _speaking.value = false;
-      lip.end();
+      _chunkEnded(ok: true);
     });
     _tts.setCancelHandler(() {
       if (!_ttsCurrent) return;
-      _speaking.value = false;
-      lip.end();
+      _chunkEnded(ok: false);
     });
     _tts.setErrorHandler((_) {
-      _speaking.value = false;
-      lip.end();
+      _chunkEnded(ok: false);
     });
+  }
+
+  // -- sentence by sentence ---------------------------------------------------
+
+  /// Pause between chunks; replaced in tests to record or skip the waits.
+  @visibleForTesting
+  static Future<void> Function(Duration) pauseFor = (d) => Future<void>.delayed(d);
+
+  Completer<bool>? _chunkDone;
+  bool _lastChunk = true;
+
+  /// The current chunk finished ([ok]) or was cut short. The lips rest; the
+  /// speaking state stays on between the chunks of one reply and goes off
+  /// after the last one (or after any interruption).
+  void _chunkEnded({required bool ok}) {
+    lipSync.end();
+    if (_lastChunk || !ok) _speaking.value = false;
+    final c = _chunkDone;
+    _chunkDone = null;
+    if (c != null && !c.isCompleted) c.complete(ok);
+  }
+
+  /// Unblocks a sequencer waiting on a replaced or stopped utterance.
+  void _releaseChunk() {
+    final c = _chunkDone;
+    _chunkDone = null;
+    if (c != null && !c.isCompleted) c.complete(false);
   }
 
   void _onAudioEvent(SpeechAudioEvent e) {
@@ -196,13 +233,12 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
         lipSync.addMarker(charStart, t);
       case SpeechAudioSynthesized():
         lipSync.audioComplete();
-      case SpeechAudioDone():
+      case SpeechAudioDone(:final interrupted):
         // Also after an interruption, a lost route, an engine reset or
-        // backgrounding.
+        // backgrounding (then the rest of the reply is not spoken).
         _audioWatchdog?.cancel();
         _fallback = null;
-        _speaking.value = false;
-        lipSync.end();
+        _chunkEnded(ok: !interrupted);
       case SpeechAudioError(:final started):
         _audioFailure(replay: !started);
     }
@@ -322,11 +358,20 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
       return null;
     }
 
-    int quality(Map<String, String> v) => switch (norm(v['quality'])) {
-          'premium' => 3,
-          'enhanced' => 2,
-          _ => 1,
-        };
+    String ident(Map<String, String> v) => '${v['identifier'] ?? ''} ${v['name'] ?? ''}'.toLowerCase();
+    // Siri / neural voices > Premium > Enhanced > default > "compact" > the
+    // old novelty voices (Fred, Albert, Bells...). The identifier is used
+    // when the quality field is missing.
+    int quality(Map<String, String> v) {
+      final q = norm(v['quality']);
+      final id = ident(v);
+      if (id.contains('siri') || id.contains('neural')) return 5;
+      if (q == 'premium' || id.contains('.premium.') || id.contains('(premium)')) return 4;
+      if (q == 'enhanced' || id.contains('.enhanced.') || id.contains('(enhanced)')) return 3;
+      if (id.contains('speech.synthesis.voice.')) return 0;
+      if (id.contains('.compact.') || id.contains('(compact)')) return 1;
+      return 2;
+    }
 
     // Premium and Enhanced voices (free downloads in iOS Settings) sound far
     // more natural, so quality comes first, then the coach's known names.
@@ -355,19 +400,20 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
 
   @override
   Future<void> speak(String text, Coach coach) async {
-    final clean = text
-        .replaceAll(RegExp(r'\*\*|__|[*_#>`]'), '')
-        .replaceAll(RegExp(r'^\s*[-•]\s+', multiLine: true), '')
-        .trim();
-    if (clean.isEmpty) return;
+    final stripped = SpeechText.stripMarkup(text);
+    if (stripped.isEmpty) return;
     final gen = ++_generation;
+    _releaseChunk();
     await _tts.stop();
     if (_audioPathOn) await _stopAudio();
     if (!_audioPathOn) await _prepareAudioSession();
     if (gen != _generation) return;
     // Coaches answer in the user's language, so the voice follows the
     // language of the text, not the coach's default.
-    final language = ReplyLanguage.detect(clean, fallback: coach.language);
+    final language = ReplyLanguage.detect(stripped, fallback: coach.language);
+    final clean = SpeechText.normalize(stripped, language);
+    final chunks = SpeechText.chunks(clean);
+    if (chunks.isEmpty) return;
     final voice = _voiceFor(coach, language);
     if (voice != null && voice['name'] != null && voice['locale'] != null) {
       await _tts.setVoice({
@@ -383,13 +429,37 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
     await _tts.setPitch(profile.pitch);
     await _tts.setSpeechRate(profile.rate);
     if (gen != _generation) return;
-    lipSync.begin(clean, language, rate: profile.rate);
+    // The first sentence starts now; the rest follow with a pause between.
+    await _speakChunk(gen, chunks, 0, voice, language, profile);
+    if (chunks.length > 1) unawaited(_continueChunks(gen, chunks, voice, language, profile));
+  }
+
+  Future<void> _continueChunks(
+      int gen, List<SpeechChunk> chunks, Map<String, String>? voice, CoachLanguage language, CoachVoiceProfile profile) async {
+    for (var i = 0; i < chunks.length - 1; i++) {
+      final completer = _chunkDone;
+      final ok = completer == null ? false : await completer.future;
+      if (!ok || gen != _generation) return;
+      await pauseFor(chunks[i].pause);
+      if (gen != _generation) return;
+      await _speakChunk(gen, chunks, i + 1, voice, language, profile);
+    }
+  }
+
+  /// Starts chunk [i] (returns once it has been handed to the synthesizer;
+  /// its end arrives through [_chunkEnded]).
+  Future<void> _speakChunk(int gen, List<SpeechChunk> chunks, int i, Map<String, String>? voice, CoachLanguage language,
+      CoachVoiceProfile profile) async {
+    final text = chunks[i].text;
+    _lastChunk = i == chunks.length - 1;
+    _chunkDone = Completer<bool>();
+    lipSync.begin(text, language, rate: profile.rate);
     Future<void> viaTts() async {
       if (gen != _generation) return;
       await _prepareAudioSession();
       if (gen != _generation) return;
       _ttsGeneration = gen;
-      await _tts.speak(clean);
+      await _tts.speak(text);
     }
 
     if (_audioPathOn) {
@@ -402,7 +472,7 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
       });
       try {
         await _audio!.speak(
-          text: clean,
+          text: text,
           voice: voice?['identifier'],
           language: voice?['locale'] ?? language.locale,
           rate: profile.rate,
@@ -440,7 +510,9 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
     _fallback = null;
     if (replay && fallback != null) {
       unawaited(_audio?.stop().catchError((Object _) {}));
-      fallback();
+      fallback(); // the chunk's end then arrives from flutter_tts
+    } else {
+      _releaseChunk(); // nothing more is spoken
     }
   }
 
@@ -478,6 +550,7 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
   @override
   Future<void> stop() async {
     _generation++;
+    _releaseChunk();
     _fallback = null;
     _audioWatchdog?.cancel();
     if (_audioPathOn) await _stopAudio();

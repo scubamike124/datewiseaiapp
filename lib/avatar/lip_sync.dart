@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/coach.dart';
 import 'speech_audio.dart';
+import 'speech_pace.dart';
 import 'viseme.dart';
 
 /// A word of the utterance: its character range in the spoken text and its
@@ -23,8 +24,11 @@ class PlannedWord {
 /// One mouth shape on the timeline (seconds).
 @immutable
 class VisemeCue {
-  const VisemeCue(this.viseme, this.start, this.end);
+  const VisemeCue(this.viseme, this.start, this.end, {this.bridge = false});
   final Viseme viseme;
+
+  /// A short transitional shape between closed lips and an open mouth.
+  final bool bridge;
   final double start;
   final double end;
   double get duration => end - start;
@@ -82,23 +86,38 @@ class VisemeTimeline {
 
   /// Longest time one mouth shape is held while speaking, seconds; longer
   /// stretches alternate between the full and half opening.
-  static const double maxHold = 0.25;
+  static const double maxHold = 0.45;
 
   /// Openness jump above which a transition goes through a middle shape.
   static const double bridgeJump = 0.4;
 
   /// Length of that middle shape, seconds (= [minShape]).
-  static const double bridgeLength = 0.05;
+  static const double bridgeLength = 0.06;
 
   /// Shortest time any mouth shape stays on screen, seconds (measured in
   /// time, not frames): shorter ones are merged into a neighbour.
-  static const double minShape = 0.05;
+  static const double minShape = 0.12;
+
+  /// Most shape changes allowed in any one second of the plan (natural
+  /// speech is about 4-6; the old plan reached 14-15).
+  static const int maxChangesPerSecond = 8;
+
+  /// The plan is thinned to this before the middle shapes (bridges) and
+  /// alternating holds add their own changes.
+  static const int plannedChangesPerSecond = 5;
+
+  /// Consonant shapes dropped from the plan: the mouth keeps the vowel
+  /// openings, lip closures (m b p), lip-teeth (f v) and the rounded sh.
+  static const Set<Viseme> minorShapes = {Viseme.cons, Viseme.l, Viseme.th};
+
+  /// Two open shapes closer than this in openness (same rounding) are one.
+  static const double nearOpenness = 0.2;
 
   /// A middle shape is only inserted if the shape after it still lasts this
   /// long; otherwise the change is a plain switch.
-  static const double minAfterBridge = 0.05;
+  static const double minAfterBridge = minShape;
 
-  static double lettersPerSecond(double rate) => lettersPerSecondAtHalfRate * (rate.clamp(0.1, 1.0) / 0.5);
+  static double lettersPerSecond(double rate) => SpeechPace.lettersPerSecond(rate);
 
   /// Plans [text] in [language] at flutter_tts speech [rate].
   factory VisemeTimeline.plan(String text, CoachLanguage language, {double rate = 0.5}) {
@@ -181,7 +200,142 @@ class VisemeTimeline {
       }
     }
     if (cues.isNotEmpty) cues.add(VisemeCue(Viseme.rest, cues.last.end, cues.last.end + 0.2));
-    return _mergeShort(_bridge(_capHolds(cues)));
+    final simple = _capHolds(_limitRate(_mergeShort(_stretchClosures(_simplify(cues))), plannedChangesPerSecond));
+    return _capHolds(_collapse(_limitRate(_mergeShort(_bridge(simple)))));
+  }
+
+
+  /// Fewer, clearer shapes: minor consonants are absorbed by the neighbouring
+  /// vowel, equal or near-identical neighbours become one, keeping lip
+  /// closures and clear vowel openings.
+  static List<VisemeCue> _simplify(List<VisemeCue> cues) {
+    var out = List<VisemeCue>.of(cues);
+    // 1. absorb minor consonants into the closer-in-openness neighbour.
+    for (var k = 0; k < out.length; k++) {
+      final c = out[k];
+      if (!minorShapes.contains(c.viseme)) continue;
+      final prev = k > 0 && out[k - 1].viseme != Viseme.rest ? out[k - 1] : null;
+      final next = k + 1 < out.length && out[k + 1].viseme != Viseme.rest ? out[k + 1] : null;
+      if (prev == null && next == null) continue;
+      double gap(VisemeCue? n) => n == null ? 1e9 : (n.viseme.openness - c.viseme.openness).abs();
+      if (gap(prev) <= gap(next)) {
+        out[k - 1] = VisemeCue(prev!.viseme, prev.start, c.end);
+      } else {
+        out[k + 1] = VisemeCue(next!.viseme, c.start, next.end);
+      }
+      out.removeAt(k);
+      k--;
+    }
+    // 2. merge equal and near-identical neighbours (not closures, not rest).
+    bool near(Viseme a, Viseme b) =>
+        a == b ||
+        (a != Viseme.rest &&
+            b != Viseme.rest &&
+            !a.closed &&
+            !b.closed &&
+            a.rounded == b.rounded &&
+            (a.openness - b.openness).abs() < nearOpenness);
+    var changed = true;
+    while (changed) {
+      changed = false;
+      for (var k = 1; k < out.length; k++) {
+        final a = out[k - 1], b = out[k];
+        if (!near(a.viseme, b.viseme)) continue;
+        final keep = a.viseme == b.viseme || a.duration >= b.duration ? a.viseme : b.viseme;
+        out[k - 1] = VisemeCue(keep, a.start, b.end);
+        out.removeAt(k);
+        changed = true;
+        break;
+      }
+    }
+    return out;
+  }
+
+  /// Merges the shortest minor cue in any window with more than
+  /// [maxChangesPerSecond] shape changes into a neighbour (never one that
+  /// would put closed lips next to an open mouth without a middle step).
+  static List<VisemeCue> _limitRate(List<VisemeCue> cues, [int limit = maxChangesPerSecond]) {
+    final out = List<VisemeCue>.of(cues);
+    for (var guard = 0; guard < 2000; guard++) {
+      final starts = [for (var i = 1; i < out.length; i++) if (out[i].viseme != out[i - 1].viseme) (i, out[i].start)];
+      int? worstFrom;
+      for (var a = 0; a < starts.length && worstFrom == null; a++) {
+        var n = 0;
+        for (var b = a; b < starts.length && starts[b].$2 < starts[a].$2 + 1.0; b++) {
+          n++;
+        }
+        if (n > limit) worstFrom = a;
+      }
+      if (worstFrom == null) break;
+      final lo = starts[worstFrom].$2;
+      int? best;
+      for (var i = 1; i < out.length - 1; i++) {
+        final c = out[i];
+        if (c.start < lo - 1e-9 || c.start >= lo + 1.0) continue;
+        if (c.viseme == Viseme.rest || c.viseme == Viseme.mbp) continue;
+        final prev = out[i - 1], next = out[i + 1];
+        if (prev.viseme == Viseme.rest && next.viseme == Viseme.rest) continue;
+        if (needsBridge(prev.viseme, next.viseme)) continue;
+        // Never grow a neighbour past the longest allowed hold.
+        final room = (prev.viseme != Viseme.rest && prev.duration + c.duration <= maxHold) ||
+            (next.viseme != Viseme.rest && next.duration + c.duration <= maxHold);
+        if (!room) continue;
+        if (best == null || c.duration < out[best].duration) best = i;
+      }
+      if (best == null) break;
+      final c = out[best];
+      final prev = out[best - 1], next = out[best + 1];
+      double gap(VisemeCue n) =>
+          n.viseme == Viseme.rest || n.duration + c.duration > maxHold ? 1e9 : (n.viseme.openness - c.viseme.openness).abs();
+      if (gap(prev) <= gap(next)) {
+        out[best - 1] = VisemeCue(prev.viseme, prev.start, c.end, bridge: prev.bridge);
+      } else {
+        out[best + 1] = VisemeCue(next.viseme, c.start, next.end, bridge: next.bridge);
+      }
+      out.removeAt(best);
+      // Equal neighbours after the merge become one.
+      for (var k = out.length - 1; k > 0; k--) {
+        if (out[k].viseme == out[k - 1].viseme) {
+          out[k - 1] = VisemeCue(out[k].viseme, out[k - 1].start, out[k].end, bridge: out[k - 1].bridge && out[k].bridge);
+          out.removeAt(k);
+        }
+      }
+    }
+    return out;
+  }
+
+  /// Lip closures (m, b, p) are never dropped: one shorter than [minShape]
+  /// takes the missing time from the cue after it (or before it).
+  static List<VisemeCue> _stretchClosures(List<VisemeCue> cues) {
+    final out = List<VisemeCue>.of(cues);
+    for (var k = 0; k < out.length; k++) {
+      final c = out[k];
+      if (c.viseme != Viseme.mbp || c.duration >= minShape) continue;
+      final need = minShape - c.duration;
+      if (k + 1 < out.length && out[k + 1].viseme != Viseme.rest && out[k + 1].duration > need) {
+        final n = out[k + 1];
+        out[k] = VisemeCue(c.viseme, c.start, c.end + need);
+        out[k + 1] = VisemeCue(n.viseme, n.start + need, n.end);
+      } else if (k > 0 && out[k - 1].viseme != Viseme.rest && out[k - 1].duration > need) {
+        final p = out[k - 1];
+        out[k] = VisemeCue(c.viseme, c.start - need, c.end);
+        out[k - 1] = VisemeCue(p.viseme, p.start, p.end - need);
+      }
+    }
+    return out;
+  }
+
+  /// Equal neighbours become one cue (a bridge only merges with a bridge).
+  static List<VisemeCue> _collapse(List<VisemeCue> cues) {
+    final out = <VisemeCue>[];
+    for (final c in cues) {
+      if (out.isNotEmpty && out.last.viseme == c.viseme) {
+        out[out.length - 1] = VisemeCue(c.viseme, out.last.start, c.end, bridge: out.last.bridge && c.bridge);
+      } else {
+        out.add(c);
+      }
+    }
+    return out;
   }
 
   /// Merges every mouth shape shorter than [minShape] into the neighbour
@@ -193,7 +347,7 @@ class VisemeTimeline {
       changed = false;
       for (var k = 0; k < out.length; k++) {
         final c = out[k];
-        if (c.viseme == Viseme.rest || c.duration >= minShape - 1e-9) continue;
+        if (c.viseme == Viseme.rest || c.bridge || c.viseme == Viseme.mbp || c.duration >= minShape - 1e-9) continue;
         final prev = k > 0 && out[k - 1].viseme != Viseme.rest ? out[k - 1] : null;
         final next = k + 1 < out.length && out[k + 1].viseme != Viseme.rest ? out[k + 1] : null;
         if (prev == null && next == null) continue;
@@ -217,11 +371,11 @@ class VisemeTimeline {
   static List<VisemeCue> _capHolds(List<VisemeCue> cues) {
     final out = <VisemeCue>[];
     for (final c in cues) {
-      if (c.viseme == Viseme.rest || c.duration <= maxHold) {
+      if (c.viseme == Viseme.rest || c.duration <= maxHold + 1e-6) {
         out.add(c);
         continue;
       }
-      final n = (c.duration / 0.16).ceil();
+      final n = (c.duration / 0.25).ceil();
       final d = c.duration / n;
       final alt = c.viseme.isVowel
           ? (c.viseme.half == c.viseme ? c.viseme.full : c.viseme.half)
@@ -254,12 +408,28 @@ class VisemeTimeline {
           cur = mid;
         }
         const len = bridgeLength;
-        while (steps.isNotEmpty && c.duration - steps.length * len < minAfterBridge) {
+        // Out of a pause the mouth forms the shape slightly early: the
+        // middle steps take the end of the rest instead of the shape.
+        var stealFromRest = false;
+        if (prev.viseme == Viseme.rest) {
+          final room = ((prev.duration - 0.02) / len).floor();
+          if (room > 0) {
+            while (steps.length > room) {
+              steps.removeLast();
+            }
+            stealFromRest = true;
+          }
+        }
+        while (!stealFromRest && steps.isNotEmpty && c.duration - steps.length * len < minAfterBridge) {
           steps.removeLast();
         }
         var t = c.start;
+        if (stealFromRest && steps.isNotEmpty) {
+          t = c.start - steps.length * len;
+          out[out.length - 1] = VisemeCue(Viseme.rest, prev.start, t);
+        }
         for (final m in steps) {
-          out.add(VisemeCue(m, t, t + len));
+          out.add(VisemeCue(m, t, t + len, bridge: true));
           t += len;
         }
         out.add(VisemeCue(c.viseme, t, c.end));

@@ -4,7 +4,6 @@
 // iPhone is BLOCKED (physical device) — see docs/qa/AI_VOICE_REPORT.md.
 
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -54,23 +53,26 @@ void main() {
       }
 
       expect(Coaches.all.map(d).toList(), [
-        // Same-gender pairs apart in rate and pitch (a shared voice still
-        // sounds like two people): Ava/Sofía 16% and 2 semitones,
-        // Ethan/Diego 8% and about 1.3 semitones.
-        'ava:en-US>en-GB>en-AU>en:0.98:0.54',
-        'ethan:en-US>en-GB>en-AU>en:0.91:0.49',
-        'sofia:es-MX>es-US>es-ES>es:1.1:0.46',
-        'diego:es-MX>es-US>es-ES>es:0.88:0.45',
+        // Slower and calmer than build 203 (docs/avatar/SPEECH_PACING.md);
+        // pitch at most ~1.4 semitones from natural so system voices do not
+        // sound synthetic. Spanish: es-MX, es-US, es-419, es-ES last.
+        'ava:en-US>en-GB>en-AU>en:1.0:0.45',
+        'ethan:en-US>en-GB>en-AU>en:0.97:0.44',
+        'sofia:es-MX>es-US>es-419>es-ES>es:1.05:0.455',
+        'diego:es-MX>es-US>es-419>es-ES>es:0.92:0.445',
       ]);
     });
 
     test('same-gender pairs sound apart even on one shared voice', () {
-      double semis(double a, double b) => 12 * math.log(a / b) / math.ln2;
+      // Pitch (no more than ~1.4 semitones from natural) and a small rate
+      // difference tell them apart; the picker also gives each a different
+      // voice when the device has several.
       final ava = CoachVoiceProfile.of(Coaches.ava), sofia = CoachVoiceProfile.of(Coaches.sofia);
       final ethan = CoachVoiceProfile.of(Coaches.ethan), diego = CoachVoiceProfile.of(Coaches.diego);
-      expect((ava.rate - sofia.rate).abs() / 0.5, greaterThanOrEqualTo(0.16 - 1e-9));
-      expect(semis(sofia.pitch, ava.pitch).abs(), closeTo(2, 0.1));
-      expect((ethan.rate - diego.rate).abs() / 0.5, greaterThanOrEqualTo(0.08 - 1e-9));
+      expect((ava.pitch - sofia.pitch).abs(), greaterThanOrEqualTo(0.049));
+      expect((ethan.pitch - diego.pitch).abs(), greaterThanOrEqualTo(0.049));
+      expect(ava.rate, isNot(sofia.rate));
+      expect(ethan.rate, isNot(diego.rate));
     });
 
     test('female coaches never get a known male name first, and vice versa', () {
@@ -121,7 +123,7 @@ void main() {
       // A Spanish coach answering an English-speaking user (the language rule
       // in persona.dart allows it) is read with an English voice of her gender.
       final src = File('lib/services/voice_service.dart').readAsStringSync();
-      expect(src, contains('ReplyLanguage.detect(clean, fallback: coach.language)'));
+      expect(src, contains('ReplyLanguage.detect(stripped, fallback: coach.language)'));
       final voices = [v('Samantha', 'en-US', gender: 'female'), v('Aaron', 'en-US', gender: 'male'),
         v('Paulina', 'es-MX', gender: 'female'), v('Juan', 'es-MX', gender: 'male')];
       expect(DeviceVoiceService.pickVoice(voices, Coaches.sofia, language: CoachLanguage.en)!['name'], 'Samantha');

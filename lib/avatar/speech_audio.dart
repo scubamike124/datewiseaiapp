@@ -20,7 +20,7 @@ sealed class SpeechAudioEvent {
       'levels' => SpeechAudioLevels(d(raw['t0']), d(raw['hop']), [for (final v in (raw['v'] as List? ?? const [])) d(v)]),
       'marker' => SpeechAudioMarker((raw['start'] as num).toInt(), (raw['end'] as num).toInt(), d(raw['t'])),
       'synthesized' => const SpeechAudioSynthesized(),
-      'done' => const SpeechAudioDone(),
+      'done' => SpeechAudioDone(interrupted: raw['interrupted'] != null && raw['interrupted'] != false),
       'error' => SpeechAudioError('${raw['message']}', started: raw['started'] == true),
       _ => null,
     };
@@ -57,7 +57,10 @@ class SpeechAudioSynthesized extends SpeechAudioEvent {
 }
 
 class SpeechAudioDone extends SpeechAudioEvent {
-  const SpeechAudioDone();
+  const SpeechAudioDone({this.interrupted = false});
+
+  /// Cut short (interruption, lost route, engine reset): not a normal end.
+  final bool interrupted;
 }
 
 class SpeechAudioError extends SpeechAudioEvent {

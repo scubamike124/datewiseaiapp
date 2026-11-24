@@ -126,7 +126,7 @@ void main() {
 
   test('voice profiles: English coaches use en-US first, Spanish coaches es-MX, es-US, es-ES', () {
     expect(CoachVoiceProfile.of(Coaches.ava).locales.first, 'en-US');
-    expect(CoachVoiceProfile.of(Coaches.sofia).locales.take(3), ['es-MX', 'es-US', 'es-ES']);
+    expect(CoachVoiceProfile.of(Coaches.sofia).locales.take(4), ['es-MX', 'es-US', 'es-419', 'es-ES']);
     expect(CoachVoiceProfile.of(Coaches.sofia).preferredNames, containsAll(['Paulina', 'Mónica']));
     expect(CoachVoiceProfile.of(Coaches.diego).preferredNames, containsAll(['Juan', 'Jorge']));
     expect(CoachVoiceProfile.of(Coaches.ava).preferredNames, containsAll(['Samantha', 'Ava']));
