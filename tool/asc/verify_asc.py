@@ -132,6 +132,30 @@ def main():
     sub = mine[0]
     check("period is one month", sub["attributes"].get("subscriptionPeriod") == "ONE_MONTH", str(sub["attributes"].get("subscriptionPeriod")))
     note("state", str(sub["attributes"].get("state")))
+    # Read-only: what Apple needs before a subscription leaves MISSING_METADATA ("Ready to Submit"), which is when
+    # StoreKit starts serving it to the sandbox / TestFlight. Values only; nothing is changed.
+    sa = sub["attributes"]
+    note("subscription fields", f"name set: {bool(sa.get('name'))}, review note set: {bool(sa.get('reviewNote'))}, family sharable: {sa.get('familySharable')}, group level: {sa.get('groupLevel')}")
+    s_, b_ = get(f"/v1/subscriptions/{sub['id']}/subscriptionLocalizations", token, {"limit": "50"})
+    note("subscription localizations", ", ".join(f"{x['attributes'].get('locale')} [{x['attributes'].get('state')}] name={bool(x['attributes'].get('name'))} desc={bool(x['attributes'].get('description'))}" for x in b_.get("data") or []) or f"none (HTTP {s_})")
+    s_, b_ = get(f"/v1/subscriptions/{sub['id']}/appStoreReviewScreenshot", token)
+    shot = (b_.get("data") or {}) if s_ == 200 else {}
+    sha = shot.get("attributes", {}) if shot else {}
+    note("review screenshot", f"present, delivery {(sha.get('assetDeliveryState') or {}).get('state')}, {sha.get('fileName')}" if shot else f"MISSING (HTTP {s_})")
+    for gr in groups:
+        s_, b_ = get(f"/v1/subscriptionGroups/{gr['id']}/subscriptionGroupLocalizations", token, {"limit": "50"})
+        note(f"group '{gr['attributes'].get('referenceName')}' localizations", ", ".join(f"{x['attributes'].get('locale')} [{x['attributes'].get('state')}]" for x in b_.get("data") or []) or f"none (HTTP {s_})")
+    s_, b_ = get(f"/v1/subscriptions/{sub['id']}/subscriptionAvailability", token, {"include": "availableTerritories", "limit[availableTerritories]": "50"})
+    terr = [x["id"] for x in (b_.get("included") or []) if x.get("type") == "territories"]
+    note("subscription availability", f"{', '.join(sorted(terr)) or 'none'}; new territories: {((b_.get('data') or {}).get('attributes') or {}).get('availableInNewTerritories')} (HTTP {s_})")
+    s_, b_ = get(f"/v1/apps/{app['id']}/appAvailabilityV2", token)
+    note("app availability record", f"HTTP {s_}; available in new territories: {((b_.get('data') or {}).get('attributes') or {}).get('availableInNewTerritories')}")
+    if s_ == 200 and b_.get("data"):
+        s2_, b2_ = get(f"/v2/appAvailabilities/{b_['data']['id']}/territoryAvailabilities", token, {"include": "territory", "limit": "200", "fields[territoryAvailabilities]": "available,contentStatuses"})
+        avail = sorted(((x.get("relationships", {}).get("territory", {}).get("data") or {}).get("id") for x in b2_.get("data") or [] if x["attributes"].get("available")), key=str)
+        note("app sold in", f"{len(avail)} territories; USA {'USA' in avail}, CAN {'CAN' in avail}, MEX {'MEX' in avail}, ESP {'ESP' in avail} (HTTP {s2_})")
+    s_, b_ = get(f"/v1/apps/{app['id']}/appStoreVersions", token, {"limit": "5", "fields[appStoreVersions]": "versionString,appStoreState,platform"})
+    note("app versions", ", ".join(f"{x['attributes'].get('versionString')} [{x['attributes'].get('appStoreState')}]" for x in b_.get("data") or []) or f"none (HTTP {s_})")
 
     status, body = get(f"/v1/subscriptions/{sub['id']}/prices", token,
                        {"filter[territory]": "USA", "include": "subscriptionPricePoint", "limit": "50"})
