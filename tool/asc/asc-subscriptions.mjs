@@ -21,6 +21,9 @@
  *    localizations by locale; prices and availability per territory. Before each create the live state is re-read,
  *    and a 409 from Apple is treated as "already exists" (re-read, not retried blindly), so a re-run after an
  *    interrupted apply only creates what is still missing.
+ *  - Known limit: Apple treats POST /v1/subscriptionAvailabilities as create-or-replace. It is sent only when the
+ *    approved plan and a re-read seconds earlier both show no availability, so only a change made in that window
+ *    could be replaced.
  *  - Secrets: the key is only used to sign tokens sent to api.appstoreconnect.apple.com; redirects are refused;
  *    output carries ids, names, prices and Apple error codes, never the key or the token.
  */
@@ -378,7 +381,7 @@ export async function plan(client, spec) {
       equalized[s.productId] = Object.fromEntries(Object.entries(r).map(([t, v]) => [t, v.customerPrice]));
     }
   }
-  return { state, plan: computePlan(spec, state, equalized) };
+  return { state, equalized, plan: computePlan(spec, state, equalized) };
 }
 
 // ---------------------------------------------------------------- apply (create-only)
@@ -470,6 +473,8 @@ export async function apply(client, spec, { expectPlan, log = () => {} }) {
     }
     const points = await resolvePrices(client, have.id, s.price);
     for (const [t, what] of priceSteps) {
+      const approvedPrice = t === s.price.baseTerritory ? s.price.customerPrice : ((first.equalized || {})[s.productId] || {})[t];
+      if (points[t].customerPrice !== approvedPrice) throw new AscError(`${what}: Apple's price is now ${points[t].customerPrice}, the approved plan showed ${approvedPrice}; run a new dry run`, { kind: "safety" });
       await create(
         what,
         () => client.post("/v1/subscriptionPrices", body("subscriptionPrices", { startDate: null, preserveCurrentPrice: true }, { subscription: ref("subscriptions", have.id), subscriptionPricePoint: ref("subscriptionPricePoints", points[t].pointId), territory: ref("territories", t) })),
