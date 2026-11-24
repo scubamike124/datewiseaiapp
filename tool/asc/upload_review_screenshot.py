@@ -121,6 +121,8 @@ def main():
         if state == "FAILED":
             sys.exit(f"Apple rejected the file: {json.dumps(((b.get('data') or {}).get('attributes', {}).get('assetDeliveryState') or {}).get('errors'))[:400]}")
         time.sleep(10)
+    else:
+        sys.exit("Apple has not finished processing the screenshot after 5 minutes; re-run the check later")
     s, b = call("GET", f"/v1/subscriptions/{sub['id']}", token)
     print(f"subscription state now: {(b.get('data') or {}).get('attributes', {}).get('state')} (Apple can take a few minutes to update it)")
 
