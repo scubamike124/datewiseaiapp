@@ -88,7 +88,7 @@ You can do all of these in Safari on the iPhone: appstoreconnect.apple.com, deve
     [metadata.md §3](metadata.md#3-app-privacy-nutrition-label).
 14. **Version 2.0.0 page:**
     - Paste the promo text, description, keywords and What's New from [metadata.md](metadata.md), EN and ES.
-    - Support URL `https://datewise-legal.lovable.app/terms-of-service`. Leave the Marketing URL blank.
+    - Support URL `https://datewise-legal.lovable.app/support.html` (the customer support page; publish `web/support.html` on Lovable first). Leave the Marketing URL blank.
     - Screenshots (final): upload `docs/appstore/screenshots/<en|es>/6.9/` and `.../ipad-13/` (01 to 05, in order) for each language.
     - App Review Information: sign-in **not required**, plus your name, phone and email. Paste the notes block in
       [metadata.md §4](metadata.md#4-app-review-information) (AI provider, 18+ gate, Sandbox path, fair use, Find a

@@ -194,8 +194,8 @@ to. Where they differ from the table above, the table wins.
    and publish them at the URLs the app opens (`lib/app_links.dart`):
    `https://datewise-legal.lovable.app/privacy-policy`, `https://datewise-legal.lovable.app/terms-of-service`.
    The privacy policy must match the App Privacy answers in `metadata.md` §3.
-7. Choose the **Support URL** (a live page with a way to contact you, e.g.
-   showing support@datewiseai.com) and confirm the support mailbox works.
+7. Set the **Support URL** to `https://datewise-legal.lovable.app/support.html` (`web/support.html`,
+   a real support page with support@datewiseai.com) and confirm the support mailbox works.
 8. Confirm the copyright holder name for the store listing.
 9. Confirm the Terms of Use link is in the App Store description (Apple
    requires a functional EULA link for subscriptions; the standard Apple EULA

@@ -27,8 +27,13 @@ String _n(int n, String lang) => FairUse.format(n, lang);
 const String kLegalLastUpdated = 'Last updated: November 23, 2026';
 const String kLegalLastUpdatedEs = 'Última actualización: 23 de noviembre de 2026';
 
+/// The Privacy Policy's own date: it was updated on its own on 2026-11-24 to
+/// describe the AI consent step (the Terms of Use keep [kLegalLastUpdated]).
+const String kPrivacyLastUpdated = 'Last updated: November 24, 2026';
+const String kPrivacyLastUpdatedEs = 'Última actualización: 24 de noviembre de 2026';
+
 final String kPrivacyPolicy = '''
-$kLegalLastUpdated
+$kPrivacyLastUpdated
 
 DateWise AI ("DateWise AI", "we", "us") provides an AI dating-coaching app with four AI coaches. This policy explains what information the app handles, how it is used, and your choices. DateWise AI is intended only for adults aged 18 and over.
 
@@ -46,6 +51,10 @@ DateWise AI ("DateWise AI", "we", "us") provides an AI dating-coaching app with 
 - To operate, secure, and improve the app.
 - We do not sell your personal information, do not use your messages to train AI models, and the app contains no advertising, analytics, or tracking.
 
+# Your permission before anything is shared
+- Asked first: before your first message is sent, the app asks whether you agree to share your messages (typed or spoken, as text), your coaching preferences and, if Coach memory is on, your memory note with Cloudflare Workers AI, which runs Meta's Llama model, to write your coach's replies. Nothing is sent to the AI provider until you tap Agree. If you tap Not now, nothing is sent and the app asks again the next time you send a message.
+- Withdrawing your permission: you can withdraw it at any time with You › Delete my data. This erases everything DateWise stored on your device, including your permission, so nothing more is sent until you agree again. Messages already processed were not stored on our servers, so there is nothing further for us to delete.
+
 # Voice
 - Voice mode uses your device's built-in speech recognition to turn what you say into text while you hold the talk button (or, with VoiceOver, from when you tap it until you tap it again); only the resulting text is sent to your coach. Replies are read aloud with your device's built-in voices.
 - The microphone is used only while you hold the talk button (or, with VoiceOver, from when you tap it until you tap it again). Voice features need your permission and can be turned off in your device settings.
@@ -62,7 +71,7 @@ DateWise AI ("DateWise AI", "we", "us") provides an AI dating-coaching app with 
 - Renewals and billing grace: if Apple reports a renewal or a billing grace period, the server stores the renewal and billing-grace end dates, keyed by a hash of the transaction ID, so chat keeps working until the new period reaches your device.
 
 # Service providers
-- Cloudflare (Workers AI) generates the AI coaching replies; inputs are processed to return a reply and are not used to train models.
+- Cloudflare (Workers AI, running Meta's Llama model) generates the AI coaching replies, only after you agree; inputs are processed to return a reply and are not used to train models.
 - Apple processes subscriptions and provides on-device speech recognition and voices.
 - Find a table (on first-date plans, iPhone and iPad) opens Apple Maps only when you tap it, with a general search for restaurants. DateWise sends no conversation content and no location; Apple Maps uses your device's own location settings. There is no booking inside the app. Apple Maps' own privacy policy applies to your search.
 - These providers process data only to provide their service to us.
@@ -82,7 +91,7 @@ Our providers may process information on servers located in various countries. B
 DateWise AI is for users aged 18 and older. We do not knowingly collect data from anyone under 18. If you believe a minor has used the app, contact us.
 
 # Your choices
-Your conversations and preferences stay on your device and you can delete them at any time in the app. Our server holds no conversation content and nothing linked to your identity. Depending on where you live, you may have rights to access, correct, or delete your personal information; email support@datewiseai.com.
+Your conversations and preferences stay on your device and you can delete them at any time in the app. Sharing your messages with our AI provider needs your permission, which you can withdraw at any time with You › Delete my data. Our server holds no conversation content and nothing linked to your identity. Depending on where you live, you may have rights to access, correct, or delete your personal information; email support@datewiseai.com.
 
 # Changes to this policy
 We may update this policy from time to time. We will revise the "Last updated" date above, and significant changes will be reflected in the app.
@@ -130,7 +139,7 @@ Questions about these terms: support@datewiseai.com
 
 /// Spanish translation of [kPrivacyPolicy] (the English text governs).
 final String kPrivacyPolicyEs = '''
-$kLegalLastUpdatedEs
+$kPrivacyLastUpdatedEs
 
 DateWise AI ("DateWise AI", "nosotros") ofrece una app de coaching de citas con cuatro coaches con inteligencia artificial (IA). Esta política explica qué información maneja la app, cómo se usa y qué opciones tienes. DateWise AI está dirigida únicamente a personas adultas de 18 años o más.
 
@@ -148,6 +157,10 @@ DateWise AI ("DateWise AI", "nosotros") ofrece una app de coaching de citas con 
 - Para operar, proteger y mejorar la app.
 - No vendemos tu información personal, no usamos tus mensajes para entrenar modelos de IA y la app no contiene publicidad, analítica ni rastreo.
 
+# Tu permiso antes de compartir nada
+- Te lo preguntamos primero: antes de enviar tu primer mensaje, la app te pregunta si aceptas compartir tus mensajes (escritos o dichos en voz alta, como texto), tus preferencias de coaching y, si la Memoria del coach está activada, tu nota con Cloudflare Workers AI, que ejecuta el modelo Llama de Meta, para escribir las respuestas de tu coach. No se envía nada al proveedor de IA hasta que tocas Aceptar. Si tocas Ahora no, no se envía nada y la app te lo vuelve a preguntar la próxima vez que envíes un mensaje.
+- Retirar tu permiso: puedes retirarlo en cualquier momento con Tú › Eliminar mis datos. Esto borra todo lo que DateWise guardó en tu dispositivo, incluido tu permiso, así que no se envía nada más hasta que vuelvas a aceptar. Los mensajes ya procesados no se guardaron en nuestros servidores, así que no hay nada más que debamos eliminar.
+
 # Voz
 - El modo de voz usa el reconocimiento de voz integrado de tu dispositivo para convertir en texto lo que dices mientras mantienes presionado el botón para hablar (o, con VoiceOver, desde que lo tocas hasta que lo vuelves a tocar); solo el texto resultante se envía a tu coach. Las respuestas se leen en voz alta con las voces integradas de tu dispositivo.
 - El micrófono solo se usa mientras mantienes presionado el botón para hablar (o, con VoiceOver, desde que lo tocas hasta que lo vuelves a tocar). Las funciones de voz necesitan tu permiso y puedes desactivarlas en la configuración de tu dispositivo.
@@ -164,7 +177,7 @@ DateWise AI ("DateWise AI", "nosotros") ofrece una app de coaching de citas con 
 - Renovaciones y período de gracia de facturación: si Apple informa una renovación o un período de gracia de facturación, el servidor guarda las fechas de fin de la renovación y del período de gracia, con un hash del ID de transacción como clave, para que el chat siga funcionando hasta que el nuevo período llegue a tu dispositivo.
 
 # Proveedores de servicios
-- Cloudflare (Workers AI) genera las respuestas de coaching con IA; los datos se procesan para devolver una respuesta y no se usan para entrenar modelos.
+- Cloudflare (Workers AI, que ejecuta el modelo Llama de Meta) genera las respuestas de coaching con IA, solo después de que aceptes; los datos se procesan para devolver una respuesta y no se usan para entrenar modelos.
 - Apple procesa las suscripciones y ofrece el reconocimiento de voz y las voces del dispositivo.
 - Buscar mesa (en los planes de primera cita, iPhone y iPad) abre Apple Maps solo cuando lo tocas, con una búsqueda general de restaurantes. DateWise no envía contenido de tus conversaciones ni tu ubicación; Apple Maps usa la configuración de ubicación de tu dispositivo. No hay reservas dentro de la app. La política de privacidad de Apple Maps se aplica a tu búsqueda.
 - Estos proveedores procesan datos solo para prestarnos su servicio.
@@ -184,7 +197,7 @@ Nuestros proveedores pueden procesar información en servidores ubicados en dist
 DateWise AI es para personas de 18 años o más. No recopilamos a sabiendas datos de menores de 18 años. Si crees que un menor usó la app, contáctanos.
 
 # Tus opciones
-Tus conversaciones y preferencias permanecen en tu dispositivo y puedes eliminarlas en cualquier momento desde la app. Nuestro servidor no guarda contenido de tus conversaciones ni nada vinculado a tu identidad. Según dónde vivas, puedes tener derecho a acceder, corregir o eliminar tu información personal; escríbenos a support@datewiseai.com.
+Tus conversaciones y preferencias permanecen en tu dispositivo y puedes eliminarlas en cualquier momento desde la app. Compartir tus mensajes con nuestro proveedor de IA requiere tu permiso, que puedes retirar en cualquier momento con Tú › Eliminar mis datos. Nuestro servidor no guarda contenido de tus conversaciones ni nada vinculado a tu identidad. Según dónde vivas, puedes tener derecho a acceder, corregir o eliminar tu información personal; escríbenos a support@datewiseai.com.
 
 # Cambios a esta política
 Podemos actualizar esta política de vez en cuando. Cambiaremos la fecha de "Última actualización" de arriba, y los cambios importantes se reflejarán en la app.

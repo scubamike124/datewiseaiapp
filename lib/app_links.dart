@@ -16,6 +16,12 @@ class AppLinks {
   static const String privacyPolicyUrl = 'https://datewise-legal.lovable.app/privacy-policy';
   static const String termsUrl = 'https://datewise-legal.lovable.app/terms-of-service';
 
+  /// Customer support page: the App Store Connect Support URL. It serves
+  /// web/support.html (generated from lib/content/support_text.dart by
+  /// tool/legal_pages.dart; Spanish at /support-es.html), published by the
+  /// owner on the same Lovable site as the legal pages.
+  static const String supportUrl = 'https://datewise-legal.lovable.app/support.html';
+
   /// Android Play Store listing (for "Rate the app"). Matches the release
   /// `applicationId` in android/app/build.gradle.kts.
   static const String androidPackage = 'com.datewise.ai';
