@@ -8,7 +8,7 @@ live behaviour are unchanged. Everything below is on branches or in draft PRs fo
 | Area | Status |
 |---|---|
 | Live coach chat | **Broken today (HTTP 502)**: Cloudflare retired the model used by the deployed chat-v5. The fix (chat-v7) is already on `main`; it needs the 3 Cloudflare secrets and your approval of one deploy run. |
-| Portraits | New photoreal candidates for all four coaches, each set reviewed by an independent reviewer. Awaiting your choice. |
+| Portraits | 3 ranked photoreal candidates per coach (12), chosen from 36 after independent reviews. Awaiting your choice. |
 | Voices | 13 samples (Kokoro and Chatterbox, free and commercial-use) on identical scripts, with objective checks. Awaiting your ears. |
 | Avatar video demos | **Blocked**: needs a GPU or a provider trial account; you asked for no new accounts tonight. |
 | App code | 6 fix commits in draft PR #54; CI green; 957 Flutter tests and 110 backend tests passing. |
@@ -60,7 +60,7 @@ live behaviour are unchanged. Everything below is on branches or in draft PRs fo
 
 ## 4. Failed testing / needs work
 
-- **Ethan, Diego and Sofía, round 1 portraits:** the reviewers rejected them for an over-sharpened, aged look, and for jewellery artefacts on Sofía. Round 2 is in section 6.
+- **Round 1 portraits for Ethan, Diego and Sofía:** the reviewers rejected them for an over-sharpened, aged look and, for Sofía, jewellery artefacts. Round 2 fixed most of this (section 6).
 - **Chatterbox Sofía voice:** one 2.6 s pause and mispronunciations; needs a retake.
 - **Kokoro Spanish voices:** questions come out flat.
 
@@ -81,7 +81,28 @@ live behaviour are unchanged. Everything below is on branches or in draft PRs fo
 
 ## 6. Portraits
 
-PORTRAITS_SECTION
+Files: branch `claude/avatar-research` → `docs/research/portraits-2026-11-24/`. `candidates/comparison-sheet.jpg` shows
+all twelve; `reviews/` holds every reviewer report; `README.md` lists every retouch. Generated free on this session's
+CPU with RealVisXL V5.0 Lightning (CreativeML OpenRAIL++-M, commercial use allowed). Production portraits are
+unchanged.
+
+36 images were generated in three rounds. After each round an independent reviewer graded realism, eyes, teeth, hair,
+artefacts and age.
+
+| Coach | #1 | #2 | #3 | Reviewer's main notes |
+|---|---|---|---|---|
+| Ava | v2b3 | b1 | v2b4 | Most photographic set. All three look like the same woman. Casual sweater, not formal. |
+| Ethan | v3a2 | v3a1 (younger face) | a1 | Better teeth in round 2. Some deep crow's feet remain; softened slightly. |
+| Sofía | v3a1 | v3b2 | v3a2 | v3a1 rated 8/10, the most natural. A tiny stud earring (#1) and a drop earring and chain (#2) are still there. |
+| Diego | v3c1 | v3c2 | a1 | v3c1 looks 30–33 with a neat beard. An AI-invented shirt logo was painted out. |
+
+Retouches, disclosed:
+- Irises darkened to dark brown on all twelve. None came out clearly dark brown on its own. Only the irises change.
+- A light de-sharpen on the men and Sofía.
+- Crops on Ava #1 and #3, to remove a hand and smeared arms.
+
+Rejected and not shown: 24 images with deformed teeth, mismatched or melted jewellery, extra or fused fingers, a
+"different person" look, or a stereotyped backdrop.
 
 ## 7. Voices
 
