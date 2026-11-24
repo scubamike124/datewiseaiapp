@@ -1,0 +1,14 @@
+{
+ "coach": "ava",
+ "frames": 981,
+ "fps": 25.0,
+ "seconds": 39.2,
+ "mouth_audio_corr_best": 0.468,
+ "best_lag_frames": -1,
+ "mouth_open_speaking_mean": 0.1179,
+ "mouth_open_silent_mean": 0.0882,
+ "blinks": 10,
+ "blinks_per_min": 15.3,
+ "head_motion_px_std": 20.0,
+ "face_found_pct": 100.0
+}
