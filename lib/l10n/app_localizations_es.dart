@@ -1,6 +1,5 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
-
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -131,7 +130,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get welcomeBody =>
-      'Ayuda honesta con tu perfil, tus mensajes y tu primera cita, de un coach que te escucha.';
+      'Ayuda honesta con tu perfil, tus mensajes y tu primera cita. Tu coach te escucha.';
 
   @override
   String get getStarted => 'Comenzar';
@@ -229,7 +228,7 @@ class AppLocalizationsEs extends AppLocalizations {
       'female': 'lista',
       'other': 'listo',
     });
-    return '$name está $_temp0 cuando tú quieras. Tu coach con IA, a cualquier hora.';
+    return '$name está $_temp0 para cuando tú quieras. Tu coach con IA, a cualquier hora.';
   }
 
   @override
@@ -238,7 +237,7 @@ class AppLocalizationsEs extends AppLocalizations {
       'female': 'lista',
       'other': 'listo',
     });
-    return '$name está $_temp0 cuando tú quieras. Retoma donde lo dejaste: “$title”';
+    return '$name está $_temp0 para cuando tú quieras. Retoma donde lo dejaste: “$title”';
   }
 
   @override
@@ -270,7 +269,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String planItemProfile(String name) {
-    return 'Reescribe tu biografía con $name';
+    return 'Reescribe tu bio con $name';
   }
 
   @override
@@ -287,7 +286,7 @@ class AppLocalizationsEs extends AppLocalizations {
       'Ayúdame a practicar un primer mensaje para alguien con quien hice match.';
 
   @override
-  String get planPromptProfile => 'Reescribe mi biografía de citas.';
+  String get planPromptProfile => 'Reescribe la bio de mi perfil de citas.';
 
   @override
   String get planPromptDates => 'Ayúdame a planear una buena primera cita.';
@@ -305,7 +304,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get quickPracticePrompt =>
-      'Practiquemos una conversación. Tú haces de mi match y yo respondo.';
+      'Practiquemos una conversación. Tú eres mi match y yo te respondo.';
 
   @override
   String get quickProfile => 'Mejorar mi perfil';
@@ -461,7 +460,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get chatErrorBusy =>
-      'Tu coach está recibiendo muchos mensajes en este momento. Inténtalo de nuevo en un momento. Tu mensaje está guardado.';
+      'Tu coach está recibiendo muchos mensajes ahora mismo. Inténtalo de nuevo en un momento. Tu mensaje está guardado.';
 
   @override
   String get chatErrorOffline =>
@@ -548,7 +547,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String paywallDisclosure(String perMonth, String price) {
-    return '$perMonth. El pago se carga a tu Cuenta de Apple al confirmar la compra. La suscripción se renueva automáticamente cada mes por $price, a menos que la canceles al menos 24 horas antes de que termine el período actual. Cancela cuando quieras en Configuración › [tu nombre] › Suscripciones.';
+    return '$perMonth. El pago se carga a tu Cuenta de Apple al confirmar la compra. La suscripción se renueva automáticamente cada mes por $price, salvo que la canceles al menos 24 horas antes de que termine el período actual. Cancela cuando quieras en Configuración › [tu nombre] › Suscripciones.';
   }
 
   @override
@@ -569,14 +568,14 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get paywallDisclosureNoPrice =>
-      'Suscripción mensual al precio indicado por el App Store. El pago se carga a tu Cuenta de Apple al confirmar la compra. La suscripción se renueva automáticamente cada mes a ese precio, a menos que la canceles al menos 24 horas antes de que termine el período actual. Cancela cuando quieras en Configuración › [tu nombre] › Suscripciones.';
+      'Suscripción mensual al precio indicado por el App Store. El pago se carga a tu Cuenta de Apple al confirmar la compra. La suscripción se renueva automáticamente cada mes a ese precio, salvo que la canceles al menos 24 horas antes de que termine el período actual. Cancela cuando quieras en Configuración › [tu nombre] › Suscripciones.';
 
   @override
   String get tapToSend => 'Detener y enviar';
 
   @override
   String get tapToTalkHint =>
-      'Toca dos veces para empezar a hablar y otra vez para enviar';
+      'Toca dos veces para empezar a hablar y vuelve a tocar dos veces para enviar';
 
   @override
   String get voiceRecognitionUnavailable =>
@@ -647,8 +646,8 @@ class AppLocalizationsEs extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'pasos del plan completados esta semana',
-      one: 'paso del plan completado esta semana',
+      other: 'pasos completados esta semana',
+      one: 'paso completado esta semana',
     );
     return '$_temp0';
   }
@@ -679,7 +678,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get progressFootnote =>
-      'Marca los pendientes del plan en Inicio. Las marcas se reinician cada lunes.';
+      'Marca los pendientes del plan en Inicio. Se desmarcan cada lunes.';
 
   @override
   String get youTitle => 'Tú';
@@ -949,11 +948,194 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get aiConsentBody =>
-      'Para escribir las respuestas de tu coach, DateWise envía tus mensajes (escritos o dichos en voz alta, como texto), tus preferencias de coaching y, si la Memoria del coach está activada, tu nota a Cloudflare Workers AI, que ejecuta el modelo Llama de Meta. Solo se procesan para escribir la respuesta: no se guardan en nuestros servidores, no se usan para entrenar modelos de IA y no se vinculan con tu identidad. Consulta nuestra Política de privacidad para más detalles.';
+      'Para escribir las respuestas de tu coach, DateWise envía tus mensajes (escritos o dichos en voz alta, como texto), tus preferencias de coaching, tu país (solo Estados Unidos, Canadá, México o España, para las líneas de crisis correctas) y, si la Memoria del coach está activada, tu nota a Cloudflare Workers AI, que ejecuta el modelo Llama de Meta. Solo se procesan para escribir la respuesta: no se guardan en nuestros servidores, no se usan para entrenar modelos de IA y no se vinculan con tu identidad. Consulta nuestra Política de privacidad para más detalles.';
 
   @override
   String get aiConsentAgree => 'Aceptar';
 
   @override
   String get aiConsentNotNow => 'Ahora no';
+
+  @override
+  String get copyFailed => 'No se pudo copiar. Inténtalo de nuevo.';
+
+  @override
+  String get coachLimitTooLong =>
+      'Ese mensaje es demasiado largo para tu coach. Acórtalo y vuelve a intentarlo, o empieza una conversación nueva.';
+
+  @override
+  String lockedHistoryNote(String name) {
+    return 'Tus conversaciones están guardadas. Suscríbete para seguir chateando con $name.';
+  }
+
+  @override
+  String get sectionPrivacy => 'Privacidad';
+
+  @override
+  String get aiSharingTitle => 'Compartir mensajes con el proveedor de IA';
+
+  @override
+  String get aiSharingOn =>
+      'Activado. Tus mensajes van a Cloudflare Workers AI solo para escribir cada respuesta.';
+
+  @override
+  String get aiSharingOff =>
+      'Desactivado. No se envía nada y tu coach no puede responder. Tus conversaciones se quedan en este dispositivo.';
+
+  @override
+  String get sectionSafety => 'Seguridad';
+
+  @override
+  String get getHelpNow => 'Ayuda inmediata';
+
+  @override
+  String get getHelpSubtitle => 'Líneas de crisis y emergencia';
+
+  @override
+  String get getHelpIntro =>
+      'Si tú u otra persona están en peligro, llama ahora al número de emergencias. Estas líneas oficiales son confidenciales y atienden las 24 horas. DateWise no es un servicio de crisis.';
+
+  @override
+  String get helpCountryUS => 'Estados Unidos';
+
+  @override
+  String get helpCountryCA => 'Canadá';
+
+  @override
+  String get helpCountryMX => 'México';
+
+  @override
+  String get helpCountryES => 'España';
+
+  @override
+  String get helpEmergency => 'Emergencias';
+
+  @override
+  String get helpUsSuicide =>
+      '988 Suicide & Crisis Lifeline: llama o envía un mensaje (gratuita, las 24 horas, en español)';
+
+  @override
+  String get helpUsAbuse =>
+      'Línea Nacional contra la Violencia Doméstica (gratuita, las 24 horas)';
+
+  @override
+  String get helpUsAbuseText => 'Violencia doméstica: envía START al 88788';
+
+  @override
+  String get helpCaSuicide =>
+      '9-8-8 Suicide Crisis Helpline: llama o envía un mensaje (las 24 horas, en inglés o francés)';
+
+  @override
+  String get helpCaAbuse =>
+      'Violencia familiar o de género: llama a la línea de crisis de tu provincia o territorio, o al 9-1-1 en una emergencia.';
+
+  @override
+  String get helpMxSuicide => 'Línea de la Vida (gratuita, las 24 horas)';
+
+  @override
+  String get helpMxWomen =>
+      'Línea de las Mujeres, violencia de género: marca 079 y elige la opción 1 (gratuita, las 24 horas)';
+
+  @override
+  String get helpEsSuicide =>
+      '024, línea de atención a la conducta suicida (gratuita, confidencial, las 24 horas)';
+
+  @override
+  String get helpEsAbuse =>
+      '016, violencia machista (gratuito, las 24 horas, no aparece en la factura)';
+
+  @override
+  String get helpEsWhatsApp => '016 por WhatsApp';
+
+  @override
+  String get helpFootnote =>
+      'Números verificados en los sitios oficiales en noviembre de 2026. En otro país, llama al número de emergencias local.';
+
+  @override
+  String lockedPreviewLabel(String name) {
+    return 'Así empieza $name una conversación';
+  }
+
+  @override
+  String get storeStatusTitle => 'Estado de la tienda';
+
+  @override
+  String get storeStatusCopy => 'Copiar';
+
+  @override
+  String get storeStatusQueryAgain => 'Consultar de nuevo';
+
+  @override
+  String get storeStatusQuerying => 'Consultando…';
+
+  @override
+  String get storeStatusStore => 'Tienda';
+
+  @override
+  String storeStatusNoStoreKit(String store) {
+    return '$store (sin StoreKit en esta versión)';
+  }
+
+  @override
+  String get storeStatusProductId => 'Id del producto consultado';
+
+  @override
+  String get storeStatusQueries => 'Consultas realizadas';
+
+  @override
+  String get storeStatusLastQuery => 'Última consulta';
+
+  @override
+  String get storeStatusProductsReturned => 'Productos recibidos';
+
+  @override
+  String get storeStatusReturnedIds => 'Ids recibidos';
+
+  @override
+  String get storeStatusNotFoundIds => 'notFoundIDs (no encontrados)';
+
+  @override
+  String get storeStatusErrorCode => 'Código de error';
+
+  @override
+  String get storeStatusErrorMessage => 'Mensaje de error';
+
+  @override
+  String get storeStatusCanMakePayments => 'Puede hacer pagos';
+
+  @override
+  String get storeStatusStorefront => 'País de la tienda';
+
+  @override
+  String get storeStatusStoreKit2 => 'StoreKit 2';
+
+  @override
+  String get storeStatusPrice => 'Precio de la tienda';
+
+  @override
+  String get storeStatusSubscribed => 'Suscrito';
+
+  @override
+  String get storeStatusStatusRead => 'Estado leído';
+
+  @override
+  String get storeStatusPaywallError => 'Error en la pantalla de suscripción';
+
+  @override
+  String get storeStatusNotYet => 'todavía no';
+
+  @override
+  String get storeStatusUnknown => 'desconocido';
+
+  @override
+  String get storeStatusNotApplicable => 'no aplica';
+
+  @override
+  String get storeStatusUnavailable => 'no disponible';
+
+  @override
+  String get storeStatusYes => 'sí';
+
+  @override
+  String get storeStatusNo => 'no';
 }

@@ -125,6 +125,16 @@ class _ScriptedIap implements InAppPurchase {
 
 /// StoreKit 2 host API: only what AppStoreService uses (currentEntitlements).
 class _FakeSK2 implements InAppPurchase2API {
+  /// AppStore.sync (Restore purchases): counted; throws when [syncFails].
+  int syncs = 0;
+  bool syncFails = false;
+
+  @override
+  Future<void> sync() async {
+    syncs++;
+    if (syncFails) throw StateError('AppStore.sync failed');
+  }
+
   List<String> entitled = [];
   bool fail = false;
 

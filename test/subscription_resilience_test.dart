@@ -70,6 +70,16 @@ class _Iap implements InAppPurchase {
 }
 
 class _SK2 implements InAppPurchase2API {
+  /// AppStore.sync (Restore purchases): counted; throws when [syncFails].
+  int syncs = 0;
+  bool syncFails = false;
+
+  @override
+  Future<void> sync() async {
+    syncs++;
+    if (syncFails) throw StateError('AppStore.sync failed');
+  }
+
   /// (productId, receiptData JWS, expiration ms since epoch)
   List<(String, String, double?)> entitled = [];
   int failTimes = 0;

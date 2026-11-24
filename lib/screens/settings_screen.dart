@@ -11,7 +11,9 @@ import '../services/ai_config.dart';
 import '../services/store_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/store_status_sheet.dart';
 import '../widgets/dw.dart';
+import 'get_help_screen.dart';
 import 'legal_screen.dart';
 import 'paywall_screen.dart';
 import 'shell.dart';
@@ -89,7 +91,8 @@ class SettingsScreen extends StatelessWidget {
     final memory = state.memoryText;
     final l = context.l10n;
 
-    return SingleChildScrollView(
+    return StatusBarScrim(
+      child: SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(16, top + 16, 16, 28),
       child: ContentWidth(
         child: Column(
@@ -182,7 +185,8 @@ class SettingsScreen extends StatelessWidget {
                   // only a completed restore with nothing found says "none".
                   onTap: () async {
                     final ok = await store.restore();
-                    if (context.mounted) {
+                    // A canceled Apple Account prompt is not an error.
+                    if (context.mounted && (ok || !store.lastRestoreCanceled)) {
                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                         key: const ValueKey('restore-result'),
                         content: Text(ok ? l.restoreOk : restoreFailureText(l, store.lastError, l.restoreNone)),
@@ -190,6 +194,38 @@ class SettingsScreen extends StatelessWidget {
                     }
                   },
                 ),
+            ]),
+            _SectionLabel(l.sectionPrivacy),
+            _Group(children: [
+              _SwitchRow(
+                key: const ValueKey('row-ai-sharing'),
+                icon: Icons.cloud_outlined,
+                title: l.aiSharingTitle,
+                subtitle: state.aiConsentGiven ? l.aiSharingOn : l.aiSharingOff,
+                value: state.aiConsentGiven,
+                onChanged: (on) async {
+                  if (!on) {
+                    // Withdraws only the permission; every conversation stays (Guideline 5.1.1(ii)).
+                    await state.revokeAiConsent();
+                    return;
+                  }
+                  // Turning it on is the same informed agreement as in the chat.
+                  if (await showConfirmDialog(context, l.aiConsentTitle, l.aiConsentBody, l.aiConsentAgree,
+                      actionColor: AppColors.gold, cancelLabel: l.aiConsentNotNow)) {
+                    await state.giveAiConsent();
+                  }
+                },
+              ),
+            ]),
+            _SectionLabel(l.sectionSafety),
+            _Group(children: [
+              _Row(
+                key: const ValueKey('row-get-help'),
+                icon: Icons.health_and_safety_outlined,
+                title: l.getHelpNow,
+                subtitle: l.getHelpSubtitle,
+                onTap: () => Navigator.of(context).push(GetHelpScreen.route(firstCountry: state.deviceCountry)),
+              ),
             ]),
             _SectionLabel(l.sectionData),
             _Group(children: [
@@ -265,17 +301,24 @@ class SettingsScreen extends StatelessWidget {
                 // so a TestFlight tester can confirm the build (not localized:
                 // App Store builds never show it).
                 final host = AIConfig.testBuildHost();
-                return Text(
-                  '${l.settingsFootnote}${v.isEmpty ? '' : '\n${l.appVersion(v)}'}'
-                  '${host == null ? '' : '\nTest build · coach server: $host'}',
-                  textAlign: TextAlign.center,
-                  style: AppText.small,
+                // Long-press: the hidden "Store status" readout (what StoreKit
+                // returned for the subscription product), for TestFlight.
+                return GestureDetector(
+                  key: const ValueKey('settings-footnote'),
+                  onLongPress: () => showStoreStatus(context),
+                  child: Text(
+                    '${l.settingsFootnote}${v.isEmpty ? '' : '\n${l.appVersion(v)}'}'
+                    '${host == null ? '' : '\nTest build · coach server: $host'}',
+                    textAlign: TextAlign.center,
+                    style: AppText.small,
+                  ),
                 );
               },
             ),
           ],
         ),
       ),
+    ),
     );
   }
 }
@@ -360,7 +403,8 @@ class _Row extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: TextStyle(fontSize: 15.5, color: color, height: 1.3)),
+                    // Whole words at large text: "Language" never breaks as "Languag / e" (QA m-2).
+                    WholeWordsText(title, style: TextStyle(fontSize: 15.5, color: color, height: 1.3)),
                     if (subtitle != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
@@ -433,7 +477,7 @@ class _SwitchRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(fontSize: 15.5, color: AppColors.text, height: 1.3)),
+                    WholeWordsText(title, style: const TextStyle(fontSize: 15.5, color: AppColors.text, height: 1.3)),
                     const SizedBox(height: 2),
                     Text(subtitle, style: const TextStyle(fontSize: 13, height: 1.35, color: AppColors.textMuted)),
                   ],

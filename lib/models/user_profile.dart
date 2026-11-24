@@ -39,7 +39,19 @@ class UserProfile {
     this.goals = const [],
     this.language = CoachLanguage.en,
     this.memory,
+    this.country,
   });
+
+  /// Regions with their own crisis-line block in the coach prompt (compliance
+  /// F1). Any other region is sent as unknown (no `country`).
+  static const crisisCountries = {'US', 'CA', 'MX', 'ES'};
+
+  /// [code] (a device locale's country code) when it is one of
+  /// [crisisCountries], else null.
+  static String? crisisCountryOf(String? code) {
+    final c = code?.trim().toUpperCase();
+    return c != null && crisisCountries.contains(c) ? c : null;
+  }
 
   /// What the user wants help with, in the order they picked.
   final List<CoachingGoal> goals;
@@ -51,16 +63,22 @@ class UserProfile {
   /// coach, and only while Coach memory is ON (see AppState.profileForCoach).
   final String? memory;
 
+  /// The device region (US, CA, MX or ES, else null), so the coach gives the
+  /// right crisis lines. Only set on the copy sent to the coach; never stored.
+  final String? country;
+
   UserProfile copyWith({
     List<CoachingGoal>? goals,
     CoachLanguage? language,
     String? memory,
     bool clearMemory = false,
+    String? country,
   }) =>
       UserProfile(
         goals: goals ?? this.goals,
         language: language ?? this.language,
         memory: clearMemory ? null : (memory ?? this.memory),
+        country: crisisCountryOf(country ?? this.country),
       );
 
   /// A one-line summary the coach uses to personalize its advice.
@@ -79,6 +97,7 @@ class UserProfile {
         'goals': goals.map((g) => g.name).toList(),
         'language': language.name,
         if (memory != null && memory!.trim().isNotEmpty) 'memory': memory!.trim(),
+        if (crisisCountryOf(country) case final c?) 'country': c,
       };
 
   /// Reads only the v2 fields; any legacy v1 key in [json] is ignored.
@@ -88,6 +107,7 @@ class UserProfile {
             if (_enumOrNull(CoachingGoal.values, g) case final goal?) goal,
         ],
         language: CoachLanguage.fromCode(json['language'] as String?),
-        // A stored profile never carries memory; it lives in its own setting.
+        // A stored profile never carries memory (it lives in its own setting)
+        // or the country (read from the device each time).
       );
 }

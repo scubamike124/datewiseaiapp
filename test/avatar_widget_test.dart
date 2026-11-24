@@ -143,6 +143,58 @@ void main() {
       expect(think.rotation.abs(), greaterThan(0.005), reason: 'slight head tilt while thinking');
     });
 
+    test('no forward-eye blink frames while thinking; the glance stays put', () {
+      for (final seed in [1, 2, 3, 7, 42]) {
+        final a = AvatarAnimator(seed: seed);
+        for (var t = 0.0; t < 12; t += 1 / 60) {
+          final eyes = a.frame(t, AvatarMood.thinking, VisemeSample.rest).layers.map((l) => l.patch).toList();
+          expect(eyes.where((p) => p.startsWith('blink')), isEmpty, reason: 'blink at $t s while thinking (seed $seed)');
+          if (t >= AvatarAnimator.glanceDelay) expect(eyes, contains('gaze'), reason: 'glance lost at $t s (seed $seed)');
+        }
+      }
+    });
+
+    test('thinking to speaking: the glance holds about 120 ms, then the eyes return through a blink', () {
+      for (final seed in [1, 2, 3, 7, 42]) {
+        final a = AvatarAnimator(seed: seed);
+        // Long enough that a blink falls due during thinking.
+        for (var t = 0.0; t < 8; t += 1 / 60) {
+          a.frame(t, AvatarMood.thinking, VisemeSample.rest);
+        }
+        const speak = VisemeSample(Viseme.rest, Viseme.a, 0.5);
+        const start = 8.0;
+        final first = a.frame(start, AvatarMood.speaking, speak).layers.map((l) => l.patch).toList();
+        expect(first, containsAll(['gaze', 'a']), reason: 'mouth moves while the glance is still held (seed $seed)');
+        final eyes = <String?>[];
+        for (var t = start + 1 / 60; t < start + 0.6; t += 1 / 60) {
+          final ps = a.frame(t, AvatarMood.speaking, speak).layers.map((l) => l.patch);
+          final e = ps.where((p) => p == 'gaze' || p.startsWith('blink'));
+          eyes.add(e.isEmpty ? null : e.first);
+          if (t < start + AvatarAnimator.gazeHold - 0.001) expect(e, ['gaze'], reason: 'glance dropped at ${t - start} s (seed $seed)');
+        }
+        // The glance ends straight into blink_half -> blink_closed -> blink_half, never a forward-eye frame first.
+        final end = eyes.indexWhere((e) => e != 'gaze');
+        expect(eyes[end], 'blink_half', reason: 'seed $seed: $eyes');
+        expect(eyes.skip(end).where((e) => e == 'gaze'), isEmpty, reason: 'glance does not come back');
+        expect(eyes.skip(end), contains('blink_closed'));
+        expect(eyes.last, isNull, reason: 'eyes forward once the blink is over');
+      }
+    });
+
+    test('a short think with no blink due: the glance holds, then the eyes go forward', () {
+      final a = AvatarAnimator(seed: 7);
+      // The first blink is at least 1.5 s away; think 0.2-0.8 s, speak at 0.8 s.
+      for (var t = 0.2; t < 0.8; t += 1 / 60) {
+        a.frame(t, AvatarMood.thinking, VisemeSample.rest);
+      }
+      const speak = VisemeSample(Viseme.rest, Viseme.a, 0.5);
+      expect(a.frame(0.8, AvatarMood.speaking, speak).layers.map((l) => l.patch), contains('gaze'));
+      expect(a.frame(0.9, AvatarMood.speaking, speak).layers.map((l) => l.patch), contains('gaze'));
+      final after = a.frame(0.95, AvatarMood.speaking, speak).layers.map((l) => l.patch);
+      expect(after, isNot(contains('gaze')));
+      expect(after.where((p) => p.startsWith('blink')), isEmpty);
+    });
+
     test('listening nods are 400 ms whole-image bumps (3 px, under 1 degree); motion stays subtle', () {
       final a = AvatarAnimator(seed: 7);
       var nodFrames = 0;

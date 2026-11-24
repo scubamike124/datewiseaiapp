@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../models/coach.dart';
@@ -26,7 +28,8 @@ class WelcomeScreen extends StatelessWidget {
     return Scaffold(
       key: const ValueKey('welcome'),
       backgroundColor: AppColors.background,
-      body: SingleChildScrollView(
+      body: StatusBarScrim(
+        child: SingleChildScrollView(
         child: ContentWidth(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -49,7 +52,24 @@ class WelcomeScreen extends StatelessWidget {
                         child: CoachImage(coach: coach, semanticLabel: l.welcomePortrait(coach.name)),
                       )
                     else
-                      CoachImage(coach: coach, semanticLabel: l.welcomePortrait(coach.name)),
+                      // Phones: a portrait-shaped column (4:5) centered in the hero, its sides fading into
+                      // the page as on iPad, so the whole head, hair to chin, shows on every iPhone.
+                      Center(
+                        child: SizedBox(
+                          width: math.min(size.width, heroHeight * 0.8),
+                          height: heroHeight,
+                          child: ShaderMask(
+                            key: const ValueKey('welcome-hero-phone-fade'),
+                            blendMode: BlendMode.dstIn,
+                            shaderCallback: (rect) => const LinearGradient(
+                              colors: [Color(0x00000000), Color(0xFF000000), Color(0xFF000000), Color(0x00000000)],
+                              stops: [0, 0.18, 0.82, 1],
+                            ).createShader(rect),
+                            child: CoachImage(
+                                coach: coach, semanticLabel: l.welcomePortrait(coach.name), alignment: const Alignment(0, -0.9)),
+                          ),
+                        ),
+                      ),
                     const DecoratedBox(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
@@ -76,7 +96,7 @@ class WelcomeScreen extends StatelessWidget {
                 ),
               ),
               Padding(
-                padding: EdgeInsets.fromLTRB(24, 16, 24, bottom + 20),
+                padding: EdgeInsets.fromLTRB(24, 16, 24, bottom + 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -121,6 +141,7 @@ class WelcomeScreen extends StatelessWidget {
             ],
           ),
         ),
+      ),
       ),
     );
   }

@@ -28,10 +28,12 @@ Need help with DateWise AI? Email us at support@datewiseai.com. A person reads e
 - Coach is not replying: check your internet connection and that DateWise Premium is active (You › Restore purchases). If it still fails, email us with the time it happened.
 - AI permission: before your first message, the app asks whether you agree to share your messages with our AI provider. If you tapped Not now, send a message again and tap Agree.
 - Voice mode: hold the talk button to speak. If nothing happens, allow Microphone and Speech Recognition for DateWise AI in Settings › Privacy & Security.
+- In a crisis: You › Get help now lists the official crisis and emergency lines for the US, Canada, Mexico and Spain. DateWise is not a crisis service.
 
 # Your data
 - Delete conversations: You › Delete all conversations.
-- Delete everything and withdraw AI permission: You › Delete my data erases everything DateWise stored on your device, including your permission to share messages with our AI provider. It does not cancel your subscription.
+- Stop sharing messages with the AI provider: turn off You › Privacy › Share messages with the AI provider. Nothing more is sent and your conversations stay on your device; your coach can reply again once you turn it back on.
+- Delete everything: You › Delete my data erases everything DateWise stored on your device, including your permission to share messages with our AI provider. It does not cancel your subscription.
 - DateWise AI has no account and stores no conversation content on our servers. Details: https://datewise-legal.lovable.app/privacy-policy
 
 # Legal
@@ -60,10 +62,12 @@ $kSupportLastUpdatedEs
 - El coach no responde: revisa tu conexión a internet y que DateWise Premium esté activa (Tú › Restaurar compras). Si sigue fallando, escríbenos indicando la hora en que ocurrió.
 - Permiso de IA: antes de tu primer mensaje, la app te pregunta si aceptas compartir tus mensajes con nuestro proveedor de IA. Si tocaste Ahora no, envía un mensaje de nuevo y toca Aceptar.
 - Modo de voz: mantén presionado el botón para hablar. Si no pasa nada, permite Micrófono y Reconocimiento de voz para DateWise AI en Configuración › Privacidad y seguridad.
+- En una crisis: Tú › Ayuda inmediata muestra las líneas oficiales de crisis y emergencias de Estados Unidos, Canadá, México y España. DateWise no es un servicio de crisis.
 
 # Tus datos
 - Eliminar conversaciones: Tú › Eliminar todas las conversaciones.
-- Eliminar todo y retirar el permiso de IA: Tú › Eliminar mis datos borra todo lo que DateWise guardó en tu dispositivo, incluido tu permiso para compartir mensajes con nuestro proveedor de IA. No cancela tu suscripción.
+- Dejar de compartir mensajes con el proveedor de IA: desactiva Tú › Privacidad › Compartir mensajes con el proveedor de IA. No se envía nada más y tus conversaciones se quedan en tu dispositivo; tu coach puede volver a responder cuando lo actives de nuevo.
+- Eliminar todo: Tú › Eliminar mis datos borra todo lo que DateWise guardó en tu dispositivo, incluido tu permiso para compartir mensajes con nuestro proveedor de IA. No cancela tu suscripción.
 - DateWise AI no tiene cuentas y no guarda contenido de tus conversaciones en nuestros servidores. Detalles: https://datewise-legal.lovable.app/privacy-es.html
 
 # Legal

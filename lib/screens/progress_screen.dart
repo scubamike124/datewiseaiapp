@@ -23,7 +23,8 @@ class ProgressScreen extends StatelessWidget {
     Widget status(int i) => Text(plan!.items[i].done ? l.planDone : l.planNotYet,
         key: ValueKey('progress-plan-status-$i'), style: const TextStyle(fontSize: 13, color: AppColors.faint));
 
-    return SingleChildScrollView(
+    return StatusBarScrim(
+      child: SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(16, top + 16, 16, 28),
       child: ContentWidth(
         child: Column(
@@ -141,6 +142,7 @@ class ProgressScreen extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }

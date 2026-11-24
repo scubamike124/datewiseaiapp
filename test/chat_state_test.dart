@@ -79,7 +79,7 @@ class ScriptedAI implements AIService {
 
 Future<(AppState, StorageService)> make(AIService ai, {Map<String, Object> prefs = const {}}) async {
   // The user already agreed to share messages with the AI provider.
-  SharedPreferences.setMockInitialValues({'dw_ai_consent': true, ...prefs});
+  SharedPreferences.setMockInitialValues({'dw_ai_consent': true, 'dw_ai_consent_version': StorageService.aiConsentVersion, ...prefs});
   final storage = await StorageService.create();
   return (AppState(storage: storage, ai: ai, store: FakeStoreService(entitled: true)), storage);
 }
@@ -103,7 +103,7 @@ class ThrowingStorage extends StorageService {
 void main() {
   group('a storage error before the reply streams', () {
     Future<(AppState, ThrowingStorage, ScriptedAI)> setUpState() async {
-      SharedPreferences.setMockInitialValues({'dw_ai_consent': true});
+      SharedPreferences.setMockInitialValues({'dw_ai_consent': true, 'dw_ai_consent_version': StorageService.aiConsentVersion});
       final storage = ThrowingStorage(await SharedPreferences.getInstance());
       final ai = ScriptedAI([ScriptedAI.ok(['Hi ', 'there.'])]);
       final state = AppState(storage: storage, ai: ai, store: FakeStoreService(entitled: true));
@@ -309,7 +309,7 @@ void main() {
   });
 
   test('conversations persist per coach across app restarts', () async {
-    SharedPreferences.setMockInitialValues({'dw_ai_consent': true});
+    SharedPreferences.setMockInitialValues({'dw_ai_consent': true, 'dw_ai_consent_version': StorageService.aiConsentVersion});
     final storage = await StorageService.create();
     final state = AppState(storage: storage, ai: MockAIService(), store: FakeStoreService(entitled: true));
     await state.selectCoach('ava');

@@ -81,6 +81,9 @@ class AvatarAnimator {
   double _moodSince = 0;
   double _lastT = 0;
 
+  // The thinking glance is held until this time into speaking.
+  double _gazeUntil = -10;
+
   // Head gestures: start time, length, depth (px down), tilt (radians).
   double _gestureStart = -10;
   double _gestureLength = 0.4;
@@ -104,6 +107,10 @@ class AvatarAnimator {
   /// Thinking glance appears this long after thinking starts.
   static const double glanceDelay = 0.15;
 
+  /// The thinking glance stays this long into speaking, so the eyes do not
+  /// snap forward on the same frame the mouth starts moving.
+  static const double gazeHold = 0.12;
+
   /// Eye patch for [s] seconds into a blink: null, `blink_half` or `blink_closed`.
   static String? blinkFrame(double s) {
     if (s < 0 || s >= blinkLength) return null;
@@ -125,6 +132,9 @@ class AvatarAnimator {
   AvatarPose frame(double t, AvatarMood mood, VisemeSample mouth, {Set<String>? available, double jaw = 0}) {
     _lastT = t;
     if (mood != _mood) {
+      // Leaving a thinking glance for speech: hold the glance a moment.
+      final glancing = _mood == AvatarMood.thinking && t - _moodSince >= glanceDelay;
+      _gazeUntil = glancing && mood == AvatarMood.speaking ? t + gazeHold : -10;
       _mood = mood;
       _moodSince = t;
       _nextNod = t + 0.5;
@@ -161,8 +171,14 @@ class AvatarAnimator {
     final g = bump(t - _gestureStart, _gestureLength);
     final holdTilt = mood == AvatarMood.thinking && t - _moodSince >= 0.3 ? 0.012 : 0.0;
 
-    // Blinks (switched, not faded), with an occasional double blink.
-    if (t >= _nextBlink) {
+    // The thinking glance: while thinking, and briefly into speaking.
+    final gazing = mood == AvatarMood.thinking || t < _gazeUntil;
+
+    // Blinks (switched, not faded), with an occasional double blink. None
+    // start during the glance (the blink frames look forward, so a blink
+    // would flash the forward eyes mid-glance); a blink that falls due then
+    // waits and plays as the glance ends, so the eyes return through it.
+    if (t >= _nextBlink && !gazing) {
       _blinkStart = t;
       final base = mood == AvatarMood.listening ? 2.2 : 2.8;
       // A double blink at most: the second blink of a pair never starts
@@ -178,7 +194,7 @@ class AvatarAnimator {
     final blink = blinkFrame(t - _blinkStart);
     if (blink != null && has(blink)) {
       layers.add(AvatarLayer(blink, 1));
-    } else if (mood == AvatarMood.thinking && t - _moodSince >= glanceDelay && has('gaze')) {
+    } else if (gazing && (mood != AvatarMood.thinking || t - _moodSince >= glanceDelay) && has('gaze')) {
       layers.add(const AvatarLayer('gaze', 1));
     }
 

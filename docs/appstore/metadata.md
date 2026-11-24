@@ -173,6 +173,8 @@ confirmation in onboarding.
 
 | Question | Answer |
 |--|--|
+| **Dating and Relationships** | **Yes** (new descriptor, required for new declarations from 2026-11-16 and for every app by 2027-01-12. The coaches give dating advice and practice role-play is a generated romantic exchange. Apple: apps with this descriptor get a minimum rating of **18+**, which matches the 18+ Terms) |
+| Shared location | No |
 | Parental controls | No |
 | Age assurance | No (the app asks users to confirm they are 18+; it does not verify age) |
 | Unrestricted web access | No (links open only the privacy policy, terms, support email and an Apple Maps search) |
@@ -188,7 +190,7 @@ confirmation in onboarding.
 | Simulated gambling / contests / loot boxes | None / No |
 | Sexual content or nudity / graphic sexual content | None |
 | Health or wellness topics | No |
-| Override to a higher rating | If the questionnaire result is below 18+, choose the 18+ (or 17+) override: dating apps are expected to be adults-only |
+| Override to a higher rating | Not needed with "Dating and Relationships: Yes" (18+ directly). If App Store Connect still calculates below 18+, choose the 18+ override: the Terms set 18 as the minimum age |
 
 AI disclosure: in "App Review Information" notes (below) state that the app
 generates AI content and that coaches are clearly labelled as AI.

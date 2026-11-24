@@ -17,9 +17,18 @@ import 'persona.dart';
 /// timeout, a non-200 response or an empty stream. The chat shows a friendly,
 /// localized notice with "Try again"; the user's message is kept.
 class CoachUnavailableException implements Exception {
-  const CoachUnavailableException(this.reason, {this.statusCode, this.code, this.retryAfter});
+  const CoachUnavailableException(this.reason,
+      {this.statusCode, this.code, this.retryAfter, this.entitlementRefreshed = false});
   final String reason;
   final int? statusCode;
+
+  /// True when [BackendAIService] already re-read the StoreKit entitlement
+  /// for this reply (refresh-once, see [CoachLimitCode.refreshable]), so the
+  /// app does not read it a second time (code review m4).
+  final bool entitlementRefreshed;
+
+  CoachUnavailableException _refreshed() => CoachUnavailableException(reason,
+      statusCode: statusCode, code: code, retryAfter: retryAfter, entitlementRefreshed: true);
 
   /// The backend's refusal code (chat-v7), e.g. `DAILY_LIMIT`; see [CoachLimitCode].
   final String? code;
@@ -72,6 +81,19 @@ class BackendAIService implements AIService {
   /// The newest complete turns sent as history. The Worker keeps the same
   /// number (MAX_CHAT_MESSAGES), so older turns would only cost upload bytes.
   static const int maxHistoryTurns = 24;
+
+  /// Longest text sent per turn, as the Worker trims it (`coach_prompts.js`,
+  /// 6,000 characters). The composer has the same limit.
+  static const int maxMessageChars = 6000;
+
+  /// Most bytes an older turn (every turn but the newest) takes in the
+  /// request body, counted as UTF-8 after JSON escaping. Characters cap a
+  /// turn at 6,000, but 6,000 CJK characters are 18 KB and 24 of them nearly
+  /// reach the Worker's 256 KB body cap (`MAX_CHAT_BODY_BYTES`). With 23
+  /// older turns at this cap plus the newest turn in full (at worst 6,000
+  /// characters × 6 escaped bytes = 36 KB) and the ~5 KB system prompt, the
+  /// body stays under about 230 KB whatever the text (re-test m3).
+  static const int maxHistoryTurnBytes = 8000;
 
   /// At most this many HTTP requests per reply, whatever the reason for the
   /// second one: the transient-failure retry in [streamReply] and the
@@ -154,12 +176,12 @@ class BackendAIService implements AIService {
           try {
             await refresh().timeout(const Duration(seconds: 10));
           } catch (_) {
-            throw error;
+            throw error._refreshed();
           }
           if (canceled) return;
           res = await send();
           if (canceled) return;
-          if (res.statusCode != 200) throw await refusal(res);
+          if (res.statusCode != 200) throw (await refusal(res))._refreshed();
         }
         CoachUsage.state.value = CoachUsageState.fromHeaders(res.headers);
 
@@ -315,9 +337,47 @@ class BackendAIService implements AIService {
         if (!m.hadPhoto) continue;
         text = m.isUser ? '[shared a photo for review]' : '[gave a photo critique]';
       }
+      // The Worker keeps at most [maxMessageChars] per turn; capping here too
+      // keeps one very long paste from making every later request too large
+      // (code review m3).
+      if (text.length > maxMessageChars) {
+        // Never split an emoji's surrogate pair.
+        var end = maxMessageChars;
+        if (_isHighSurrogate(text.codeUnitAt(end - 1))) end--;
+        text = text.substring(0, end);
+      }
       turns.add({'role': m.isUser ? 'user' : 'assistant', 'content': text});
     }
-    messages.addAll(turns.skip(math.max(0, turns.length - maxHistoryTurns)));
+    final recent = turns.skip(math.max(0, turns.length - maxHistoryTurns)).toList();
+    // Older turns are also capped in bytes, so long CJK or emoji text cannot
+    // push the body past the Worker's cap; the newest turn is sent in full.
+    for (var i = 0; i < recent.length - 1; i++) {
+      recent[i]['content'] = capJsonBytes(recent[i]['content']!, maxHistoryTurnBytes);
+    }
+    messages.addAll(recent);
     return messages;
+  }
+
+  static bool _isHighSurrogate(int unit) => unit >= 0xD800 && unit <= 0xDBFF;
+
+  /// The bytes [text] takes inside the JSON body (UTF-8, escaped, no quotes).
+  static int _jsonBytes(String text) => utf8.encode(jsonEncode(text)).length - 2;
+
+  /// [text] trimmed, on whole code points, to at most [maxBytes] bytes as
+  /// sent in the JSON body.
+  @visibleForTesting
+  static String capJsonBytes(String text, int maxBytes) {
+    if (_jsonBytes(text) <= maxBytes) return text;
+    final runes = text.runes.toList();
+    var lo = 0, hi = runes.length;
+    while (lo < hi) {
+      final mid = (lo + hi + 1) >> 1;
+      if (_jsonBytes(String.fromCharCodes(runes, 0, mid)) <= maxBytes) {
+        lo = mid;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    return String.fromCharCodes(runes, 0, lo);
   }
 }

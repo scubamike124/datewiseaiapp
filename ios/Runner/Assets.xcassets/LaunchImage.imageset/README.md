@@ -1,5 +1,6 @@
 # Launch Screen Assets
 
-You can customize the launch screen with your own desired assets by replacing the image files in this directory.
-
-You can also do it by opening your Flutter project's Xcode project with `open ios/Runner.xcworkspace`, selecting `Runner/Assets.xcassets` in the Project Navigator and dropping in the desired images.
+The DateWise brand mark (the app icon's tile, from `AppIcon.appiconset/Icon-App-1024x1024@1x.png`) at 120 pt
+(120, 240 and 360 px), centered on the app's dark background (#150C10, `AppColors.background`) by
+`Base.lproj/LaunchScreen.storyboard`. Static, no text, so it needs no translation.
+`test/launch_screen_test.dart` checks it is not the 1x1 Flutter placeholder.
