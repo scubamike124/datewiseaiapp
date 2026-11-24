@@ -37,9 +37,9 @@
  {
   "turn": 1,
   "text": "Prueba algo así: oye, pregunta importante, ¿el perro también come tacos después de la caminata?",
-  "wer": 0.067,
-  "hyp": "¿Pruéba algo así? Oye, pregunta importante.  ¿El perro también come tacos después de la caminata?",
-  "sec": 5.07
+  "wer": 0.0,
+  "hyp": "prueba algo así. Oye, pregunta importante.  ¿El perro también come tacos después de la caminata?",
+  "sec": 5.48
  },
  {
   "turn": 1,
