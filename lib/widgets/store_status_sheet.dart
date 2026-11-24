@@ -78,6 +78,7 @@ class StoreStatusSheet extends StatelessWidget {
                   child: Text(l.storeStatusCopy),
                 ),
                 // Hidden owner-only access (not localized, never shown to customers): see docs/OWNER_ACCESS.md.
+                if (OwnerAccess.enabled)
                 TextButton(
                   key: const ValueKey('owner-code-open'),
                   onPressed: () => _ownerCode(context),

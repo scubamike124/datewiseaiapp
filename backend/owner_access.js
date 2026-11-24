@@ -71,18 +71,20 @@ export async function handleOwner(request, env, cors, { path, ipHash, now, attem
   } catch {
     return jsonRes({ error: 'Invalid request' }, 400, cors);
   }
-  let ok;
-  try {
-    // Every attempt counts before the code is looked at; the global bound stops distributed guessing.
-    const ip = await attempt(`ownerauth:${ipHash}`, MAX_FAILS_PER_IP_HOUR, now);
-    const all = await attempt('ownerauth:all', MAX_FAILS_ALL_HOUR, now);
-    ok = ip && all;
-  } catch {
-    return jsonRes({ error: 'Unavailable' }, 503, cors);
-  }
-  if (!ok) return jsonRes({ error: 'Too many attempts', code: 'RATE_LIMITED' }, 429, { ...cors, 'Retry-After': '3600' });
-
+  // Only redeem guesses a code, so only redeem is counted. Renew needs a valid signed token, so anonymous junk
+  // cannot use up a shared allowance and lock the owner out of a session that is already valid.
   if (path === '/owner/redeem') {
+    let ok;
+    try {
+      // Every attempt counts before the code is looked at; the global bound stops distributed guessing.
+      const ip = await attempt(`ownerauth:${ipHash}`, MAX_FAILS_PER_IP_HOUR, now);
+      const all = await attempt('ownerauth:all', MAX_FAILS_ALL_HOUR, now);
+      ok = ip && all;
+    } catch {
+      return jsonRes({ error: 'Unavailable' }, 503, cors);
+    }
+    if (!ok) return jsonRes({ error: 'Too many attempts', code: 'RATE_LIMITED' }, 429, { ...cors, 'Retry-After': '3600' });
+
     const { code, deviceId } = body || {};
     if (typeof code !== 'string' || code.length > 200 || !DEVICE_RE.test(String(deviceId || ''))) {
       return jsonRes({ error: 'Invalid code' }, 403, cors);

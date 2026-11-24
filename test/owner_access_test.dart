@@ -5,10 +5,33 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:datewise_ai/services/owner_access.dart';
 
-void main() {
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+class _MemStore implements OwnerStore {
+  final m = <String, String>{};
+  @override
+  Future<String?> read(String key) async => m[key];
+  @override
+  Future<void> write(String key, String value) async => m[key] = value;
+  @override
+  Future<void> delete(String key) async => m.remove(key);
+}
 
+void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    OwnerAccess.useStore(_MemStore());
+  });
+
+  // Public builds: the feature is compiled out and inert, and never contacts the Worker.
+  test('compiled out: redeem is refused without contacting the Worker', () async {
+    if (OwnerAccess.enabled) return;
+    final client = MockClient((r) async => fail('must not be called'));
+    expect(await OwnerAccess.instance.redeem('good', baseUrl: 'https://w.example.dev', client: client), isFalse);
+    expect(OwnerAccess.instance.active, isFalse);
+  });
+
+  // Internal TestFlight builds (--dart-define=DW_OWNER_ACCESS=true).
   test('a wrong code leaves owner access off; the right one turns it on', () async {
+    if (!OwnerAccess.enabled) return;
     final exp = DateTime.now().add(const Duration(days: 30)).millisecondsSinceEpoch ~/ 1000;
     final client = MockClient((r) async => r.url.path == '/owner/redeem' && r.body.contains('good')
         ? http.Response('{"token":"o1.${'a' * 32}.$exp.sig"}', 200)
@@ -25,7 +48,22 @@ void main() {
   });
 
   test('a non-HTTPS backend is never contacted', () async {
+    if (!OwnerAccess.enabled) return;
     final client = MockClient((r) async => fail('must not be called'));
     expect(await OwnerAccess.instance.redeem('x', baseUrl: 'http://w.example.dev', client: client), isFalse);
+  });
+
+  test('a token saved by an earlier build moves into secure storage', () async {
+    if (!OwnerAccess.enabled) return;
+    final exp = DateTime.now().add(const Duration(days: 30)).millisecondsSinceEpoch ~/ 1000;
+    final tok = 'o1.${'b' * 32}.$exp.sig';
+    SharedPreferences.setMockInitialValues({'owner_token_v1': tok});
+    final store = _MemStore();
+    OwnerAccess.useStore(store);
+    final client = MockClient((r) async => http.Response('{"error":"x"}', 500));
+    await OwnerAccess.instance.load(baseUrl: 'https://w.example.dev', client: client);
+    expect(store.m['owner_token_v1'], tok);
+    expect((await SharedPreferences.getInstance()).getString('owner_token_v1'), isNull);
+    expect(OwnerAccess.instance.active, isTrue);
   });
 }
