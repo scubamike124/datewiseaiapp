@@ -1,3 +1,4 @@
+// ignore_for_file: invalid_use_of_visible_for_testing_member
 // Renders the voice stage's portrait before/after the framing change at 3x,
 // for every coach and the iPhone SE, 15 and 15 Pro Max stage widths.
 //
@@ -35,7 +36,7 @@ void main() {
     c.drawRect(
       fade,
       Paint()
-        ..shader = ui.Gradient.linear(fade.topCenter, fade.bottomCenter, [AppColors.surface.withOpacity(0), AppColors.surface]),
+        ..shader = ui.Gradient.linear(fade.topCenter, fade.bottomCenter, [AppColors.surface.withValues(alpha: 0), AppColors.surface]),
     );
     final img = await rec.endRecording().toImage((w * scale).round(), (h * scale).round());
     final png = await img.toByteData(format: ui.ImageByteFormat.png);
