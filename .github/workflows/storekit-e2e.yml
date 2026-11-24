@@ -30,8 +30,10 @@ permissions:
   contents: read
 
 concurrency:
+  # A run that started finishes (a newer push waits, replacing any older
+  # waiting run), so frequent pushes to a branch cannot starve this test.
   group: storekit-e2e-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   FLUTTER_VERSION: '3.47.9'
