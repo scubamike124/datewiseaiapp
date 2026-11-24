@@ -1515,7 +1515,8 @@ class _Composer extends StatelessWidget {
                 controller: controller,
                 focusNode: focus,
                 minLines: 1,
-                maxLines: 5,
+                // Three lines at large text, so the conversation keeps room above the keyboard.
+                maxLines: MediaQuery.textScalerOf(context).scale(1) > 1.3 ? 3 : 5,
                 // The Worker reads at most this much per message (code review m3); the
                 // counter appears only near the limit.
                 maxLength: BackendAIService.maxMessageChars,

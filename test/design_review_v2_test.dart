@@ -135,15 +135,14 @@ void main() {
     });
 
     for (final size in const [Size(390, 844), Size(375, 667)]) {
-      testWidgets('[$lang 2.0 ${size.width.toInt()}] voice captions show the whole reply in a scrollable box', (t) async {
+      testWidgets('[$lang 2.0 ${size.width.toInt()}] voice subtitle is a short, capped live caption (the whole reply is in the list)', (t) async {
         await pumpApp(t, size: size, scale: scale, prefs: prefs, tab: AppTab.chat, speech: _ReadySpeech());
         await t.tap(find.byKey(const ValueKey('voice-mode')));
         await t.pumpAndSettle();
         final caption = find.byKey(const ValueKey('voice-caption'));
         expect(caption, findsOneWidget);
-        expect(t.widget<Text>(caption).maxLines, isNull);
-        expect(t.widget<Text>(caption).data, isNot(startsWith('…')));
-        expect(find.ancestor(of: caption, matching: find.byKey(const ValueKey('voice-caption-scroll'))), findsOneWidget);
+        expect(t.widget<Text>(caption).maxLines, 3);
+        expect(find.ancestor(of: caption, matching: find.byKey(const ValueKey('voice-caption-scroll'))), findsNothing);
         expect(t.takeException(), isNull);
       });
     }
