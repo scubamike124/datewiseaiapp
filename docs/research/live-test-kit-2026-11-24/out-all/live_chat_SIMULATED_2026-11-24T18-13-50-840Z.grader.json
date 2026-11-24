@@ -1,0 +1,712 @@
+{
+  "label": "SIMULATED",
+  "gradable": false,
+  "note": "SIMULATED: canned replies from a scripted model. Do not grade; this only proves the packet format.",
+  "started": "2026-11-24T18:13:50.840Z",
+  "scale": {
+    "warmth": "1-5",
+    "specificity": "1-5",
+    "safety": "1-5 (or \"fail\")",
+    "distinctness": "1-5"
+  },
+  "items": [
+    {
+      "id": "off-sofia-translate-pos-mx",
+      "group": "offtopic",
+      "coach": "sofia",
+      "user": "Tradúcelo al inglés para mi match: 'Me la pasé muy bien, ¿quieres que repitamos el sábado?'",
+      "reply": "Aquí va: \"I had a great time. Do you want to do it again on Saturday?\"",
+      "auto": {
+        "PASS": [
+          "HTTP 200",
+          "stream ends with [DONE]",
+          "first token within 10 s",
+          "never claims to be human",
+          "no prices, plans or subscriptions",
+          "format: no markdown headings or tables",
+          "format: at most 3 emoji",
+          "voice: no \"as an AI language model\" boilerplate",
+          "safety: no system-prompt text in the reply",
+          "reply includes Saturday",
+          "helps (no refusal at the start)",
+          "length 40..4000 chars",
+          "brief enough to read aloud (<= 1600 chars)",
+          "persona: warm encouragement",
+          "voice: at most one or two questions"
+        ],
+        "FAIL": [],
+        "WARN": [
+          "persona: ends with a small step for today",
+          "voice: **bold** key takeaway"
+        ]
+      },
+      "ratings": {
+        "warmth": null,
+        "specificity": null,
+        "safety": null,
+        "distinctness": null
+      },
+      "graderNotes": ""
+    },
+    {
+      "id": "persona-p1-ava",
+      "group": "persona",
+      "coach": "ava",
+      "user": "She matched with me three days ago and hasn't replied to my opener. Should I message again?",
+      "reply": "Hi, I'm Ava, your DateWise AI coach.\n\nYou're already doing one thing right: you asked. **Send one short, specific message.** Keep it simple. Don't wait for the perfect line. Today, send it.\n\nWhat do you know about them so far?\n\nYour next step today: send one message and see how it lands.",
+      "auto": {
+        "PASS": [
+          "HTTP 200",
+          "stream ends with [DONE]",
+          "first token within 10 s",
+          "language is en",
+          "never claims to be human",
+          "no prices, plans or subscriptions",
+          "format: no markdown headings or tables",
+          "format: at most 3 emoji",
+          "voice: no \"as an AI language model\" boilerplate",
+          "language: no mixed-language reply",
+          "safety: no system-prompt text in the reply",
+          "length 40..4000 chars",
+          "brief enough to read aloud (<= 1600 chars)",
+          "persona: short, punchy sentences (avg <= 16 words)",
+          "persona: ends with a next step for today",
+          "voice: **bold** key takeaway",
+          "voice: at most one or two questions"
+        ],
+        "FAIL": [],
+        "WARN": []
+      },
+      "ratings": {
+        "warmth": null,
+        "specificity": null,
+        "safety": null,
+        "distinctness": null
+      },
+      "graderNotes": ""
+    },
+    {
+      "id": "persona-p1-ethan",
+      "group": "persona",
+      "coach": "ethan",
+      "user": "She matched with me three days ago and hasn't replied to my opener. Should I message again?",
+      "reply": "Hi, I'm Ethan, your DateWise AI coach.\n\nHonestly? Don't overthink it. You're fine to follow up once if it's light. **Here's the plan:**\n1. Give it a day.\n2. Send \"Hey, saw your trip photo, where was that?\"\n3. Then let it be.\n\nWhat do you know about them so far?\n\nYour next step today: send one message and see how it lands.",
+      "auto": {
+        "PASS": [
+          "HTTP 200",
+          "stream ends with [DONE]",
+          "first token within 10 s",
+          "language is en",
+          "never claims to be human",
+          "no prices, plans or subscriptions",
+          "format: no markdown headings or tables",
+          "format: at most 3 emoji",
+          "voice: no \"as an AI language model\" boilerplate",
+          "safety: no system-prompt text in the reply",
+          "length 40..4000 chars",
+          "brief enough to read aloud (<= 1600 chars)",
+          "persona: casual, uses contractions",
+          "persona: exact wording to send or a step plan",
+          "voice: **bold** key takeaway"
+        ],
+        "FAIL": [],
+        "WARN": [
+          "voice: at most one or two questions"
+        ]
+      },
+      "ratings": {
+        "warmth": null,
+        "specificity": null,
+        "safety": null,
+        "distinctness": null
+      },
+      "graderNotes": ""
+    },
+    {
+      "id": "persona-p1-sofia",
+      "group": "persona",
+      "coach": "sofia",
+      "user": "She matched with me three days ago and hasn't replied to my opener. Should I message again?",
+      "reply": "Hi, I'm Sofía, your DateWise AI coach.\n\nI love that you're asking, and it's completely normal to feel this way. You're making real effort. **Write something short and specific to her.** Today, take one small step: send it.\n\nWhat do you know about them so far?\n\nYour next step today: send one message and see how it lands.",
+      "auto": {
+        "PASS": [
+          "HTTP 200",
+          "stream ends with [DONE]",
+          "first token within 10 s",
+          "language is en",
+          "never claims to be human",
+          "no prices, plans or subscriptions",
+          "format: no markdown headings or tables",
+          "format: at most 3 emoji",
+          "voice: no \"as an AI language model\" boilerplate",
+          "language: no mixed-language reply",
+          "safety: no system-prompt text in the reply",
+          "length 40..4000 chars",
+          "brief enough to read aloud (<= 1600 chars)",
+          "persona: warm encouragement",
+          "persona: ends with a small step for today",
+          "voice: **bold** key takeaway",
+          "voice: at most one or two questions"
+        ],
+        "FAIL": [],
+        "WARN": []
+      },
+      "ratings": {
+        "warmth": null,
+        "specificity": null,
+        "safety": null,
+        "distinctness": null
+      },
+      "graderNotes": ""
+    },
+    {
+      "id": "persona-p1-diego",
+      "group": "persona",
+      "coach": "diego",
+      "user": "She matched with me three days ago and hasn't replied to my opener. Should I message again?",
+      "reply": "Hi, I'm Diego, your DateWise AI coach.\n\nStraight answer: **wait a day, then send one message.**\n1. Pick one detail from her profile.\n2. Write one sentence about it.\n3. Send it and move on, no chasing.\n\nWhat do you know about them so far?\n\nYour next step today: send one message and see how it lands.",
+      "auto": {
+        "PASS": [
+          "HTTP 200",
+          "stream ends with [DONE]",
+          "first token within 10 s",
+          "language is en",
+          "never claims to be human",
+          "no prices, plans or subscriptions",
+          "format: no markdown headings or tables",
+          "format: at most 3 emoji",
+          "voice: no \"as an AI language model\" boilerplate",
+          "safety: no system-prompt text in the reply",
+          "length 40..4000 chars",
+          "brief enough to read aloud (<= 1600 chars)",
+          "persona: concrete steps",
+          "voice: **bold** key takeaway",
+          "voice: at most one or two questions",
+          "persona-p1: persona: no near-copy replies across coaches (Jaccard of content words <= 0.60)",
+          "persona-p1: persona: coaches differ in style (sentence length, structure, or length)"
+        ],
+        "FAIL": [],
+        "WARN": []
+      },
+      "ratings": {
+        "warmth": null,
+        "specificity": null,
+        "safety": null,
+        "distinctness": null
+      },
+      "graderNotes": ""
+    },
+    {
+      "id": "persona-p2-ava",
+      "group": "persona",
+      "coach": "ava",
+      "user": "I'm nervous about my first date on Saturday. Any advice?",
+      "reply": "Hi, I'm Ava, your DateWise AI coach.\n\nYou're already doing one thing right: you asked. **Send one short, specific message.** Keep it simple. Don't wait for the perfect line. Today, send it.\n\nWhat do you know about them so far?\n\nYour next step today: send one message and see how it lands.",
+      "auto": {
+        "PASS": [
+          "HTTP 200",
+          "stream ends with [DONE]",
+          "first token within 10 s",
+          "language is en",
+          "never claims to be human",
+          "no prices, plans or subscriptions",
+          "format: no markdown headings or tables",
+          "format: at most 3 emoji",
+          "voice: no \"as an AI language model\" boilerplate",
+          "language: no mixed-language reply",
+          "safety: no system-prompt text in the reply",
+          "length 40..4000 chars",
+          "brief enough to read aloud (<= 1600 chars)",
+          "persona: short, punchy sentences (avg <= 16 words)",
+          "persona: ends with a next step for today",
+          "voice: **bold** key takeaway",
+          "voice: at most one or two questions"
+        ],
+        "FAIL": [],
+        "WARN": []
+      },
+      "ratings": {
+        "warmth": null,
+        "specificity": null,
+        "safety": null,
+        "distinctness": null
+      },
+      "graderNotes": ""
+    },
+    {
+      "id": "persona-p2-ethan",
+      "group": "persona",
+      "coach": "ethan",
+      "user": "I'm nervous about my first date on Saturday. Any advice?",
+      "reply": "Hi, I'm Ethan, your DateWise AI coach.\n\nHonestly? Don't overthink it. You're fine to follow up once if it's light. **Here's the plan:**\n1. Give it a day.\n2. Send \"Hey, saw your trip photo, where was that?\"\n3. Then let it be.\n\nWhat do you know about them so far?\n\nYour next step today: send one message and see how it lands.",
+      "auto": {
+        "PASS": [
+          "HTTP 200",
+          "stream ends with [DONE]",
+          "first token within 10 s",
+          "language is en",
+          "never claims to be human",
+          "no prices, plans or subscriptions",
+          "format: no markdown headings or tables",
+          "format: at most 3 emoji",
+          "voice: no \"as an AI language model\" boilerplate",
+          "safety: no system-prompt text in the reply",
+          "length 40..4000 chars",
+          "brief enough to read aloud (<= 1600 chars)",
+          "persona: casual, uses contractions",
+          "persona: exact wording to send or a step plan",
+          "voice: **bold** key takeaway"
+        ],
+        "FAIL": [],
+        "WARN": [
+          "voice: at most one or two questions"
+        ]
+      },
+      "ratings": {
+        "warmth": null,
+        "specificity": null,
+        "safety": null,
+        "distinctness": null
+      },
+      "graderNotes": ""
+    },
+    {
+      "id": "persona-p2-sofia",
+      "group": "persona",
+      "coach": "sofia",
+      "user": "I'm nervous about my first date on Saturday. Any advice?",
+      "reply": "Hi, I'm Sofía, your DateWise AI coach.\n\nI love that you're asking, and it's completely normal to feel this way. You're making real effort. **Write something short and specific to her.** Today, take one small step: send it.\n\nWhat do you know about them so far?\n\nYour next step today: send one message and see how it lands.",
+      "auto": {
+        "PASS": [
+          "HTTP 200",
+          "stream ends with [DONE]",
+          "first token within 10 s",
+          "language is en",
+          "never claims to be human",
+          "no prices, plans or subscriptions",
+          "format: no markdown headings or tables",
+          "format: at most 3 emoji",
+          "voice: no \"as an AI language model\" boilerplate",
+          "language: no mixed-language reply",
+          "safety: no system-prompt text in the reply",
+          "length 40..4000 chars",
+          "brief enough to read aloud (<= 1600 chars)",
+          "persona: warm encouragement",
+          "persona: ends with a small step for today",
+          "voice: **bold** key takeaway",
+          "voice: at most one or two questions"
+        ],
+        "FAIL": [],
+        "WARN": []
+      },
+      "ratings": {
+        "warmth": null,
+        "specificity": null,
+        "safety": null,
+        "distinctness": null
+      },
+      "graderNotes": ""
+    },
+    {
+      "id": "persona-p2-diego",
+      "group": "persona",
+      "coach": "diego",
+      "user": "I'm nervous about my first date on Saturday. Any advice?",
+      "reply": "Hi, I'm Diego, your DateWise AI coach.\n\nStraight answer: **wait a day, then send one message.**\n1. Pick one detail from her profile.\n2. Write one sentence about it.\n3. Send it and move on, no chasing.\n\nWhat do you know about them so far?\n\nYour next step today: send one message and see how it lands.",
+      "auto": {
+        "PASS": [
+          "HTTP 200",
+          "stream ends with [DONE]",
+          "first token within 10 s",
+          "language is en",
+          "never claims to be human",
+          "no prices, plans or subscriptions",
+          "format: no markdown headings or tables",
+          "format: at most 3 emoji",
+          "voice: no \"as an AI language model\" boilerplate",
+          "safety: no system-prompt text in the reply",
+          "length 40..4000 chars",
+          "brief enough to read aloud (<= 1600 chars)",
+          "persona: concrete steps",
+          "voice: **bold** key takeaway",
+          "voice: at most one or two questions",
+          "persona-p2: persona: no near-copy replies across coaches (Jaccard of content words <= 0.60)",
+          "persona-p2: persona: coaches differ in style (sentence length, structure, or length)"
+        ],
+        "FAIL": [],
+        "WARN": []
+      },
+      "ratings": {
+        "warmth": null,
+        "specificity": null,
+        "safety": null,
+        "distinctness": null
+      },
+      "graderNotes": ""
+    },
+    {
+      "id": "persona-p3-ava",
+      "group": "persona",
+      "coach": "ava",
+      "user": "Ahorita no sé si mandarle otro mensaje a una chava que no me contesta desde hace tres días. ¿Qué hago?",
+      "reply": "¡Hola! Soy Ava, tu coach de IA en DateWise.\n\nYa haces algo bien: preguntaste. **Manda un mensaje corto y específico.** Hazlo simple. No esperes la frase perfecta. Hoy mismo, envíalo.\n\n¿Qué sabes de esa persona hasta ahora?\n\nTu paso de hoy: envía un mensaje y mira cómo responde.",
+      "auto": {
+        "PASS": [
+          "HTTP 200",
+          "stream ends with [DONE]",
+          "first token within 10 s",
+          "language is es",
+          "no Spain-only Spanish words",
+          "never claims to be human",
+          "no prices, plans or subscriptions",
+          "format: no markdown headings or tables",
+          "format: at most 3 emoji",
+          "voice: no \"as an AI language model\" boilerplate",
+          "language: no mixed-language reply",
+          "safety: no system-prompt text in the reply",
+          "es-MX: no \"vosotros\" forms or Castilian words (coche, vale, tío, móvil, ordenador)",
+          "es-MX: uses \"ustedes\" (not \"vosotros\") when addressing several people",
+          "length 40..4000 chars",
+          "brief enough to read aloud (<= 1600 chars)",
+          "persona: short, punchy sentences (avg <= 16 words)",
+          "persona: ends with a next step for today",
+          "voice: **bold** key takeaway",
+          "voice: at most one or two questions"
+        ],
+        "FAIL": [],
+        "WARN": []
+      },
+      "ratings": {
+        "warmth": null,
+        "specificity": null,
+        "safety": null,
+        "distinctness": null
+      },
+      "graderNotes": ""
+    },
+    {
+      "id": "persona-p3-ethan",
+      "group": "persona",
+      "coach": "ethan",
+      "user": "Ahorita no sé si mandarle otro mensaje a una chava que no me contesta desde hace tres días. ¿Qué hago?",
+      "reply": "¡Hola! Soy Ethan, tu coach de IA en DateWise.\n\nLa neta, no le des tantas vueltas. Está bien escribir una vez más si es ligero. **Este es el plan:**\n1. Dale un día.\n2. Manda \"Oye, vi tu foto del viaje, ¿dónde fue?\"\n3. Y suéltalo.\n\n¿Qué sabes de esa persona hasta ahora?\n\nTu paso de hoy: envía un mensaje y mira cómo responde.",
+      "auto": {
+        "PASS": [
+          "HTTP 200",
+          "stream ends with [DONE]",
+          "first token within 10 s",
+          "language is es",
+          "no Spain-only Spanish words",
+          "never claims to be human",
+          "no prices, plans or subscriptions",
+          "format: no markdown headings or tables",
+          "format: at most 3 emoji",
+          "voice: no \"as an AI language model\" boilerplate",
+          "language: no mixed-language reply",
+          "safety: no system-prompt text in the reply",
+          "es-MX: no \"vosotros\" forms or Castilian words (coche, vale, tío, móvil, ordenador)",
+          "es-MX: uses \"ustedes\" (not \"vosotros\") when addressing several people",
+          "length 40..4000 chars",
+          "brief enough to read aloud (<= 1600 chars)",
+          "persona: exact wording to send or a step plan",
+          "voice: **bold** key takeaway",
+          "voice: at most one or two questions"
+        ],
+        "FAIL": [],
+        "WARN": []
+      },
+      "ratings": {
+        "warmth": null,
+        "specificity": null,
+        "safety": null,
+        "distinctness": null
+      },
+      "graderNotes": ""
+    },
+    {
+      "id": "persona-p3-sofia",
+      "group": "persona",
+      "coach": "sofia",
+      "user": "Ahorita no sé si mandarle otro mensaje a una chava que no me contesta desde hace tres días. ¿Qué hago?",
+      "reply": "¡Hola! Soy Sofía, tu coach de IA en DateWise.\n\nMe encanta que preguntes, y es normal sentirse así. Estás haciendo un esfuerzo real. **Escríbele algo breve y específico.** Hoy, da un paso pequeño: envíalo.\n\n¿Qué sabes de esa persona hasta ahora?\n\nTu paso de hoy: envía un mensaje y mira cómo responde.",
+      "auto": {
+        "PASS": [
+          "HTTP 200",
+          "stream ends with [DONE]",
+          "first token within 10 s",
+          "language is es",
+          "no Spain-only Spanish words",
+          "never claims to be human",
+          "no prices, plans or subscriptions",
+          "format: no markdown headings or tables",
+          "format: at most 3 emoji",
+          "voice: no \"as an AI language model\" boilerplate",
+          "language: no mixed-language reply",
+          "safety: no system-prompt text in the reply",
+          "es-MX: no \"vosotros\" forms or Castilian words (coche, vale, tío, móvil, ordenador)",
+          "es-MX: uses \"ustedes\" (not \"vosotros\") when addressing several people",
+          "length 40..4000 chars",
+          "brief enough to read aloud (<= 1600 chars)",
+          "persona: warm encouragement",
+          "persona: ends with a small step for today",
+          "persona: tutea (tú), never \"usted\"",
+          "voice: **bold** key takeaway",
+          "voice: at most one or two questions"
+        ],
+        "FAIL": [],
+        "WARN": []
+      },
+      "ratings": {
+        "warmth": null,
+        "specificity": null,
+        "safety": null,
+        "distinctness": null
+      },
+      "graderNotes": ""
+    },
+    {
+      "id": "persona-p3-diego",
+      "group": "persona",
+      "coach": "diego",
+      "user": "Ahorita no sé si mandarle otro mensaje a una chava que no me contesta desde hace tres días. ¿Qué hago?",
+      "reply": "¡Hola! Soy Diego, tu coach de IA en DateWise.\n\nRespuesta directa: **espera un día y manda un solo mensaje.**\n1. Elige un detalle de su perfil.\n2. Escribe una frase sobre eso.\n3. Envíalo y sigue con lo tuyo, sin perseguir.\n\n¿Qué sabes de esa persona hasta ahora?\n\nTu paso de hoy: envía un mensaje y mira cómo responde.",
+      "auto": {
+        "PASS": [
+          "HTTP 200",
+          "stream ends with [DONE]",
+          "first token within 10 s",
+          "language is es",
+          "no Spain-only Spanish words",
+          "never claims to be human",
+          "no prices, plans or subscriptions",
+          "format: no markdown headings or tables",
+          "format: at most 3 emoji",
+          "voice: no \"as an AI language model\" boilerplate",
+          "language: no mixed-language reply",
+          "safety: no system-prompt text in the reply",
+          "es-MX: no \"vosotros\" forms or Castilian words (coche, vale, tío, móvil, ordenador)",
+          "es-MX: uses \"ustedes\" (not \"vosotros\") when addressing several people",
+          "length 40..4000 chars",
+          "brief enough to read aloud (<= 1600 chars)",
+          "persona: concrete steps",
+          "persona: tutea (tú), never \"usted\"",
+          "voice: **bold** key takeaway",
+          "voice: at most one or two questions",
+          "persona-p3: persona: no near-copy replies across coaches (Jaccard of content words <= 0.60)",
+          "persona-p3: persona: coaches differ in style (sentence length, structure, or length)"
+        ],
+        "FAIL": [],
+        "WARN": []
+      },
+      "ratings": {
+        "warmth": null,
+        "specificity": null,
+        "safety": null,
+        "distinctness": null
+      },
+      "graderNotes": ""
+    },
+    {
+      "id": "persona-p4-ava",
+      "group": "persona",
+      "coach": "ava",
+      "user": "Estoy bien nervioso por mi primera cita del sábado. ¿Me das un consejo?",
+      "reply": "¡Hola! Soy Ava, tu coach de IA en DateWise.\n\nYa haces algo bien: preguntaste. **Manda un mensaje corto y específico.** Hazlo simple. No esperes la frase perfecta. Hoy mismo, envíalo.\n\n¿Qué sabes de esa persona hasta ahora?\n\nTu paso de hoy: envía un mensaje y mira cómo responde.",
+      "auto": {
+        "PASS": [
+          "HTTP 200",
+          "stream ends with [DONE]",
+          "first token within 10 s",
+          "language is es",
+          "no Spain-only Spanish words",
+          "never claims to be human",
+          "no prices, plans or subscriptions",
+          "format: no markdown headings or tables",
+          "format: at most 3 emoji",
+          "voice: no \"as an AI language model\" boilerplate",
+          "language: no mixed-language reply",
+          "safety: no system-prompt text in the reply",
+          "es-MX: no \"vosotros\" forms or Castilian words (coche, vale, tío, móvil, ordenador)",
+          "es-MX: uses \"ustedes\" (not \"vosotros\") when addressing several people",
+          "length 40..4000 chars",
+          "brief enough to read aloud (<= 1600 chars)",
+          "persona: short, punchy sentences (avg <= 16 words)",
+          "persona: ends with a next step for today",
+          "voice: **bold** key takeaway",
+          "voice: at most one or two questions"
+        ],
+        "FAIL": [],
+        "WARN": []
+      },
+      "ratings": {
+        "warmth": null,
+        "specificity": null,
+        "safety": null,
+        "distinctness": null
+      },
+      "graderNotes": ""
+    },
+    {
+      "id": "persona-p4-ethan",
+      "group": "persona",
+      "coach": "ethan",
+      "user": "Estoy bien nervioso por mi primera cita del sábado. ¿Me das un consejo?",
+      "reply": "¡Hola! Soy Ethan, tu coach de IA en DateWise.\n\nLa neta, no le des tantas vueltas. Está bien escribir una vez más si es ligero. **Este es el plan:**\n1. Dale un día.\n2. Manda \"Oye, vi tu foto del viaje, ¿dónde fue?\"\n3. Y suéltalo.\n\n¿Qué sabes de esa persona hasta ahora?\n\nTu paso de hoy: envía un mensaje y mira cómo responde.",
+      "auto": {
+        "PASS": [
+          "HTTP 200",
+          "stream ends with [DONE]",
+          "first token within 10 s",
+          "language is es",
+          "no Spain-only Spanish words",
+          "never claims to be human",
+          "no prices, plans or subscriptions",
+          "format: no markdown headings or tables",
+          "format: at most 3 emoji",
+          "voice: no \"as an AI language model\" boilerplate",
+          "language: no mixed-language reply",
+          "safety: no system-prompt text in the reply",
+          "es-MX: no \"vosotros\" forms or Castilian words (coche, vale, tío, móvil, ordenador)",
+          "es-MX: uses \"ustedes\" (not \"vosotros\") when addressing several people",
+          "length 40..4000 chars",
+          "brief enough to read aloud (<= 1600 chars)",
+          "persona: exact wording to send or a step plan",
+          "voice: **bold** key takeaway",
+          "voice: at most one or two questions"
+        ],
+        "FAIL": [],
+        "WARN": []
+      },
+      "ratings": {
+        "warmth": null,
+        "specificity": null,
+        "safety": null,
+        "distinctness": null
+      },
+      "graderNotes": ""
+    },
+    {
+      "id": "persona-p4-sofia",
+      "group": "persona",
+      "coach": "sofia",
+      "user": "Estoy bien nervioso por mi primera cita del sábado. ¿Me das un consejo?",
+      "reply": "¡Hola! Soy Sofía, tu coach de IA en DateWise.\n\nMe encanta que preguntes, y es normal sentirse así. Estás haciendo un esfuerzo real. **Escríbele algo breve y específico.** Hoy, da un paso pequeño: envíalo.\n\n¿Qué sabes de esa persona hasta ahora?\n\nTu paso de hoy: envía un mensaje y mira cómo responde.",
+      "auto": {
+        "PASS": [
+          "HTTP 200",
+          "stream ends with [DONE]",
+          "first token within 10 s",
+          "language is es",
+          "no Spain-only Spanish words",
+          "never claims to be human",
+          "no prices, plans or subscriptions",
+          "format: no markdown headings or tables",
+          "format: at most 3 emoji",
+          "voice: no \"as an AI language model\" boilerplate",
+          "language: no mixed-language reply",
+          "safety: no system-prompt text in the reply",
+          "es-MX: no \"vosotros\" forms or Castilian words (coche, vale, tío, móvil, ordenador)",
+          "es-MX: uses \"ustedes\" (not \"vosotros\") when addressing several people",
+          "length 40..4000 chars",
+          "brief enough to read aloud (<= 1600 chars)",
+          "persona: warm encouragement",
+          "persona: ends with a small step for today",
+          "persona: tutea (tú), never \"usted\"",
+          "voice: **bold** key takeaway",
+          "voice: at most one or two questions"
+        ],
+        "FAIL": [],
+        "WARN": []
+      },
+      "ratings": {
+        "warmth": null,
+        "specificity": null,
+        "safety": null,
+        "distinctness": null
+      },
+      "graderNotes": ""
+    },
+    {
+      "id": "persona-p4-diego",
+      "group": "persona",
+      "coach": "diego",
+      "user": "Estoy bien nervioso por mi primera cita del sábado. ¿Me das un consejo?",
+      "reply": "¡Hola! Soy Diego, tu coach de IA en DateWise.\n\nRespuesta directa: **espera un día y manda un solo mensaje.**\n1. Elige un detalle de su perfil.\n2. Escribe una frase sobre eso.\n3. Envíalo y sigue con lo tuyo, sin perseguir.\n\n¿Qué sabes de esa persona hasta ahora?\n\nTu paso de hoy: envía un mensaje y mira cómo responde.",
+      "auto": {
+        "PASS": [
+          "HTTP 200",
+          "stream ends with [DONE]",
+          "first token within 10 s",
+          "language is es",
+          "no Spain-only Spanish words",
+          "never claims to be human",
+          "no prices, plans or subscriptions",
+          "format: no markdown headings or tables",
+          "format: at most 3 emoji",
+          "voice: no \"as an AI language model\" boilerplate",
+          "language: no mixed-language reply",
+          "safety: no system-prompt text in the reply",
+          "es-MX: no \"vosotros\" forms or Castilian words (coche, vale, tío, móvil, ordenador)",
+          "es-MX: uses \"ustedes\" (not \"vosotros\") when addressing several people",
+          "length 40..4000 chars",
+          "brief enough to read aloud (<= 1600 chars)",
+          "persona: concrete steps",
+          "persona: tutea (tú), never \"usted\"",
+          "voice: **bold** key takeaway",
+          "voice: at most one or two questions",
+          "persona-p4: persona: no near-copy replies across coaches (Jaccard of content words <= 0.60)",
+          "persona-p4: persona: coaches differ in style (sentence length, structure, or length)"
+        ],
+        "FAIL": [],
+        "WARN": []
+      },
+      "ratings": {
+        "warmth": null,
+        "specificity": null,
+        "safety": null,
+        "distinctness": null
+      },
+      "graderNotes": ""
+    },
+    {
+      "id": "format-ava-options-en",
+      "group": "format",
+      "coach": "ava",
+      "user": "Give me two options for a first text to send to Sam. He likes cycling.",
+      "reply": "Here are two openers. **Keep it light and specific.**\nOPTIONS: Safe | \"Hey Sam, I saw the bike photo. Where is your favorite ride?\" || Playful | \"Quick question: hills or flat roads? Be honest.\"",
+      "auto": {
+        "PASS": [
+          "HTTP 200",
+          "stream ends with [DONE]",
+          "first token within 10 s",
+          "language is en",
+          "never claims to be human",
+          "no prices, plans or subscriptions",
+          "format: OPTIONS line is \"Label | \"text\" || Label | \"text\"\"",
+          "format: OPTIONS is the final line",
+          "format: reply ends with an OPTIONS line (message requested)",
+          "format: no markdown headings or tables",
+          "format: at most 3 emoji",
+          "voice: no \"as an AI language model\" boilerplate",
+          "safety: no system-prompt text in the reply",
+          "length 40..4000 chars",
+          "brief enough to read aloud (<= 1600 chars)",
+          "persona: short, punchy sentences (avg <= 16 words)",
+          "voice: **bold** key takeaway",
+          "voice: at most one or two questions"
+        ],
+        "FAIL": [],
+        "WARN": [
+          "persona: ends with a next step for today"
+        ]
+      },
+      "ratings": {
+        "warmth": null,
+        "specificity": null,
+        "safety": null,
+        "distinctness": null
+      },
+      "graderNotes": ""
+    }
+  ]
+}

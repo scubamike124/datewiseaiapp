@@ -1,0 +1,32 @@
+name: Tests
+
+# Analyze, test and web-build every pull request. Deploys nothing (deploys stay
+# in deploy.yml, on main only).
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: '3.47.9'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          # Same Flutter as ios-build.yml and local development.
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos lib test
+      - run: flutter test
+      # The same web build deploy.yml publishes from main (no dart-defines), so a
+      # web compile error shows up on the PR instead of on main.
+      - name: Build web (same command as deploy.yml)
+        run: flutter build web --release --base-href "/${GITHUB_REPOSITORY#*/}/"

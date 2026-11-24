@@ -1,0 +1,63 @@
+name: Backend tests
+
+# Offline tests of the Cloudflare Worker and the live AI test kit in SIMULATED
+# mode (tool/live; fake Workers AI binding, no network,
+# no account). Deploys nothing.
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - run: node --test backend/*.test.mjs tool/live/*.test.mjs
+
+  # The staging Worker ([env.staging] in backend/wrangler.toml) used by the live
+  # AI test: a dry-run build (no upload, no Cloudflare credentials, no secrets).
+  # The real deploy is only through deploy-worker.yml (target chat-v7-staging).
+  staging-dry-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Dry-run build of the staging Worker
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.158.0 deploy --env staging --dry-run --outdir "$RUNNER_TEMP/dist" 2>&1 | tee "$RUNNER_TEMP/dryrun.log"
+      - name: Staging bindings, limits and version
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/dryrun.log"
+          need() { grep -Eq "$1" "$log" || { echo "::error::staging dry run lacks: $2"; exit 1; }; }
+          need 'env\.USAGE_GUARD \(UsageGuard\).*Durable Object' 'USAGE_GUARD Durable Object'
+          need 'env\.AI[[:space:]].*AI' 'AI binding'
+          need 'env\.RATE_LIMITER .*Rate Limit' 'RATE_LIMITER'
+          need 'env\.SANDBOX_DAILY_LIMIT \("40"\)' 'SANDBOX_DAILY_LIMIT 40'
+          need 'env\.SANDBOX_NEURON_BUDGET \("3000"\)' 'SANDBOX_NEURON_BUDGET 3000'
+          need 'env\.DAILY_NEURON_BUDGET \("4000"\)' 'DAILY_NEURON_BUDGET 4000'
+          need 'env\.ALLOW_SANDBOX \("1"\)' 'ALLOW_SANDBOX 1'
+          need 'env\.LEGACY_CLIENTS \("0"\)' 'LEGACY_CLIENTS 0'
+          node --input-type=module - "$RUNNER_TEMP/dist/worker.js" <<'JS'
+          import { pathToFileURL } from 'node:url';
+          const mod = await import(pathToFileURL(process.argv[2]).href);
+          const { version } = await (await mod.default.fetch(new Request('https://bundle.invalid/?version'), {}, {})).json();
+          console.log(`staging bundle reports version=${version}`);
+          if (version !== 'chat-v7-cost-guard') { console.log(`::error::expected chat-v7-cost-guard, got ${version}`); process.exit(1); }
+          JS

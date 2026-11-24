@@ -1,0 +1,5 @@
+The file `testNotification` is copied unchanged from Apple's App Store Server Library for Node
+(https://github.com/apple/app-store-server-library-node, `tests/resources/mock_signed_data/testNotification`,
+MIT licence, Copyright 2023 Apple Inc.). It is signed by that library's test certificate chain, which has the
+same shape as production (x5c of leaf, intermediate and root, with Apple's marker OIDs), not by Apple Root CA - G3.
+The licence is in LICENSE.txt in this folder.

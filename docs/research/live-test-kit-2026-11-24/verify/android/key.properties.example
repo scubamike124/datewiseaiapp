@@ -1,0 +1,19 @@
+# Android release signing — TEMPLATE.
+#
+# Copy this file to `android/key.properties` (which is git-ignored) and fill in
+# your real values. Do NOT commit key.properties or the .jks keystore.
+#
+# 1) Generate an upload keystore (run from the repo root, choose a strong
+#    password, and BACK IT UP — Play app signing requires this exact key for
+#    every future update):
+#
+#    keytool -genkey -v -keystore android/app/upload-keystore.jks \
+#      -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+#
+# 2) storeFile is resolved relative to android/app/, so if you place the
+#    keystore there, just use the file name.
+
+storePassword=YOUR_KEYSTORE_PASSWORD
+keyPassword=YOUR_KEY_PASSWORD
+keyAlias=upload
+storeFile=upload-keystore.jks

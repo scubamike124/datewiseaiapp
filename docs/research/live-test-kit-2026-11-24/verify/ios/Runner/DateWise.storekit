@@ -1,0 +1,78 @@
+{
+  "identifier" : "6F1C2B7E-3D4A-4C8B-9E21-5A7D0C9B4E10",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_compatibilityTimeRate" : {
+      "3" : 6
+    },
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ],
+    "_timeRate" : 0
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21500001",
+      "localizations" : [
+        {
+          "description" : "",
+          "displayName" : "DateWise Premium",
+          "locale" : "en_US"
+        },
+        {
+          "description" : "",
+          "displayName" : "DateWise Premium",
+          "locale" : "es_MX"
+        }
+      ],
+      "name" : "DateWise Premium",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "19.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "6780110201",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Chat and voice coaching with all four AI coaches.",
+              "displayName" : "DateWise Premium Monthly",
+              "locale" : "en_US"
+            },
+            {
+              "description" : "Coaching por chat y voz con los cuatro coaches con IA.",
+              "displayName" : "DateWise Premium Mensual",
+              "locale" : "es_MX"
+            }
+          ],
+          "productID" : "datewise_premium_monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "DateWise Premium Monthly",
+          "subscriptionGroupID" : "21500001",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

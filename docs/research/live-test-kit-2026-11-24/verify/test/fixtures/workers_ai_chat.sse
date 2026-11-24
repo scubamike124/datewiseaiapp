@@ -1,0 +1,10 @@
+data: {"response":"Hi","p":"abcdefgh"}
+
+data: {"response":" there","p":"abcd"}
+
+data: {"response":"! Ready?","p":"ab"}
+
+data: {"response":"","usage":{"prompt_tokens":312,"completion_tokens":5,"total_tokens":317}}
+
+data: [DONE]
+

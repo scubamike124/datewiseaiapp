@@ -1,0 +1,202 @@
+{
+  "testedAt": "2026-09-01T23:26:49.408Z",
+  "appStoreId": "6780110141",
+  "worker": "https://datewise-photo-coach.scubamike124.workers.dev",
+  "supabase": "https://cprnegusibbmcyltylzk.supabase.co",
+  "results": [
+    {
+      "section": "App Store listing",
+      "status": "PASS",
+      "detail": "version=1.0 bundle=com.datewise.datewiseAi name=DateWise AI - Dating Coach released=2026-06-24T11:28:07Z",
+      "version": "1.0",
+      "bundleId": "com.datewise.datewiseAi",
+      "at": "2026-09-01T23:24:48.123Z"
+    },
+    {
+      "section": "Production Worker",
+      "status": "PASS",
+      "detail": "{\"version\":\"chat-v5\",\"note\":\"streaming coach chat + single + batch parsing\"} (266ms)",
+      "worker": {
+        "version": "chat-v5",
+        "note": "streaming coach chat + single + batch parsing"
+      },
+      "at": "2026-09-01T23:24:48.391Z"
+    },
+    {
+      "section": "Marketing site datewiseai.com",
+      "status": "PASS",
+      "detail": "HTTP 200 (251ms)",
+      "at": "2026-09-01T23:24:48.642Z"
+    },
+    {
+      "section": "Supabase auth backend",
+      "status": "FAIL",
+      "detail": "UNREACHABLE: fetch failed — project host NXDOMAIN; signup/login cannot work in production",
+      "at": "2026-09-01T23:24:48.680Z"
+    },
+    {
+      "section": "Profile coach — serious relationship",
+      "status": "PASS",
+      "detail": "reply 2498 chars in 26132ms",
+      "replyPreview": "Here's a profile coach's analysis of your bio, along with suggestions for improvement:\n\n**Strengths:**\n\n* Your bio is concise and to the point.\n* You've included an interesting hobby (hiking) that can be a great conversation starter.\n* Your desire for a \"genuine\" partner is a pos",
+      "ms": 26132,
+      "replyLen": 2498,
+      "at": "2026-09-01T23:25:14.813Z"
+    },
+    {
+      "section": "Profile coach — casual dating",
+      "status": "PASS",
+      "detail": "reply 1936 chars in 21438ms",
+      "replyPreview": "Here's a profile coach's analysis of the given bio:\n\n**Strengths:**\n\n1. **Vibrant personality**: The mention of being a \"weekend adventurer\" and a \"karaoke addict\" suggests that this person is fun-loving, spontaneous, and enjoys trying new things.\n2. **Clear boundaries**: By stat",
+      "ms": 21438,
+      "replyLen": 1936,
+      "at": "2026-09-01T23:25:36.252Z"
+    },
+    {
+      "section": "Profile coach personalization",
+      "status": "PASS",
+      "detail": "Serious vs casual replies differ and reference supplied details (token-ish overlap=52)",
+      "at": "2026-09-01T23:25:36.252Z"
+    },
+    {
+      "section": "Message coach — opener",
+      "status": "PASS",
+      "detail": "reply 534 chars in 6368ms",
+      "replyPreview": "Here are three distinct opening messages:\n\n**Option 1: Casual and Adventurous**\n\"Love the outdoor vibes in your photos! I'm obsessed with rock climbing too - what's your favorite spot to tackle?\"\n\n**Option 2: Dog Lover's Delight**\n\"Your golden retriever is adorable! I'm a dog mom",
+      "ms": 6368,
+      "replyLen": 534,
+      "at": "2026-09-01T23:25:42.620Z"
+    },
+    {
+      "section": "Message coach — early convo",
+      "status": "PASS",
+      "detail": "reply 967 chars in 13004ms",
+      "replyPreview": "Here are three possible replies:\n\n1. \"That sounds incredible! What made it so special? Was it the views from the ridge or something else?\"\n\t* This reply shows interest in her experience and invites her to share more about the details.\n2. \"Sunrise must be so peaceful on the ridge.",
+      "ms": 13004,
+      "replyLen": 967,
+      "at": "2026-09-01T23:25:55.624Z"
+    },
+    {
+      "section": "Message coach — ask for date",
+      "status": "PASS",
+      "detail": "reply 1081 chars in 12155ms",
+      "replyPreview": "Here are three low-pressure ways to ask her out this weekend:\n\n1. **The Casual Coffee Invitation**: \"Hey, want to grab coffee this weekend? I've been meaning to try out that new coffee shop downtown. We could check it out and catch up some more about indie films.\"\n\nThis approach ",
+      "ms": 12155,
+      "replyLen": 1081,
+      "at": "2026-09-01T23:26:07.780Z"
+    },
+    {
+      "section": "Message coach — stalled",
+      "status": "PASS",
+      "detail": "reply 545 chars in 6544ms",
+      "replyPreview": "Here are three follow-up message suggestions that are casual and not too needy:\n\n1. **Casual and light**: \"Hey, just a heads up that I was thinking about Saturday. Hope you're having a good week!\"\n2. **Non-committal interest**: \"No pressure, but I was thinking about trying out a ",
+      "ms": 6544,
+      "replyLen": 545,
+      "at": "2026-09-01T23:26:14.324Z"
+    },
+    {
+      "section": "Message coach — short replies",
+      "status": "PASS",
+      "detail": "reply 1055 chars in 10687ms",
+      "replyPreview": "A classic \"texting zombie\"! Here are three pivot suggestions to help you reopen a real conversation:\n\n1. **Ask an open-ended question**:\n\t* \"What's new with you lately?\" or \"How was your week?\"\n\t* This question encourages her to share more about herself and opens the door for a m",
+      "ms": 10687,
+      "replyLen": 1055,
+      "at": "2026-09-01T23:26:25.011Z"
+    },
+    {
+      "section": "Message coach — after date",
+      "status": "PASS",
+      "detail": "reply 855 chars in 10088ms",
+      "replyPreview": "Here are three potential follow-up text ideas for the morning after a great first date at a taco place:\n\n**Option 1: Playful and Casual**\n\"Hey, just wanted to say thanks again for last night's tacos and great company. I'm still dreaming about that carne asada. Would love to do it",
+      "ms": 10088,
+      "replyLen": 855,
+      "at": "2026-09-01T23:26:35.100Z"
+    },
+    {
+      "section": "Message coach diversity",
+      "status": "PASS",
+      "detail": "No identical replies across scenarios",
+      "at": "2026-09-01T23:26:35.100Z"
+    },
+    {
+      "section": "AI failure — empty prompt",
+      "status": "FAIL",
+      "detail": "HTTP 400 chars=0 ms=189",
+      "replyPreview": "",
+      "ms": 189,
+      "replyLen": 0,
+      "at": "2026-09-01T23:26:35.289Z"
+    },
+    {
+      "section": "AI failure — extremely long conversation",
+      "status": "PASS",
+      "detail": "reply 185 chars in 2724ms",
+      "replyPreview": "It seems like you've entered a large block of words. Is there something specific you'd like to discuss or ask about? I'm here to help with any questions or topics you'd like to explore.",
+      "ms": 2724,
+      "replyLen": 185,
+      "at": "2026-09-01T23:26:38.013Z"
+    },
+    {
+      "section": "Photo analysis — minimal JPEG",
+      "status": "WARN",
+      "detail": "HTTP 502 body={\"error\":\"Workers AI error\",\"detail\":\"AiError: 5016: Thank you for agreeing to this model's terms. You may now use the model.\"} (578ms)",
+      "photo": {
+        "error": "Workers AI error",
+        "detail": "AiError: 5016: Thank you for agreeing to this model's terms. You may now use the model."
+      },
+      "ms": 578,
+      "at": "2026-09-01T23:26:38.592Z"
+    },
+    {
+      "section": "Photo analysis — bad file",
+      "status": "PASS",
+      "detail": "HTTP 500 (109ms) <!DOCTYPE html>\n<!--[if lt IE 7]> <html class=\"no-js ie6 oldie\" lang=\"en-US\"> <![endif]-->\n<!--[if IE 7]>    <html class=\"no-js ie7 oldie\" lang=\"en-US\"> <![endi",
+      "at": "2026-09-01T23:26:38.701Z"
+    },
+    {
+      "section": "Photo analysis — oversized",
+      "status": "PASS",
+      "detail": "HTTP 413 (660ms) {\"error\":\"Image too large. Please send a smaller photo.\"}",
+      "at": "2026-09-01T23:26:39.363Z"
+    },
+    {
+      "section": "Screenshot-to-reply (text-simulated conversation extract)",
+      "status": "PASS",
+      "detail": "reply 480 chars in 5309ms",
+      "replyPreview": "Here is the chat with the lines labeled:\n\n**Her:** hey stranger\n**You:** hey!\n**Her:** what are you up to this weekend?\n\nNow, here are 3 possible reply options that answer her question:\n\n1. **Casual response**: Not much, just hanging out at home. You?\n2. **Suggest an activity**: ",
+      "ms": 5309,
+      "replyLen": 480,
+      "at": "2026-09-01T23:26:44.672Z"
+    },
+    {
+      "section": "Cross-feature — profile context into opener",
+      "status": "PASS",
+      "detail": "reply 410 chars in 4733ms",
+      "replyPreview": "Here's a potential opener:\n\n\"Congrats on the new furry family member! I'm a little jealous - I've been wanting to get a dog for ages, but my engineering schedule is pretty unpredictable. I've been hiking a lot lately to clear my head, though - the trails are usually pretty empty ",
+      "ms": 4733,
+      "replyLen": 410,
+      "at": "2026-09-01T23:26:49.405Z"
+    },
+    {
+      "section": "IAP implementation",
+      "status": "FAIL",
+      "detail": "App uses MockPurchaseService; freeLaunch=true — no real StoreKit products, Restore Purchases is no-op",
+      "at": "2026-09-01T23:26:49.407Z"
+    },
+    {
+      "section": "App Store ID wired in client",
+      "status": "PASS",
+      "detail": "App Store id present in AppLinks",
+      "at": "2026-09-01T23:26:49.407Z"
+    },
+    {
+      "section": "Screenshot OCR dedicated workflow",
+      "status": "FAIL",
+      "detail": "No dedicated screenshot→OCR→speaker-split feature in codebase; photo coach critiques profile photos; conversation screenshots only work if user pastes text or vision treats image as photo critique",
+      "at": "2026-09-01T23:26:49.407Z"
+    }
+  ],
+  "pass": 19,
+  "fail": 4,
+  "warn": 1
+}
