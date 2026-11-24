@@ -9,6 +9,7 @@ import '../models/chat_message.dart';
 import '../models/coach.dart';
 import '../models/tier.dart';
 import '../models/user_profile.dart';
+import 'owner_access.dart';
 import 'ai_service.dart';
 import 'coach_usage.dart';
 import 'persona.dart';
@@ -142,6 +143,8 @@ class BackendAIService implements AIService {
             ..body = payload;
           final entitlement = EntitlementToken.current;
           if (entitlement != null) req.headers['X-DateWise-Entitlement'] = entitlement;
+          final owner = OwnerAccess.token;
+          if (owner != null) req.headers['X-DateWise-Owner'] = owner;
           try {
             return await c.send(req).timeout(connectTimeout);
           } on TimeoutException {

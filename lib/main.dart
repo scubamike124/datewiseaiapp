@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'app.dart';
 import 'dev/review_mode.dart';
 import 'screens/shell.dart';
+import 'services/owner_access.dart';
 import 'services/ai_service.dart';
 import 'services/mock_ai_service.dart';
 import 'services/speech_service.dart';
@@ -39,6 +40,7 @@ Future<void> main() async {
   final speech = DeviceSpeechService.create();
   final state = AppState(storage: storage, ai: ai, store: store);
   store.init();
+  OwnerAccess.instance.load(); // optional owner-only premium token (see docs/OWNER_ACCESS.md)
 
   var initialTab = AppTab.home;
   if (review != null) {
