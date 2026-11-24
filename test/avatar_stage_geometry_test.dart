@@ -1,11 +1,12 @@
-// The voice stage keeps every coach's mouth in view: about 55% down the
-// portrait and above the caption fade, on iPhone, at 2.0 text and on iPad.
+// The voice stage keeps every coach's brows, eyes and mouth in view: the
+// mouth about 66% down the stage and above the caption fade, on iPhone, at 2.0 text and on iPad.
 
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:datewise_ai/avatar/avatar_animator.dart' show AvatarPose;
 import 'package:datewise_ai/avatar/avatar_frames.dart';
 import 'package:datewise_ai/avatar/coach_stage_avatar.dart';
 import 'package:datewise_ai/avatar/talking_avatar.dart';
@@ -58,31 +59,63 @@ void main() {
     'iPad at 2.0 text': (stageWidth(1024), true),
   };
 
+  // iPhone SE, iPhone 15 and iPhone 15 Pro Max screen widths (pt).
+  const phones = {'iPhone SE': 375.0, 'iPhone 15': 393.0, 'iPhone 15 Pro Max': 430.0};
+  // The brow's reach above the eye patch's top, as a fraction of its height.
+  const browMargin = 0.1;
+
   for (final coach in Coaches.all) {
-    test('${coach.name}: mouth at 40-65% of the stage and the lower lip above the fade', () {
+    test('${coach.name}: mouth at 40-70% of the stage and the lower lip above the fade', () {
       final m = AvatarManifest.parse(coach.id, File('assets/avatar/${coach.id}/manifest.json').readAsStringSync());
       expect(m.mouth, isNotNull);
       final image = Size(m.width.toDouble(), m.height.toDouble());
       for (final e in layouts.entries) {
         final (w, large) = e.value;
         final h = CoachStageAvatar.stageHeight(w, largeText: large);
-        final src = AvatarPainter.sourceRect(image, Size(w, h), m.mouth, coach.heroFocus);
-        final mouth = (m.mouth!.dy - src.top) / src.height;
-        final lowerLip = (m.mouth!.dy + 0.25 * m.mouthWidth! - src.top) / src.height;
-        expect(mouth, inInclusiveRange(0.40, 0.65), reason: '${e.key}: mouth at $mouth');
+        final k = CoachStageAvatar.overscanFor(largeText: large);
+        final src = AvatarPainter.sourceRect(image, Size(w, h * k), m.mouth, coach.heroFocus);
+        // Fractions of the visible stage (the portrait box is k times taller).
+        final mouth = (m.mouth!.dy - src.top) / src.height * k;
+        final lowerLip = (m.mouth!.dy + 0.25 * m.mouthWidth! - src.top) / src.height * k;
+        expect(mouth, inInclusiveRange(0.40, 0.70), reason: '${e.key}: mouth at $mouth');
         expect(lowerLip, lessThan(CoachStageAvatar.fadeStart), reason: '${e.key}: lower lip at $lowerLip');
         // The whole box stays inside the portrait (no empty edges).
         expect(src.left >= -1e-6 && src.top >= -1e-6, isTrue);
         expect(src.right <= image.width + 1e-6 && src.bottom <= image.height + 1e-6, isTrue);
-        expect(src.width / src.height, closeTo(w / h, 1e-6));
+        expect(src.width / src.height, closeTo(w / (h * k), 1e-6));
+      }
+    });
+
+    test('${coach.name}: the brows (top of the eye patch less a margin) and the chin are inside the stage', () {
+      final manifest = AvatarManifest.parse(coach.id, File('assets/avatar/${coach.id}/manifest.json').readAsStringSync());
+      final image = Size(manifest.width.toDouble(), manifest.height.toDouble());
+      final eyes = manifest.patches['gaze']!.rect;
+      expect(manifest.patches['gaze']!.region, AvatarRegion.eyes);
+      for (final e in phones.entries) {
+        final w = stageWidth(e.value);
+        final h = CoachStageAvatar.stageHeight(w, largeText: false);
+        final k = CoachStageAvatar.overscanFor(largeText: false);
+        final box = Size(w, h * k);
+        final src = AvatarPainter.sourceRect(image, box, manifest.mouth, coach.heroFocus);
+        // Portrait y -> stage y (pt), as the painter draws it: the zoom
+        // about the portrait box's center and the largest head motion.
+        final z = AvatarPainter.coverZoom(box);
+        double stageY(double y) => box.height / 2 + ((y - src.top) / src.height * box.height - box.height / 2) * z;
+        final brow = stageY(eyes.top - browMargin * eyes.height) - AvatarPose.maxDy;
+        final chin = stageY(manifest.mouth!.dy + 0.65 * manifest.mouthWidth!) + AvatarPose.maxDy;
+        expect(brow, greaterThanOrEqualTo(0), reason: '${e.key}: brow at ${(brow / h * 100).toStringAsFixed(1)}% of the stage');
+        expect(chin, lessThan(h), reason: '${e.key}: chin at ${(chin / h * 100).toStringAsFixed(1)}%');
+        // The eye patch (blink and gaze) is wholly visible.
+        expect(stageY(eyes.top), greaterThan(0));
+        expect(stageY(eyes.bottom), lessThan(h * CoachStageAvatar.fadeStart));
       }
     });
   }
 
   test('the stage height follows its width, within limits', () {
-    expect(CoachStageAvatar.stageHeight(369, largeText: false), closeTo(184.5, 0.01));
-    expect(CoachStageAvatar.stageHeight(616, largeText: false), 240);
-    expect(CoachStageAvatar.stageHeight(280, largeText: false), 150);
+    expect(CoachStageAvatar.stageHeight(369, largeText: false), closeTo(221.4, 0.01));
+    expect(CoachStageAvatar.stageHeight(616, largeText: false), 250);
+    expect(CoachStageAvatar.stageHeight(200, largeText: false), 150);
     expect(CoachStageAvatar.stageHeight(369, largeText: true), inInclusiveRange(130, 170));
     expect(CoachStageAvatar.fadeStart, greaterThanOrEqualTo(0.85));
   });
