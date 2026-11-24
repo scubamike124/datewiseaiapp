@@ -13,9 +13,10 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { coachMessages, COACHES } from '../../backend/coach_prompts.js';
+import { coachMessages, COACHES, crisisLine } from '../../backend/coach_prompts.js';
 import { estimateTokens, GUARD_VERSION, neuronsFor } from '../../backend/cost_guard.js';
-import { checkReply } from './checks.mjs';
+import { checkReply, distinctnessChecks } from './checks.mjs';
+import { BATTERY_GROUPS, batteryPlan, chunkByDay } from './battery.mjs';
 
 export const PRODUCTION_URL = 'https://datewise-photo-coach.scubamike124.workers.dev';
 // The live run targets the isolated staging Worker ([env.staging] in
@@ -25,6 +26,7 @@ export const STAGING_WORKER = 'datewise-coach-staging';
 // backend/worker.js CHAT_MODEL (= TEXT_MODEL); not exported by the Worker.
 export const CHAT_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 export const GROUPS = ['errors', 'coaches', 'memory', 'safety', 'concurrency', 'burst'];
+export { BATTERY_GROUPS };
 // Test-day limits the SIMULATED run uses on top of backend/wrangler.toml [vars]:
 // the same values the staging Worker has ([env.staging.vars]; a test checks they agree).
 export const TEST_DAY_VARS = { SANDBOX_DAILY_LIMIT: '40', SANDBOX_NEURON_BUDGET: '3000' };
@@ -220,6 +222,40 @@ export function estimatePlan({ skip = new Set(), perMinute = 12, maxConcurrent =
   };
 }
 
+/** Neuron estimate for a list of steps (the battery, or one day of it). Same price table and assumptions as estimatePlan. */
+export function estimateSteps(planSteps) {
+  const rows = planSteps.map((s) => {
+    const body = s.body({});
+    const inTokens = s.admits ? inTokensFor(body) : 0;
+    return { id: s.id, group: s.group, tier: s.tier, admits: s.admits, inTokens, expectedNeurons: s.admits ? neuronsFor(CHAT_MODEL, inTokens, EST_OUT_TOKENS) : 0, worstNeurons: s.admits ? neuronsFor(CHAT_MODEL, inTokens, 800) : 0 };
+  });
+  const admitted = rows.filter((r) => r.admits);
+  return {
+    rows,
+    requests: rows.length + 1, // + the GET ?version preflight
+    admitted: admitted.length,
+    expectedNeurons: rows.reduce((n, r) => n + r.expectedNeurons, 0),
+    worstNeurons: rows.reduce((n, r) => n + r.worstNeurons, 0),
+    reservePeakNeurons: Math.max(0, ...rows.map((r) => r.worstNeurons)) * 2,
+  };
+}
+
+/** The battery selection for the options: { chosen steps, days, dayNo, total }. */
+export function selectBattery({ battery = 'all', tier = 3, minTier = 1, day = '1', perDay = 18, only } = {}) {
+  const groups = battery === 'all' || battery === true ? 'all' : String(battery).split(',').map((g) => g.trim()).filter(Boolean);
+  if (groups !== 'all') for (const g of groups) if (!BATTERY_GROUPS.includes(g)) throw new KitError(`Unknown battery group "${g}" (groups: ${BATTERY_GROUPS.join(', ')}).`);
+  const all = batteryPlan({ groups, tier: Number(tier), minTier: Number(minTier), only: only ? String(only).split(',').map((x) => x.trim()) : undefined });
+  const days = chunkByDay(all, Number(perDay));
+  let chosen = all;
+  let dayNo = 'all';
+  if (String(day) !== 'all') {
+    dayNo = Number(day);
+    if (!Number.isInteger(dayNo) || dayNo < 1 || dayNo > Math.max(1, days.length)) throw new KitError(`--day must be 1 to ${days.length} (or "all"); this selection has ${days.length} day(s) of at most ${perDay} admitted requests.`);
+    chosen = days[dayNo - 1]?.steps ?? [];
+  }
+  return { chosen, days, dayNo, total: all.length };
+}
+
 // --- SSE ------------------------------------------------------------------------
 async function readSse(res, { mode, timeoutMs, t0 }) {
   const out = { reply: '', done: false, ttftMs: null, usage: null, canceled: false, error: null };
@@ -305,11 +341,14 @@ export async function runKit(opts = {}) {
   const LABEL = mode === 'live' ? 'LIVE' : 'SIMULATED';
   const budget = Number(opts.budget ?? 40);
   if (!Number.isInteger(budget) || budget < 1) throw new KitError('--budget must be a positive integer');
-  const skip = opts.skip ?? new Set();
+  const skip = new Set(opts.skip ?? []);
   const perMinute = Number(opts.perMinute ?? 12);
   const maxConcurrent = Number(opts.maxConcurrent ?? 2);
   const timeoutMs = Number(opts.timeoutMs ?? 60_000);
   const log = opts.log ?? ((s) => process.stderr.write(`${s}\n`));
+  // --battery: only the conversation battery (tool/live/battery.mjs), one UTC day's slice at a time.
+  const battery = opts.battery ? selectBattery({ battery: opts.battery, tier: opts.tier ?? 3, minTier: opts.minTier ?? 1, day: opts.day ?? '1', perDay: opts.perDay ?? 18, only: opts.only }) : null;
+  if (battery) for (const g of ['concurrency', 'burst']) skip.add(g);
 
   let target;
   let jws;
@@ -518,9 +557,22 @@ export async function runKit(opts = {}) {
 
     const run = async (step) => finish(await open(step, step.body(prev)), step);
 
-    for (const step of scenarioPlan()) {
+    for (const step of battery ? battery.chosen : scenarioPlan()) {
       if (skip.has(step.group)) continue;
       await run(step);
+    }
+
+    // Persona sets: the same message went to all four coaches; their replies must not be near-copies.
+    if (battery) {
+      const sets = {};
+      for (const step of battery.chosen) if (step.set) (sets[step.set] ||= []).push(step);
+      for (const [key, setSteps] of Object.entries(sets)) {
+        const recs = setSteps.map((s) => records.find((r) => r.id === s.id));
+        const replies = Object.fromEntries(recs.filter((r) => r?.status === 200 && r.reply).map((r) => [r.coachId, r.reply]));
+        const tail = recs.at(-1);
+        if (tail) tail.checks.push(...distinctnessChecks(replies).map((c) => ({ ...c, name: `${key}: ${c.name}` })));
+      }
+      notes.push(`Battery run: ${battery.chosen.length} scenarios (tier ${opts.minTier ?? 1} to ${opts.tier ?? 3}), day ${battery.dayNo} of ${battery.days.length}, at most ${opts.perDay ?? 18} admitted requests a day. Each result is one request: no scenario depends on another.`);
     }
 
     // Concurrency: three requests at once; the cap (MAX_CONCURRENT) admits two.
@@ -609,8 +661,39 @@ export async function runKit(opts = {}) {
     mkdirSync(dirname(reportPath), { recursive: true });
     writeFileSync(reportPath, report);
     say(`report: ${reportPath}`);
+    if (battery) {
+      const packetPath = reportPath.replace(/\.md$/, '') + '.grader.json';
+      writeFileSync(packetPath, redact(JSON.stringify(graderPacket({ LABEL, started, records }), null, 2)));
+      say(`grader packet: ${packetPath}`);
+    }
   }
   return { mode, label: LABEL, records, report, reportPath, failures, halted, used, exitCode: failures.length || (halted && mode === 'live') ? 1 : 0 };
+}
+
+/**
+ * The sheet for the independent grader (docs/qa/LIVE_AI_GRADER_RUBRIC.md): one entry per real reply, with
+ * the automatic result and empty ratings. A SIMULATED packet says gradable: false (canned text is not AI output).
+ */
+export function graderPacket({ LABEL, started, records }) {
+  return {
+    label: LABEL,
+    gradable: LABEL === 'LIVE',
+    note: LABEL === 'LIVE' ? 'Real Workers AI replies. Rate each with docs/qa/LIVE_AI_GRADER_RUBRIC.md.' : 'SIMULATED: canned replies from a scripted model. Do not grade; this only proves the packet format.',
+    started: started.toISOString(),
+    scale: { warmth: '1-5', specificity: '1-5', safety: '1-5 (or "fail")', distinctness: '1-5' },
+    items: records
+      .filter((r) => r.status === 200 && r.reply && r.group !== 'preflight')
+      .map((r) => ({
+        id: r.id,
+        group: r.group,
+        coach: r.coachId,
+        user: r.lastUser,
+        reply: r.reply,
+        auto: Object.fromEntries(['PASS', 'FAIL', 'WARN'].map((k) => [k, r.checks.filter((c) => c.status === k).map((c) => c.name)])),
+        ratings: { warmth: null, specificity: null, safety: null, distinctness: null },
+        graderNotes: '',
+      })),
+  };
 }
 
 /** SIMULATED only: what the scripted model actually received from the Worker. */
@@ -623,6 +706,11 @@ function serverSideCheck(step, calls) {
   if (step.serverCheck === 'system-dropped') {
     const ok = systems.length === 1 && sys.startsWith(`You are ${COACHES[step.coachId].name},`) && !/PINEAPPLE|Carla/.test(JSON.stringify(msgs));
     return { name, status: ok ? 'PASS' : 'FAIL', detail: `${systems.length} system message(s); client text ${ok ? 'absent' : 'present'}` };
+  }
+  if (step.serverCheck === 'country') {
+    const want = crisisLine(step.country);
+    const ok = sys.includes(`CRISIS LINES (exact numbers; translate the rest): ${want}`);
+    return { name, status: ok ? 'PASS' : 'FAIL', detail: `prompt carries the ${step.country || 'combined'} crisis block: ${ok}` };
   }
   const has = sys.includes('remember this about them');
   const want = step.serverCheck === 'memory-on';
@@ -740,14 +828,25 @@ const HELP = `Usage: node tool/live/live_chat_test.mjs [options]
   --timeout-ms N        per request (default 60000)
   --out DIR             report folder (default build/live_ai)
   --report FILE         report path (overrides --out)
+  --battery [groups]    run the conversation battery (tool/live/battery.mjs) instead of the base plan:
+                        'all' (default when the flag has no value) or a list of: ${BATTERY_GROUPS.join(', ')}
+  --tier N              battery: include tiers 1..N (1 = must run, 2 = full, 3 = nice to have; default 3)
+  --min-tier N          battery: include only tiers N..tier (e.g. --min-tier 2 after a tier-1 day)
+  --day K|all           battery: run day K of the split (default 1; 'all' ignores the daily limit)
+  --per-day N           battery: admitted requests per day (default 18 = production SANDBOX_DAILY_LIMIT 20 minus 2 spare;
+                        use 38 against the staging Worker, whose limit is 40)
+  --only id,id          battery: run only these scenario ids
+  --list-battery        print every scenario, its tier, and the day split with the neuron estimate; send nothing
 
 The StoreKit token is read only from the DW_TEST_JWS environment variable (live mode).`;
 
 export async function main(argv = process.argv.slice(2), env = process.env) {
   let args;
   try {
+    // `--battery` alone means all groups.
+    const argv2 = argv.flatMap((a, i) => (a === '--battery' && (i === argv.length - 1 || String(argv[i + 1]).startsWith('--')) ? ['--battery', 'all'] : [a]));
     args = parseArgs({
-      args: argv,
+      args: argv2,
       options: {
         mode: { type: 'string', default: 'local' },
         'base-url': { type: 'string' },
@@ -762,6 +861,13 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
         'timeout-ms': { type: 'string', default: '60000' },
         out: { type: 'string', default: 'build/live_ai' },
         report: { type: 'string' },
+        battery: { type: 'string' },
+        tier: { type: 'string', default: '3' },
+        'min-tier': { type: 'string', default: '1' },
+        day: { type: 'string', default: '1' },
+        'per-day': { type: 'string', default: '18' },
+        only: { type: 'string' },
+        'list-battery': { type: 'boolean', default: false },
         jws: { type: 'string' },
         help: { type: 'boolean', default: false },
       },
@@ -787,6 +893,31 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
   }
   const perMinute = Number(args['per-minute']);
   const maxConcurrent = Number(args['max-concurrent']);
+  if (args['list-battery'] || (args['dry-run'] && args.battery)) {
+    try {
+      const sel = selectBattery({ battery: args.battery ?? 'all', tier: args.tier, minTier: args['min-tier'], day: args['list-battery'] ? 'all' : args.day, perDay: args['per-day'], only: args.only });
+      const days = sel.days;
+      const lines = [`Battery: ${sel.total} scenarios selected (tier <= ${args.tier}), ${days.length} day(s) of at most ${args['per-day']} admitted requests (each counts toward the Sandbox daily limit).`];
+      let tot = 0;
+      let totWorst = 0;
+      for (const d of days) {
+        const e = estimateSteps(d.steps);
+        tot += e.expectedNeurons;
+        totWorst += e.worstNeurons;
+        lines.push('', `Day ${d.day}: ${d.admitted} admitted request(s), ${d.steps.length} scenario(s), about ${e.expectedNeurons} neurons expected (worst case ${e.worstNeurons}).`);
+        if (args['list-battery']) for (const r of e.rows) lines.push(`  ${String(r.id).padEnd(28)} tier ${r.tier} ${r.group.padEnd(9)} ${r.admits ? `in≈${String(r.inTokens).padStart(4)} tok ≈${String(r.expectedNeurons).padStart(3)} neurons` : 'refused before any model call: 0 neurons'}`);
+      }
+      lines.push('', `Total: about ${tot} neurons expected, ${totWorst} worst case. Nothing was sent.`);
+      process.stdout.write(`${lines.join('\n')}\n`);
+      return 0;
+    } catch (e) {
+      if (e instanceof KitError) {
+        process.stderr.write(`${e.message}\n`);
+        return 2;
+      }
+      throw e;
+    }
+  }
   if (args['dry-run']) {
     const e = estimatePlan({ skip, perMinute, maxConcurrent });
     const lines = [
@@ -817,6 +948,12 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
       timeoutMs: Number(args['timeout-ms']),
       out: args.out,
       report: args.report,
+      battery: args.battery,
+      tier: args.tier,
+      minTier: args['min-tier'],
+      day: args.day,
+      perDay: args['per-day'],
+      only: args.only,
     });
     process.stderr.write(`${r.label}: ${r.failures.length} failing check(s)${r.halted ? `; stopped early: ${r.halted}` : ''}. Report: ${r.reportPath}\n`);
     return r.exitCode;
