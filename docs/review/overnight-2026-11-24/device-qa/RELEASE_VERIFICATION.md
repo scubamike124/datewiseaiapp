@@ -59,3 +59,43 @@ Remaining owner step: add `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and `I
   `DAILY_NEURON_BUDGET = 10000` with a 6,000 sandbox slice, so the Worker's own guard stops spending at the free
   allowance; Amber's own Workers AI use on the same account could make DateWise hit the cap earlier. No paid usage
   is enabled by this deploy.
+
+## Production deploy of chat-v7 (2026-11-24, run 7 at fd928f0, owner-approved)
+
+Evidence from the run's own log and from direct requests made afterwards. Automated checks only; no genuine AI reply has
+been verified yet (that needs an Apple Sandbox receipt from a TestFlight purchase).
+
+| Check | Result |
+|---|---|
+| Live version before | chat-v5 (every chat returned 502: retired model) |
+| ID_HASH_SALT | Missing on the Worker and in the environment, so the new salt step generated 32 random bytes (never printed) and uploaded it with the deploy; the deploy output lists `env.ID_HASH_SALT ("(hidden)")`. The Cloudflare token and account ID were only read. |
+| Deploy | Success: version c04127ff-0e19-478f-9b51-c9fed21afcc7; rollback point 476d5cc9-bd29-433b-9cd0-fa9d43b76ab7 |
+| Bindings listed by the deploy | Durable Object USAGE_GUARD, AI, rate limiter 60/60 s, production limits (SANDBOX_DAILY_LIMIT 20, SANDBOX_NEURON_BUDGET 6000, REQUIRE_SUBSCRIPTION 1, LEGACY_CLIENTS 0, ASSN_ENABLED 0, FAIL_OPEN 0) |
+| `GET /?version` | `chat-v7-cost-guard` |
+| Chat request with no receipt | 403 SUBSCRIPTION_REQUIRED, 8 of 8 repeated requests (no AI call) |
+| Forged receipt | 403 SUBSCRIPTION_INVALID |
+| Apple's public sample notification used as a receipt | 403 SUBSCRIPTION_INVALID |
+| Old-app style request (v1) | 426 APP_UPDATE_REQUIRED |
+| Oversized body with no receipt | 403 (refused by the subscription gate before the body is processed) |
+| GET / | 405 |
+| Deploy job status | Red: the job's own health check got one 502 within about a second of the upload (start-up race) and has no retry; every later request returned the correct 403. No rollback needed. Follow-up: retry the health check. |
+| 502 error on chat | Resolved for unauthenticated traffic; the chat-v5 model failure no longer applies (new model llama-3.3-70b). A genuine AI reply still needs a Sandbox receipt. |
+
+## Physical iPhone test of TestFlight build 2.0.0 (203), owner report, 2026-11-24 (PRELIMINARY DEVICE EVIDENCE)
+
+Source: the owner's own hands-on test. Not a complete subscription or backend certification.
+
+Worked on the device:
+- The subscription allowed the owner to reach the chat screen, and Ava responded (first genuine device evidence that
+  chat-v7 answers a subscriber; production was chat-v7 at the time, see the deploy section above).
+
+Failed the owner's quality expectations (all confirmed on a physical iPhone):
+- The voice sounds robotic and the coach speaks much too quickly.
+- The lips move excessively fast.
+- Most of the avatar's face is cut off; the eyes and full face are not visible.
+- The avatar and captions occupy too much screen space; conversation text is clipped.
+- Replies appear duplicated.
+- The experience does not look or sound like a premium $19.99 monthly app.
+
+Not yet device-verified: purchase and restore flows, renewal, cancellation and expiry, refund, Spanish chat, follow-up
+continuity, latency, safety replies. Build 203 predates the framing, keyboard, listening and thinking changes.

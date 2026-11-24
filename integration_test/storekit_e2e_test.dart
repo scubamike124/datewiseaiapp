@@ -261,7 +261,8 @@ void _scenario(String name, Future<void> Function(WidgetTester t) body) {
     _results[name] = 'did not finish';
     await _bridge.invokeMethod<void>('reset');
     try {
-      await body(t);
+      await _guarded(() => body(t));
+      _throwIfAppError();
       _results[name] = 'success';
     } catch (e, st) {
       _results[name] = '$e\n${st.toString().split('\n').take(8).join('\n')}';
@@ -270,6 +271,51 @@ void _scenario(String name, Future<void> Function(WidgetTester t) body) {
       await _teardownApp(t);
     }
   }, timeout: const Timeout(Duration(minutes: 6)));
+}
+
+/// The first error that escaped the app's own async code (a stream listener
+/// throwing, for example) during the current scenario.
+Object? _appError;
+StackTrace? _appErrorStack;
+
+/// Runs a scenario body in its own error zone, so an uncaught error from the
+/// app (whose listeners are registered by the body, in [_launch]) is recorded
+/// instead of reaching flutter_test's test zone. flutter_test ends the test
+/// the moment such an error arrives while the body is still pumping, and every
+/// later scenario then fails with `!inTest` / `!_expectingFrame` without
+/// running. Here [_until] and [_settle] throw the recorded error, so the body
+/// stops, the scenario fails once with the real error, the app is torn down
+/// inside the test, and the next scenario starts clean.
+Future<void> _guarded(Future<void> Function() body) {
+  _appError = null;
+  _appErrorStack = null;
+  final done = Completer<void>();
+  runZonedGuarded(
+    () {
+      body().then(
+        done.complete,
+        onError: (Object e, StackTrace st) {
+          if (!done.isCompleted) done.completeError(e, st);
+        },
+      );
+    },
+    (e, st) {
+      if (_appError != null) return;
+      _appError = e;
+      _appErrorStack = st;
+      unawaited(_log('uncaught app error: $e'));
+    },
+  );
+  return done.future;
+}
+
+void _throwIfAppError() {
+  final e = _appError;
+  if (e == null) return;
+  throw TestFailure(
+    'Uncaught error in the app: $e\n'
+    '${_appErrorStack.toString().split('\n').take(8).join('\n')}',
+  );
 }
 
 Future<void> _waitForBridge() async {
@@ -365,7 +411,14 @@ Future<void> _resume(WidgetTester t) async {
     AppLifecycleState.resumed,
   ]) {
     t.binding.handleAppLifecycleStateChanged(s);
-    await t.pump();
+    // Flutter draws no frames while the app is hidden or paused (as on a
+    // device), so a pump there would wait forever for a frame. Let real time
+    // pass instead.
+    if (t.binding.framesEnabled) {
+      await t.pump();
+    } else {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
   }
   await _settle(t);
 }
@@ -374,6 +427,7 @@ Future<void> _resume(WidgetTester t) async {
 Future<void> _settle(WidgetTester t, [Duration d = const Duration(milliseconds: 1500)]) async {
   final end = DateTime.now().add(d);
   while (DateTime.now().isBefore(end)) {
+    _throwIfAppError();
     await Future<void>.delayed(const Duration(milliseconds: 100));
     await t.pump();
   }
@@ -383,6 +437,7 @@ Future<void> _until(WidgetTester t, FutureOr<bool> Function() cond, String what,
     {Duration timeout = const Duration(seconds: 30)}) async {
   final end = DateTime.now().add(timeout);
   while (true) {
+    _throwIfAppError();
     if (await cond()) {
       await t.pump();
       return;

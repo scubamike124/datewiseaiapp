@@ -195,21 +195,21 @@ void main() {
       expect(after.where((p) => p.startsWith('blink')), isEmpty);
     });
 
-    test('listening nods are 400 ms whole-image bumps (3 px, under 1 degree); motion stays subtle', () {
+    test('listening nods are whole-image bumps (about 2 px, under 1 degree); motion stays subtle', () {
       final a = AvatarAnimator(seed: 7);
       var nodFrames = 0;
       var maxDy = 0.0, maxRot = 0.0;
       for (var t = 0.0; t < 20; t += 1 / 60) {
         final p = a.frame(t, AvatarMood.listening, VisemeSample.rest);
-        expect(p.layers.where((l) => !l.patch.startsWith('blink')), isEmpty, reason: 'no warped head frames');
-        if (p.dy > 2.5) nodFrames++;
+        expect(p.layers.where((l) => !(l.patch.startsWith('blink') || l.patch == 'gaze' || l.patch == 'i2')), isEmpty, reason: 'no warped head frames');
+        if (p.dy > 1.8) nodFrames++;
         maxDy = math.max(maxDy, p.dy.abs());
         maxRot = math.max(maxRot, p.rotation.abs());
         expect(p.scale, inInclusiveRange(0.996, 1.004));
         expect(p.rotation.abs(), lessThanOrEqualTo(AvatarPose.maxRotation));
         expect(p.dy.abs(), lessThanOrEqualTo(AvatarPose.maxDy));
       }
-      expect(maxDy, inInclusiveRange(2.5, 4.5));
+      expect(maxDy, inInclusiveRange(1.8, 4.5));
       expect(maxRot, lessThan(1 * math.pi / 180));
       expect(nodFrames, greaterThan(5), reason: 'nods happen');
       expect(nodFrames, lessThan(20 * 60 * 0.25), reason: 'nods are short, not held');
