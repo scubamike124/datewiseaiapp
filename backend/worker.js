@@ -754,16 +754,24 @@ async function route(request, env, ctx) {
 
     // Refuse oversized bodies before parsing them (security review M5). A v2 chat request is a few KB; the
     // limit only grows while the v1 photo path (base64 images) is still served.
-    const maxBody = guardConfig(env).LEGACY_CLIENTS ? MAX_LEGACY_BODY_BYTES : MAX_CHAT_BODY_BYTES;
+    const legacyServed = guardConfig(env).LEGACY_CLIENTS;
+    const maxBody = legacyServed ? MAX_LEGACY_BODY_BYTES : MAX_CHAT_BODY_BYTES;
+    // An oversized request without a subscription token has the v1 (1.0.2) signature: its photo requests carry
+    // base64 images well over the v2 cap. Once v1 is no longer served it gets the same "please update" notice as
+    // a small v1 photo request (v1 shows the body text), not a bare 413 (code review M1). Nothing is parsed.
+    const tooLarge = () =>
+      !legacyServed && !request.headers.get('X-DateWise-Entitlement')
+        ? guardError('APP_UPDATE_REQUIRED', corsHeaders(), { message: 'Please update DateWise from the App Store.' })
+        : json({ error: 'Request too large', code: 'PAYLOAD_TOO_LARGE' }, 413);
     const declared = Number(request.headers.get('Content-Length') || 0);
-    if (declared > maxBody) return json({ error: 'Request too large', code: 'PAYLOAD_TOO_LARGE' }, 413);
+    if (declared > maxBody) return tooLarge();
 
     let body;
     try {
       // The cap counts UTF-8 bytes as they arrive, so a missing or false
       // Content-Length, or multi-byte text, cannot get past it (security review R2 S-1).
       const text = await readBodyCapped(request, maxBody);
-      if (text === null) return json({ error: 'Request too large', code: 'PAYLOAD_TOO_LARGE' }, 413);
+      if (text === null) return tooLarge();
       body = JSON.parse(text);
     } catch {
       return json({ error: 'Invalid JSON body' }, 400);

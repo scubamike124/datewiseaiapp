@@ -162,9 +162,44 @@ test('an oversized request body is refused with 413 before it is parsed or reach
   assert.equal(f.calls.length, 0);
   const declared = new Request('https://example.workers.dev/', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Content-Length': String(10 * 1024 * 1024) },
+    headers: { 'Content-Type': 'application/json', 'Content-Length': String(10 * 1024 * 1024), 'X-DateWise-Entitlement': JWS },
     body: '{}',
   });
   assert.equal((await worker.fetch(declared, f.env)).status, 413);
+});
+
+test('an oversized v1-signature request (no token) gets the 426 update notice, not a bare 413, once v1 is not served (code review M1)', async () => {
+  const f = fakeEnv(() => ({ response: 'never' }));
+  f.env.LEGACY_CLIENTS = '0'; // as in production (wrangler.toml)
+  // A v1 (1.0.2) photo request: base64 image, no X-DateWise-Entitlement header, well over the 256 KB cap.
+  const v1Photo = (headers = {}) =>
+    new Request('https://example.workers.dev/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: 'https://datewiseai.com', ...headers },
+      body: JSON.stringify({ tier: 'magnet', imageBase64: 'A'.repeat(600 * 1024) }),
+    });
+  for (const headers of [{}, { 'Content-Length': String(10 * 1024 * 1024) }]) {
+    const res = await worker.fetch(v1Photo(headers), f.env);
+    assert.equal(res.status, 426);
+    const out = await res.json();
+    assert.equal(out.code, 'APP_UPDATE_REQUIRED');
+    assert.match(out.message, /update DateWise from the App Store/);
+  }
+  // A small v1 photo request already got the same notice.
+  const small = new Request('https://example.workers.dev/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tier: 'magnet', imageBase64: 'A'.repeat(1000) }),
+  });
+  assert.equal((await worker.fetch(small, f.env)).status, 426);
+  assert.equal(f.calls.length, 0);
+  // While v1 is still served (LEGACY_CLIENTS=1), an over-cap body is a plain 413.
+  f.env.LEGACY_CLIENTS = '1';
+  const huge = new Request('https://example.workers.dev/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tier: 'magnet', imageBase64: 'A'.repeat(9 * 1024 * 1024) }),
+  });
+  assert.equal((await worker.fetch(huge, f.env)).status, 413);
 });
 

@@ -309,13 +309,21 @@ test('a body without Content-Length (chunked) or with a false one is not read pa
         else controller.enqueue(chunk);
       },
     });
-  const r = await send(env, { raw: endless() });
+  const jws = await sign({ originalTransactionId: otid() });
+  const r = await send(env, { jws, raw: endless() });
   assert.equal(r.res.status, 413);
+  assert.ok(pulled <= MAX_CHAT_BODY_BYTES + 3 * chunk.length, `read ${pulled} bytes`);
+  // Without a token (the v1 signature) the answer is the 426 update notice (code review M1), and the read is
+  // bounded the same way.
+  pulled = 0;
+  const v1 = await send(env, { raw: endless() });
+  assert.equal(v1.res.status, 426);
+  assert.equal(v1.json.code, 'APP_UPDATE_REQUIRED');
   assert.ok(pulled <= MAX_CHAT_BODY_BYTES + 3 * chunk.length, `read ${pulled} bytes`);
   // A declared length that is small, negative or junk does not lift the cap either.
   for (const cl of ['10', '-1', 'abc', '0']) {
     pulled = 0;
-    const res = await send(env, { raw: endless(), headers: { 'Content-Length': cl } }).catch((e) => ({ error: e }));
+    const res = await send(env, { jws, raw: endless(), headers: { 'Content-Length': cl } }).catch((e) => ({ error: e }));
     if (res.error) continue; // the runtime itself refused the mismatched length
     assert.equal(res.res.status, 413, cl);
     assert.ok(pulled <= MAX_CHAT_BODY_BYTES + 3 * chunk.length);
