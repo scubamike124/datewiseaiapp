@@ -1,0 +1,30 @@
+[
+ {
+  "turn": 1,
+  "text": "Ha! That's your opener, right there.",
+  "wer": 0.0,
+  "hyp": "Ha! That's your opener, right there.",
+  "sec": 2.24
+ },
+ {
+  "turn": 1,
+  "text": "Try something like: okay, important question, does the dog get tacos after the hike?",
+  "wer": 0.0,
+  "hyp": "Try something like, okay, important question.  Does the dog get tacos after the hike?",
+  "sec": 4.7
+ },
+ {
+  "turn": 1,
+  "text": "It's playful, it's specific, and it's really easy to answer.",
+  "wer": 0.0,
+  "hyp": "It's playful, it's specific, and it's really easy to answer.",
+  "sec": 4.12
+ },
+ {
+  "turn": 1,
+  "text": "Want me to give you a backup line, just in case?",
+  "wer": 0.0,
+  "hyp": "Want me to give you a backup line, just in case?",
+  "sec": 3.02
+ }
+]
