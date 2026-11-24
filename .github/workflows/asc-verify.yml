@@ -1,0 +1,46 @@
+name: App Store Connect check (read-only)
+
+# Read-only check of the App Store Connect API key in the repository secrets,
+# the DateWise app record and its one subscription. It makes GET requests only:
+# nothing is created, changed, signed, built or uploaded. Secret values are
+# never printed; the summary shows only public facts (app name, product id,
+# period, state, US price) and pass/fail per check.
+on:
+  push:
+    branches:
+      - claude/asc-verify
+    paths:
+      - '.github/workflows/asc-verify.yml'
+      - 'tool/asc/verify_asc.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: asc-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify App Store Connect key, app and subscription
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Install PyJWT and cryptography
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --disable-pip-version-check --quiet 'PyJWT==2.10.1' 'cryptography==44.0.3'
+      - name: Check
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          BUNDLE_ID: com.datewise.datewiseAi
+          PRODUCT_ID: datewise_premium_monthly
+          EXPECTED_USD: '19.99'
+        run: "$RUNNER_TEMP/venv/bin/python" -I tool/asc/verify_asc.py
