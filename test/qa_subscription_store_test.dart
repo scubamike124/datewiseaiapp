@@ -383,6 +383,25 @@ void main() {
       expect(ai.calls, 1, reason: 'nothing reaches the backend once the subscription lapsed');
     });
 
+    test('canceled (auto-renew off) but paid up: still entitled through launch, refreshes and resume; locked only when StoreKit drops it at expiry', () async {
+      SharedPreferences.setMockInitialValues(onboardedPrefs());
+      // StoreKit keeps returning a canceled subscription from currentEntitlements
+      // until its period ends; the app derives entitlement from that alone.
+      sk2.entitled = [StoreConfig.productId];
+      final store = AppStoreService(iap: _ScriptedIap());
+      await store.init();
+      final state = AppState(storage: await StorageService.create(), ai: _CountingAI(), store: store);
+      for (var i = 0; i < 3; i++) {
+        await store.refresh();
+        expect(store.isEntitled, isTrue, reason: 'refresh $i: the paid period has not ended');
+        expect(state.canChat, isTrue);
+      }
+      sk2.entitled = []; // the period ended and it did not renew
+      await store.refresh();
+      expect(store.isEntitled, isFalse);
+      expect(state.canChat, isFalse);
+    });
+
     test('App Store unreachable on refresh: the last known state is kept', () async {
       sk2.entitled = [StoreConfig.productId];
       final store = AppStoreService(iap: _ScriptedIap());
