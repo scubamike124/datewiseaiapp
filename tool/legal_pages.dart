@@ -3,8 +3,11 @@
 //
 //   web/privacy.html, web/terms.html          (English, the governing text)
 //   web/privacy-es.html, web/terms-es.html    (Spanish translation)
+//   web/support.html, web/support-es.html     (customer support page, the
+//                                             App Store Support URL)
 //
-// Source: lib/content/legal_text.dart. Regenerate after editing it:
+// Source: lib/content/legal_text.dart and lib/content/support_text.dart.
+// Regenerate after editing either:
 //
 //   dart run tool/legal_pages.dart
 //
@@ -13,6 +16,7 @@
 import 'dart:io';
 
 import 'package:datewise_ai/content/legal_text.dart';
+import 'package:datewise_ai/content/support_text.dart';
 
 class LegalPage {
   const LegalPage({
@@ -49,7 +53,7 @@ final legalPages = [
     title: 'Privacy Policy',
     description: 'DateWise AI Privacy Policy: what information the app handles, how it is used, and your choices.',
     text: kPrivacyPolicy,
-    updated: kLegalLastUpdated,
+    updated: kPrivacyLastUpdated,
     otherLabel: 'Terms of Use',
     otherHref: '/terms-of-service',
     languageLabel: 'Español',
@@ -75,7 +79,7 @@ final legalPages = [
     title: 'Política de privacidad',
     description: 'Política de privacidad de DateWise AI. Traducción; el texto en inglés es el que rige.',
     text: kPrivacyPolicyEs,
-    updated: kLegalLastUpdatedEs,
+    updated: kPrivacyLastUpdatedEs,
     otherLabel: 'Términos de uso',
     otherHref: '/terms-es.html',
     languageLabel: 'English',
@@ -93,6 +97,37 @@ final legalPages = [
     otherHref: '/privacy-es.html',
     languageLabel: 'English',
     languageHref: '/terms-of-service',
+    rights: 'Todos los derechos reservados.',
+  ),
+];
+
+/// The customer support pages (the App Store Support URL), rendered with the
+/// same template as the legal pages.
+final supportPages = [
+  LegalPage(
+    file: 'web/support.html',
+    lang: 'en',
+    title: 'Support',
+    description: 'DateWise AI customer support: contact us, subscriptions, refunds, restoring purchases and your data.',
+    text: kSupportPage,
+    updated: kSupportLastUpdated,
+    otherLabel: 'Privacy Policy',
+    otherHref: '/privacy-policy',
+    languageLabel: 'Español',
+    languageHref: '/support-es.html',
+    rights: 'All rights reserved.',
+  ),
+  LegalPage(
+    file: 'web/support-es.html',
+    lang: 'es',
+    title: 'Soporte',
+    description: 'Soporte de DateWise AI: contacto, suscripciones, reembolsos, restaurar compras y tus datos.',
+    text: kSupportPageEs,
+    updated: kSupportLastUpdatedEs,
+    otherLabel: 'Política de privacidad',
+    otherHref: '/privacy-es.html',
+    languageLabel: 'English',
+    languageHref: '/support.html',
     rights: 'Todos los derechos reservados.',
   ),
 ];
@@ -249,7 +284,7 @@ ${renderBody(p.text, p.updated).trimRight()}
 ''';
 
 void main() {
-  for (final p in legalPages) {
+  for (final p in [...legalPages, ...supportPages]) {
     File(p.file).writeAsStringSync(renderPage(p));
     stdout.writeln('wrote ${p.file}');
   }

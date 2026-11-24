@@ -57,4 +57,27 @@ void main() {
       expect(htaccess, contains('RewriteRule ^${path.substring(1)}/?\$ $file'));
     }
   });
+
+  test('support pages (EN + ES) are up to date and give real customer support', () {
+    expect(supportPages.map((p) => p.file), ['web/support.html', 'web/support-es.html']);
+    for (final p in supportPages) {
+      final html = File(p.file).readAsStringSync();
+      expect(html, renderPage(p), reason: '${p.file} is stale: run `dart run tool/legal_pages.dart`');
+      expect(html, contains('<a href="mailto:${AppLinks.supportEmail}">'), reason: '${p.file}: support email');
+      expect(html, contains('reportaproblem.apple.com'), reason: '${p.file}: refunds');
+    }
+    expect(AppLinks.supportUrl, 'https://datewise-legal.lovable.app/support.html');
+    expect(AppLinks.supportUrl, isNot(AppLinks.termsUrl));
+  });
+
+  test('the privacy pages describe the AI consent step and how to withdraw it', () {
+    final en = File('web/privacy.html').readAsStringSync();
+    final es = File('web/privacy-es.html').readAsStringSync();
+    expect(en, contains('Nothing is sent to the AI provider until you tap Agree.'));
+    expect(en, contains('<strong>Withdrawing your permission:</strong>'));
+    expect(en, contains("Cloudflare Workers AI, which runs Meta's Llama model"));
+    expect(es, contains('No se envía nada al proveedor de IA hasta que tocas Aceptar.'));
+    expect(es, contains('<strong>Retirar tu permiso:</strong>'));
+    expect(es, contains('modelo Llama de Meta'));
+  });
 }

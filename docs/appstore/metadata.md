@@ -28,7 +28,7 @@ and Diego in Spanish.
 | Subtitle (≤30) | Your AI dating coach | Tu coach de citas con IA |
 | Primary category | Lifestyle | Lifestyle (Estilo de vida) |
 | Secondary category | none (optional: Social Networking is **not** recommended; the app has no social features) | |
-| Support URL | `https://datewise-legal.lovable.app/terms-of-service` (no support page exists in this repository; the Terms page ends with a Contact section showing support@datewiseai.com, which meets Apple's "easy way to contact you". Keep the record's current Support URL instead if it is live and shows contact details) | same |
+| Support URL | `https://datewise-legal.lovable.app/support.html` (customer support page: contact email, subscription, refunds, restore, AI permission and data deletion; generated from `lib/content/support_text.dart`) | `https://datewise-legal.lovable.app/support-es.html` if a per-language Support URL is used, otherwise the same |
 | Marketing URL (optional) | Leave blank (optional field; `datewiseai.com`'s home page is not published from this branch) | same |
 | Privacy Policy URL | `https://datewise-legal.lovable.app/privacy-policy` (hard-coded in the app, `lib/app_links.dart`; it must serve the v2 text, "Last updated: November 23, 2026", before submission: see "Where the legal pages are hosted" below) | same |
 | Copyright | **OWNER:** `2026 <legal owner name>` | same |
@@ -42,6 +42,8 @@ v2 pages on Lovable, and the app and App Store Connect use these URLs:
 | Terms of Use (EN) | `https://datewise-legal.lovable.app/terms-of-service` |
 | Política de privacidad (ES) | `https://datewise-legal.lovable.app/privacy-es.html` |
 | Términos de uso (ES) | `https://datewise-legal.lovable.app/terms-es.html` |
+| Support (EN) | `https://datewise-legal.lovable.app/support.html` (to publish, 2026-11-24) |
+| Soporte (ES) | `https://datewise-legal.lovable.app/support-es.html` (to publish, 2026-11-24) |
 
 Checked live on 2026-11-24: all four return 200, and their text matches
 `web/privacy.html`, `web/terms.html`, `web/privacy-es.html` and
