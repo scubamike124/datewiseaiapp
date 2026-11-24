@@ -75,7 +75,8 @@ class _CoachesScreenState extends State<CoachesScreen> with VoicePreview {
           stops: [0, 0.7],
         ),
       ),
-      child: SingleChildScrollView(
+      child: StatusBarScrim(
+        child: SingleChildScrollView(
         // The last line clears the tab bar and the home indicator.
         padding: EdgeInsets.fromLTRB(14, top + 16, 14, 24 + MediaQuery.paddingOf(context).bottom),
         child: ContentWidth(
@@ -106,6 +107,7 @@ class _CoachesScreenState extends State<CoachesScreen> with VoicePreview {
             ],
           ),
         ),
+      ),
       ),
     );
   }

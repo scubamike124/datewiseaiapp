@@ -126,13 +126,16 @@ class _PaywallScreenState extends State<PaywallScreen> {
     return Scaffold(
       key: const ValueKey('paywall'),
       backgroundColor: AppColors.background,
-      body: SingleChildScrollView(
+      body: StatusBarScrim(
+        child: SingleChildScrollView(
         child: ContentWidth(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SizedBox(
-                height: 230 + top,
+                // Capped so the price and Subscribe show without scrolling on an
+                // iPhone SE and at larger text sizes (UI audit 12/13).
+                height: (MediaQuery.sizeOf(context).height * 0.21).clamp(150.0, 230.0) + top,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
@@ -185,11 +188,11 @@ class _PaywallScreenState extends State<PaywallScreen> {
                       header: true,
                       child: Text(l.paywallHeadline(coach.name), style: AppText.title),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                     _Benefit(l.benefitCoaches),
                     _Benefit(l.benefitVoice),
                     _Benefit(l.benefitPlan),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 14),
                     // Long-press: the hidden "Store status" readout (product
                     // query result, StoreKit error, storefront) for TestFlight.
                     GestureDetector(
@@ -264,7 +267,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         }),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                     if (unsupported)
                       DwCard(
                         key: const ValueKey('paywall-web'),
@@ -336,6 +339,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

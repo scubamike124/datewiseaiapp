@@ -577,3 +577,63 @@ Future<bool> showConfirmDialog(BuildContext context, String title, String body, 
   );
   return ok ?? false;
 }
+
+/// Keeps scrolled content from showing under the status bar (clock, Dynamic
+/// Island): a strip of the page color, the height of the top safe-area
+/// inset, laid over [child]. It fades in as the page scrolls, so a hero photo
+/// that runs under the status bar at rest still does, and it is fully solid
+/// once the content has moved up by the inset's height. It ignores touches.
+class StatusBarScrim extends StatefulWidget {
+  const StatusBarScrim({super.key, required this.child, this.color = AppColors.background});
+  final Widget child;
+  final Color color;
+
+  @override
+  State<StatusBarScrim> createState() => _StatusBarScrimState();
+}
+
+class _StatusBarScrimState extends State<StatusBarScrim> {
+  final _opacity = ValueNotifier<double>(0);
+
+  @override
+  void dispose() {
+    _opacity.dispose();
+    super.dispose();
+  }
+
+  bool _onScroll(ScrollNotification n, double top) {
+    if (n.depth == 0 && n.metrics.axis == Axis.vertical && top > 0) {
+      _opacity.value = (n.metrics.pixels / top).clamp(0.0, 1.0);
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final top = MediaQuery.paddingOf(context).top;
+    return NotificationListener<ScrollNotification>(
+      onNotification: (n) => _onScroll(n, top),
+      child: Stack(
+        fit: StackFit.passthrough,
+        children: [
+          widget.child,
+          if (top > 0)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: top,
+              child: IgnorePointer(
+                child: ValueListenableBuilder<double>(
+                  valueListenable: _opacity,
+                  builder: (_, o, _) => o == 0
+                      ? const SizedBox.shrink()
+                      : ColoredBox(key: const ValueKey('status-bar-scrim'), color: widget.color.withValues(alpha: o)),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}

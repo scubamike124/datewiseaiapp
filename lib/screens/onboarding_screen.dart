@@ -134,7 +134,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with VoicePreview {
             ),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
                 child: ContentWidth(child: body),
               ),
             ),
@@ -308,7 +308,7 @@ class _OptionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Semantics(
         selected: selected,
         button: true,
@@ -322,7 +322,7 @@ class _OptionTile extends StatelessWidget {
             borderRadius: BorderRadius.circular(18),
             onTap: onTap,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 60),
+              constraints: const BoxConstraints(minHeight: 56),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(

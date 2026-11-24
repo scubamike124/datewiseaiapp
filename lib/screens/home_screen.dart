@@ -55,7 +55,8 @@ class HomeScreen extends StatelessWidget {
     // the hero keeps the phone's proportions instead of a small strip.
     final tablet = isTabletLayout(context);
 
-    return SingleChildScrollView(
+    return StatusBarScrim(
+      child: SingleChildScrollView(
       key: const PageStorageKey('home-scroll'),
       child: ContentWidth(
         maxWidth: tablet ? kWideContentMaxWidth : kContentMaxWidth,
@@ -130,7 +131,7 @@ class HomeScreen extends StatelessWidget {
                               child: WholeWordsText(l.greetingFor(DateTime.now()),
                                   key: const ValueKey('home-greeting'),
                                   maxWidth: tablet ? 340 : 240,
-                                  style: AppText.display.copyWith(fontSize: tablet ? 42 : 34, height: 1.05)),
+                                  style: AppText.display.copyWith(fontSize: tablet ? 42 : 30, height: 1.08)),
                             ),
                             const SizedBox(height: 10),
                             Text(
@@ -187,6 +188,7 @@ class HomeScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

@@ -91,7 +91,8 @@ class SettingsScreen extends StatelessWidget {
     final memory = state.memoryText;
     final l = context.l10n;
 
-    return SingleChildScrollView(
+    return StatusBarScrim(
+      child: SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(16, top + 16, 16, 28),
       child: ContentWidth(
         child: Column(
@@ -316,6 +317,7 @@ class SettingsScreen extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }
