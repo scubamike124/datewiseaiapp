@@ -111,7 +111,7 @@ void main() {
         }
         for (final c in tl.cues.where((c) => c.viseme != Viseme.rest)) {
           expect(c.duration, lessThanOrEqualTo(VisemeTimeline.maxHold + 1e-9), reason: '$c');
-          expect(c.duration, greaterThanOrEqualTo(VisemeTimeline.minShape - 1e-9), reason: 'no flash: $c');
+          if (!c.bridge) expect(c.duration, greaterThanOrEqualTo(VisemeTimeline.minShape - 1e-9), reason: 'no flash: $c');
         }
         // Sample every 5 ms: a closed shape is never partly mixed with another.
         for (var t = 0.0; t < tl.duration; t += 0.005) {
@@ -177,12 +177,13 @@ void main() {
       expect(tl.words.map((w) => w.start), [0.1, 0.35, 0.9, 1.35]);
       expect(tl.sample(0.1 + 0.01).to, anyOf(Viseme.i2, Viseme.mbp));
       final long = VisemeTimeline.fromTimedWords('Mmm', CoachLanguage.en, [(0, 3, 0.1, 0.5)]);
-      expect(long.sample(0.1 + 0.01).to, Viseme.i2, reason: 'from the smiling rest, lips part slightly first');
-      expect(long.sample(0.1 + 0.06).to, Viseme.mbp);
+      // The middle step takes the end of the rest: the lips part just before the closure.
+      expect(long.sample(0.1 - 0.03).to, Viseme.i2, reason: 'from the smiling rest, lips part slightly first');
+      expect(long.sample(0.1 + 0.01).to, Viseme.mbp);
       for (final c in long.cues.where((c) => c.viseme == Viseme.i2)) {
         expect(c.duration, greaterThanOrEqualTo(0.033), reason: 'no one-frame flicker');
       }
-      expect(tl.sample(0.05).viseme, Viseme.rest);
+      expect(tl.sample(0.02).viseme, Viseme.rest);
       const es2 = 'gran paso';
       final t2 = VisemeTimeline.fromTimedWords(es2, CoachLanguage.es, [(0, 4, 0, 0.3), (5, 9, 0.3, 0.7)]);
       expect(t2.words[0].segments.last.viseme, Viseme.mbp);

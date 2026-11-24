@@ -34,7 +34,22 @@ class AppState extends ChangeNotifier {
         _store = store,
         _clock = clock ?? DateTime.now,
         _deviceRegion = deviceRegion ?? _platformRegion {
+    _store?.addListener(_onStoreChanged);
     _load();
+  }
+
+  @override
+  void dispose() {
+    _store?.removeListener(_onStoreChanged);
+    super.dispose();
+  }
+
+  /// While the subscription is active nothing has been dismissed: buying
+  /// closes the paywall through the same callback as "Not now", and a
+  /// subscription that then expires or is refunded in the foreground must
+  /// bring the paywall back at once (it replaces the tabs, see RootGate).
+  void _onStoreChanged() {
+    if (_store?.isEntitled ?? false) _paywallDismissed = false;
   }
 
   final StorageService _storage;
@@ -59,11 +74,15 @@ class AppState extends ChangeNotifier {
   bool _onboarded = false;
   bool get onboarded => _onboarded;
 
-  /// Set when the user closes the paywall this session (not persisted, so a
-  /// non-subscriber sees it again on the next launch).
+  /// Set when the user closes the paywall this session without an active
+  /// subscription (not persisted, so a non-subscriber sees it again on the
+  /// next launch). Cleared while subscribed, so a lapse shows the paywall.
   bool _paywallDismissed = false;
   bool get paywallDismissed => _paywallDismissed;
   void dismissPaywall() {
+    // A purchase closes the paywall through this same callback: that is not
+    // a dismissal, or a later lapse would leave the tabs in place.
+    if (_store?.isEntitled ?? false) return;
     _paywallDismissed = true;
     notifyListeners();
   }

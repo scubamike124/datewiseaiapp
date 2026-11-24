@@ -707,7 +707,7 @@ class AppStoreService extends StoreService {
     try {
       await _iap.completePurchase(p);
     } catch (e) {
-      debugPrint('[DW store] completePurchase failed for ${p.productID}: ${e.runtimeType}');
+      debugPrint('[DW store] completePurchase failed for ${p.productID} (purchaseID ${p.purchaseID ?? 'null: StoreKit Test id 0'}): ${e.runtimeType}');
     }
   }
 
