@@ -417,6 +417,7 @@ jobs:
         env:
           AVATAR_AUDIO_PATH: ${{ inputs.avatar_audio_path && 'true' || 'false' }}
           COACH_BACKEND: ${{ inputs.coach_backend }}
+          OWNER_ACCESS: ${{ inputs.owner_access && 'true' || 'false' }}
           SIGNING: ${{ inputs.signing }}
         run: |
           flutter pub get
@@ -426,7 +427,7 @@ jobs:
           # AIConfig.productionUrl.
           STAGING_COACH_URL="https://datewise-coach-staging.scubamike124.workers.dev"
           DEFINES=(--dart-define=DW_AVATAR_AUDIO_PATH="$AVATAR_AUDIO_PATH")
-          if [ "${{ inputs.owner_access }}" = "true" ]; then DEFINES+=(--dart-define=DW_OWNER_ACCESS=true); fi
+          if [ "$OWNER_ACCESS" = "true" ]; then DEFINES+=(--dart-define=DW_OWNER_ACCESS=true); fi
           case "$COACH_BACKEND" in
             production|"") COACH_BACKEND=production ;;
             staging) DEFINES+=(--dart-define=COACH_BACKEND_URL="$STAGING_COACH_URL") ;;
