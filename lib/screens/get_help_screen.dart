@@ -102,6 +102,8 @@ class GetHelpScreen extends StatelessWidget {
                   DwCard(
                     padding: EdgeInsets.zero,
                     child: Column(
+                      // Every row spans the card, so short rows stay left-aligned with the others.
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         for (var i = 0; i < c.lines.length; i++) ...[
                           if (i > 0) const Divider(height: 1),

@@ -271,6 +271,15 @@ void main() {
       expect(es, lessThan(us));
     });
 
+    testWidgets('every line row spans its card, so short rows stay left-aligned', (tester) async {
+      await pumpScreen(tester, const GetHelpScreen(firstCountry: 'US'), size: const Size(390, 2600));
+      // US: 988 (long label) and 911 (short label) must start at the same x and have the same width.
+      final long = tester.getRect(find.byKey(const ValueKey('help-US-0')));
+      final short = tester.getRect(find.byKey(const ValueKey('help-US-1')));
+      expect(short.left, long.left);
+      expect(short.width, long.width);
+    });
+
     testWidgets('reachable from the You tab', (tester) async {
       await pumpApp(tester, prefs: onboardedPrefs(), tab: AppTab.you, size: const Size(390, 2400));
       await tester.tap(find.byKey(const ValueKey('row-get-help')));
