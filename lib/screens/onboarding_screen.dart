@@ -347,7 +347,8 @@ class _OptionTile extends StatelessWidget {
                     const SizedBox(width: 8),
                     Icon(
                       selected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
-                      color: selected ? AppColors.gold : AppColors.line2,
+                      // faint on the tile is 5.5:1, over the 3:1 a control needs (WCAG 1.4.11).
+                      color: selected ? AppColors.gold : AppColors.faint,
                     ),
                   ],
                 ),

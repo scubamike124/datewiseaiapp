@@ -162,6 +162,16 @@ class DwButton extends StatelessWidget {
       border = Border.all(color: const Color(0x59DDB67F));
       fg = const Color(0xB3F0D3A3);
     }
+    // A disabled rose or ghost button: the same quiet outline, in the page's
+    // muted text color at full opacity, instead of the whole button at half
+    // opacity (rose then read at 3.8:1). textMuted on this fill is over 9:1.
+    final quietOther = !enabled && !busy && style != DwButtonStyle.gold;
+    if (quietOther) {
+      gradient = null;
+      bg = const Color(0x0AFFFFFF);
+      border = Border.all(color: AppColors.line2);
+      fg = AppColors.textMuted;
+    }
     final text = Text(
       label,
       textAlign: TextAlign.center,
@@ -190,7 +200,7 @@ class DwButton extends StatelessWidget {
       button: true,
       enabled: enabled,
       child: Opacity(
-        opacity: enabled || busy || quietGold ? 1 : 0.5,
+        opacity: enabled || busy || quietGold || quietOther ? 1 : 0.5,
         child: Container(
           constraints: BoxConstraints(minHeight: height),
           decoration: BoxDecoration(
