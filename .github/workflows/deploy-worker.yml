@@ -652,7 +652,7 @@ jobs:
             fi
           fi
 
-      - name: ID_HASH_SALT must exist on the Worker or be provided (set only if missing)
+      - name: ID_HASH_SALT is kept if the Worker has one, otherwise set (from the environment or a new random value)
         id: salt
         if: needs.check.outputs.target == 'chat-v7-cost-guard'
         working-directory: backend
@@ -691,8 +691,20 @@ jobs:
             echo "ID_HASH_SALT is missing on the Worker; it will be set from the environment secret with this deploy."
             echo "with_salt=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::error::ID_HASH_SALT is missing on the Worker and the production-worker environment has no ID_HASH_SALT secret. Not deploying."
-            exit 1
+            umask 077
+            # No salt on the Worker and none provided: generate 32 random bytes
+            # (Node's CSPRNG) straight into the 0600 secrets file. The value never
+            # enters a shell variable, an output or the log; the file is deleted
+            # after the deploy. This branch runs only when the secret list was
+            # read successfully and has no ID_HASH_SALT (or the Worker does not
+            # exist yet), so an existing salt is never replaced: every later
+            # deploy takes the "already set; keeping it" branch above.
+            # Recovery: the salt only keys the usage counters in this Worker's own
+            # Durable Object. That data is deleted with the Worker, so a rebuilt
+            # Worker simply gets a new random salt and loses nothing.
+            node -e 'require("fs").writeFileSync(process.argv[1], JSON.stringify({ ID_HASH_SALT: require("crypto").randomBytes(32).toString("hex") }), { mode: 0o600 })' "$RUNNER_TEMP/salt.json"
+            echo "ID_HASH_SALT is missing on the Worker and no environment secret is set; a new random salt is generated and set with this deploy (never printed)."
+            echo "with_salt=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Staging ID_HASH_SALT (random, set only if the staging Worker has none)
