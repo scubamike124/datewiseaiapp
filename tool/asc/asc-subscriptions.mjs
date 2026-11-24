@@ -26,6 +26,7 @@
  */
 import { createPrivateKey, createHash, sign as cryptoSign } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 
 export const API = "https://api.appstoreconnect.apple.com";
 const PERIODS = new Set(["ONE_WEEK", "ONE_MONTH", "TWO_MONTHS", "THREE_MONTHS", "SIX_MONTHS", "ONE_YEAR"]);
@@ -90,7 +91,7 @@ export function createClient({ keyId, issuerId, p8, fetchImpl = fetch, sleep = (
           body: body ? JSON.stringify(body) : undefined,
         });
       } catch (e) {
-        if (attempt < 3) {
+        if (method === "GET" && attempt < 3) {
           await sleep(500 * 2 ** attempt);
           continue;
         }
@@ -109,7 +110,8 @@ export function createClient({ keyId, issuerId, p8, fetchImpl = fetch, sleep = (
       }
       const kind = classify(res.status);
       const code = ((json.errors || [])[0] || {}).code || "";
-      if ((kind === "rate_limit" || kind === "server") && attempt < 3) {
+      // GETs are retried; a POST never is (it may already have succeeded on Apple's side): the caller re-reads.
+      if (method === "GET" && (kind === "rate_limit" || kind === "server") && attempt < 3) {
         await sleep(1000 * 2 ** attempt);
         continue;
       }
@@ -176,6 +178,7 @@ export function validateSpec(spec) {
     ids.add(s.productId);
     if (!s.referenceName || s.referenceName.length > 64) err(`${s.productId}: referenceName missing`);
     if (!PERIODS.has(s.period)) err(`${s.productId}: period must be one of ${[...PERIODS].join(", ")}`);
+    if (s.groupLevel !== undefined && !(Number.isInteger(s.groupLevel) && s.groupLevel >= 1)) err(`${s.productId}: groupLevel must be a whole number from 1`);
     if (typeof s.familySharable !== "boolean") err(`${s.productId}: familySharable must be true or false (it can never be turned off once on)`);
     if (s.introductoryOffers !== "none") err(`${s.productId}: introductoryOffers must be "none" (offers are not automated)`);
     locs(s.localizations, `${s.productId}.localizations`, true);
@@ -188,6 +191,8 @@ export function validateSpec(spec) {
     if (typeof a.availableInNewTerritories !== "boolean") err(`${s.productId}: availability.availableInNewTerritories must be true or false`);
     for (const t of p.territories) if (!a.territories.includes(t)) err(`${s.productId}: priced territory ${t} is not in availability`);
   }
+  const levels = spec.subscriptions.map((s) => s.groupLevel ?? 1);
+  if (new Set(levels).size !== levels.length) err("each subscription in the group needs its own groupLevel (1 = highest service level)");
   return spec;
 }
 
@@ -224,11 +229,19 @@ export async function readState(client, spec) {
       const points = new Map(prices.included.filter((x) => x.type === "subscriptionPricePoints").map((x) => [x.id, x.attributes]));
       const today = new Date().toISOString().slice(0, 10);
       const priceByTerritory = {};
+      const priceProblems = [];
       for (const p of prices.data) {
         const t = (rel(p, "territory") || {}).id;
-        const pp = points.get((rel(p, "subscriptionPricePoint") || {}).id) || {};
+        const pp = points.get((rel(p, "subscriptionPricePoint") || {}).id);
         const start = p.attributes && p.attributes.startDate;
-        if (!t || (start && start > today)) continue;
+        if (!t || !pp || typeof pp.customerPrice !== "string") {
+          priceProblems.push(`a price entry (${p.id}) without a readable territory or price point`);
+          continue;
+        }
+        if (start && start > today) {
+          priceProblems.push(`a scheduled price change for ${t} from ${start}`);
+          continue;
+        }
         if (!priceByTerritory[t] || (start || "") >= (priceByTerritory[t].startDate || "")) priceByTerritory[t] = { customerPrice: pp.customerPrice, startDate: start || null };
       }
       subs[s.productId] = {
@@ -241,6 +254,7 @@ export async function readState(client, spec) {
         familySharable: s.familySharable,
         localizations: Object.fromEntries(locs.data.map((l) => [l.attributes.locale, { id: l.id, name: l.attributes.name, description: l.attributes.description }])),
         prices: priceByTerritory,
+        priceProblems,
         availability: avail && avail.data ? { id: avail.data.id, availableInNewTerritories: avail.data.attributes.availableInNewTerritories, territories: (await client.getAll(`/v1/subscriptionAvailabilities/${avail.data.id}/availableTerritories?limit=200`)).data.map((x) => x.id).sort() } : null,
         introductoryOffers: offers.data.length,
       };
@@ -275,7 +289,7 @@ export async function resolvePrices(client, subscriptionId, price) {
  */
 export function computePlan(spec, state, equalized = {}) {
   const steps = [];
-  const add = (op, what, detail = "") => steps.push({ op, what, detail });
+  const add = (op, what, detail = "", stable = detail) => steps.push({ op, what, detail, stable });
   const group = state.groups.find((g) => g.referenceName === spec.group.referenceName);
   if (state.groups.filter((g) => g.referenceName === spec.group.referenceName).length > 1) add("conflict", `group "${spec.group.referenceName}"`, "more than one group has this reference name");
   add(group ? "unchanged" : "create", `subscription group "${spec.group.referenceName}"`, group ? `id ${group.id}` : "");
@@ -288,13 +302,15 @@ export function computePlan(spec, state, equalized = {}) {
   for (const s of spec.subscriptions) {
     const have = state.subs[s.productId];
     if (!have) {
-      add("create", `subscription ${s.productId}`, `"${s.referenceName}", ${s.period}, family sharing ${s.familySharable ? "on" : "off"}, group level 1`);
+      add("create", `subscription ${s.productId}`, `"${s.referenceName}", ${s.period}, family sharing ${s.familySharable ? "on" : "off"}, group level ${s.groupLevel ?? 1}`);
     } else {
       const diffs = [];
       if (have.groupReferenceName !== spec.group.referenceName) diffs.push(`it is in group "${have.groupReferenceName}"`);
       if (have.period !== s.period) diffs.push(`period ${have.period}`);
       if (have.familySharable !== s.familySharable) diffs.push(`family sharing ${have.familySharable ? "ON (Apple never allows turning it off)" : "off"}`);
-      add(diffs.length ? "conflict" : "unchanged", `subscription ${s.productId}`, diffs.length ? diffs.join("; ") : `id ${have.id}, state ${have.state}`);
+      const okDetail = `id ${have.id}, ${have.period}, family sharing ${have.familySharable ? "on" : "off"}`;
+      add(diffs.length ? "conflict" : "unchanged", `subscription ${s.productId}`, diffs.length ? diffs.join("; ") : `${okDetail}, state ${have.state}`, diffs.length ? diffs.join("; ") : okDetail);
+      for (const pr of have.priceProblems || []) add("conflict", `${s.productId} prices`, `${pr} (not changed by this tool; review by hand)`);
     }
     for (const [loc, v] of Object.entries(s.localizations)) {
       const l = have && have.localizations[loc];
@@ -307,10 +323,15 @@ export function computePlan(spec, state, equalized = {}) {
       const want = t === s.price.baseTerritory ? s.price.customerPrice : (equalized[s.productId] || {})[t] || "Apple's equalized price";
       if (!live) add("create", `${s.productId} price ${t}`, `${want}${t === s.price.baseTerritory ? "" : ` (equalized from ${s.price.baseTerritory} ${s.price.customerPrice})`}`);
       else if (t === s.price.baseTerritory && live.customerPrice !== s.price.customerPrice) add("conflict", `${s.productId} price ${t}`, `live ${live.customerPrice}, wanted ${s.price.customerPrice} (not changed by this tool)`);
+      else if (t !== s.price.baseTerritory && (equalized[s.productId] || {})[t] && (equalized[s.productId] || {})[t] !== live.customerPrice)
+        add("note", `${s.productId} price ${t}`, `${live.customerPrice} (Apple's equalized price for ${s.price.baseTerritory} ${s.price.customerPrice} would be ${(equalized[s.productId] || {})[t]}; a custom price is kept as is)`);
       else add("unchanged", `${s.productId} price ${t}`, `${live.customerPrice}`);
     }
-    const extraPriced = have ? Object.keys(have.prices).filter((t) => !s.price.territories.includes(t)) : [];
-    if (extraPriced.length) add("conflict", `${s.productId} prices`, `also priced in ${extraPriced.join(", ")} (left as is; review by hand)`);
+    const extraPriced = have ? Object.keys(have.prices).filter((t) => !s.price.territories.includes(t)).sort() : [];
+    const sold = new Set((have && have.availability ? have.availability.territories : s.availability.territories));
+    const extraSold = extraPriced.filter((t) => sold.has(t));
+    if (extraSold.length) add("conflict", `${s.productId} prices`, `also priced and available in ${extraSold.join(", ")} (left as is; review by hand)`);
+    if (extraPriced.length > extraSold.length) add("note", `${s.productId} prices outside availability`, `${extraPriced.length - extraSold.length} territories carry Apple's automatic equalized prices but the subscription is not available there, so nothing is sold (left as is)`);
     const wantTerr = [...s.availability.territories].sort();
     if (!have || !have.availability) add("create", `${s.productId} availability`, `${wantTerr.join(", ")}; new territories ${s.availability.availableInNewTerritories ? "on" : "off"}`);
     else if (have.availability.territories.join(",") !== wantTerr.join(",") || have.availability.availableInNewTerritories !== s.availability.availableInNewTerritories)
@@ -324,16 +345,18 @@ export function computePlan(spec, state, equalized = {}) {
     const wanted = new Set(spec.subscriptions.map((s) => s.productId));
     for (const s of group.subscriptions) if (!wanted.has(s.productId)) add("conflict", `other subscription ${s.productId} in group`, `state ${s.state}; the spec has no such plan (left as is)`);
   }
-  const hash = createHash("sha256").update(JSON.stringify({ spec, steps: steps.map(({ op, what, detail }) => [op, what, detail]) })).digest("hex");
-  return { app: state.app, steps, hash, creates: steps.filter((s) => s.op === "create").length, conflicts: steps.filter((s) => s.op === "conflict").length };
+  const hash = createHash("sha256").update(JSON.stringify({ spec, steps: steps.map(({ op, what, stable }) => [op, what, stable]) })).digest("hex");
+  for (const st of steps) delete st.stable;
+  return { app: state.app, steps, hash, creates: steps.filter((s) => s.op === "create").length, conflicts: steps.filter((s) => s.op === "conflict").length, newSubscriptions: spec.subscriptions.filter((x) => !state.subs[x.productId]).map((x) => x.productId) };
 }
 
 export function renderReport(plan, { mode = "plan" } = {}) {
-  const icon = { create: "CREATE", unchanged: "UNCHANGED", conflict: "CONFLICT" };
+  const icon = { create: "CREATE", unchanged: "UNCHANGED", conflict: "CONFLICT", note: "NOTE" };
   const lines = [
     `### White Glove subscription ${mode === "plan" ? "dry run (read-only)" : "apply"}: ${plan.app.name} (Apple ID ${plan.app.id})`,
     "",
     `- Would create: **${plan.creates}**; conflicts: **${plan.conflicts}**; nothing is ever deleted or edited.`,
+    ...(plan.newSubscriptions && plan.newSubscriptions.length ? [`- New subscription(s) ${plan.newSubscriptions.join(", ")}: prices are NOT set in this run. Apple's exact equalized prices can only be read once the subscription exists, so a second dry run shows them for separate approval.`] : []),
     `- Plan hash (approve this exact plan with \`--expect-plan\`): \`${plan.hash}\``,
     "",
     "| Action | Object | Detail |",
@@ -364,87 +387,102 @@ const body = (type, attributes, relationships) => ({ data: { type, attributes, r
 const ref = (type, id) => ({ data: { type, id } });
 
 /**
- * Create what the approved plan says is missing. Re-reads the live state first and refuses if the plan hash differs
- * from `expectPlan`, or if any conflict exists. Every create is preceded by a fresh check, and a 409 means "someone
- * (or an interrupted earlier run) created it": the object is re-read, never created twice.
+ * Create exactly what the approved plan listed as CREATE, nothing else.
+ *  - Re-reads the live state and refuses unless its plan hash equals `expectPlan` and it has no conflict.
+ *  - Each create is checked against the approved CREATE list and against a fresh read just before it is sent.
+ *  - A POST is never retried. On a 409, or on any error whose outcome is unknown (network, 5xx), the object is
+ *    looked up again: if it now exists it is kept (never created twice); otherwise the run stops with the error.
+ *  - Prices are never set on a subscription created in the same run: Apple's equalized prices can only be read
+ *    once it exists, so a second dry run shows them for separate approval.
+ *  - Ends with a fresh plan and throws if anything approved is still missing or a conflict appeared.
  */
 export async function apply(client, spec, { expectPlan, log = () => {} }) {
   if (!/^[0-9a-f]{64}$/.test(expectPlan || "")) throw new AscError("apply needs --expect-plan <sha256> from an approved dry run", { kind: "safety" });
   const first = await plan(client, spec);
   if (first.plan.hash !== expectPlan) throw new AscError(`the live plan (${first.plan.hash}) is not the approved plan; run a new dry run and approve it`, { kind: "safety" });
   if (first.plan.conflicts) throw new AscError(`${first.plan.conflicts} conflict(s); resolve them by hand first`, { kind: "safety" });
+  const approved = new Set(first.plan.steps.filter((x) => x.op === "create").map((x) => x.what));
+  const newSubs = new Set(first.plan.newSubscriptions);
   const created = [];
-  const tolerate409 = async (fn, what) => {
+  const deferred = [];
+  /** Create one approved object. `exists` re-reads live state and says whether it is there now. */
+  const create = async (what, send, exists) => {
+    if (!approved.has(what)) throw new AscError(`refused: "${what}" was not in the approved plan`, { kind: "safety" });
+    if (await exists()) {
+      log(`${what}: already there now; not created again`);
+      return;
+    }
     try {
-      const r = await fn();
-      created.push(what);
-      log(`created ${what}`);
-      return r;
+      await send();
     } catch (e) {
-      if (e.kind === "conflict") {
-        log(`${what}: Apple says it already exists (409); keeping the existing one`);
-        return null;
+      if (e.kind === "conflict" || e.kind === "network" || e.kind === "server") {
+        if (await exists()) {
+          log(`${what}: Apple answered ${e.status || e.kind} but the object exists; keeping it`);
+          return;
+        }
       }
       throw e;
     }
+    if (!(await exists())) throw new AscError(`${what}: Apple accepted the request but the object cannot be read back`, { kind: "api" });
+    created.push(what);
+    log(`created ${what}`);
   };
-  let state = first.state;
-  let group = state.groups.find((g) => g.referenceName === spec.group.referenceName);
-  if (!group) {
-    await tolerate409(() => client.post("/v1/subscriptionGroups", body("subscriptionGroups", { referenceName: spec.group.referenceName }, { app: ref("apps", state.app.id) })), `group ${spec.group.referenceName}`);
-    state = await readState(client, spec);
-    group = state.groups.find((g) => g.referenceName === spec.group.referenceName);
-    if (!group) throw new AscError("the group was not found after creating it", { kind: "api" });
-  }
+  const fresh = () => readState(client, spec);
+  const groupOf = (st) => st.groups.find((g) => g.referenceName === spec.group.referenceName);
+
+  const gWhat = `subscription group "${spec.group.referenceName}"`;
+  if (!groupOf(first.state)) await create(gWhat, () => client.post("/v1/subscriptionGroups", body("subscriptionGroups", { referenceName: spec.group.referenceName }, { app: ref("apps", first.state.app.id) })), async () => !!groupOf(await fresh()));
+  let group = groupOf(await fresh());
+  if (!group) throw new AscError("the subscription group is missing", { kind: "api" });
   for (const [loc, v] of Object.entries(spec.group.localizations)) {
-    if (group.localizations.some((l) => l.locale === loc)) continue;
-    await tolerate409(() => client.post("/v1/subscriptionGroupLocalizations", body("subscriptionGroupLocalizations", { name: v.name, locale: loc }, { subscriptionGroup: ref("subscriptionGroups", group.id) })), `group localization ${loc}`);
+    const what = `group localization ${loc}`;
+    if (!approved.has(what)) continue;
+    await create(what, () => client.post("/v1/subscriptionGroupLocalizations", body("subscriptionGroupLocalizations", { name: v.name, locale: loc }, { subscriptionGroup: ref("subscriptionGroups", group.id) })), async () => !!groupOf(await fresh())?.localizations.some((l) => l.locale === loc));
   }
   for (const s of spec.subscriptions) {
-    state = await readState(client, spec);
-    let have = state.subs[s.productId];
-    if (!have) {
-      await tolerate409(
-        () =>
-          client.post(
-            "/v1/subscriptions",
-            body("subscriptions", { name: s.referenceName, productId: s.productId, subscriptionPeriod: s.period, familySharable: s.familySharable, groupLevel: 1, ...(s.reviewNote ? { reviewNote: s.reviewNote } : {}) }, { group: ref("subscriptionGroups", group.id) }),
-          ),
-        `subscription ${s.productId}`,
+    const subWhat = `subscription ${s.productId}`;
+    if (approved.has(subWhat))
+      await create(
+        subWhat,
+        () => client.post("/v1/subscriptions", body("subscriptions", { name: s.referenceName, productId: s.productId, subscriptionPeriod: s.period, familySharable: s.familySharable, groupLevel: s.groupLevel ?? 1, ...(s.reviewNote ? { reviewNote: s.reviewNote } : {}) }, { group: ref("subscriptionGroups", group.id) })),
+        async () => !!(await fresh()).subs[s.productId],
       );
-      state = await readState(client, spec);
-      have = state.subs[s.productId];
-      if (!have) throw new AscError(`subscription ${s.productId} not found after creating it`, { kind: "api" });
-    }
+    const have = (await fresh()).subs[s.productId];
+    if (!have) throw new AscError(`subscription ${s.productId} is missing`, { kind: "api" });
+    const live = async () => (await fresh()).subs[s.productId] || {};
     for (const [loc, v] of Object.entries(s.localizations)) {
-      if (have.localizations[loc]) continue;
-      await tolerate409(() => client.post("/v1/subscriptionLocalizations", body("subscriptionLocalizations", { name: v.name, description: v.description, locale: loc }, { subscription: ref("subscriptions", have.id) })), `${s.productId} localization ${loc}`);
+      const what = `${s.productId} localization ${loc}`;
+      if (!approved.has(what)) continue;
+      await create(what, () => client.post("/v1/subscriptionLocalizations", body("subscriptionLocalizations", { name: v.name, description: v.description, locale: loc }, { subscription: ref("subscriptions", have.id) })), async () => !!((await live()).localizations || {})[loc]);
     }
-    if (!have.availability) {
-      await tolerate409(
-        () =>
-          client.post(
-            "/v1/subscriptionAvailabilities",
-            body("subscriptionAvailabilities", { availableInNewTerritories: s.availability.availableInNewTerritories }, { subscription: ref("subscriptions", have.id), availableTerritories: { data: s.availability.territories.map((t) => ({ type: "territories", id: t })) } }),
-          ),
-        `${s.productId} availability`,
+    const aWhat = `${s.productId} availability`;
+    if (approved.has(aWhat))
+      await create(
+        aWhat,
+        () => client.post("/v1/subscriptionAvailabilities", body("subscriptionAvailabilities", { availableInNewTerritories: s.availability.availableInNewTerritories }, { subscription: ref("subscriptions", have.id), availableTerritories: { data: s.availability.territories.map((t) => ({ type: "territories", id: t })) } })),
+        async () => !!(await live()).availability,
       );
+    const priceSteps = s.price.territories.map((t) => [t, `${s.productId} price ${t}`]).filter(([, w]) => approved.has(w));
+    if (!priceSteps.length) continue;
+    if (newSubs.has(s.productId)) {
+      deferred.push(...priceSteps.map(([, w]) => w));
+      continue;
     }
     const points = await resolvePrices(client, have.id, s.price);
-    for (const t of s.price.territories) {
-      if (have.prices[t]) continue;
-      await tolerate409(
-        () =>
-          client.post(
-            "/v1/subscriptionPrices",
-            body("subscriptionPrices", { startDate: null, preserveCurrentPrice: false }, { subscription: ref("subscriptions", have.id), subscriptionPricePoint: ref("subscriptionPricePoints", points[t].pointId), territory: ref("territories", t) }),
-          ),
-        `${s.productId} price ${t} ${points[t].customerPrice}`,
+    for (const [t, what] of priceSteps) {
+      await create(
+        what,
+        () => client.post("/v1/subscriptionPrices", body("subscriptionPrices", { startDate: null, preserveCurrentPrice: true }, { subscription: ref("subscriptions", have.id), subscriptionPricePoint: ref("subscriptionPricePoints", points[t].pointId), territory: ref("territories", t) })),
+        async () => !!((await live()).prices || {})[t],
       );
     }
   }
-  const after = await plan(client, spec);
-  return { created, after: after.plan };
+  const after = (await plan(client, spec)).plan;
+  const missing = after.steps.filter((x) => x.op === "create" && !deferred.includes(x.what) && !/ price [A-Z]{3}$/.test(x.what)).map((x) => x.what);
+  const stillPrices = after.steps.filter((x) => x.op === "create" && / price [A-Z]{3}$/.test(x.what) && !deferred.includes(x.what) && !newSubs.has(x.what.split(" ")[0])).map((x) => x.what);
+  if (after.conflicts || missing.length || stillPrices.length)
+    throw new AscError(`apply finished with ${after.conflicts} conflict(s) and missing: ${[...missing, ...stillPrices].join(", ") || "none"}`, { kind: "api" });
+  return { created, deferred, after };
 }
 
 // ---------------------------------------------------------------- CLI
@@ -472,7 +510,7 @@ async function main() {
       if (process.env.GITHUB_STEP_SUMMARY) writeFileSync(process.env.GITHUB_STEP_SUMMARY, report, { flag: "a" });
     } else {
       const r = await apply(client, spec, { expectPlan: arg("--expect-plan"), log: (m) => console.log(m) });
-      const report = `Created ${r.created.length}: ${r.created.join("; ") || "nothing"}\n\n` + renderReport(r.after, { mode: "apply" });
+      const report = `Created ${r.created.length}: ${r.created.join("; ") || "nothing"}\n${r.deferred.length ? `Deferred to a second approved dry run (prices of a new subscription): ${r.deferred.join("; ")}\n` : ""}\n` + renderReport(r.after, { mode: "apply" });
       process.stdout.write(report);
       if (process.env.GITHUB_STEP_SUMMARY) writeFileSync(process.env.GITHUB_STEP_SUMMARY, report, { flag: "a" });
     }
@@ -483,4 +521,4 @@ async function main() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
