@@ -43,4 +43,4 @@ jobs:
           BUNDLE_ID: com.datewise.datewiseAi
           PRODUCT_ID: datewise_premium_monthly
           EXPECTED_USD: '19.99'
-        run: "$RUNNER_TEMP/venv/bin/python" -I tool/asc/verify_asc.py
+        run: '"$RUNNER_TEMP/venv/bin/python" -I tool/asc/verify_asc.py'
