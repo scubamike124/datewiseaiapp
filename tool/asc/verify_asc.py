@@ -152,6 +152,27 @@ def main():
         offers = body.get("data") or []
         check("no free trial or introductory offer", len(offers) == 0, f"{len(offers)} offer(s)")
 
+    # TestFlight builds (read-only): newest uploads, processing state, expiry, and beta review state.
+    status, body = get("/v1/builds", token, {"filter[app]": app["id"], "sort": "-uploadedDate", "limit": "5",
+                                              "fields[builds]": "version,uploadedDate,processingState,expired,expirationDate,minOsVersion",
+                                              "include": "preReleaseVersion,buildBetaDetail",
+                                              "fields[preReleaseVersions]": "version",
+                                              "fields[buildBetaDetails]": "internalBuildState,externalBuildState"})
+    if status == 200:
+        inc = {(x["type"], x["id"]): x["attributes"] for x in body.get("included") or []}
+        for b in body.get("data") or []:
+            a = b["attributes"]
+            rv = (b.get("relationships", {}).get("preReleaseVersion", {}).get("data") or {}).get("id")
+            bd = (b.get("relationships", {}).get("buildBetaDetail", {}).get("data") or {}).get("id")
+            ver = inc.get(("preReleaseVersions", rv), {}).get("version", "?")
+            beta = inc.get(("buildBetaDetails", bd), {})
+            note(f"build {ver} ({a.get('version')})", f"uploaded {str(a.get('uploadedDate'))[:16]}, processing {a.get('processingState')}, expired {a.get('expired')}, internal testing {beta.get('internalBuildState')}, external {beta.get('externalBuildState')}")
+    else:
+        note("TestFlight builds", f"HTTP {status} {err_code(body)}")
+    status, body = get(f"/v1/apps/{app['id']}/betaGroups", token, {"fields[betaGroups]": "name,isInternalGroup,publicLinkEnabled,hasAccessToAllBuilds", "limit": "20"})
+    groups = body.get("data") or [] if status == 200 else []
+    note("TestFlight groups", ", ".join(f"{g['attributes'].get('name')} ({'internal' if g['attributes'].get('isInternalGroup') else 'external'})" for g in groups) or f"none (HTTP {status})")
+
     # 4. Informational: can this key manage signing (needed for cloud signing)?
     status, body = get("/v1/certificates", token, {"limit": "1"})
     note("key can read signing certificates (cloud signing needs this)", f"HTTP {status}" + ("" if status == 200 else f" {err_code(body)}"))
