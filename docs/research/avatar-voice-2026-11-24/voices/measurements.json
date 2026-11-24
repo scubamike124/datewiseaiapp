@@ -1,0 +1,119 @@
+[
+ {
+  "file": "mp3/chatterbox-ava.mp3",
+  "wer": 0.0,
+  "duration": 22.4,
+  "hyp": "Oh, nice! Okay, first, don't overthink it. Tell me what caught your eye in their profile.  Ha! That's your opener, right there. Try something like, okay, important question, does the dog get tacos after the hike?  It's playful, it's specific, and it's really easy to answer. Want me to give you a backup line just in case?",
+  "f0_median": 206.0,
+  "f0_range_semitones": 9.9,
+  "words_per_min": 153
+ },
+ {
+  "file": "mp3/chatterbox-diego.mp3",
+  "wer": 0.033,
+  "duration": 21.5,
+  "hyp": "Es totalmente normal. Los nervios solo significan que te importa.  ¿Dónde se van a ver?  Muy bien.  Un café es perfecto para una primera cita.  Es corto, relajado y fácil de alargar si todo va bien.  Mi consejo, piensa en algo que de verdad te dé curiosidad.  Péuntalo y luego escucha de verdad.  No necesitas un guión, solo ten curiosidad.",
+  "f0_median": 139.0,
+  "f0_range_semitones": 15.2,
+  "words_per_min": 167
+ },
+ {
+  "file": "mp3/chatterbox-ethan.mp3",
+  "wer": 0.0,
+  "duration": 22.0,
+  "hyp": "That's completely normal. Nervous just means you care. Where are you meeting?  Good. Coffee is perfect for a first date. Short, relaxed, and easy to extend if it's going well.  Here's my advice. Pick one thing you're genuinely curious about, ask about it,  and then really listen. You don't need a script. Just be curious.",
+  "f0_median": 134.0,
+  "f0_range_semitones": 12.1,
+  "words_per_min": 150
+ },
+ {
+  "file": "mp3/chatterbox-sofia.mp3",
+  "wer": 0.069,
+  "duration": 32.4,
+  "hyp": "¡Qué bien! A ver, primero no lo pienses tanto. Cuéntame qué te llamó la atención de su perfil.  ¡Ja! Ahí está tu primer mensaje. ¡Pruéba algo así! Oye, pregunta importante.  El perro también cometa acos después de la caminata. Es divertido.  Es específico y es muy fácil de contestar.  ¿Quieres que te leí otra opción, por si acaso?",
+  "f0_median": 167.0,
+  "f0_range_semitones": 26.2,
+  "words_per_min": 107
+ },
+ {
+  "file": "mp3/kokoro-ava-af_bella.mp3",
+  "wer": 0.0,
+  "duration": 21.9,
+  "hyp": "Oh, nice. Okay, first, don't overthink it. Tell me what caught your eye in their profile.  Ha, that's your opener right there. Try something like,  Okay, important question, does the dog get tacos after the hike?  It's playful, it's specific, and it's really easy to answer.  Want me to give you a backup line just in case?",
+  "f0_median": 211.0,
+  "f0_range_semitones": 8.1,
+  "words_per_min": 156
+ },
+ {
+  "file": "mp3/kokoro-ava-af_heart.mp3",
+  "wer": 0.0,
+  "duration": 21.1,
+  "hyp": "Oh nice, okay first, don't overthink it.  Tell me what caught your eye in their profile.  Ha, that's your opener right there.  Try something like, okay, important question,  does the dog get tacos after the hike?  It's playful, it's specific, and it's really easy to answer.  Want me to give you a backup line just in case?",
+  "f0_median": 204.0,
+  "f0_range_semitones": 9.9,
+  "words_per_min": 162
+ },
+ {
+  "file": "mp3/kokoro-ava-af_nicole.mp3",
+  "wer": 0.0,
+  "duration": 32.5,
+  "hyp": "Oh, nice. Okay, first, don't overthink it. Tell me what caught your eye in their profile.  Ha, that's your opener right there. Try something like, okay, important question, does the dog  get tacos after the hike? It's playful, it's specific, and it's really easy to  answer. Want me to give you a backup line, just in case?",
+  "f0_median": 162.0,
+  "f0_range_semitones": 6.4,
+  "words_per_min": 105
+ },
+ {
+  "file": "mp3/kokoro-diego-em_alex.mp3",
+  "wer": 0.033,
+  "duration": 21.4,
+  "hyp": "Es totalmente normal, los nervios solo significan que te importa dónde se van a ver.  Muy bien, un café es perfecto para una primera cita.  Es corto, relajado y fácil de alargar si todo va bien.  Mi consejo, piensa en algo que de verdad te de curiosidad,  pregúntalo y luego escucha de verdad.  No necesitas un guión, solo ten curiosidad.",
+  "f0_median": 127.0,
+  "f0_range_semitones": 10.1,
+  "words_per_min": 168
+ },
+ {
+  "file": "mp3/kokoro-diego-em_santa.mp3",
+  "wer": 0.033,
+  "duration": 21.6,
+  "hyp": "Es totalmente normal, los nervios solo significan que te importa dónde se van a ver.  Muy bien, un café es perfecto para una primera cita.  Es corto, relajado y fácil de alargar si todo va bien.  Mi consejo, piensa en algo que de verdad te de curiosidad,  pregúntalo y luego escucha de verdad.  No necesitas un guión, solo ten curiosidad.",
+  "f0_median": 121.0,
+  "f0_range_semitones": 15.6,
+  "words_per_min": 167
+ },
+ {
+  "file": "mp3/kokoro-ethan-am_fenrir.mp3",
+  "wer": 0.0,
+  "duration": 20.5,
+  "hyp": "That's completely normal, nervous just means you care, where are you meeting?  Good, coffee is perfect for a first date, short, relaxed and easy to extend if it's going well.  Here's my advice, pick one thing you're genuinely curious about, ask about it and then really  listen, you don't need a script just be curious.",
+  "f0_median": 135.0,
+  "f0_range_semitones": 15.9,
+  "words_per_min": 161
+ },
+ {
+  "file": "mp3/kokoro-ethan-am_michael.mp3",
+  "wer": 0.0,
+  "duration": 23.1,
+  "hyp": "That's completely normal. Nervous just means you care. Where are you meeting?  Good coffee is perfect for a first date.  Short, relaxed and easy to extend if it's going well. Here's my advice.  Pick one thing you're genuinely curious about, ask about it, and then really listen. You don't need a script. Just be curious.",
+  "f0_median": 114.0,
+  "f0_range_semitones": 15.7,
+  "words_per_min": 143
+ },
+ {
+  "file": "mp3/kokoro-ethan-am_puck.mp3",
+  "wer": 0.0,
+  "duration": 20.2,
+  "hyp": "That's completely normal, nervous just means you care, where are you meeting?  Good, coffee is perfect for a first date, short, relaxed and easy to extend if it's going well.  Here's my advice, pick one thing you're genuinely curious about, ask about it and then really  listen. You don't need a script, just be curious.",
+  "f0_median": 108.0,
+  "f0_range_semitones": 16.9,
+  "words_per_min": 163
+ },
+ {
+  "file": "mp3/kokoro-sofia-ef_dora.mp3",
+  "wer": 0.069,
+  "duration": 20.3,
+  "hyp": "¿Qué bien haber primero, no lo pienses tanto? Cuéntame que te llamó la atención de su  perfil.  Ha, ahí está tu primer mensaje. Prueba algo así, oye, pregunta importante, el perro también  come tacos después de la caminata. Es divertido, es específico y es muy fácil de contestar.  Quieres que te dé otra opción, por si acaso.",
+  "f0_median": 175.0,
+  "f0_range_semitones": 8.3,
+  "words_per_min": 168
+ }
+]
