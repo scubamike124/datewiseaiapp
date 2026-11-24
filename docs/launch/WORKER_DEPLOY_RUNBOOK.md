@@ -91,22 +91,32 @@ environment's `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` point at.
 |---|---|---|
 | `CLOUDFLARE_API_TOKEN` | the token from 1b | both targets |
 | `CLOUDFLARE_ACCOUNT_ID` | the account ID from 1b | both targets |
-| `ID_HASH_SALT` | a long random string, e.g. `openssl rand -hex 32`; keep a copy in your password manager | chat-v7, **unless** you set it on the Worker yourself |
+| `ID_HASH_SALT` | optional: a long random string, e.g. `openssl rand -hex 32` | chat-v7, only if you want to choose the salt yourself; otherwise the workflow generates one (below) |
 
 - **Use environment secrets only, never repository or organization secrets.**
   Those are given to every job, not only to the approved deploy job. The
   workflow's first step fails if any of these three exists as a repository or
   organization secret.
-- `ID_HASH_SALT`, either way works:
-  - **(a)** set it once in the Cloudflare dashboard (Worker, Settings,
-    Variables and Secrets, Add, Secret). Then the GitHub secret isn't needed.
-    This only works once the Worker exists.
-  - **(b)** store it as the environment secret. The workflow writes it to the
-    Worker **only if the Worker doesn't already have one**, and never prints it.
+- `ID_HASH_SALT` (the Worker secret that salts the hashed subscriber and
+  network ids in the usage guard). The deploy job decides, in this order:
+  - **(a)** The Worker already has one: it is kept. Nothing is written, so a
+    salt is never rotated by a deploy.
+  - **(b)** The Worker has none and the environment secret `ID_HASH_SALT` is
+    set: that value is written to the Worker with this deploy.
+  - **(c)** The Worker has none and there is no environment secret: the job
+    generates 32 random bytes (Node's CSPRNG) directly into a 0600 temp file,
+    uploads it with this deploy and deletes the file. The value is never in a
+    shell variable, an output, the log or the repository, and nobody needs to
+    see it.
 
-  If the Worker has no salt and the secret is empty, the run fails before
-  uploading anything. If Wrangler can't list the Worker's secrets for any reason
-  other than "Worker not found", the run also fails, so an existing salt is never
+  Recovery: Cloudflare secrets are write-only, so there is nothing to back up. The salt
+  keys only the counters and revoked list kept in this Worker's own Durable
+  Object, which is deleted together with the Worker. Redeploys and rollbacks
+  keep both the secret and the Durable Object. A rebuilt Worker gets a new
+  salt under (b) or (c) and loses nothing that the old salt could still open.
+  To set the salt by hand instead, use (b), or the Cloudflare dashboard
+  (Worker, Settings, Variables and Secrets, Add, Secret) once the Worker exists. If Wrangler can't list the Worker's secrets, or the answer isn't a well-formed
+  list of named secrets, for any reason other than "Worker not found", the run also fails, so an existing salt is never
   overwritten. Rotating the salt resets every usage counter and the revoked list.
 - Optional repository **variable** (not a secret) `WORKER_URL`, e.g.
   `https://datewise-photo-coach.<subdomain>.workers.dev`. Without it, the

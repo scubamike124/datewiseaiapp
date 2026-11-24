@@ -184,7 +184,7 @@ From `docs/business/WORKERS_PAID_EVALUATION.md` section 4 (`node docs/business/a
 3. Create the new Cloudflare account and choose its workers.dev subdomain.
 4. Create the scoped deploy token (Workers Scripts Edit, new account only).
 5. Create the GitHub environment `production-worker` (required reviewer: you; deployment branches and tags restricted) with the environment secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, add the `worker-v*` tag ruleset, and protect `main` with a ruleset (`WORKER_DEPLOY_RUNBOOK.md` 1c–1f).
-6. `ID_HASH_SALT` (a long random value; store it in your password manager). For the first deploy on the new account, add it as a `production-worker` environment secret, because the Worker doesn't exist yet. Afterwards you may delete that secret, since the Worker keeps it.
+6. `ID_HASH_SALT`: nothing to add. The deploy workflow generates a random salt on the first deploy to a new account (or uses the `production-worker` secret if you set one) and keeps it on every later deploy (`WORKER_DEPLOY_RUNBOOK.md` 1d).
 7. Run the deploy workflow (dry run, then approve the deploy); confirm `?version`.
 8. Decide on the custom domain. For option B: copy the DNS records, switch nameservers, test `support@` mail.
 9. Test on TestFlight; approve the `productionUrl` PR; submit v2 with phased release.

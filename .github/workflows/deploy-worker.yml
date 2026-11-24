@@ -652,7 +652,7 @@ jobs:
             fi
           fi
 
-      - name: ID_HASH_SALT must exist on the Worker or be provided (set only if missing)
+      - name: ID_HASH_SALT is kept if the Worker has one, otherwise set (from the environment or a new random value)
         id: salt
         if: needs.check.outputs.target == 'chat-v7-cost-guard'
         working-directory: backend
@@ -665,10 +665,18 @@ jobs:
           set -uo pipefail
           rm -f "$RUNNER_TEMP/salt.json"
           if npx --yes "wrangler@${WRANGLER_VERSION}" secret list --format json > "$RUNNER_TEMP/secrets.json" 2> "$RUNNER_TEMP/secrets.err"; then
-            if node -e 'const l=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.exit(Array.isArray(l)&&l.some(s=>s.name==="ID_HASH_SALT")?0:1)' "$RUNNER_TEMP/secrets.json"; then
+            # Exit 0: the list has ID_HASH_SALT. 1: a well-formed list without it. 2 (anything
+            # else): unreadable or not a list of named secrets. Only a well-formed list may
+            # lead to "no salt"; otherwise stop, so an existing salt is never overwritten.
+            node -e 'let l;try{l=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))}catch{process.exit(2)}if(!Array.isArray(l)||!l.every(x=>x&&typeof x.name==="string"))process.exit(2);process.exit(l.some(x=>x.name==="ID_HASH_SALT")?0:1)' "$RUNNER_TEMP/secrets.json"
+            rc=$?
+            if [ "$rc" -eq 0 ]; then
               has=true
-            else
+            elif [ "$rc" -eq 1 ]; then
               has=false
+            else
+              echo "::error::Could not read the Worker's secret list as a list of named secrets; not deploying (an existing salt must never be replaced)."
+              rm -f "$RUNNER_TEMP/secrets.json" "$RUNNER_TEMP/secrets.err"; exit 1
             fi
           elif grep -Eq 'Worker "datewise-photo-coach"( \(env: [^)]*\))? not found' "$RUNNER_TEMP/secrets.err"; then
             has=false
@@ -691,8 +699,20 @@ jobs:
             echo "ID_HASH_SALT is missing on the Worker; it will be set from the environment secret with this deploy."
             echo "with_salt=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::error::ID_HASH_SALT is missing on the Worker and the production-worker environment has no ID_HASH_SALT secret. Not deploying."
-            exit 1
+            umask 077
+            # No salt on the Worker and none provided: generate 32 random bytes
+            # (Node's CSPRNG) straight into the 0600 secrets file. The value never
+            # enters a shell variable, an output or the log; the file is deleted
+            # after the deploy. This branch runs only when the secret list was
+            # read successfully and has no ID_HASH_SALT (or the Worker does not
+            # exist yet), so an existing salt is never replaced: every later
+            # deploy takes the "already set; keeping it" branch above.
+            # Recovery: the salt only keys the usage counters in this Worker's own
+            # Durable Object. That data is deleted with the Worker, so a rebuilt
+            # Worker simply gets a new random salt and loses nothing.
+            node -e 'require("fs").writeFileSync(process.argv[1], JSON.stringify({ ID_HASH_SALT: require("crypto").randomBytes(32).toString("hex") }), { mode: 0o600 })' "$RUNNER_TEMP/salt.json" || { echo "::error::Could not write the generated salt file; not deploying."; exit 1; }
+            echo "ID_HASH_SALT is missing on the Worker and no environment secret is set; a new random salt is generated and set with this deploy (never printed)."
+            echo "with_salt=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Staging ID_HASH_SALT (random, set only if the staging Worker has none)
@@ -710,7 +730,10 @@ jobs:
           # are throwaway).
           rm -f "$RUNNER_TEMP/salt.json"
           if npx --yes "wrangler@${WRANGLER_VERSION}" secret list --env staging --format json > "$RUNNER_TEMP/secrets.json" 2> "$RUNNER_TEMP/secrets.err"; then
-            if node -e 'const l=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.exit(Array.isArray(l)&&l.some(s=>s.name==="ID_HASH_SALT")?0:1)' "$RUNNER_TEMP/secrets.json"; then has=true; else has=false; fi
+            node -e 'let l;try{l=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))}catch{process.exit(2)}if(!Array.isArray(l)||!l.every(x=>x&&typeof x.name==="string"))process.exit(2);process.exit(l.some(x=>x.name==="ID_HASH_SALT")?0:1)' "$RUNNER_TEMP/secrets.json"
+            rc=$?
+            if [ "$rc" -eq 0 ]; then has=true; elif [ "$rc" -eq 1 ]; then has=false
+            else echo "::error::Could not read the staging Worker's secret list as a list of named secrets; not deploying."; rm -f "$RUNNER_TEMP/secrets.json" "$RUNNER_TEMP/secrets.err"; exit 1; fi
           elif grep -Eq "Worker \"${STAGING_WORKER_NAME}\"( \(env: [^)]*\))? not found" "$RUNNER_TEMP/secrets.err"; then
             has=false
             echo "The staging Worker does not exist yet."
