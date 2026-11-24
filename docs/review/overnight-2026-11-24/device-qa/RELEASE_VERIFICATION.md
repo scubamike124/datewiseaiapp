@@ -35,3 +35,27 @@ until it loads and completes a sandbox purchase on the owner's iPhone with build
 Remaining owner step: add `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and `ID_HASH_SALT` as secrets of the
 `production-worker` environment (Settings → Environments), then run Actions → Deploy coach Worker on `main`, target
 `chat-v7-cost-guard`, with "Dry run" unticked. After that: real EN/ES coach conversations on the device are tested.
+
+## Reusing the existing Cloudflare credentials (investigated 2026-11-24, no secret values read)
+
+- DateWise repository: the Worker deploy workflow refuses repository and organization secrets on purpose; the three
+  values must be secrets of the `production-worker` environment. Run 45310505107 proved that environment's
+  `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` were empty at 02:11 UTC.
+- Amber already holds the Cloudflare token and account ID for the account that runs
+  `datewise-photo-coach.scubamike124.workers.dev` (Amber docs: token verified, Workers OK).
+- Amber has an owner-only, already-merged mechanism to reuse them without exposing them: amberai #1709 (`ac290329`,
+  on `main` since 2026-11-24 03:04 UTC), `src/lib/app-store-connect/worker-secret-sync.ts` behind the Vault page button
+  "Send App Store Connect key to GitHub (DateWise)" (Infrastructure section). It verifies the Cloudflare token
+  read-only, makes sure `production-worker` has the owner as required reviewer and is limited to `main`, derives
+  `ID_HASH_SALT` server-side, and writes the three values sealed to GitHub. Values never reach a browser, log or agent.
+  The earlier failed deploy (02:11 UTC) predates this change.
+- Agents cannot press it: it needs the owner's Amber sign-in (HQ owner, same-origin). Reading Amber's vault any other
+  way would be credential extraction and is not done.
+- Not recommended: Amber's `/dashboard/deployments/worker` single-file redeploy. It can only push chat-v6, which has no
+  subscription check, no per-user limit and no AI budget; build 203 needs chat-v7.
+- If the sync reports that the Cloudflare token cannot edit Workers scripts, a new token is genuinely needed
+  (runbook §1b: Account > Workers Scripts > Edit, DateWise account only).
+- Budget note: the account's free Workers AI allowance (10,000 neurons a day) is shared with Amber. chat-v7 keeps
+  `DAILY_NEURON_BUDGET = 10000` with a 6,000 sandbox slice, so the Worker's own guard stops spending at the free
+  allowance; Amber's own Workers AI use on the same account could make DateWise hit the cap earlier. No paid usage
+  is enabled by this deploy.
