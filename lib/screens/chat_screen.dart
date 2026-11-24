@@ -208,6 +208,15 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!sent && fromVoice && mounted) _keepTranscript(text, note: _state.canChat);
   }
 
+  /// "Try again": like sending, it first asks for the AI data-sharing
+  /// consent when that was withdrawn (You › Privacy); "Not now" sends
+  /// nothing (re-test R2).
+  Future<void> _retry() async {
+    if (_state.isResponding) return;
+    if (!_state.aiConsentGiven && !await _askAiConsent()) return;
+    await _state.retryLastReply();
+  }
+
   /// Asks once, before anything is sent, for permission to share the user's
   /// messages with the third-party AI provider (App Store Guideline
   /// 5.1.2(i)). True (and stored) when the user agreed.
@@ -705,6 +714,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       coach: coach,
                       compact: _voiceMode,
                       onStarter: _send,
+                      onRetry: _retry,
                       showIntro: !_voiceMode,
                       speaking: speaking,
                       readOnly: !entitled,
@@ -933,6 +943,7 @@ class _MessageList extends StatelessWidget {
     required this.coach,
     required this.compact,
     required this.onStarter,
+    required this.onRetry,
     required this.showIntro,
     required this.speaking,
     this.readOnly = false,
@@ -941,6 +952,9 @@ class _MessageList extends StatelessWidget {
   final Coach coach;
   final bool compact;
   final ValueChanged<String> onStarter;
+
+  /// "Try again" under a failed, stopped or interrupted reply.
+  final VoidCallback onRetry;
   final bool showIntro;
   final bool speaking;
 
@@ -967,7 +981,7 @@ class _MessageList extends StatelessWidget {
           coach: coach,
           showOptions: i == messages.length - 1,
           showFindTable: datePlan && i == messages.length - 1,
-          onRetry: !readOnly && i == messages.length - 1 && state.canRetry ? state.retryLastReply : null,
+          onRetry: !readOnly && i == messages.length - 1 && state.canRetry ? onRetry : null,
         ),
       if (!hasUser && !readOnly) _Starters(coach: coach, onTap: onStarter),
     ];

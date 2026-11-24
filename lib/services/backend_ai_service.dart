@@ -86,6 +86,15 @@ class BackendAIService implements AIService {
   /// 6,000 characters). The composer has the same limit.
   static const int maxMessageChars = 6000;
 
+  /// Most bytes an older turn (every turn but the newest) takes in the
+  /// request body, counted as UTF-8 after JSON escaping. Characters cap a
+  /// turn at 6,000, but 6,000 CJK characters are 18 KB and 24 of them nearly
+  /// reach the Worker's 256 KB body cap (`MAX_CHAT_BODY_BYTES`). With 23
+  /// older turns at this cap plus the newest turn in full (at worst 6,000
+  /// characters × 6 escaped bytes = 36 KB) and the ~5 KB system prompt, the
+  /// body stays under about 230 KB whatever the text (re-test m3).
+  static const int maxHistoryTurnBytes = 8000;
+
   /// At most this many HTTP requests per reply, whatever the reason for the
   /// second one: the transient-failure retry in [streamReply] and the
   /// refresh-once retry after a `SUBSCRIPTION_*` refusal share this budget,
@@ -331,10 +340,44 @@ class BackendAIService implements AIService {
       // The Worker keeps at most [maxMessageChars] per turn; capping here too
       // keeps one very long paste from making every later request too large
       // (code review m3).
-      if (text.length > maxMessageChars) text = text.substring(0, maxMessageChars);
+      if (text.length > maxMessageChars) {
+        // Never split an emoji's surrogate pair.
+        var end = maxMessageChars;
+        if (_isHighSurrogate(text.codeUnitAt(end - 1))) end--;
+        text = text.substring(0, end);
+      }
       turns.add({'role': m.isUser ? 'user' : 'assistant', 'content': text});
     }
-    messages.addAll(turns.skip(math.max(0, turns.length - maxHistoryTurns)));
+    final recent = turns.skip(math.max(0, turns.length - maxHistoryTurns)).toList();
+    // Older turns are also capped in bytes, so long CJK or emoji text cannot
+    // push the body past the Worker's cap; the newest turn is sent in full.
+    for (var i = 0; i < recent.length - 1; i++) {
+      recent[i]['content'] = capJsonBytes(recent[i]['content']!, maxHistoryTurnBytes);
+    }
+    messages.addAll(recent);
     return messages;
+  }
+
+  static bool _isHighSurrogate(int unit) => unit >= 0xD800 && unit <= 0xDBFF;
+
+  /// The bytes [text] takes inside the JSON body (UTF-8, escaped, no quotes).
+  static int _jsonBytes(String text) => utf8.encode(jsonEncode(text)).length - 2;
+
+  /// [text] trimmed, on whole code points, to at most [maxBytes] bytes as
+  /// sent in the JSON body.
+  @visibleForTesting
+  static String capJsonBytes(String text, int maxBytes) {
+    if (_jsonBytes(text) <= maxBytes) return text;
+    final runes = text.runes.toList();
+    var lo = 0, hi = runes.length;
+    while (lo < hi) {
+      final mid = (lo + hi + 1) >> 1;
+      if (_jsonBytes(String.fromCharCodes(runes, 0, mid)) <= maxBytes) {
+        lo = mid;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    return String.fromCharCodes(runes, 0, lo);
   }
 }

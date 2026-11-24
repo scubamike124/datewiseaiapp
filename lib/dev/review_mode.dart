@@ -63,6 +63,8 @@ class ReviewMode {
       coachId: es ? Coaches.sofia.id : Coaches.ava.id,
       adultConfirmed: true,
     );
+    // A review link opens its own tab, not the post-onboarding Chat (re-test R1).
+    state.takeOpenChatFirst();
     if (screen == 'paywall') return AppTab.home;
     await store.buy();
     await state.togglePlanItem(0);

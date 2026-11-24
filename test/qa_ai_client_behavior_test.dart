@@ -124,6 +124,7 @@ Future<AppState> appState(BackendAIService ai, {Map<String, Object> prefs = cons
   SharedPreferences.setMockInitialValues({
     'dw_onboarded': true,
     'dw_ai_consent': true,
+    'dw_ai_consent_version': StorageService.aiConsentVersion,
     'dw_coach': 'ava',
     'dw_profile': '{"goals":["conversations"],"language":"en"}',
     ...prefs,

@@ -35,6 +35,7 @@ const textScales = [1.0, 1.3];
 Map<String, Object> onboardedPrefs({String coach = 'ava', String language = 'en'}) => {
       'dw_onboarded': true,
       'dw_ai_consent': true,
+      'dw_ai_consent_version': StorageService.aiConsentVersion,
       'dw_coach': coach,
       'dw_profile': '{"goals":["profile","conversations","dates"],"language":"$language"}',
     };

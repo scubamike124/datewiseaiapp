@@ -145,6 +145,16 @@ class AppState extends ChangeNotifier {
   /// Not stored: a later launch opens on Home as usual.
   bool get openChatFirst => _openChatFirst;
 
+  /// Returns [openChatFirst] and clears it: the flag opens Chat once, right
+  /// after onboarding. Later rebuilds of the tab shell (after a paywall, for
+  /// example) and review deep links open their own tab (re-test R1).
+  /// Does not notify: it is read while the root gate builds.
+  bool takeOpenChatFirst() {
+    final v = _openChatFirst;
+    _openChatFirst = false;
+    return v;
+  }
+
   Future<void> setLanguage(CoachLanguage lang) async {
     _profile = (_profile ?? const UserProfile()).copyWith(language: lang);
     await _storage.saveProfile(_profile!);
