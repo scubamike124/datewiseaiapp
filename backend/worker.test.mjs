@@ -151,3 +151,20 @@ test('a retired-model error (HTTP 410) surfaces as a 502 with the detail, not a 
   assert.equal(res.status, 502);
   assert.match((await res.json()).detail, /5028/);
 });
+
+test('an oversized request body is refused with 413 before it is parsed or reaches the model (security review M5)', async () => {
+  const f = fakeEnv(() => ({ response: 'never' }));
+  f.env.LEGACY_CLIENTS = '0'; // as in production (wrangler.toml)
+  const big = 'x'.repeat(300 * 1024);
+  const res = await worker.fetch(post({ messages: [{ role: 'user', content: big }] }), f.env);
+  assert.equal(res.status, 413);
+  assert.equal((await res.json()).code, 'PAYLOAD_TOO_LARGE');
+  assert.equal(f.calls.length, 0);
+  const declared = new Request('https://example.workers.dev/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Content-Length': String(10 * 1024 * 1024) },
+    body: '{}',
+  });
+  assert.equal((await worker.fetch(declared, f.env)).status, 413);
+});
+

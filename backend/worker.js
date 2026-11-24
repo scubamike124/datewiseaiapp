@@ -99,6 +99,9 @@ a one-sentence headline; the predicted change in match rate as a percentage; and
 // 70B fp8-fast stays active, is on the JSON Mode list, and returns the same
 // `response` shape (and the same SSE stream) the photo coach and the app read.
 const TEXT_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+// Largest request body accepted: v2 chat (history is trimmed client- and server-side) vs the v1 photo path.
+export const MAX_CHAT_BODY_BYTES = 256 * 1024;
+export const MAX_LEGACY_BODY_BYTES = 12 * 1024 * 1024;
 
 // --- Chat (AI coach replies) ----------------------------------------------
 // The same free text model powers the coaching chat. Replies stream back
@@ -741,9 +744,17 @@ async function route(request, env, ctx) {
       );
     }
 
+    // Refuse oversized bodies before parsing them (security review M5). A v2 chat request is a few KB; the
+    // limit only grows while the v1 photo path (base64 images) is still served.
+    const maxBody = guardConfig(env).LEGACY_CLIENTS ? MAX_LEGACY_BODY_BYTES : MAX_CHAT_BODY_BYTES;
+    const declared = Number(request.headers.get('Content-Length') || 0);
+    if (declared > maxBody) return json({ error: 'Request too large', code: 'PAYLOAD_TOO_LARGE' }, 413);
+
     let body;
     try {
-      body = await request.json();
+      const text = await request.text();
+      if (text.length > maxBody) return json({ error: 'Request too large', code: 'PAYLOAD_TOO_LARGE' }, 413);
+      body = JSON.parse(text);
     } catch {
       return json({ error: 'Invalid JSON body' }, 400);
     }
