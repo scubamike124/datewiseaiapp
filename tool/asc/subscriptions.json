@@ -1,0 +1,28 @@
+{
+  "bundleId": "com.datewise.datewiseAi",
+  "group": {
+    "referenceName": "DateWise Premium",
+    "localizations": {
+      "en-US": { "name": "DateWise Premium" },
+      "es-MX": { "name": "DateWise Premium" },
+      "es-ES": { "name": "DateWise Premium" }
+    }
+  },
+  "subscriptions": [
+    {
+      "productId": "datewise_premium_monthly",
+      "referenceName": "DateWise Premium Monthly",
+      "period": "ONE_MONTH",
+      "familySharable": false,
+      "introductoryOffers": "none",
+      "reviewNote": "Unlocks chat and voice with the AI coaches. Testable with a Sandbox Apple Account; no app account needed. Fair use: up to 150 coach replies a day and 1,500 a month (Sandbox: 20 a day), at most 12 a minute and 2 at a time.",
+      "localizations": {
+        "en-US": { "name": "DateWise Premium Monthly", "description": "Chat and voice coaching with all four AI coaches." },
+        "es-MX": { "name": "DateWise Premium Mensual", "description": "Coaching por chat y voz con los cuatro coaches con IA." },
+        "es-ES": { "name": "DateWise Premium Mensual", "description": "Coaching por chat y voz con los cuatro coaches con IA." }
+      },
+      "price": { "baseTerritory": "USA", "customerPrice": "19.99", "territories": ["USA", "CAN", "MEX", "ESP"] },
+      "availability": { "territories": ["USA", "CAN", "MEX", "ESP"], "availableInNewTerritories": false }
+    }
+  ]
+}
