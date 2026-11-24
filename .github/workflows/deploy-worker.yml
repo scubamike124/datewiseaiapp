@@ -665,11 +665,12 @@ jobs:
           set -uo pipefail
           rm -f "$RUNNER_TEMP/salt.json"
           if npx --yes "wrangler@${WRANGLER_VERSION}" secret list --format json > "$RUNNER_TEMP/secrets.json" 2> "$RUNNER_TEMP/secrets.err"; then
-            # Exit 0: the list has ID_HASH_SALT. 1: a well-formed list without it. 2 (anything
+            # This step runs under bash -e: the exit code is captured with `|| rc=$?`, so exit 1 (a well-formed
+            # list without the salt) does not end the step. Exit 0: the list has ID_HASH_SALT. 1: a well-formed list without it. 2 (anything
             # else): unreadable or not a list of named secrets. Only a well-formed list may
             # lead to "no salt"; otherwise stop, so an existing salt is never overwritten.
-            node -e 'let l;try{l=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))}catch{process.exit(2)}if(!Array.isArray(l)||!l.every(x=>x&&typeof x.name==="string"))process.exit(2);process.exit(l.some(x=>x.name==="ID_HASH_SALT")?0:1)' "$RUNNER_TEMP/secrets.json"
-            rc=$?
+            rc=0
+            node -e 'let l;try{l=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))}catch{process.exit(2)}if(!Array.isArray(l)||!l.every(x=>x&&typeof x.name==="string"))process.exit(2);process.exit(l.some(x=>x.name==="ID_HASH_SALT")?0:1)' "$RUNNER_TEMP/secrets.json" || rc=$?
             if [ "$rc" -eq 0 ]; then
               has=true
             elif [ "$rc" -eq 1 ]; then
@@ -730,8 +731,8 @@ jobs:
           # are throwaway).
           rm -f "$RUNNER_TEMP/salt.json"
           if npx --yes "wrangler@${WRANGLER_VERSION}" secret list --env staging --format json > "$RUNNER_TEMP/secrets.json" 2> "$RUNNER_TEMP/secrets.err"; then
-            node -e 'let l;try{l=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))}catch{process.exit(2)}if(!Array.isArray(l)||!l.every(x=>x&&typeof x.name==="string"))process.exit(2);process.exit(l.some(x=>x.name==="ID_HASH_SALT")?0:1)' "$RUNNER_TEMP/secrets.json"
-            rc=$?
+            rc=0
+            node -e 'let l;try{l=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))}catch{process.exit(2)}if(!Array.isArray(l)||!l.every(x=>x&&typeof x.name==="string"))process.exit(2);process.exit(l.some(x=>x.name==="ID_HASH_SALT")?0:1)' "$RUNNER_TEMP/secrets.json" || rc=$?
             if [ "$rc" -eq 0 ]; then has=true; elif [ "$rc" -eq 1 ]; then has=false
             else echo "::error::Could not read the staging Worker's secret list as a list of named secrets; not deploying."; rm -f "$RUNNER_TEMP/secrets.json" "$RUNNER_TEMP/secrets.err"; exit 1; fi
           elif grep -Eq "Worker \"${STAGING_WORKER_NAME}\"( \(env: [^)]*\))? not found" "$RUNNER_TEMP/secrets.err"; then
