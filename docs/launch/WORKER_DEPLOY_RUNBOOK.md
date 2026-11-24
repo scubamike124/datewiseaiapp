@@ -109,14 +109,14 @@ environment's `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` point at.
     shell variable, an output, the log or the repository, and nobody needs to
     see it.
 
-  Recovery: Cloudflare secrets are write-only, and no copy is needed. The salt
+  Recovery: Cloudflare secrets are write-only, so there is nothing to back up. The salt
   keys only the counters and revoked list kept in this Worker's own Durable
   Object, which is deleted together with the Worker. Redeploys and rollbacks
   keep both the secret and the Durable Object. A rebuilt Worker gets a new
   salt under (b) or (c) and loses nothing that the old salt could still open.
   To set the salt by hand instead, use (b), or the Cloudflare dashboard
-  (Worker, Settings, Variables and Secrets, Add, Secret) once the Worker exists. If Wrangler can't list the Worker's secrets for any reason
-  other than "Worker not found", the run also fails, so an existing salt is never
+  (Worker, Settings, Variables and Secrets, Add, Secret) once the Worker exists. If Wrangler can't list the Worker's secrets, or the answer isn't a well-formed
+  list of named secrets, for any reason other than "Worker not found", the run also fails, so an existing salt is never
   overwritten. Rotating the salt resets every usage counter and the revoked list.
 - Optional repository **variable** (not a secret) `WORKER_URL`, e.g.
   `https://datewise-photo-coach.<subdomain>.workers.dev`. Without it, the
