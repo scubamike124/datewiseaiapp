@@ -42,6 +42,9 @@ on:
       # The production Worker config ships with a release, and "Unsigned release build" is a required check on
       # main: without this a wrangler.toml-only PR could never get the check and could not merge.
       - 'backend/wrangler.toml'
+      # Same reason: the Worker deploy workflow is a release file, and a PR that only changes it
+      # (and docs) would otherwise never get the required check and could not merge.
+      - '.github/workflows/deploy-worker.yml'
   workflow_dispatch:
     inputs:
       run_tests:
