@@ -172,6 +172,21 @@ def main():
     status, body = get(f"/v1/apps/{app['id']}/betaGroups", token, {"fields[betaGroups]": "name,isInternalGroup,publicLinkEnabled,hasAccessToAllBuilds", "limit": "20"})
     groups = body.get("data") or [] if status == 200 else []
     note("TestFlight groups", ", ".join(f"{g['attributes'].get('name')} ({'internal' if g['attributes'].get('isInternalGroup') else 'external'})" for g in groups) or f"none (HTTP {status})")
+    # Read-only: which builds each group can install, whether it gets every build automatically, and how many
+    # testers it has (counts only; no names or emails are printed).
+    for g in groups:
+        ga = g["attributes"]
+        s1, b1 = get(f"/v1/betaGroups/{g['id']}/builds", token, {"fields[builds]": "version", "limit": "20"})
+        vers = sorted((x["attributes"].get("version") for x in b1.get("data") or []), key=lambda v: int(v) if str(v).isdigit() else 0) if s1 == 200 else []
+        s2, b2 = get(f"/v1/betaGroups/{g['id']}/betaTesters", token, {"fields[betaTesters]": "inviteType", "limit": "50"})
+        testers = len(b2.get("data") or []) if s2 == 200 else f"HTTP {s2}"
+        note(f"TestFlight group {ga.get('name')}", f"all builds automatically: {ga.get('hasAccessToAllBuilds')}; builds assigned: {', '.join(map(str, vers)) or 'none'} (HTTP {s1}); testers: {testers}")
+    # Read-only: the internal beta state of the newest builds, one by one (the include above can come back empty).
+    status, body = get("/v1/builds", token, {"filter[app]": app["id"], "sort": "-uploadedDate", "limit": "3", "fields[builds]": "version"})
+    for b in body.get("data") or [] if status == 200 else []:
+        s3, b3 = get(f"/v1/builds/{b['id']}/buildBetaDetail", token)
+        ba = (b3.get("data") or {}).get("attributes", {}) if s3 == 200 else {}
+        note(f"build ({b['attributes'].get('version')}) beta detail", f"internal {ba.get('internalBuildState')}, external {ba.get('externalBuildState')}, auto-notify {ba.get('autoNotifyEnabled')} (HTTP {s3})")
 
     # 4. Informational: can this key manage signing (needed for cloud signing)?
     status, body = get("/v1/certificates", token, {"limit": "1"})
