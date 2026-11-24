@@ -1,0 +1,97 @@
+{
+ "cpu": "x86_64",
+ "threads": 4,
+ "torch": "2.15.0+cpu",
+ "runs": [
+  {
+   "name": "ava",
+   "voice": "af_heart",
+   "speed": 1.0,
+   "audio_s": 10.53,
+   "wall_s": 42.16,
+   "rtf": 4.006,
+   "first_chunk_s": 42.16,
+   "chars": 172
+  },
+  {
+   "name": "ava",
+   "voice": "af_heart",
+   "speed": 0.9,
+   "audio_s": 11.4,
+   "wall_s": 23.09,
+   "rtf": 2.025,
+   "first_chunk_s": 23.09,
+   "chars": 172
+  },
+  {
+   "name": "ava_alt",
+   "voice": "af_bella",
+   "speed": 1.0,
+   "audio_s": 11.15,
+   "wall_s": 65.03,
+   "rtf": 5.832,
+   "first_chunk_s": 65.03,
+   "chars": 172
+  },
+  {
+   "name": "ethan",
+   "voice": "am_michael",
+   "speed": 1.0,
+   "audio_s": 11.6,
+   "wall_s": 73.76,
+   "rtf": 6.359,
+   "first_chunk_s": 73.76,
+   "chars": 172
+  },
+  {
+   "name": "ethan_alt",
+   "voice": "am_puck",
+   "speed": 1.0,
+   "audio_s": 10.25,
+   "wall_s": 66.58,
+   "rtf": 6.495,
+   "first_chunk_s": 66.58,
+   "chars": 172
+  },
+  {
+   "name": "sofia",
+   "voice": "ef_dora",
+   "speed": 1.0,
+   "audio_s": 10.07,
+   "wall_s": 23.82,
+   "rtf": 2.364,
+   "first_chunk_s": 23.82,
+   "chars": 170
+  },
+  {
+   "name": "sofia",
+   "voice": "ef_dora",
+   "speed": 0.9,
+   "audio_s": 10.57,
+   "wall_s": 66.24,
+   "rtf": 6.264,
+   "first_chunk_s": 66.24,
+   "chars": 170
+  },
+  {
+   "name": "diego",
+   "voice": "em_alex",
+   "speed": 1.0,
+   "audio_s": 10.05,
+   "wall_s": 38.08,
+   "rtf": 3.789,
+   "first_chunk_s": 38.08,
+   "chars": 170
+  },
+  {
+   "name": "diego_alt",
+   "voice": "em_santa",
+   "speed": 1.0,
+   "audio_s": 10.22,
+   "wall_s": 73.18,
+   "rtf": 7.157,
+   "first_chunk_s": 73.18,
+   "chars": 170
+  }
+ ]
+}
