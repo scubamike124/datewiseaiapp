@@ -80,3 +80,22 @@ been verified yet (that needs an Apple Sandbox receipt from a TestFlight purchas
 | GET / | 405 |
 | Deploy job status | Red: the job's own health check got one 502 within about a second of the upload (start-up race) and has no retry; every later request returned the correct 403. No rollback needed. Follow-up: retry the health check. |
 | 502 error on chat | Resolved for unauthenticated traffic; the chat-v5 model failure no longer applies (new model llama-3.3-70b). A genuine AI reply still needs a Sandbox receipt. |
+
+## Physical iPhone test of TestFlight build 2.0.0 (203), owner report, 2026-11-24 (PRELIMINARY DEVICE EVIDENCE)
+
+Source: the owner's own hands-on test. Not a complete subscription or backend certification.
+
+Worked on the device:
+- The subscription allowed the owner to reach the chat screen, and Ava responded (first genuine device evidence that
+  chat-v7 answers a subscriber; production was chat-v7 at the time, see the deploy section above).
+
+Failed the owner's quality expectations (all confirmed on a physical iPhone):
+- The voice sounds robotic and the coach speaks much too quickly.
+- The lips move excessively fast.
+- Most of the avatar's face is cut off; the eyes and full face are not visible.
+- The avatar and captions occupy too much screen space; conversation text is clipped.
+- Replies appear duplicated.
+- The experience does not look or sound like a premium $19.99 monthly app.
+
+Not yet device-verified: purchase and restore flows, renewal, cancellation and expiry, refund, Spanish chat, follow-up
+continuity, latency, safety replies. Build 203 predates the framing, keyboard, listening and thinking changes.
