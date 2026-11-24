@@ -411,7 +411,14 @@ Future<void> _resume(WidgetTester t) async {
     AppLifecycleState.resumed,
   ]) {
     t.binding.handleAppLifecycleStateChanged(s);
-    await t.pump();
+    // Flutter draws no frames while the app is hidden or paused (as on a
+    // device), so a pump there would wait forever for a frame. Let real time
+    // pass instead.
+    if (t.binding.framesEnabled) {
+      await t.pump();
+    } else {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
   }
   await _settle(t);
 }
