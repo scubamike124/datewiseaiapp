@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -39,7 +40,7 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final _input = TextEditingController();
   final _focus = FocusNode();
 
@@ -76,6 +77,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _state = context.read<AppState>();
     _voice = context.read<VoiceService>();
     _speech = context.read<SpeechService>();
@@ -115,8 +117,16 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  // The keyboard opening or closing: the Scaffold hides it from the body's
+  // MediaQuery, so the voice stage is rebuilt from here.
+  @override
+  void didChangeMetrics() {
+    if (mounted && _voiceMode) setState(() {});
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     // A lapsed subscription swapped the tabs for the paywall: keep what was
     // typed, plus whatever was recognized so far, for when the chat reopens.
     // Listening stops below (the microphone is released). Not after "Delete
@@ -644,6 +654,26 @@ class _ChatScreenState extends State<ChatScreen> {
       ));
   }
 
+  /// The on-screen keyboard is up. The Scaffold hides its inset from the body's
+  /// MediaQuery, so this asks the view itself.
+  static bool _keyboardOpen(BuildContext context) => MediaQueryData.fromView(View.of(context)).viewInsets.bottom > 0;
+
+  /// Tallest the voice stage may be. With the keyboard up it is the controls
+  /// row and a peek of the captions. Normal text: no cap. Large text: the
+  /// stage scrolls instead of pushing the talk dock off screen, but the cap
+  /// never cuts the face or the controls row (so the brows, eyes, mouth and
+  /// chin stay in view); only the captions below scroll.
+  double _stageCap(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final large = MediaQuery.textScalerOf(context).scale(1) > 1.3;
+    // At large text the keyboard leaves room for the controls row only.
+    if (_keyboardOpen(context)) return large ? _Stage.controlsHeight + _Stage.bottomMargin : size.height * 0.18;
+    if (!large) return double.infinity;
+    final w = math.min(size.width, kContentMaxWidth) - _Stage.sideMargin - 2;
+    final face = CoachStageAvatar.portraitSize(w, largeText: true).height + _Stage.controlsHeight + _Stage.bottomMargin;
+    return math.max(size.height * 0.18, face + 8);
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
@@ -687,10 +717,7 @@ class _ChatScreenState extends State<ChatScreen> {
               // At large text the stage is capped and scrolls, instead of
               // pushing the talk dock off screen; normal text is unchanged.
               ConstrainedBox(
-                constraints: BoxConstraints(
-                    maxHeight: MediaQuery.textScalerOf(context).scale(1) > 1.3
-                        ? MediaQuery.sizeOf(context).height * 0.18
-                        : double.infinity),
+                constraints: BoxConstraints(maxHeight: _stageCap(context)),
                 child: SingleChildScrollView(
                   key: const ValueKey('voice-stage-scroll'),
                   child: ContentWidth(
@@ -704,6 +731,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       captions: _captions,
                       caption: _currentCaption(state),
                       onToggleCaptions: () => setState(() => _captions = !_captions),
+                      compact: _keyboardOpen(context),
                     ),
                   ),
                 ),
@@ -854,7 +882,15 @@ class _Stage extends StatelessWidget {
     required this.captions,
     required this.caption,
     required this.onToggleCaptions,
+    this.compact = false,
   });
+
+  /// With the keyboard open the portrait is dropped (the controls row and
+  /// captions stay), so the talk dock stays above the keyboard.
+  final bool compact;
+  static const double sideMargin = 24;
+  static const double bottomMargin = 8;
+  static const double controlsHeight = 44;
 
   final Coach coach;
   final bool speaking;
@@ -871,7 +907,7 @@ class _Stage extends StatelessWidget {
     return AnimatedContainer(
       // The speaking glow fades in, unless Reduce Motion is on.
       duration: motion(context, const Duration(milliseconds: 400)),
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, bottomMargin),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(26),
@@ -882,29 +918,60 @@ class _Stage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          LayoutBuilder(
-            // The portrait's height follows the stage width (about 2:1), so
-            // the face and mouth keep their place on iPad and at large text.
-            builder: (context, box) => SizedBox(
-              height: CoachStageAvatar.stageHeight(box.maxWidth,
-                  largeText: MediaQuery.textScalerOf(context).scale(1) > 1.3),
-              child: Stack(
-              fit: StackFit.expand,
-              children: [
-                CoachStageAvatar(coach: coach, mood: mood, lipSync: lipSync),
-                const FadeToBackground(stops: [CoachStageAvatar.fadeStart, 1], color: AppColors.surface),
-                Positioned(top: 12, left: 12, child: GlassChip(key: const ValueKey('voice-timer'), label: l.voiceSession(elapsed))),
-                Positioned(
-                  top: 6,
-                  right: 6,
-                  child: CircleIconButton(
+          if (!compact)
+            LayoutBuilder(
+              // The portrait's height follows the stage width, so the face
+              // and mouth keep their place on iPad and at large text. Nothing
+              // is drawn over the face: the timer and captions button sit in
+              // the row below it.
+              builder: (context, box) {
+                final size = CoachStageAvatar.portraitSize(box.maxWidth,
+                    largeText: MediaQuery.textScalerOf(context).scale(1) > 1.3,
+                    screenHeight: MediaQuery.sizeOf(context).height);
+                return SizedBox(
+                  height: size.height,
+                  child: Center(
+                    child: SizedBox(
+                      width: size.width,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          CoachStageAvatar(coach: coach, mood: mood, lipSync: lipSync),
+                          const FadeToBackground(stops: [CoachStageAvatar.fadeStart, 1], color: AppColors.surface),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 6, 0),
+            child: SizedBox(
+              height: controlsHeight,
+              child: Row(
+                key: const ValueKey('voice-stage-controls'),
+                children: [
+                  Expanded(
+                    // One line, scaled down to fit, so the row is always as
+                    // tall as the button at any text size.
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: GlassChip(key: const ValueKey('voice-timer'), label: l.voiceSession(elapsed)),
+                      ),
+                    ),
+                  ),
+                  CircleIconButton(
                     icon: captions ? Icons.closed_caption_rounded : Icons.closed_caption_off_outlined,
                     tooltip: captions ? l.hideCaptions : l.showCaptions,
                     onPressed: onToggleCaptions,
                     filled: true,
+                    size: controlsHeight,
                   ),
-                ),
-              ],
+                ],
               ),
             ),
           ),
