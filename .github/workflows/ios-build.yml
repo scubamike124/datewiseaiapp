@@ -39,6 +39,9 @@ on:
       - 'pubspec.yaml'
       - 'pubspec.lock'
       - '.github/workflows/ios-build.yml'
+      # The production Worker config ships with a release, and "Unsigned release build" is a required check on
+      # main: without this a wrangler.toml-only PR could never get the check and could not merge.
+      - 'backend/wrangler.toml'
   workflow_dispatch:
     inputs:
       run_tests:

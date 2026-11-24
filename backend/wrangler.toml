@@ -102,7 +102,10 @@ ALLOW_SANDBOX = "1"
 SANDBOX_DAILY_LIMIT = "20"
 # Sandbox has its own slice of DAILY_NEURON_BUDGET, so TestFlight testers cannot use
 # up the subscribers' budget and v1 traffic cannot starve App Review. Unset or "-1" = 10%.
-SANDBOX_NEURON_BUDGET = "1000"
+# 6000 for the TestFlight test and App Review window (owner approval, 2026-11-24): about
+# 42 replies a day, a slice of the unchanged DAILY_NEURON_BUDGET of 10000 (the free
+# Workers AI allowance), so no extra cost. Set back to "1000" after App Review.
+SANDBOX_NEURON_BUDGET = "6000"
 # Minutes accepted after expiresDate while a renewal reaches the device.
 EXPIRY_LEEWAY_MINUTES = "60"
 # Must equal App Store Connect's Billing Grace Period (0, 3, 16 or 28 days for
