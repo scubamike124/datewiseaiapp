@@ -40,7 +40,7 @@ test-sized:
 
 | Variable | Production (`[vars]`, unchanged) | Staging (`[env.staging.vars]`) | Why |
 |---|---|---|---|
-| `SANDBOX_DAILY_LIMIT` | 20 | **20** (production's) | The battery runs 16 admitted requests a day (section 3a) |
+| `SANDBOX_DAILY_LIMIT` | 20 | **20** (production's) | The battery runs at most 14 admitted requests a day (section 3a) |
 | `SANDBOX_NEURON_BUDGET` | 6000 (App Review window) | **2000** | Owner cap 2026-11-24: staging uses at most 2,000 neurons a day in total |
 | `DAILY_NEURON_BUDGET` | 10000 | **2000** | The staging Worker's own breaker: 20% of the account's free 10,000 a day, which production and Amber share and which take priority |
 | `ANON_NEURON_BUDGET` | 2000 | 0 | No v1 traffic on staging |
@@ -115,7 +115,7 @@ Steps (Mac with Xcode, iPhone):
 
 ## 3a. Automated run (GitHub Actions, no iPhone, no Mac)
 
-Actions, **Live AI test (staging)**, Run workflow from `main`: `day` (1 to 7) and `tier` (3 = everything). One owner
+Actions, **Live AI test (staging)**, Run workflow from `main`: `day` (1 to 8) and `tier` (3 = everything). One owner
 approval (`production-worker`). It runs one day's chunk of the 106-scenario battery with **throwaway authentication**:
 a CA created on the runner that is valid 2 hours, tokens that expire in 50 minutes (the Worker accepts a token 60
 minutes after that, so 110 minutes at most), the private key never written to disk, only the public root certificate
@@ -124,13 +124,24 @@ sent to the staging Worker (`--var STAGING_TEST_ROOT_CERT_B64`). Genuine Apple S
 production and what an attacker could do: `docs/qa/STAGING_TEST_AUTH_THREAT_MODEL.md`. Manual only: it is never scheduled.
 
 **Cap and plan.** Staging may use at most **2,000 neurons a day** (`DAILY_NEURON_BUDGET` = `SANDBOX_NEURON_BUDGET` =
-2000, 20% of the shared free 10,000). A reply is about 105 to 112 neurons and one request reserves up to 209 before it
-runs, so at most 17 requests fit in a day (`backend/staging_auth.test.mjs` proves 17 with 107-neuron replies); the
-workflow runs **at most 16 admitted requests a day** (`--per-day 16`): **7 days** for the 106 scenarios (`--list-battery
---per-day 16`: 16, 16, 16, 16, 13, 16 and 12 admitted requests), at most about 1,775 expected neurons on the busiest day. Run each day on a different UTC day. A day stopped
+2000, 20% of the shared free 10,000). A reply is about 105 to 112 neurons; a request reserves 209 typically and **up to 324**
+(`MAX_INPUT_TOKENS` 6000 + `MAX_OUTPUT_TOKENS` 800 on the 70B model) before it runs, and is refused if spent plus its
+reservation would pass 2,000. With ordinary 107-neuron replies 17 requests fit (`backend/staging_auth.test.mjs`); the
+workflow runs **at most 14 admitted requests a day** (`--per-day 14`): **8 days** for the 106 scenarios (`--list-battery
+--per-day 14`: 14, 14, 14, 14, 14, 11, 14 and 10 admitted requests), at most about 1,640 expected neurons on the busiest day (day 5). Run each day on a different UTC day. A day stopped
 early is repeated after 00:00 UTC with `--only` for the missing ids (they are listed as "not run" in the report).
 
-**Stops.** The workflow refuses to start when staging's own counter for today plus one request's reservation (210)
+**Worst case, stated plainly.** If every request reserved 324 and spent 324 (maximum-length input and output), only 6
+requests would fit in 2,000 neurons. The battery does not do that (expected 1,070 to 1,640 neurons a day), but a day
+can run heavier than expected. The plan degrades safely: the Worker refuses the request that would pass the cap
+(`SERVICE_BUDGET_EXHAUSTED`), the run stops at once with exit 3 and "not run: staging daily neuron cap", **no retry**, and
+the remaining scenarios are repeated after 00:00 UTC with `--only <ids>`. Nothing ever spends past 2,000.
+
+**Concurrency.** The workflow has its own concurrency group (`live-ai-test-staging`), not `deploy-worker`, so a queued
+test run can never replace a queued production deploy. (A staging deploy through Deploy coach Worker could overlap a test
+run; run one at a time.)
+
+**Stops.** The workflow refuses to start when staging's own counter for today plus the largest possible reservation of one request (324)
 would pass 2,000 (pre-flight, `GET /?staging-neurons`, no model call). During the run, the first sign that the shared
 allowance is used up (a 502 "Workers AI error", for example code 4006; a 429 or 503 that is not the Worker's own guard
 code; a stream error naming capacity, quota or neurons) stops the run immediately, marks every remaining scenario

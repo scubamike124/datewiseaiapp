@@ -70,10 +70,28 @@ async function applyRoots(env, now) {
   _setTrustedRootsForTests(rootsFor(fp));
 }
 
+const generic = (status, code) => Response.json({ code }, { status, headers: { 'Cache-Control': 'no-store' } });
+
+// Fails safe: any error becomes a generic body (no message, no stack); nothing is read from the Durable Object before
+// the entitlement verifies; a request without a plausible token costs nothing; the rate-limit binding (the production
+// pattern in worker.js, here keyed by the caller's address) is applied first, and a failing limiter refuses.
 async function stagingNeurons(request, env, now) {
-  const jws = request.headers.get('X-DateWise-Entitlement') || '';
+  try {
+    const jws = request.headers.get('X-DateWise-Entitlement') || '';
+    if (!jws || jws.length > 8_000) return generic(403, 'SUBSCRIPTION_REQUIRED');
+    if (env.RATE_LIMITER && typeof env.RATE_LIMITER.limit === 'function') {
+      const { success } = await env.RATE_LIMITER.limit({ key: `staging-neurons:${request.headers.get('CF-Connecting-IP') || 'unknown'}` });
+      if (!success) return generic(429, 'RATE_LIMITED');
+    }
+    return await stagingNeuronsChecked(jws, env, now);
+  } catch {
+    return generic(503, 'UNAVAILABLE');
+  }
+}
+
+async function stagingNeuronsChecked(jws, env, now) {
   const cfg = guardConfig(env);
-  const r = jws ? await checkEntitlement(jws, cfg, now) : { code: 'SUBSCRIPTION_REQUIRED' };
+  const r = await checkEntitlement(jws, cfg, now);
   if (!r.tx) return Response.json({ code: r.code }, { status: 403 });
   const stub = env.USAGE_GUARD.get(env.USAGE_GUARD.idFromName('global'));
   const res = await stub.fetch('https://usage-guard/budget', {
@@ -81,6 +99,7 @@ async function stagingNeurons(request, env, now) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ now, neurons: 0, daily: cfg.DAILY_NEURON_BUDGET, monthly: 0, anon: false, anonDaily: 0, sandbox: false, sandboxDaily: 0 }),
   });
+  if (!res.ok) return generic(503, 'UNAVAILABLE');
   const b = await res.json();
   // ok:false only when the day's spend is already above the cap.
   return Response.json({ day: new Date(now).toISOString().slice(0, 10), spent: b.ok ? b.spent : null, cap: cfg.DAILY_NEURON_BUDGET, overCap: !b.ok });

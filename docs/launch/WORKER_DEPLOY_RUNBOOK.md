@@ -366,13 +366,13 @@ was added. CI repeats the staging dry run on every pull request (Backend tests, 
 
 `.github/workflows/live-ai-test-staging.yml`, workflow_dispatch only, one job in the `production-worker` environment
 (one approval; the Cloudflare secrets stay there and only the deploy, URL and cleanup steps see them). Inputs: `day`
-(1 to 7) and `tier`. Steps: input and commit-on-`main` checks; config guard (staging main, 2,000 cap, no committed test
+(1 to 8) and `tier`. Steps: input and commit-on-`main` checks; config guard (staging main, 2,000 cap, no committed test
 root); offline tests; **production dry run must contain no staging test-trust code**; mint the throwaway CA (private
 key only in memory, 2-hour root, 50-minute tokens, `tool/live/staging_auth.mjs`); `wrangler deploy --env staging --var
 STAGING_TEST_ROOT_CERT_B64:<public root>`; wait for `?version`; pre-flight (token accepted, neuron headroom for one
-more request, else it refuses to start); run the day with `tool/live/live_chat_test.mjs --battery ... --per-day 16`;
+more request, else it refuses to start); run the day with `tool/live/live_chat_test.mjs --battery ... --per-day 14`;
 print the neuron counter; upload the report and grader packet; **always**: redeploy staging without the test root,
-confirm the token is refused, delete the CA files. It shares the `deploy-worker` concurrency group.
+confirm the token is refused, delete the CA files. It has its own concurrency group (`live-ai-test-staging`) so it can never replace a queued production deploy in `deploy-worker`; the final cleanup step now FAILS the job if staging still accepts the test token.
 Steps are tested under `bash -e -o pipefail` with fakes in `backend/live_ai_workflow.test.mjs`.
 
 **Production identity.** Production's `main` is `worker.js`; the test trust lives only in `staging_entry.js`. Check
@@ -389,5 +389,5 @@ No new GitHub environment, secret or variable is needed. Rollback of a staging d
 
 **Cost:** $0. Workers Free covers the extra Worker, its SQLite Durable Object and the rate-limit binding; the deploy
 checks use no neurons. Staging uses at most 2,000 neurons a day (`SANDBOX_NEURON_BUDGET` and
-`DAILY_NEURON_BUDGET` 2000; the battery takes at most about 1,775 expected neurons a day, over 7 days), inside the account's free 10,000-neuron
+`DAILY_NEURON_BUDGET` 2000; the battery takes at most about 1,640 expected neurons a day, over 8 days; one request can reserve up to 324, so the pre-flight needs 324 of headroom and a heavy day stops with exit 3 and resumes after 00:00 UTC), inside the account's free 10,000-neuron
 daily allowance, which staging, production and Amber share (on Workers Free, use past the allowance fails rather than bills).

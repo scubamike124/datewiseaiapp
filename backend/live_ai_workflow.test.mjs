@@ -75,7 +75,7 @@ function run(script, { env = {}, fakes = {}, cwd, setup } = {}) {
     env: {
       PATH: `${bin}:${process.env.PATH}`, HOME: d, RUNNER_TEMP: tmp, GITHUB_OUTPUT: join(d, 'out'), GITHUB_STEP_SUMMARY: join(d, 'summary'),
       WRANGLER_VERSION: '4.158.0', WORKER_NAME: 'datewise-photo-coach', STAGING_WORKER_NAME: STG, REVIEWED_BRANCH: 'main',
-      PER_DAY: '16', NEURON_CAP: '2000', RESERVE_NEURONS: '210', ...env,
+      PER_DAY: '14', NEURON_CAP: '2000', RESERVE_NEURONS: '324', ...env,
     },
     encoding: 'utf8',
   });
@@ -113,7 +113,8 @@ test('workflow shape: manual only, one gated job, secrets only where Cloudflare 
   assert.ok(!/schedule:|push:|pull_request|workflow_call|repository_dispatch/.test(on), 'only workflow_dispatch');
   assert.match(WF_TEXT, /environment: production-worker/);
   assert.equal((WF_TEXT.match(/environment:/g) || []).length, 1, 'exactly one gated job');
-  assert.match(WF_TEXT, /group: deploy-worker/);
+  assert.match(WF_TEXT, /^  group: live-ai-test-staging$/m);
+  assert.ok(!/group: deploy-worker/.test(WF_TEXT), 'must not share production deploy concurrency');
   // Scripts take values through env only (never interpolated).
   for (const [name, script] of Object.entries(STEP)) assert.ok(!script.includes('${{'), `${name} step interpolates \${{ }} into a script`);
   // Secrets: only the guard (repo-level check), deploy, URL lookup and cleanup steps. Never the battery step.
@@ -213,9 +214,9 @@ test('day check: day 1 to the last day exists, beyond it is refused before any d
   const env = (day, tier = '3') => ({ DAY: day, TIER: tier });
   const r = run(STEP.day, { cwd: ROOT, env: env('1') });
   assert.equal(r.code, 0, r.log);
-  assert.match(r.log, /day 1 of 7: 16 scenario\(s\) of 106/);
-  assert.equal(run(STEP.day, { cwd: ROOT, env: env('7') }).code, 0);
-  const late = run(STEP.day, { cwd: ROOT, env: env('8') });
+  assert.match(r.log, /day 1 of 8: 14 scenario\(s\) of 106/);
+  assert.equal(run(STEP.day, { cwd: ROOT, env: env('8') }).code, 0);
+  const late = run(STEP.day, { cwd: ROOT, env: env('9') });
   assert.equal(late.code, 1);
 });
 
@@ -267,10 +268,10 @@ test('pre-flight: refuses a rejected token, an unreadable or over-cap counter an
     setup: ({ tmp }) => seedAuth(tmp),
   });
   const j = (o) => JSON.stringify({ day: '2026-11-25', cap: 2000, overCap: false, spent: 0, ...o });
-  const ok = pre(j({ spent: 1790 })); // 1790 + 210 = 2000: allowed
+  const ok = pre(j({ spent: 1676 })); // 1676 + 324 = 2000: allowed (the Worker's largest possible reservation)
   assert.equal(ok.code, 0, ok.log);
-  assert.match(ok.log, /used today: 1790 of 2000/);
-  assert.equal(pre(j({ spent: 1791 })).code, 1);
+  assert.match(ok.log, /used today: 1676 of 2000/);
+  assert.equal(pre(j({ spent: 1677 })).code, 1);
   assert.equal(pre(j({ spent: 2000 })).code, 1);
   assert.equal(pre(j({ spent: null, overCap: true })).code, 1);
   assert.equal(pre(j({ cap: 4000 })).code, 1, 'a Worker cap above the owner cap');
@@ -291,7 +292,7 @@ test('battery step: live mode against the staging host with the token in the env
     assert.match(r.out, new RegExp(`rc=${rc}\\n`));
     const call = r.calls.find((c) => c.startsWith('node tool/live/live_chat_test.mjs'));
     assert.ok(call.includes('--battery all --mode live --confirm-live'));
-    assert.ok(call.includes(`--base-url ${HOST}`) && call.includes('--tier 3 --day 2 --per-day 16'), call);
+    assert.ok(call.includes(`--base-url ${HOST}`) && call.includes('--tier 3 --day 2 --per-day 14'), call);
     assert.ok(!call.includes('tok.'), 'the token is never on a command line');
     assert.match(readFileSync(join(r.tmp, 'seen'), 'utf8'), /TOKEN_SEEN=yes/);
     assert.ok(!r.log.replace(`::add-mask::${tok}`, '').includes(tok));
@@ -327,8 +328,9 @@ test('cleanup: redeploys staging WITHOUT the test root, proves the token is refu
   assert.ok(!existsSync(join(failed.tmp, 'staging_auth')));
   // The token still works after cleanup: a warning (it expires by itself), files deleted.
   const still = run(STEP.cleanup, { env, fakes: { npx: 'true', curl: curl(`*"/?staging-neurons") status=200; body='{}';;`) }, setup: ({ tmp }) => seedAuth(tmp) });
-  assert.equal(still.code, 0);
-  assert.match(still.log, /::warning::After cleanup/);
+  assert.equal(still.code, 1, 'a Worker that still accepts the token after cleanup FAILS the job');
+  assert.match(still.log, /::error::After cleanup/);
+  assert.ok(!existsSync(join(still.tmp, 'staging_auth')), 'files are still deleted');
   // The deploy never ran: no Wrangler call at all, files still deleted.
   const skipped = run(STEP.cleanup, { env: { ...env, DEPLOY_OUTCOME: 'skipped' }, fakes: { npx: 'true', curl: refused }, setup: ({ tmp }) => seedAuth(tmp) });
   assert.equal(skipped.code, 0, skipped.log);

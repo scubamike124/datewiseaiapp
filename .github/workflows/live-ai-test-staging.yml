@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       day:
-        description: 'Battery day to run (1 to 7; 16 admitted requests a day, so the neuron cap holds). Run the days on different UTC days.'
+        description: 'Battery day to run (1 to 8; 14 admitted requests a day, so the neuron cap holds). Run the days on different UTC days.'
         type: string
         default: '1'
       tier:
@@ -33,7 +33,8 @@ permissions:
 
 # Shared with the deploy workflow: never two Worker changes at once.
 concurrency:
-  group: deploy-worker
+  # Its own group, NOT deploy-worker: a queued run here must never replace a queued production deploy there.
+  group: live-ai-test-staging
   cancel-in-progress: false
 
 env:
@@ -42,10 +43,10 @@ env:
   WORKER_NAME: datewise-photo-coach
   STAGING_WORKER_NAME: datewise-coach-staging
   REVIEWED_BRANCH: main
-  PER_DAY: '16'
-  # Owner cap (2026-11-24): at most 2,000 neurons a day for staging in total. One request reserves at most 209.
+  PER_DAY: '14'
+  # Owner cap (2026-11-24): at most 2,000 neurons a day for staging in total. One request reserves 209 typically but up to 324 (6,000 input + 800 output tokens).
   NEURON_CAP: '2000'
-  RESERVE_NEURONS: '210'
+  RESERVE_NEURONS: '324'
 
 jobs:
   guard:
@@ -338,7 +339,7 @@ jobs:
           if [ "$rc" -eq 0 ] && [ -n "$tok" ] && [[ "${URL:-}" =~ ^https://${STAGING_WORKER_NAME}\.[a-z0-9-]+\.workers\.dev$ ]]; then
             sleep 5
             code=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' -H "X-DateWise-Entitlement: $tok" "$URL/?staging-neurons") || code=000
-            if [ "$code" = "403" ]; then echo "Staging no longer accepts the test token (HTTP 403)."; else echo "::warning::After cleanup staging answered HTTP $code to the test token (it expires by itself)."; fi
+            if [ "$code" = "403" ]; then echo "Staging no longer accepts the test token (HTTP 403)."; else echo "::error::After cleanup staging answered HTTP $code to the test token (expected 403). The test root may still be trusted; it expires by itself within 2 hours. Run Deploy coach Worker (chat-v7-staging) now and check it."; rc=1; fi
           fi
           rm -rf "$RUNNER_TEMP/staging_auth" "$RUNNER_TEMP/neurons.json" "$RUNNER_TEMP/neurons2.json"
           [ ! -e "$RUNNER_TEMP/staging_auth" ] || { echo "::error::CA files were not deleted"; rc=1; }

@@ -194,3 +194,42 @@ test('the minting tool: 2-hour root, 50-minute tokens, real ids, Sandbox, public
   assert.equal(ROOT_LIFETIME_MS, 2 * 3_600_000);
   assert.ok(TOKEN_LIFETIME_MS + 60 * 60_000 < ROOT_LIFETIME_MS, 'token expiry plus the Worker leeway ends before the root does');
 });
+
+// --- review hardening of GET /?staging-neurons --------------------------------------------------------
+test('/?staging-neurons fails safe: generic bodies, no cost before a verified token, rate limited, DO errors are 503 without detail', { skip }, async () => {
+  const a = await makeStagingAuth();
+  const mk = (extra = {}) => makeEnv('staging', { [TEST_ROOT_VAR]: a.rootB64, ...extra });
+  const get = (env, jws) => staging.fetch(new Request('https://worker.invalid/?staging-neurons', { headers: jws ? { 'X-DateWise-Entitlement': jws } : {} }), env, {});
+  // No token, or an absurdly long one: 403 before any verification, limiter or Durable Object call.
+  let calls = 0;
+  const counting = mk({ RATE_LIMITER: { limit: async () => { calls++; return { success: true }; } } });
+  assert.equal((await get(counting, null)).status, 403);
+  assert.equal((await get(counting, 'x'.repeat(9_000))).status, 403);
+  assert.equal(calls, 0, 'no limiter or other work without a plausible token');
+  // Rate limited: 429 with a generic body.
+  const limited = await get(mk({ RATE_LIMITER: { limit: async () => ({ success: false }) } }), a.tokens[0]);
+  assert.equal(limited.status, 429);
+  assert.deepEqual(await limited.json(), { code: 'RATE_LIMITED' });
+  // A failing limiter and a failing Durable Object: 503, nothing but the code (no message, no stack).
+  for (const env of [mk({ RATE_LIMITER: { limit: async () => { throw new Error('secret internal detail at /src/x.js:1'); } } }), (() => {
+    const e = mk();
+    e.USAGE_GUARD = { idFromName: () => 'id', get: () => ({ fetch: async () => { throw new Error('secret internal detail at /src/x.js:1'); } }) };
+    return e;
+  })()]) {
+    const res = await get(env, a.tokens[0]);
+    assert.equal(res.status, 503);
+    const text = await res.text();
+    assert.deepEqual(JSON.parse(text), { code: 'UNAVAILABLE' });
+    assert.ok(!/secret|stack|\.js/.test(text));
+  }
+  // Still works normally.
+  assert.equal((await (await get(mk(), a.tokens[0])).json()).cap, 2000);
+});
+
+test('worst case: one request can reserve 324 neurons (6,000 input + 800 output); the workflow pre-flight uses 324, not 209', async () => {
+  const { neuronsFor } = await import('./cost_guard.js');
+  assert.equal(neuronsFor('@cf/meta/llama-3.3-70b-instruct-fp8-fast', 6000, 800), 324);
+  const wf = readFileSync(new URL('../.github/workflows/live-ai-test-staging.yml', import.meta.url), 'utf8');
+  assert.match(wf, /RESERVE_NEURONS: '324'/);
+  assert.match(wf, /PER_DAY: '14'/);
+});

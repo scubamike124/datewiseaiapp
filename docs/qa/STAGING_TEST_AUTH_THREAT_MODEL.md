@@ -90,8 +90,8 @@ limits are production's, so staging cannot be used to amplify cost.
 - 2-hour root enforced inside the Worker, 50-minute tokens, cleanup redeploy that removes the root, proof step.
 - Staging cap 2,000 neurons a day; pre-flight refuses to start at the cap; the run stops at the first capacity sign
   and never retries (exit 3, "not run: shared capacity"); production and Amber take priority.
-- Manual trigger, commit on `main`, one owner approval, secrets only in the `production-worker` environment, shared
-  `deploy-worker` concurrency group so two runs cannot overlap.
+- Manual trigger, commit on `main`, one owner approval, secrets only in the `production-worker` environment, its own concurrency
+  group (`live-ai-test-staging`) so two test runs cannot overlap and a queued test never replaces a queued production deploy.
 - `wrangler deploy` calls name `--env staging`; the production config is only dry-run (a test and the config guard).
 
 ## 6. Conditions the owner must keep true
@@ -103,3 +103,22 @@ limits are production's, so staging cannot be used to amplify cost.
   (no paid plan, model or provider).
 - The `production-worker` environment keeps its required reviewer and branch restriction.
 - Do not commit a test root in `[env.staging.vars]` (the workflow's config guard refuses it).
+
+## 7. Assumptions only the owner can verify (the reviewer could not)
+
+1. **`production-worker` environment protection.** The workflow's safety rests on the environment having a **required
+   reviewer** and a **deployment-branch rule limited to `main`** (and `worker-v*` tags). Check Settings, Environments,
+   production-worker. Without them, anyone with write access could dispatch a run from a branch whose own copy of the
+   workflow is modified (a dispatched ref runs ITS version of the workflow file, with the environment's secrets). The
+   in-workflow "commit is on main" check cannot protect against a modified workflow on that ref; the environment rule does.
+2. **Cloudflare Workers Free plan** (section 6): Billing, Workers plan = Free. Not readable with the deploy token.
+3. **Merge order.** This branch contains PR #54's backend changes (it was built on `claude/overnight-2026-11-24`). Merge PR
+   #56, then PR #54, then this branch; then re-run `tool/prod_bundle_hash.sh` on the new `main` (before) and on the
+   merge result (after) and confirm the production `worker.js` sha256 is identical before merging this branch.
+
+## 8. After the security review (2026-11-24)
+
+The cleanup step fails the job (not a warning) if staging still accepts the token after the root is removed; the
+workflow has its own concurrency group; `/?staging-neurons` is rate limited, verifies the token before any work and
+returns only generic codes on errors; the pre-flight reserves the worst case of 324 neurons and the daily chunk is 14
+requests (docs/qa/LIVE_AI_TEST_PLAN.md section 3a).
