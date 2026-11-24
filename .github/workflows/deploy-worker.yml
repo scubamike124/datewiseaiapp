@@ -591,7 +591,7 @@ jobs:
             prev=$(node -e 'const d=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const v=(d.versions||[]).slice().sort((a,b)=>b.percentage-a.percentage)[0];process.stdout.write(v&&/^[0-9a-f-]{36}$/.test(v.version_id)?v.version_id:"")' "$RUNNER_TEMP/before.json")
             [ -n "$prev" ] || { echo "::error::Could not read the current version id; not deploying"; exit 1; }
             exists=true
-          elif grep -Eq "\[code: 10007\]|has no deployments|Worker \"?${DEPLOY_WORKER}\"? not found" "$RUNNER_TEMP/before.err"; then
+          elif grep -Eq "\[code: 10007\]|\[code: 10090\]|has no deployments|Worker \"?${DEPLOY_WORKER}\"? not found" "$RUNNER_TEMP/before.err"; then
             prev=""
             exists=false
             echo "The Worker does not exist on this account yet (first deploy)."
@@ -783,7 +783,7 @@ jobs:
           set -uo pipefail
           url="${URL%/}"
           hint="${ROLLBACK_HINT/<version-id>/${PREV:-<version-id>}}"
-          fail() { echo "::error::$1"; echo "- FAILED: $1. Roll back: \`$hint\`" >> "$GITHUB_STEP_SUMMARY"; exit 1; }
+          fail() { echo "::error::$1"; echo "The new version may be live. Rollback point: ${PREV:-none (new Worker)}. Command: $hint"; echo "- FAILED: $1. Roll back: \`$hint\`" >> "$GITHUB_STEP_SUMMARY"; exit 1; }
           # Up to about 3 minutes: a brand-new workers.dev subdomain can take a
           # while to start answering.
           ok=""
@@ -866,3 +866,16 @@ jobs:
             echo "- Live AI test: \`node tool/live/live_chat_test.mjs --mode live --confirm-live --base-url $url --budget 40\`"
             echo "- Tear down afterwards: \`cd backend && npx wrangler@${WRANGLER_VERSION} delete --env staging\`"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Print the rollback point if any step above failed
+        if: failure()
+        shell: bash
+        env:
+          PREV: ${{ steps.before.outputs.prev_version }}
+        run: |
+          set -uo pipefail
+          hint="${ROLLBACK_HINT:-}"
+          hint="${hint/<version-id>/${PREV:-<version-id>}}"
+          echo "::error::The deploy job failed. If the upload already happened, the new version may be live (chat-v7 fails closed without a StoreKit token). Rollback point: ${PREV:-none (new Worker)}"
+          echo "Rollback command: ${hint:-see the runbook, section 6}"
+          echo "- FAILED: the deploy job stopped. Rollback point: \`${PREV:-none}\`. Command: \`${hint:-see runbook}\`" >> "$GITHUB_STEP_SUMMARY"

@@ -279,9 +279,15 @@ curl -s https://<worker-url>/?version
 ```
 - `<version-id>` is the "Previous version id" in the deploy run's summary.
   `npx wrangler@4.158.0 versions list` lists every version.
-- Rolling back from chat-v7 to an older version is allowed. The `UsageGuard`
-  class stays migrated, and the older code ignores it. Deploying chat-v6 *source*
-  over chat-v7 is different, and the workflow refuses it.
+- Rolling back between chat-v7 versions is fine. Rolling back from the FIRST chat-v7
+  version to the pre-chat-v7 version (the "Previous version id" of the very first
+  chat-v7 deploy) may be refused by Cloudflare: its rollback documentation blocks a
+  rollback when a Durable Object class lifecycle change (a `migrations` entry) lies
+  between the two versions, and the `v1-usage-guard` migration is exactly that
+  (not rehearsed; it needs a real account). If it is refused, fix forward: push a
+  corrected chat-v7 commit through main and redeploy. chat-v7 fails closed (no model
+  call without a valid StoreKit token), so a live-but-faulty chat-v7 costs nothing.
+  Deploying chat-v6 *source* over chat-v7 is different, and the workflow refuses it.
 - Secrets survive rollbacks and deploys.
 
 ## 7. Other deploy paths
