@@ -85,6 +85,28 @@ const REPLY_OPTIONS = `When (and only when) the user needs a message to send, yo
 OPTIONS: Safe | "first message to send" || Playful | "second message to send"
 Write the labels and messages in the language of your reply. Do not use this line otherwise.`;
 
+/**
+ * Cleans client text before it reaches the model (user and assistant turns, the
+ * memory note, and every turn of the v1 path):
+ *  - chat-template markers (Llama 3 `<|eot_id|>`, `<|start_header_id|>`, Qwen
+ *    `<|im_start|>`, DeepSeek `<｜...｜>`, Gemma `<start_of_turn>`, `<bos>`...)
+ *    are defused by turning their `<` into `‹`, so typed text can never become a
+ *    forged system or assistant turn, whatever model the Worker uses;
+ *  - invisible characters that can smuggle instructions the user cannot see
+ *    (Unicode tag characters, bidi overrides and isolates, zero-width space,
+ *    word joiners, BOM, soft hyphen) and control characters are removed;
+ *    vertical tab, form feed and NEL become a newline. Tab, newline, ZWJ and
+ *    ZWNJ (emoji sequences, scripts) are kept.
+ * Visible text is otherwise unchanged, and the result is idempotent.
+ */
+const LINE_BREAK_LIKE = /[\u000b\u000c\u0085]/g;
+const INVISIBLE =
+  /[\u0000-\u0008\u000e-\u001f\u007f-\u009f\u00ad\u061c\u115f\u1160\u180e\u200b\u200e\u200f\u202a-\u202e\u2060-\u2064\u2066-\u206f\u3164\ufeff\ufff9-\ufffb\u{e0000}-\u{e007f}]/gu;
+const TEMPLATE_MARKER = /<(?=\s*[|\uff5c])|<(?=\s*\/?\s*(?:start_of_turn|end_of_turn|bos|eos)\s*>)/gi;
+export function cleanClientText(text) {
+  return String(text).replace(LINE_BREAK_LIKE, '\n').replace(INVISIBLE, '').replace(TEMPLATE_MARKER, '\u2039');
+}
+
 /** Resolves a client coach id (current or v1) to a known coach id, or null. */
 export function resolveCoachId(coachId) {
   if (coachId === undefined || coachId === null || coachId === '') return DEFAULT_COACH_ID;
@@ -110,7 +132,7 @@ function profileLines(profile) {
   if (parts.length) lines.push(`About the user: ${parts.join('; ')}. Use this when relevant.`);
   if (typeof profile.memory === 'string' && profile.memory.trim()) {
     // One line, and no double quotes or backslashes, so the note cannot close its quotation.
-    const memory = profile.memory
+    const memory = cleanClientText(profile.memory)
       .replace(/[\r\n\t\u2028\u2029]+/g, ' ')
       .replace(/["\u201c\u201d\u201e\u00ab\u00bb\\`]/g, "'")
       .trim()
@@ -164,7 +186,7 @@ export function coachMessages(coachId, profile, messages) {
   const turns = [];
   for (const m of messages) {
     if (!m || (m.role !== 'user' && m.role !== 'assistant') || typeof m.content !== 'string') continue;
-    const content = m.content.slice(0, 6000).trim();
+    const content = cleanClientText(m.content.slice(0, 6000)).trim();
     if (content) turns.push({ role: m.role, content });
   }
   if (!turns.some((m) => m.role === 'user')) return null;
