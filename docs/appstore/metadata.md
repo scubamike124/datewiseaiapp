@@ -28,25 +28,28 @@ and Diego in Spanish.
 | Subtitle (≤30) | Your AI dating coach | Tu coach de citas con IA |
 | Primary category | Lifestyle | Lifestyle (Estilo de vida) |
 | Secondary category | none (optional: Social Networking is **not** recommended; the app has no social features) | |
-| Support URL | `https://datewiseai.com/terms-of-service` (no support page exists in this repository; the Terms page ends with a Contact section showing support@datewiseai.com, which meets Apple's "easy way to contact you". Keep the record's current Support URL instead if it is live and shows contact details) | same |
+| Support URL | `https://datewise-legal.lovable.app/terms-of-service` (no support page exists in this repository; the Terms page ends with a Contact section showing support@datewiseai.com, which meets Apple's "easy way to contact you". Keep the record's current Support URL instead if it is live and shows contact details) | same |
 | Marketing URL (optional) | Leave blank (optional field; `datewiseai.com`'s home page is not published from this branch) | same |
-| Privacy Policy URL | `https://datewiseai.com/privacy-policy` (hard-coded in the app, `lib/app_links.dart`; it must serve the v2 text, "Last updated: November 23, 2026", before submission: see "Where the legal pages are hosted" below) | same |
+| Privacy Policy URL | `https://datewise-legal.lovable.app/privacy-policy` (hard-coded in the app, `lib/app_links.dart`; it must serve the v2 text, "Last updated: November 23, 2026", before submission: see "Where the legal pages are hosted" below) | same |
 | Copyright | **OWNER:** `2026 <legal owner name>` | same |
 
-**Where the legal pages are hosted.** The app opens
-`https://datewiseai.com/privacy-policy` and `/terms-of-service`. Those clean
-URLs work only on a host that applies `web/.htaccess` (Apache, e.g. GoDaddy,
-where `datewiseai.com` is believed to be hosted) or `web/_redirects`
-(Netlify). The repository's own publisher, `.github/workflows/deploy.yml`, is
-manual-only, publishes only `main`, and targets GitHub Pages under
-`/<repo>/`, where neither rule file applies (only `/privacy.html` and
-`/terms.html` would work, and the app's URLs would 404). `main` already
-has the v2 legal pages; only publishing them to `datewiseai.com` remains. The
-owner publishes `web/privacy.html`,
-`web/privacy-es.html`, `web/terms.html`, `web/terms-es.html` and the rewrite
-rules from `web/.htaccess` to the `datewiseai.com` host by hand, then opens
-both URLs in Safari. Not checked live from here (the sandbox cannot reach the
-site).
+**Where the legal pages are hosted (2026-11-24).** The owner published the four
+v2 pages on Lovable, and the app and App Store Connect use these URLs:
+
+| Page | URL |
+|---|---|
+| Privacy Policy (EN) | `https://datewise-legal.lovable.app/privacy-policy` |
+| Terms of Use (EN) | `https://datewise-legal.lovable.app/terms-of-service` |
+| Política de privacidad (ES) | `https://datewise-legal.lovable.app/privacy-es.html` |
+| Términos de uso (ES) | `https://datewise-legal.lovable.app/terms-es.html` |
+
+Checked live on 2026-11-24: all four return 200, and their text matches
+`web/privacy.html`, `web/terms.html`, `web/privacy-es.html` and
+`web/terms-es.html` from `main` word for word ("Last updated: November 23,
+2026"). The only addition is Lovable's "Edit with Lovable" badge on the two
+English pages. No DNS change is needed. `https://datewiseai.com/privacy-policy`
+still serves the old June 2026 policy, so it is no longer used. If the legal
+text changes, regenerate the `web/` pages and republish them on Lovable.
 
 Name note: the store record is currently named "DateWise AI - Dating Coach".
 Changing it to "DateWise AI" is optional; the subtitle carries "dating coach".
@@ -107,8 +110,8 @@ Do not add competitor or other app names.)
 >
 > Fair use: DateWise Premium includes generous everyday coaching for personal use, up to 150 coach replies a day and 1,500 a month (at most 12 a minute and 2 at a time). Typed and spoken messages count the same. You will see a notice in the chat when you are close to a limit. When a limit is reached, chat pauses until the next day (00:00 UTC) or the next month.
 >
-> Terms of Use: https://datewiseai.com/terms-of-service
-> Privacy Policy: https://datewiseai.com/privacy-policy
+> Terms of Use: https://datewise-legal.lovable.app/terms-of-service
+> Privacy Policy: https://datewise-legal.lovable.app/privacy-policy
 
 **ES**
 
@@ -147,8 +150,8 @@ Do not add competitor or other app names.)
 >
 > Uso justo: DateWise Premium incluye coaching diario generoso para uso personal, hasta 150 respuestas del coach al día y 1500 al mes (con un máximo de 12 por minuto y 2 a la vez). Los mensajes escritos y hablados cuentan igual. Verás un aviso en el chat cuando estés cerca de un límite. Al alcanzar un límite, el chat se pausa hasta el día siguiente (00:00 UTC) o el mes siguiente.
 >
-> Términos de uso: https://datewiseai.com/terms-of-service
-> Política de privacidad: https://datewiseai.com/privacy-policy
+> Términos de uso: https://datewise-legal.lovable.app/terms-es.html
+> Política de privacidad: https://datewise-legal.lovable.app/privacy-es.html
 
 ### What's New in 2.0.0 (≤4000; EN 171, ES 180 characters)
 

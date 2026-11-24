@@ -38,7 +38,7 @@ Last checked 2026-11-22 for #20. Each line says what was verified and how. "Owne
 ## 5. Privacy, security, legal (Required)
 | Item | Status | Evidence / next step |
 |---|---|---|
-| Privacy policy, terms, 18+ rule | ✅ | `lib/content/legal_text.dart`, hosted at `datewiseai.com/privacy-policy` and `/terms-of-service` (live URLs not checked here). |
+| Privacy policy, terms, 18+ rule | ✅ | `lib/content/legal_text.dart`, hosted at `datewise-legal.lovable.app/privacy-policy` and `/terms-of-service` (live, checked 2026-11-24). |
 | Account and data deletion | ✅ / ⛔ | In-app deletion exists. Server-side deletion needs Supabase (section 3). |
 | AI disclosure | 🟡 | Coaches never claim to be human (#21/#23 prompts). Add an "AI coach" label on the coach cards in the redesign. |
 | Backend abuse protection | 🟡 | #23. The open proxy is closed only after `REQUIRE_COACH_ID=1` and the rate-limit binding are enabled. |
