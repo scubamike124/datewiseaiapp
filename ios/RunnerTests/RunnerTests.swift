@@ -1,4 +1,5 @@
 import Flutter
+import StoreKit
 import StoreKitTest
 import UIKit
 import XCTest
