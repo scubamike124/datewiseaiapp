@@ -1,0 +1,121 @@
+name: StoreKit E2E
+
+# Real-StoreKit end-to-end subscription test of the app's own code on an iOS
+# simulator, with Apple's StoreKit Test (SKTestSession) and the local
+# configuration ios/Runner/DateWise.storekit (datewise_premium_monthly).
+# Not FakeStoreService and not App Store sandbox: no Apple account, no
+# secrets, nothing signed, uploaded or submitted.
+#
+# The app is built for the simulator with integration_test/storekit_e2e_test.dart
+# as its Dart entry point; `xcodebuild test` launches it as the host of the
+# RunnerTests XCTest bundle, whose StoreKitE2ETests owns the SKTestSession and
+# serves the Dart scenarios' commands (reset, Ask to Buy, time rate, expire,
+# renew, refund, cancel auto-renew). Each Dart scenario becomes an assertion.
+on:
+  pull_request:
+    paths:
+      - 'ios/**'
+      - 'integration_test/**'
+      - 'lib/services/store_service.dart'
+      - 'lib/services/coach_usage.dart'
+      - 'lib/screens/paywall_screen.dart'
+      - 'lib/app.dart'
+      - 'lib/main.dart'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/storekit-e2e.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: storekit-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.47.9'
+
+jobs:
+  storekit-e2e:
+    name: StoreKit Test subscription E2E (iOS simulator)
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Toolchain
+        run: |
+          flutter --version
+          xcodebuild -version
+          sw_vers
+
+      - run: flutter pub get
+
+      - name: Pick and boot an iPhone simulator (newest iOS runtime)
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, re, sys
+          d = json.load(sys.stdin)["devices"]
+          def ver(rt):
+              m = re.search(r"iOS-(\d+)-(\d+)", rt)
+              return (int(m[1]), int(m[2])) if m else (0, 0)
+          best = None
+          for rt in sorted((r for r in d if "iOS" in r), key=ver, reverse=True):
+              phones = [x for x in d[rt] if x["name"].startswith("iPhone") and x.get("isAvailable", True)]
+              if phones:
+                  best = phones[0]
+                  print(best["udid"])
+                  print("%s on %s" % (best["name"], rt), file=sys.stderr)
+                  break
+          ')
+          test -n "$UDID"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+
+      - name: Configure the simulator build with the StoreKit E2E entry point
+        run: flutter build ios --config-only --simulator --debug integration_test/storekit_e2e_test.dart
+
+      - name: xcodebuild test (StoreKitE2ETests)
+        run: |
+          set -o pipefail
+          mkdir -p build
+          grep FLUTTER_TARGET ios/Flutter/Generated.xcconfig
+          xcodebuild test \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Debug \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -only-testing:RunnerTests/StoreKitE2ETests \
+            -resultBundlePath build/storekit-e2e.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee build/storekit-e2e.log
+
+      - name: Scenario summary
+        if: always()
+        run: |
+          {
+            echo "## StoreKit Test subscription E2E"
+            echo ""
+            echo '```'
+            grep -E '\[storekit-e2e\]|Test Case .*StoreKitE2ETests|error:|Executed [0-9]+ test' build/storekit-e2e.log || echo "(no test output)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: always()
+        with:
+          name: storekit-e2e-results
+          path: |
+            build/storekit-e2e.log
+            build/storekit-e2e.xcresult
+          retention-days: 7
+          if-no-files-found: ignore
