@@ -170,7 +170,7 @@ void main() {
       expect(lookupAppLocalizations(const Locale('en')).planItemTitle(CoachingGoal.profile, Coaches.ava),
           'Rewrite your bio with Ava');
       expect(lookupAppLocalizations(const Locale('es')).planItemTitle(CoachingGoal.profile, Coaches.sofia),
-          'Reescribe tu biografía con\u00a0Sofía');
+          'Reescribe tu bio con\u00a0Sofía');
     });
 
     test('ticks reset when a new week starts; items stay', () async {

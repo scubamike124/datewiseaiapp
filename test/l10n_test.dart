@@ -212,8 +212,8 @@ void main() {
     test('plan steps done is a plural in both languages', () {
       expect(en.statPlanDone(1), 'plan step done this week');
       expect(en.statPlanDone(3), 'plan steps done this week');
-      expect(es.statPlanDone(1), 'paso del plan completado esta semana');
-      expect(es.statPlanDone(0), 'pasos del plan completados esta semana');
+      expect(es.statPlanDone(1), 'paso completado esta semana');
+      expect(es.statPlanDone(0), 'pasos completados esta semana');
     });
 
     test('terminology: autoconfianza, con IA, Cuenta de Apple, Configuración, presionado', () {

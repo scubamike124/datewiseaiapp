@@ -518,6 +518,9 @@ class AppState extends ChangeNotifier {
                 coachMsg.failedStatus = e is CoachUnavailableException ? e.statusCode : null;
                 coachMsg.failedCode = e is CoachUnavailableException ? e.code : null;
                 coachMsg.failure = replyFailureFor(e);
+                // The server knows about a refund, revocation or expiry before the device may: re-read the
+                // entitlement now, so the composer locks and Settings stops saying "Active" (UI review M2).
+                if (CoachLimitCode.entitlementChanged.contains(coachMsg.failedCode)) unawaited(_store?.refresh());
                 finish();
               },
               onDone: finish,

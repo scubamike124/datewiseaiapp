@@ -190,9 +190,12 @@ class _PaywallScreenState extends State<PaywallScreen> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          // Flexible + scaleDown: a long localized StoreKit price ("US$19.99",
-                          // "MX$399.00") at large Dynamic Type shrinks to fit instead of overflowing.
-                          Flexible(
+                          // The price takes only the width it needs (up to 140), so the plan name and
+                          // "Monthly · auto-renews" keep the rest instead of a 50/50 split (UI review M1).
+                          // scaleDown: a long localized StoreKit price ("MX$399.00") at large Dynamic Type
+                          // shrinks to fit instead of overflowing.
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 140),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [

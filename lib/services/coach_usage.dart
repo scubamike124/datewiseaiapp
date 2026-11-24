@@ -44,6 +44,9 @@ class CoachLimitCode {
   static const subscriptionInvalid = 'SUBSCRIPTION_INVALID';
   static const subscriptionExpired = 'SUBSCRIPTION_EXPIRED';
   static const subscriptionRevoked = 'SUBSCRIPTION_REVOKED';
+  /// Codes that mean the subscription itself changed (refund, revocation, expiry): the app re-reads the
+  /// entitlement when it gets one.
+  static const entitlementChanged = {subscriptionRevoked, subscriptionExpired, subscriptionRequired};
   static const appUpdateRequired = 'APP_UPDATE_REQUIRED';
 
   /// Codes that a fresh StoreKit entitlement may fix (one refresh, one retry).

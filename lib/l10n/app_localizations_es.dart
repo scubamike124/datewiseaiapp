@@ -1,6 +1,5 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
-
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -131,7 +130,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get welcomeBody =>
-      'Ayuda honesta con tu perfil, tus mensajes y tu primera cita, de un coach que te escucha.';
+      'Ayuda honesta con tu perfil, tus mensajes y tu primera cita. Tu coach te escucha.';
 
   @override
   String get getStarted => 'Comenzar';
@@ -229,7 +228,7 @@ class AppLocalizationsEs extends AppLocalizations {
       'female': 'lista',
       'other': 'listo',
     });
-    return '$name está $_temp0 cuando tú quieras. Tu coach con IA, a cualquier hora.';
+    return '$name está $_temp0 para cuando tú quieras. Tu coach con IA, a cualquier hora.';
   }
 
   @override
@@ -238,7 +237,7 @@ class AppLocalizationsEs extends AppLocalizations {
       'female': 'lista',
       'other': 'listo',
     });
-    return '$name está $_temp0 cuando tú quieras. Retoma donde lo dejaste: “$title”';
+    return '$name está $_temp0 para cuando tú quieras. Retoma donde lo dejaste: “$title”';
   }
 
   @override
@@ -270,7 +269,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String planItemProfile(String name) {
-    return 'Reescribe tu biografía con $name';
+    return 'Reescribe tu bio con $name';
   }
 
   @override
@@ -287,7 +286,7 @@ class AppLocalizationsEs extends AppLocalizations {
       'Ayúdame a practicar un primer mensaje para alguien con quien hice match.';
 
   @override
-  String get planPromptProfile => 'Reescribe mi biografía de citas.';
+  String get planPromptProfile => 'Reescribe la bio de mi perfil de citas.';
 
   @override
   String get planPromptDates => 'Ayúdame a planear una buena primera cita.';
@@ -305,7 +304,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get quickPracticePrompt =>
-      'Practiquemos una conversación. Tú haces de mi match y yo respondo.';
+      'Practiquemos una conversación. Tú eres mi match y yo te respondo.';
 
   @override
   String get quickProfile => 'Mejorar mi perfil';
@@ -461,7 +460,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get chatErrorBusy =>
-      'Tu coach está recibiendo muchos mensajes en este momento. Inténtalo de nuevo en un momento. Tu mensaje está guardado.';
+      'Tu coach está recibiendo muchos mensajes ahora mismo. Inténtalo de nuevo en un momento. Tu mensaje está guardado.';
 
   @override
   String get chatErrorOffline =>
@@ -548,7 +547,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String paywallDisclosure(String perMonth, String price) {
-    return '$perMonth. El pago se carga a tu Cuenta de Apple al confirmar la compra. La suscripción se renueva automáticamente cada mes por $price, a menos que la canceles al menos 24 horas antes de que termine el período actual. Cancela cuando quieras en Configuración › [tu nombre] › Suscripciones.';
+    return '$perMonth. El pago se carga a tu Cuenta de Apple al confirmar la compra. La suscripción se renueva automáticamente cada mes por $price, salvo que la canceles al menos 24 horas antes de que termine el período actual. Cancela cuando quieras en Configuración › [tu nombre] › Suscripciones.';
   }
 
   @override
@@ -569,14 +568,14 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get paywallDisclosureNoPrice =>
-      'Suscripción mensual al precio indicado por el App Store. El pago se carga a tu Cuenta de Apple al confirmar la compra. La suscripción se renueva automáticamente cada mes a ese precio, a menos que la canceles al menos 24 horas antes de que termine el período actual. Cancela cuando quieras en Configuración › [tu nombre] › Suscripciones.';
+      'Suscripción mensual al precio indicado por el App Store. El pago se carga a tu Cuenta de Apple al confirmar la compra. La suscripción se renueva automáticamente cada mes a ese precio, salvo que la canceles al menos 24 horas antes de que termine el período actual. Cancela cuando quieras en Configuración › [tu nombre] › Suscripciones.';
 
   @override
   String get tapToSend => 'Detener y enviar';
 
   @override
   String get tapToTalkHint =>
-      'Toca dos veces para empezar a hablar y otra vez para enviar';
+      'Toca dos veces para empezar a hablar y vuelve a tocar dos veces para enviar';
 
   @override
   String get voiceRecognitionUnavailable =>
@@ -647,8 +646,8 @@ class AppLocalizationsEs extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'pasos del plan completados esta semana',
-      one: 'paso del plan completado esta semana',
+      other: 'pasos completados esta semana',
+      one: 'paso completado esta semana',
     );
     return '$_temp0';
   }
@@ -666,7 +665,7 @@ class AppLocalizationsEs extends AppLocalizations {
       other: '$count días',
       one: '1 día',
     );
-    return 'En total, hablaste con un coach $_temp0.';
+    return 'En total, has hablado con un coach $_temp0.';
   }
 
   @override
@@ -679,7 +678,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get progressFootnote =>
-      'Marca los pendientes del plan en Inicio. Las marcas se reinician cada lunes.';
+      'Marca los pendientes del plan en Inicio. Se desmarcan cada lunes.';
 
   @override
   String get youTitle => 'Tú';
