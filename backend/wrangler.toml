@@ -35,6 +35,13 @@ namespace_id = "740219"
   limit = 60
   period = 60
 
+# Hosted avatar pilot (docs/avatar/PILOT_RUNBOOK.md): OFF in production. The
+# variables AVATAR_PROVIDER, AVATAR_MONTHLY_MINUTES, AVATAR_DAILY_MINUTES,
+# AVATAR_SESSION_MAX_SECONDS, AVATAR_IDLE_SECONDS and AVATAR_FACE_IDS are
+# deliberately NOT set here: unset means 'off' in backend/avatar.js, so the
+# production configuration is byte-for-byte what it was. Vendor keys are Worker
+# secrets only (SIMLI_API_KEY / ANAM_API_KEY), never vars.
+
 # Required to turn fail-open on: the dedicated cross-isolate bound for
 # `failopen:all` / `failopen:<subscriber>`. RATE_LIMITER is never used for it;
 # without this binding fail-open stays closed. Counted per Cloudflare location,
@@ -217,3 +224,19 @@ FAIL_OPEN_PER_ISOLATE = "0"
 FAIL_OPEN_MAX_MINUTES = "15"
 # ID_HASH_SALT: the deploy workflow sets a random one on the staging Worker if
 # it has none (never production's salt).
+
+# Hosted avatar pilot (backend/avatar.js). Staging only; production leaves these
+# unset (= off). 'simli' here is inert until the owner adds the SIMLI_API_KEY
+# secret AND fills AVATAR_FACE_IDS ({"ava":"<Simli face id>", ...}); without
+# either, POST /v1/avatar/session answers AVATAR_UNAVAILABLE and the app shows
+# the on-device avatar. Set "off" to switch it off again; "anam" for the second
+# vendor (ANAM_API_KEY, AVATAR_FACE_IDS then holds Anam avatar ids).
+AVATAR_PROVIDER = "simli"
+# Per subscriber per UTC month, counted by session time.
+AVATAR_MONTHLY_MINUTES = "60"
+# Global cap on granted avatar minutes per UTC day (all testers).
+AVATAR_DAILY_MINUTES = "30"
+# One session is at most this long (hard ceiling 600) and closes when idle.
+AVATAR_SESSION_MAX_SECONDS = "600"
+AVATAR_IDLE_SECONDS = "60"
+AVATAR_FACE_IDS = '{}'

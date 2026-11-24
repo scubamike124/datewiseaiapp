@@ -1914,6 +1914,162 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'no'**
   String get storeStatusNo;
+
+  /// Hosted avatar consent: title.
+  ///
+  /// In en, this message translates to:
+  /// **'Show your coach as a live video face?'**
+  String get avatarConsentTitle;
+
+  /// Hosted avatar consent: body naming the vendor. Must match the Privacy Policy; owner approves the final copy.
+  ///
+  /// In en, this message translates to:
+  /// **'To show your coach as a live video face, DateWise sends the coach\'s spoken reply (synthetic audio) and the coach\'s portrait to {vendor}, which draws the face. Your microphone, your typed messages and your photos are not sent to {vendor}. If you decline, the usual coach picture is used. See our Privacy Policy for details.'**
+  String avatarConsentBody(String vendor);
+
+  /// Hosted avatar consent: agree button.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow live video'**
+  String get avatarConsentAgree;
+
+  /// Hosted avatar consent: decline button.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep the usual picture'**
+  String get avatarConsentDecline;
+
+  /// Hosted avatar: shown while the live face connects.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting your coach…'**
+  String get avatarConnecting;
+
+  /// VoiceOver label of the live video face.
+  ///
+  /// In en, this message translates to:
+  /// **'Live video of {coach}'**
+  String avatarLiveSemantics(String coach);
+
+  /// Button label: collapse the live video (ends the live session).
+  ///
+  /// In en, this message translates to:
+  /// **'Hide live video'**
+  String get avatarCollapse;
+
+  /// Button label: start the live video again.
+  ///
+  /// In en, this message translates to:
+  /// **'Show live video'**
+  String get avatarExpand;
+
+  /// Pilot debug screen: title (test builds only).
+  ///
+  /// In en, this message translates to:
+  /// **'Avatar pilot'**
+  String get avatarPilotTitle;
+
+  /// Settings row that opens the pilot debug screen (test builds only).
+  ///
+  /// In en, this message translates to:
+  /// **'Avatar pilot (test builds)'**
+  String get avatarPilotOpen;
+
+  /// Pilot debug screen: label.
+  ///
+  /// In en, this message translates to:
+  /// **'Vendor'**
+  String get avatarPilotVendor;
+
+  /// Pilot debug screen: label.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection'**
+  String get avatarPilotState;
+
+  /// Pilot debug screen: label (listening, thinking, speaking).
+  ///
+  /// In en, this message translates to:
+  /// **'Coach is'**
+  String get avatarPilotActivity;
+
+  /// Pilot debug screen: label.
+  ///
+  /// In en, this message translates to:
+  /// **'Time to first frame'**
+  String get avatarPilotLatency;
+
+  /// Pilot debug screen: label.
+  ///
+  /// In en, this message translates to:
+  /// **'Microphone permission'**
+  String get avatarPilotMic;
+
+  /// Pilot debug screen: the live face never asks for the microphone.
+  ///
+  /// In en, this message translates to:
+  /// **'Not needed (the face only receives audio)'**
+  String get avatarPilotMicNotUsed;
+
+  /// Pilot debug screen: label.
+  ///
+  /// In en, this message translates to:
+  /// **'Minutes used this month'**
+  String get avatarPilotAllowance;
+
+  /// Pilot debug screen: label.
+  ///
+  /// In en, this message translates to:
+  /// **'Fallback reason'**
+  String get avatarPilotFallback;
+
+  /// Pilot debug screen: no value.
+  ///
+  /// In en, this message translates to:
+  /// **'none'**
+  String get avatarPilotNone;
+
+  /// Pilot debug screen: button.
+  ///
+  /// In en, this message translates to:
+  /// **'Start session'**
+  String get avatarPilotStart;
+
+  /// Pilot debug screen: button.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop session'**
+  String get avatarPilotStop;
+
+  /// Pilot debug screen: button.
+  ///
+  /// In en, this message translates to:
+  /// **'Speak test phrase'**
+  String get avatarPilotSpeak;
+
+  /// Pilot debug screen: button.
+  ///
+  /// In en, this message translates to:
+  /// **'Interrupt'**
+  String get avatarPilotInterrupt;
+
+  /// Pilot debug screen: shown when the flag is off.
+  ///
+  /// In en, this message translates to:
+  /// **'The hosted avatar is switched off in this build.'**
+  String get avatarPilotOff;
+
+  /// Pilot debug screen: note.
+  ///
+  /// In en, this message translates to:
+  /// **'Test tone (the neural voice is not available yet)'**
+  String get avatarPilotTone;
+
+  /// Pilot debug screen: label.
+  ///
+  /// In en, this message translates to:
+  /// **'Error'**
+  String get avatarPilotError;
 }
 
 class _AppLocalizationsDelegate

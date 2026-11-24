@@ -60,6 +60,11 @@ dependencies:
   # Calls the secure coach backend (Cloudflare Worker, SSE chat stream)
   http: ^1.2.2
 
+  # Hosted-avatar pilot (docs/avatar/PILOT_RUNBOOK.md): a WebView that runs the
+  # vendor JS SDK. BSD-3, Flutter team. No first-party native code.
+  webview_flutter: ^4.10.0
+  webview_flutter_wkwebview: ^3.18.0
+
   # On-device voice: text-to-speech (MIT) and speech recognition (BSD-3).
   flutter_tts: ^4.2.5
   speech_to_text: ^7.5.0
@@ -71,6 +76,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # Fake clock for the hosted-avatar heartbeat and timeout tests (already in the lock via flutter_test).
+  fake_async: ^1.3.1
   # On-simulator end-to-end tests (integration_test/), e.g. the StoreKit Test
   # subscription test run by .github/workflows/storekit-e2e.yml.
   integration_test:
@@ -127,6 +134,10 @@ flutter:
     - assets/avatar/ethan/
     - assets/avatar/sofia/
     - assets/avatar/diego/
+    # Hosted live-avatar pilot page, bridge, adapters and the bundled vendor SDKs
+    # (docs/avatar/PILOT_RUNBOOK.md). Inert unless the AVATAR_HOSTED flag is on.
+    - assets/avatar_pilot/
+    - assets/avatar_pilot/vendor/
 
   # Bundled OFL fonts (licenses in assets/fonts/OFL-*.txt).
   fonts:

@@ -81,7 +81,15 @@ test('staging: production security settings, test-sized limits inside the free a
   const cfg = parse();
   const prod = cfg.vars;
   const v = cfg.env.staging.vars;
-  assert.deepEqual(Object.keys(v).sort(), Object.keys(prod).sort(), 'every production var is declared (envs inherit no vars)');
+  // Hosted avatar pilot vars exist on staging only: production leaves them unset (= off).
+  const AVATAR_VARS = ['AVATAR_PROVIDER', 'AVATAR_MONTHLY_MINUTES', 'AVATAR_DAILY_MINUTES', 'AVATAR_SESSION_MAX_SECONDS', 'AVATAR_IDLE_SECONDS', 'AVATAR_FACE_IDS'];
+  for (const k of AVATAR_VARS) assert.ok(!(k in prod), `production leaves ${k} unset (avatar off)`);
+  assert.deepEqual(Object.keys(v).filter((k) => !AVATAR_VARS.includes(k)).sort(), Object.keys(prod).sort(), 'every production var is declared (envs inherit no vars)');
+  assert.ok(['off', 'simli', 'anam'].includes(v.AVATAR_PROVIDER));
+  assert.equal(v.AVATAR_MONTHLY_MINUTES, '60');
+  assert.ok(Number(v.AVATAR_SESSION_MAX_SECONDS) <= 600);
+  assert.ok(Number(v.AVATAR_DAILY_MINUTES) > 0);
+  assert.doesNotMatch(JSON.stringify(v), /API_KEY|sk-/, 'no vendor key in vars');
   // Security: StoreKit JWS verification for the same app and product, Sandbox
   // allowed, v1 off, ASSN off, fail-open off.
   for (const k of ['APPLE_BUNDLE_ID', 'APPLE_PRODUCT_ID', 'EXPIRY_LEEWAY_MINUTES', 'BILLING_GRACE_DAYS', 'FAIL_OPEN_PER_SUBSCRIBER', 'FAIL_OPEN_PER_ISOLATE', 'FAIL_OPEN_MAX_MINUTES', 'ALLOW_SANDBOX', 'ASSN_ENABLED']) {

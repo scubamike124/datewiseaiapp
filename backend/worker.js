@@ -20,6 +20,7 @@
  * anonymous caps and their budget slice, while LEGACY_CLIENTS=1. See docs/business/AI_COST_MODEL.md.
  */
 import { admit, estimateTokens, fitToInputBudget, guardConfig, guardError, handleAppleNotification, meterStream, meteredAi, neuronsFor, readBodyCapped, upstreamErrorDetail, GUARD_VERSION } from './cost_guard.js';
+import { handleAvatar } from './avatar.js';
 import { cleanClientText, coachMessages, resolveCoachId } from './coach_prompts.js';
 export { UsageGuard } from './cost_guard.js';
 
@@ -745,6 +746,9 @@ async function route(request, env, ctx) {
     if (new URL(request.url).pathname === '/apple/notifications') {
       return await handleAppleNotification(request, env);
     }
+    // Hosted avatar pilot (off unless AVATAR_PROVIDER is set; see avatar.js). Needs no AI binding.
+    const avatarAction = /^\/v1\/avatar\/(session|heartbeat|end)$/.exec(new URL(request.url).pathname)?.[1];
+    if (avatarAction) return await handleAvatar(request, env, corsHeaders(), avatarAction);
     if (!env.AI) {
       return json(
         { error: 'Workers AI binding "AI" is not configured on this Worker.' },

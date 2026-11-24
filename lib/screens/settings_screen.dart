@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../app_links.dart';
+import '../avatar/hosted/avatar_flags.dart';
+import '../avatar/hosted/pilot_debug_screen.dart';
 import '../dev/entitlement_export.dart';
 import '../models/coach.dart';
 import '../services/ai_config.dart';
@@ -291,6 +293,19 @@ class SettingsScreen extends StatelessWidget {
             if (kDebugMode && DevEntitlementExport.enabled) ...[
               const _SectionLabel('Developer'),
               const _Group(children: [DevEntitlementRow()]),
+            ],
+            // Hosted-avatar pilot (docs/avatar/PILOT_RUNBOOK.md): only with the AVATAR_HOSTED
+            // flag AND a debug build or a TestFlight build on a non-production coach server.
+            if (AvatarFlags.fromBuild().pilotScreenAvailable(testBuild: AIConfig.testBuildHost() != null)) ...[
+              _SectionLabel(l.avatarPilotTitle),
+              _Group(children: [
+                _Row(
+                  icon: Icons.face_retouching_natural,
+                  key: const ValueKey('row-avatar-pilot'),
+                  title: l.avatarPilotOpen,
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const PilotDebugScreen())),
+                ),
+              ]),
             ],
             const SizedBox(height: 18),
             FutureBuilder<PackageInfo>(

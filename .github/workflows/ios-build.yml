@@ -60,6 +60,10 @@ on:
         description: 'TestFlight device test of the talking avatar''s native audio path (DW_AVATAR_AUDIO_PATH). Leave off for a build meant for App Store review.'
         type: boolean
         default: false
+      avatar_pilot:
+        description: 'Hosted live-avatar pilot (docs/avatar/PILOT_RUNBOOK.md): compiles in the live avatar and the pilot screen (AVATAR_HOSTED, consent copy flag for internal testers). Only with coach_backend=staging; refused for production builds.'
+        type: boolean
+        default: false
       coach_backend:
         description: 'Coach backend of a signed build. "staging" = the isolated staging Worker, for the iPhone end-to-end demo only (build number +50000; never submit it for App Store review). See docs/qa/IPHONE_E2E_DEMO.md.'
         type: choice
@@ -87,7 +91,7 @@ concurrency:
   # Runs with different build inputs never cancel each other (a staging
   # TestFlight run must not cancel a production one); a re-run of the same
   # kind still replaces the older run.
-  group: ios-build-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.signed_build && 'signed' || 'unsigned' }}-${{ inputs.coach_backend || 'production' }}-${{ inputs.signing || 'manual' }}-${{ inputs.avatar_audio_path && 'audio' || 'tts' }}
+  group: ios-build-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.signed_build && 'signed' || 'unsigned' }}-${{ inputs.coach_backend || 'production' }}-${{ inputs.signing || 'manual' }}-${{ inputs.avatar_audio_path && 'audio' || 'tts' }}-${{ inputs.avatar_pilot && 'avatar' || 'std' }}
   cancel-in-progress: true
 
 env:
@@ -413,6 +417,7 @@ jobs:
         env:
           AVATAR_AUDIO_PATH: ${{ inputs.avatar_audio_path && 'true' || 'false' }}
           COACH_BACKEND: ${{ inputs.coach_backend }}
+          AVATAR_PILOT: ${{ inputs.avatar_pilot && 'true' || 'false' }}
           SIGNING: ${{ inputs.signing }}
         run: |
           flutter pub get
@@ -427,6 +432,14 @@ jobs:
             staging) DEFINES+=(--dart-define=COACH_BACKEND_URL="$STAGING_COACH_URL") ;;
             *) echo "::error::Unknown coach_backend"; exit 1 ;;
           esac
+          # Hosted-avatar pilot: staging builds only (the pilot Worker is the staging Worker).
+          # The consent-copy flag is on for these internal TestFlight testers only; the copy is
+          # a draft until the owner approves it, so production builds never set it.
+          if [ "$AVATAR_PILOT" = "true" ]; then
+            [ "$COACH_BACKEND" = "staging" ] || { echo "::error::avatar_pilot needs coach_backend=staging"; exit 1; }
+            DEFINES+=(--dart-define=AVATAR_HOSTED=true --dart-define=AVATAR_CONSENT_COPY_APPROVED=true)
+            echo "### ⚠️ AVATAR PILOT BUILD (AVATAR_HOSTED=true): internal TestFlight only, do NOT submit for App Store review" >> "$GITHUB_STEP_SUMMARY"
+          fi
           # App Store Connect rejects a second upload with the same
           # CFBundleVersion: derive the build number from the run (the +100
           # offset keeps it above pubspec's +N and any earlier uploads).

@@ -301,5 +301,45 @@
   "storeStatusNotApplicable": "no aplica",
   "storeStatusUnavailable": "no disponible",
   "storeStatusYes": "sí",
-  "storeStatusNo": "no"
+  "storeStatusNo": "no",
+  "avatarConsentTitle": "¿Mostrar a tu coach como un rostro en video en vivo?",
+  "avatarConsentBody": "Para mostrar a tu coach como un rostro en video en vivo, DateWise envía la respuesta hablada del coach (audio sintético) y su retrato a {vendor}, que dibuja el rostro. Tu micrófono, tus mensajes escritos y tus fotos no se envían a {vendor}. Si lo rechazas, se usa la imagen habitual del coach. Consulta nuestra Política de privacidad para más detalles.",
+  "@avatarConsentBody": {
+    "placeholders": {
+      "vendor": {
+        "type": "String"
+      }
+    }
+  },
+  "avatarConsentAgree": "Permitir video en vivo",
+  "avatarConsentDecline": "Mantener la imagen habitual",
+  "avatarConnecting": "Conectando con tu coach…",
+  "avatarLiveSemantics": "Video en vivo de {coach}",
+  "@avatarLiveSemantics": {
+    "placeholders": {
+      "coach": {
+        "type": "String"
+      }
+    }
+  },
+  "avatarCollapse": "Ocultar el video en vivo",
+  "avatarExpand": "Mostrar el video en vivo",
+  "avatarPilotTitle": "Piloto de avatar",
+  "avatarPilotOpen": "Piloto de avatar (versiones de prueba)",
+  "avatarPilotVendor": "Proveedor",
+  "avatarPilotState": "Conexión",
+  "avatarPilotActivity": "El coach está",
+  "avatarPilotLatency": "Tiempo hasta el primer cuadro",
+  "avatarPilotMic": "Permiso del micrófono",
+  "avatarPilotMicNotUsed": "No se necesita (el rostro solo recibe audio)",
+  "avatarPilotAllowance": "Minutos usados este mes",
+  "avatarPilotFallback": "Motivo del respaldo",
+  "avatarPilotNone": "ninguno",
+  "avatarPilotStart": "Iniciar sesión",
+  "avatarPilotStop": "Detener sesión",
+  "avatarPilotSpeak": "Decir frase de prueba",
+  "avatarPilotInterrupt": "Interrumpir",
+  "avatarPilotOff": "El avatar alojado está desactivado en esta versión.",
+  "avatarPilotTone": "Tono de prueba (la voz neuronal aún no está disponible)",
+  "avatarPilotError": "Error"
 }

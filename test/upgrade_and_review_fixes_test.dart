@@ -509,6 +509,8 @@ void main() {
               avatarPatch.hasMatch(a) ||
               a.startsWith('assets/fonts/') ||
               a.startsWith('assets/icon/') ||
+              // Hosted-avatar pilot page, bridge and bundled vendor SDKs (HTML/JS/license text; no images).
+              a.startsWith('assets/avatar_pilot/') ||
               a.startsWith('packages/') ||
               a.startsWith('shaders/') ||
               a == 'fonts/MaterialIcons-Regular.otf',

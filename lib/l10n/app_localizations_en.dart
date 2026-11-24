@@ -1113,4 +1113,89 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get storeStatusNo => 'no';
+
+  @override
+  String get avatarConsentTitle => 'Show your coach as a live video face?';
+
+  @override
+  String avatarConsentBody(String vendor) {
+    return 'To show your coach as a live video face, DateWise sends the coach\'s spoken reply (synthetic audio) and the coach\'s portrait to $vendor, which draws the face. Your microphone, your typed messages and your photos are not sent to $vendor. If you decline, the usual coach picture is used. See our Privacy Policy for details.';
+  }
+
+  @override
+  String get avatarConsentAgree => 'Allow live video';
+
+  @override
+  String get avatarConsentDecline => 'Keep the usual picture';
+
+  @override
+  String get avatarConnecting => 'Connecting your coach…';
+
+  @override
+  String avatarLiveSemantics(String coach) {
+    return 'Live video of $coach';
+  }
+
+  @override
+  String get avatarCollapse => 'Hide live video';
+
+  @override
+  String get avatarExpand => 'Show live video';
+
+  @override
+  String get avatarPilotTitle => 'Avatar pilot';
+
+  @override
+  String get avatarPilotOpen => 'Avatar pilot (test builds)';
+
+  @override
+  String get avatarPilotVendor => 'Vendor';
+
+  @override
+  String get avatarPilotState => 'Connection';
+
+  @override
+  String get avatarPilotActivity => 'Coach is';
+
+  @override
+  String get avatarPilotLatency => 'Time to first frame';
+
+  @override
+  String get avatarPilotMic => 'Microphone permission';
+
+  @override
+  String get avatarPilotMicNotUsed =>
+      'Not needed (the face only receives audio)';
+
+  @override
+  String get avatarPilotAllowance => 'Minutes used this month';
+
+  @override
+  String get avatarPilotFallback => 'Fallback reason';
+
+  @override
+  String get avatarPilotNone => 'none';
+
+  @override
+  String get avatarPilotStart => 'Start session';
+
+  @override
+  String get avatarPilotStop => 'Stop session';
+
+  @override
+  String get avatarPilotSpeak => 'Speak test phrase';
+
+  @override
+  String get avatarPilotInterrupt => 'Interrupt';
+
+  @override
+  String get avatarPilotOff =>
+      'The hosted avatar is switched off in this build.';
+
+  @override
+  String get avatarPilotTone =>
+      'Test tone (the neural voice is not available yet)';
+
+  @override
+  String get avatarPilotError => 'Error';
 }

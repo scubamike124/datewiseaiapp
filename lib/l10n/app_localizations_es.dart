@@ -1138,4 +1138,90 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get storeStatusNo => 'no';
+
+  @override
+  String get avatarConsentTitle =>
+      '¿Mostrar a tu coach como un rostro en video en vivo?';
+
+  @override
+  String avatarConsentBody(String vendor) {
+    return 'Para mostrar a tu coach como un rostro en video en vivo, DateWise envía la respuesta hablada del coach (audio sintético) y su retrato a $vendor, que dibuja el rostro. Tu micrófono, tus mensajes escritos y tus fotos no se envían a $vendor. Si lo rechazas, se usa la imagen habitual del coach. Consulta nuestra Política de privacidad para más detalles.';
+  }
+
+  @override
+  String get avatarConsentAgree => 'Permitir video en vivo';
+
+  @override
+  String get avatarConsentDecline => 'Mantener la imagen habitual';
+
+  @override
+  String get avatarConnecting => 'Conectando con tu coach…';
+
+  @override
+  String avatarLiveSemantics(String coach) {
+    return 'Video en vivo de $coach';
+  }
+
+  @override
+  String get avatarCollapse => 'Ocultar el video en vivo';
+
+  @override
+  String get avatarExpand => 'Mostrar el video en vivo';
+
+  @override
+  String get avatarPilotTitle => 'Piloto de avatar';
+
+  @override
+  String get avatarPilotOpen => 'Piloto de avatar (versiones de prueba)';
+
+  @override
+  String get avatarPilotVendor => 'Proveedor';
+
+  @override
+  String get avatarPilotState => 'Conexión';
+
+  @override
+  String get avatarPilotActivity => 'El coach está';
+
+  @override
+  String get avatarPilotLatency => 'Tiempo hasta el primer cuadro';
+
+  @override
+  String get avatarPilotMic => 'Permiso del micrófono';
+
+  @override
+  String get avatarPilotMicNotUsed =>
+      'No se necesita (el rostro solo recibe audio)';
+
+  @override
+  String get avatarPilotAllowance => 'Minutos usados este mes';
+
+  @override
+  String get avatarPilotFallback => 'Motivo del respaldo';
+
+  @override
+  String get avatarPilotNone => 'ninguno';
+
+  @override
+  String get avatarPilotStart => 'Iniciar sesión';
+
+  @override
+  String get avatarPilotStop => 'Detener sesión';
+
+  @override
+  String get avatarPilotSpeak => 'Decir frase de prueba';
+
+  @override
+  String get avatarPilotInterrupt => 'Interrumpir';
+
+  @override
+  String get avatarPilotOff =>
+      'El avatar alojado está desactivado en esta versión.';
+
+  @override
+  String get avatarPilotTone =>
+      'Tono de prueba (la voz neuronal aún no está disponible)';
+
+  @override
+  String get avatarPilotError => 'Error';
 }

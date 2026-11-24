@@ -842,5 +842,119 @@
   "storeStatusNotApplicable": "n/a",
   "storeStatusUnavailable": "unavailable",
   "storeStatusYes": "yes",
-  "storeStatusNo": "no"
+  "storeStatusNo": "no",
+  "avatarConsentTitle": "Show your coach as a live video face?",
+  "@avatarConsentTitle": {
+    "description": "Hosted avatar consent: title."
+  },
+  "avatarConsentBody": "To show your coach as a live video face, DateWise sends the coach's spoken reply (synthetic audio) and the coach's portrait to {vendor}, which draws the face. Your microphone, your typed messages and your photos are not sent to {vendor}. If you decline, the usual coach picture is used. See our Privacy Policy for details.",
+  "@avatarConsentBody": {
+    "description": "Hosted avatar consent: body naming the vendor. Must match the Privacy Policy; owner approves the final copy.",
+    "placeholders": {
+      "vendor": {
+        "type": "String"
+      }
+    }
+  },
+  "avatarConsentAgree": "Allow live video",
+  "@avatarConsentAgree": {
+    "description": "Hosted avatar consent: agree button."
+  },
+  "avatarConsentDecline": "Keep the usual picture",
+  "@avatarConsentDecline": {
+    "description": "Hosted avatar consent: decline button."
+  },
+  "avatarConnecting": "Connecting your coach…",
+  "@avatarConnecting": {
+    "description": "Hosted avatar: shown while the live face connects."
+  },
+  "avatarLiveSemantics": "Live video of {coach}",
+  "@avatarLiveSemantics": {
+    "description": "VoiceOver label of the live video face.",
+    "placeholders": {
+      "coach": {
+        "type": "String"
+      }
+    }
+  },
+  "avatarCollapse": "Hide live video",
+  "@avatarCollapse": {
+    "description": "Button label: collapse the live video (ends the live session)."
+  },
+  "avatarExpand": "Show live video",
+  "@avatarExpand": {
+    "description": "Button label: start the live video again."
+  },
+  "avatarPilotTitle": "Avatar pilot",
+  "@avatarPilotTitle": {
+    "description": "Pilot debug screen: title (test builds only)."
+  },
+  "avatarPilotOpen": "Avatar pilot (test builds)",
+  "@avatarPilotOpen": {
+    "description": "Settings row that opens the pilot debug screen (test builds only)."
+  },
+  "avatarPilotVendor": "Vendor",
+  "@avatarPilotVendor": {
+    "description": "Pilot debug screen: label."
+  },
+  "avatarPilotState": "Connection",
+  "@avatarPilotState": {
+    "description": "Pilot debug screen: label."
+  },
+  "avatarPilotActivity": "Coach is",
+  "@avatarPilotActivity": {
+    "description": "Pilot debug screen: label (listening, thinking, speaking)."
+  },
+  "avatarPilotLatency": "Time to first frame",
+  "@avatarPilotLatency": {
+    "description": "Pilot debug screen: label."
+  },
+  "avatarPilotMic": "Microphone permission",
+  "@avatarPilotMic": {
+    "description": "Pilot debug screen: label."
+  },
+  "avatarPilotMicNotUsed": "Not needed (the face only receives audio)",
+  "@avatarPilotMicNotUsed": {
+    "description": "Pilot debug screen: the live face never asks for the microphone."
+  },
+  "avatarPilotAllowance": "Minutes used this month",
+  "@avatarPilotAllowance": {
+    "description": "Pilot debug screen: label."
+  },
+  "avatarPilotFallback": "Fallback reason",
+  "@avatarPilotFallback": {
+    "description": "Pilot debug screen: label."
+  },
+  "avatarPilotNone": "none",
+  "@avatarPilotNone": {
+    "description": "Pilot debug screen: no value."
+  },
+  "avatarPilotStart": "Start session",
+  "@avatarPilotStart": {
+    "description": "Pilot debug screen: button."
+  },
+  "avatarPilotStop": "Stop session",
+  "@avatarPilotStop": {
+    "description": "Pilot debug screen: button."
+  },
+  "avatarPilotSpeak": "Speak test phrase",
+  "@avatarPilotSpeak": {
+    "description": "Pilot debug screen: button."
+  },
+  "avatarPilotInterrupt": "Interrupt",
+  "@avatarPilotInterrupt": {
+    "description": "Pilot debug screen: button."
+  },
+  "avatarPilotOff": "The hosted avatar is switched off in this build.",
+  "@avatarPilotOff": {
+    "description": "Pilot debug screen: shown when the flag is off."
+  },
+  "avatarPilotTone": "Test tone (the neural voice is not available yet)",
+  "@avatarPilotTone": {
+    "description": "Pilot debug screen: note."
+  },
+  "avatarPilotError": "Error",
+  "@avatarPilotError": {
+    "description": "Pilot debug screen: label."
+  }
 }

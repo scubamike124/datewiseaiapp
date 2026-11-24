@@ -106,15 +106,26 @@ export const CODES = {
   APP_UPDATE_REQUIRED: 426,
 };
 
+// Hosted avatar refusals (avatar.js). Kept apart from CODES: the chat client's
+// CoachLimitCode list covers CODES; the avatar client maps these itself and
+// falls back to the on-device avatar on any of them.
+export const AVATAR_CODES = {
+  AVATAR_UNAVAILABLE: 503, // off, no secret, vendor error
+  AVATAR_ALLOWANCE: 429,
+  AVATAR_DAILY_CAP: 429,
+  AVATAR_BUSY: 429,
+  AVATAR_SESSION_UNKNOWN: 404,
+};
+
 export function guardError(code, cors, extra = {}) {
-  const status = CODES[code] || 503;
+  const status = CODES[code] || AVATAR_CODES[code] || 503;
   const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...cors };
   if (extra.retryAfter) headers['Retry-After'] = String(Math.max(1, Math.ceil(extra.retryAfter)));
   return new Response(JSON.stringify({ error: code, code, ...extra }), { status, headers });
 }
 
 // --- time windows (UTC) ------------------------------------------------------
-const dayKey = (t) => new Date(t).toISOString().slice(0, 10);
+export const dayKey = (t) => new Date(t).toISOString().slice(0, 10);
 const monthKey = (t) => new Date(t).toISOString().slice(0, 7);
 const nextDay = (t) => {
   const d = new Date(t);
@@ -343,6 +354,11 @@ export class UsageGuard {
       'set-revoked': () => this.setRevoked(body),
       'sub-event': () => this.subEvent(body),
       'sub-status': () => this.subStatus(body),
+      'avatar-open': () => this.avatarOpen(body),
+      'avatar-beat': () => this.avatarBeat(body),
+      'avatar-end': () => this.avatarEnd(body),
+      'avatar-global': () => this.avatarGlobal(body),
+      'avatar-global-settle': () => this.avatarGlobalSettle(body),
     };
     if (!Object.hasOwn(ops, op)) return new Response('not found', { status: 404 });
     return new Response(JSON.stringify(await ops[op]()), { headers: { 'Content-Type': 'application/json' } });
@@ -475,6 +491,106 @@ export class UsageGuard {
     return { ok: true, activeUntil: Math.max(renewed, grace), via: grace > renewed ? 'grace' : 'renewal' };
   }
 
+  // --- hosted avatar minutes (avatar.js) -------------------------------------
+  // Own storage key ('a' per subscriber, 'av' on the global object) so the chat
+  // counters above are untouched. Per subscriber: `settled` seconds this month
+  // plus the full grant of every open session (reserved up front: a client that
+  // never reports an end is charged the whole grant, so a missing heartbeat can
+  // never cost more than counted). `end` refunds the unused part. A session with
+  // heartbeats whose last one is older than AVATAR_BEAT_GRACE_S is settled at
+  // last heartbeat plus the grace. No identity or content is stored.
+  async avatarLoad(now) {
+    const a = (await this.storage.get('a')) || {};
+    const month = monthKey(now);
+    if (a.month !== month) Object.assign(a, { month, settled: 0 });
+    a.settled = a.settled || 0;
+    a.sessions = a.sessions || {};
+    a.opens = (a.opens || []).filter((t) => t > now - 3_600_000);
+    for (const [id, x] of Object.entries(a.sessions)) {
+      const grace = (x.graceS || 90) * 1000;
+      if (now >= x.start + x.grant * 1000 + grace) {
+        a.settled += x.grant; // never ended: the whole grant counts
+        delete a.sessions[id];
+      } else if (x.beats > 0 && now - x.last > grace) {
+        a.settled += Math.min(x.grant, Math.ceil((x.last - x.start + grace) / 1000));
+        delete a.sessions[id];
+      }
+    }
+    return a;
+  }
+
+  avatarUsed(a) {
+    return a.settled + Object.values(a.sessions).reduce((n, x) => n + x.grant, 0);
+  }
+
+  async avatarOpen({ now, sessionId, gday, allowanceSec, maxSec, minSec, opensPerHour, graceS }) {
+    const a = await this.avatarLoad(now);
+    // One live session per subscriber. A session heard from in the last 20 s is
+    // live; an older one (app crash, killed WebView) is settled now, the same way
+    // as in avatarLoad, so a restart is never blocked for the rest of its grant.
+    for (const [id, x] of Object.entries(a.sessions)) {
+      if (now - x.last < 20_000) return { ok: false, code: 'AVATAR_BUSY', retryAfter: 10 };
+      a.settled += x.beats > 0 ? Math.min(x.grant, Math.ceil((x.last - x.start + (x.graceS || 90) * 1000) / 1000)) : x.grant;
+      delete a.sessions[id];
+    }
+    if (a.opens.length >= opensPerHour) return { ok: false, code: 'RATE_LIMITED', retryAfter: 300 };
+    const remaining = allowanceSec - this.avatarUsed(a);
+    if (remaining < minSec) {
+      await this.storage.put('a', a);
+      return { ok: false, code: 'AVATAR_ALLOWANCE', usedSec: this.avatarUsed(a), allowanceSec, resetAt: nextMonth(now), retryAfter: (nextMonth(now) - now) / 1000 };
+    }
+    const grant = Math.min(maxSec, Math.floor(remaining));
+    a.sessions[sessionId] = { start: now, last: now, beats: 0, grant, gday, graceS };
+    a.opens.push(now);
+    await this.storage.put('a', a);
+    return { ok: true, grant, usedSec: this.avatarUsed(a), allowanceSec };
+  }
+
+  async avatarBeat({ now, sessionId }) {
+    const a = await this.avatarLoad(now);
+    const x = a.sessions[sessionId];
+    if (!x) {
+      await this.storage.put('a', a);
+      return { ok: false, code: 'AVATAR_SESSION_UNKNOWN' };
+    }
+    x.last = now;
+    x.beats += 1;
+    await this.storage.put('a', a);
+    return { ok: true, usedSec: this.avatarUsed(a), remainingGrantSec: Math.max(0, Math.floor(x.grant - (now - x.start) / 1000)) };
+  }
+
+  async avatarEnd({ now, sessionId }) {
+    const a = await this.avatarLoad(now);
+    const x = a.sessions[sessionId];
+    if (!x) {
+      await this.storage.put('a', a);
+      return { ok: true, known: false, usedSec: this.avatarUsed(a) };
+    }
+    const charge = Math.min(x.grant, Math.max(0, Math.ceil((now - x.start) / 1000)));
+    a.settled += charge;
+    delete a.sessions[sessionId];
+    await this.storage.put('a', a);
+    return { ok: true, known: true, charge, grant: x.grant, gday: x.gday, usedSec: this.avatarUsed(a) };
+  }
+
+  /** Global daily cap on granted avatar seconds (all subscribers). */
+  async avatarGlobal({ now, sec, daily }) {
+    const g = (await this.storage.get('av')) || {};
+    const day = dayKey(now);
+    if (g.day !== day) Object.assign(g, { day, reserved: 0 });
+    if (g.reserved + sec > daily) return { ok: false, code: 'AVATAR_DAILY_CAP', retryAfter: (nextDay(now) - now) / 1000 };
+    g.reserved += sec;
+    await this.storage.put('av', g);
+    return { ok: true, day };
+  }
+
+  async avatarGlobalSettle({ day, refund }) {
+    const g = (await this.storage.get('av')) || {};
+    if (g.day === day) g.reserved = Math.max(0, g.reserved - Math.max(0, refund));
+    await this.storage.put('av', g);
+    return { ok: true };
+  }
+
   async budget({ now, neurons, daily, monthly, anon, anonDaily, sandbox, sandboxDaily }) {
     const s = (await this.storage.get('g')) || {};
     const day = dayKey(now);
@@ -517,7 +633,7 @@ export class UsageGuard {
   }
 }
 
-async function callDo(env, name, op, body) {
+export async function callDo(env, name, op, body) {
   const ns = env.USAGE_GUARD;
   const stub = ns.get(ns.idFromName(name));
   const res = await stub.fetch(`https://usage-guard/${op}`, {
@@ -529,7 +645,7 @@ async function callDo(env, name, op, body) {
   return res.json();
 }
 
-function logUsage(fields) {
+export function logUsage(fields) {
   // Counts only. `who` is a 12-hex prefix of the salted hash (left out without
   // the ID_HASH_SALT secret); no text, no IP, no transaction id.
   try {
@@ -585,15 +701,13 @@ async function failOpenAllowed(env, cfg, key, now) {
 }
 
 /**
- * Admits (or refuses) one AI request before any model call.
- * kind: 'chat' | 'legacy-chat' | 'photo'; model + estimated input/output
- * tokens (or `neurons`) give the worst-case reservation. requireToken: the
- * request must carry a valid StoreKit token whatever REQUIRE_SUBSCRIPTION says
- * (every v2 chat request); without one it gets 403 SUBSCRIPTION_REQUIRED.
- * Returns { response } to send as-is, or { ticket } with headers to add and
- * finish(actualNeurons, { refund }) to call once when the work is done.
+ * Who is asking: the shared front half of every guarded request (per-network
+ * limit, StoreKit 2 JWS check with the ASSN renewal path, revocation record).
+ * Returns { response } to send as-is, or the identity: { cfg, now, hasGuard,
+ * key, tx, verified, sandbox, anon, who, limits }. admit() and the avatar
+ * endpoints (avatar.js) both use it, so there is one auth path.
  */
-export async function admit(request, env, cors, { kind, model, inTokens, outTokens, neurons, requireToken = false }) {
+export async function identify(request, env, cors, { kind, requireToken = false }) {
   const cfg = guardConfig(env);
   const now = Date.now();
   const hasGuard = Boolean(env.USAGE_GUARD && typeof env.USAGE_GUARD.idFromName === 'function');
@@ -664,6 +778,22 @@ export async function admit(request, env, cors, { kind, model, inTokens, outToke
   const anon = !jws;
   const sandbox = verified?.environment === 'Sandbox';
   const who = cfg.SALT_SET ? key.slice(0, key.indexOf(':') + 13) : undefined;
+  return { cfg, now, hasGuard, key, tx, verified, sandbox, anon, who, limits };
+}
+
+/**
+ * Admits (or refuses) one AI request before any model call.
+ * kind: 'chat' | 'legacy-chat' | 'photo'; model + estimated input/output
+ * tokens (or `neurons`) give the worst-case reservation. requireToken: the
+ * request must carry a valid StoreKit token whatever REQUIRE_SUBSCRIPTION says
+ * (every v2 chat request); without one it gets 403 SUBSCRIPTION_REQUIRED.
+ * Returns { response } to send as-is, or { ticket } with headers to add and
+ * finish(actualNeurons, { refund }) to call once when the work is done.
+ */
+export async function admit(request, env, cors, { kind, model, inTokens, outTokens, neurons, requireToken = false }) {
+  const id = await identify(request, env, cors, { kind, requireToken });
+  if (id.response) return id;
+  const { cfg, now, hasGuard, key, tx, verified, sandbox, anon, who, limits } = id;
   const reserveNeurons = neurons ?? neuronsFor(model, inTokens, outTokens);
 
   const closed = () => {
