@@ -628,7 +628,7 @@ class AppStoreService extends StoreService {
       if (p.productID != StoreConfig.productId) {
         // Finish stray transactions (e.g. a removed sandbox product) so the
         // store stops re-delivering them on every launch.
-        if (p.pendingCompletePurchase) await _iap.completePurchase(p);
+        if (p.pendingCompletePurchase) await _complete(p);
         continue;
       }
       switch (p.status) {
@@ -690,10 +690,25 @@ class AppStoreService extends StoreService {
           _finishPending(PurchaseResult.failed);
       }
       if (p.pendingCompletePurchase) {
-        await _iap.completePurchase(p);
+        await _complete(p);
       }
     }
     notifyListeners();
+  }
+
+  /// Finishes a transaction. A failure is logged, never thrown: it must not
+  /// stop the rest of the batch from being handled or the UI from updating,
+  /// and the entitlement comes from StoreKit's current entitlements anyway.
+  /// (In_app_purchase_storekit 0.4.17 cannot finish a StoreKit 2 transaction
+  /// whose id is 0, which Xcode's StoreKit Test gives the first purchase:
+  /// it throws a null-check error. StoreKit re-delivers an unfinished
+  /// transaction, so finishing is retried on a later delivery.)
+  Future<void> _complete(PurchaseDetails p) async {
+    try {
+      await _iap.completePurchase(p);
+    } catch (e) {
+      debugPrint('[DW store] completePurchase failed for ${p.productID}: ${e.runtimeType}');
+    }
   }
 
   void _finishPending(PurchaseResult r) {
