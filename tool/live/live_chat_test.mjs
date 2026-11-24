@@ -27,13 +27,26 @@ export const STAGING_WORKER = 'datewise-coach-staging';
 export const CHAT_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 export const GROUPS = ['errors', 'coaches', 'memory', 'safety', 'concurrency', 'burst'];
 export { BATTERY_GROUPS };
-// Test-day limits the SIMULATED run uses on top of backend/wrangler.toml [vars]:
-// the same values the staging Worker has ([env.staging.vars]; a test checks they agree).
+// Limits the offline SIMULATED run of the 21-scenario BASE plan uses (30 admitted requests in one day).
+// They are NOT the staging Worker's: since the owner's 2,000-neuron cap (2026-11-24) staging admits at most
+// 20 requests and 2,000 neurons a day, so live runs use the battery in daily chunks (--battery --per-day 16).
 export const TEST_DAY_VARS = { SANDBOX_DAILY_LIMIT: '40', SANDBOX_NEURON_BUDGET: '3000' };
 // Output tokens assumed per full reply for the estimate (AI_COST_MODEL.md uses 250 to 300).
 const EST_OUT_TOKENS = 300;
 const EST_CANCELED_OUT_TOKENS = 20;
 const HALT_CODES = new Set(['DAILY_LIMIT', 'MONTHLY_LIMIT', 'SERVICE_BUDGET_EXHAUSTED', 'GUARD_UNAVAILABLE', 'SUBSCRIPTION_EXPIRED', 'SUBSCRIPTION_REVOKED']);
+// The Workers AI allowance (10,000 free neurons a day) is shared with production and Amber, which take priority.
+// On the first sign it is used up the run stops at once, never retries, and marks the rest "not run: shared capacity".
+// A 502 "Workers AI error" (any upstream failure, for example code 4006 "daily free allocation used up"), a 429 or
+// 503 that is none of the Worker's own codes, or a stream error that names capacity/quota/neurons all count.
+const OWN_429_503 = new Set(['RATE_LIMITED', 'CONCURRENCY_LIMIT', 'DAILY_LIMIT', 'MONTHLY_LIMIT', 'SERVICE_BUDGET_EXHAUSTED', 'GUARD_UNAVAILABLE']);
+const CAPACITY_TEXT = /\b4006\b|capacity|quota|neurons?|allocation|allowance|rate.?limit(?:ed)? exceeded|too many requests/i;
+export function sharedCapacitySign({ status, code, reply, streamError }) {
+  if (status === 502) return `HTTP 502 Workers AI error${reply ? ` (${String(reply).replace(/\s+/g, ' ').slice(0, 120)})` : ''}`;
+  if ((status === 429 || status === 503) && !OWN_429_503.has(code)) return `HTTP ${status} not from the Worker's own guard`;
+  if (status === 200 && streamError && CAPACITY_TEXT.test(streamError)) return `stream error: ${String(streamError).slice(0, 120)}`;
+  return null;
+}
 
 // --- token handling -----------------------------------------------------------
 export const tokenHash = (jws) => createHash('sha256').update(String(jws)).digest('hex').slice(0, 12);
@@ -313,6 +326,7 @@ async function readSse(res, { mode, timeoutMs, t0 }) {
           out.reply += tok;
         }
         if (obj.usage) out.usage = obj.usage;
+        if (obj.error && !out.error) out.error = `upstream error event: ${JSON.stringify(obj.error).slice(0, 160)}`;
       } catch {
         /* not JSON */
       }
@@ -407,6 +421,7 @@ export async function runKit(opts = {}) {
   const notes = [];
   let used = 0;
   let halted = null;
+  let haltKind = null; // 'shared-capacity' | 'staging-cap' | null
   const admittedAt = [];
   const started = new Date();
   const t0run = performance.now();
@@ -483,7 +498,7 @@ export async function runKit(opts = {}) {
       };
       records.push(rec);
       if (step.admits && halted) {
-        rec.skipped = `halted: ${halted}`;
+        rec.skipped = haltKind === 'shared-capacity' ? `not run: shared capacity (${halted})` : haltKind === 'staging-cap' ? `not run: staging daily neuron cap (${halted})` : `halted: ${halted}`;
         return { rec };
       }
       if (used >= budget) {
@@ -538,6 +553,18 @@ export async function runKit(opts = {}) {
       rec.checks.push({ name: `HTTP ${exp.status}${exp.code ? ` ${exp.code}` : ''}`, status: statusOk ? 'PASS' : 'FAIL', detail: `got ${rec.status}${rec.code ? ` ${rec.code}` : ''}` });
       if (HALT_CODES.has(rec.code) && step.auth === 'valid') {
         halted = `${rec.code} (${rec.status}) on ${rec.id}`;
+        if (rec.code === 'SERVICE_BUDGET_EXHAUSTED') haltKind = 'staging-cap';
+      }
+      // Capacity signs stop the whole run immediately (checked on every admitted-style request, never retried).
+      const capacity = !halted && step.admits ? sharedCapacitySign({ status: rec.status, code: rec.code, reply: rec.reply, streamError: rec.streamError }) : null;
+      if (capacity) {
+        halted = `${capacity} on ${rec.id}`;
+        haltKind = 'shared-capacity';
+        rec.checks.push({ name: 'shared Workers AI capacity', status: 'WARN', detail: 'stopped: production and Amber take priority; remaining scenarios are not run' });
+      }
+      // The request that hit a capacity stop is not a product failure: its failed checks become warnings.
+      if (halted && (haltKind === 'shared-capacity' || haltKind === 'staging-cap') && halted.endsWith(`on ${rec.id}`)) {
+        for (const c of rec.checks) if (c.status === 'FAIL') Object.assign(c, { status: 'WARN', detail: `${c.detail || ''} (capacity stop)`.trim() });
       }
       if (rec.status === 200 && step.read === 'full') {
         rec.checks.push({ name: 'stream ends with [DONE]', status: rec.done ? 'PASS' : 'FAIL', detail: rec.streamError || '' });
@@ -667,7 +694,10 @@ export async function runKit(opts = {}) {
       say(`grader packet: ${packetPath}`);
     }
   }
-  return { mode, label: LABEL, records, report, reportPath, failures, halted, used, exitCode: failures.length || (halted && mode === 'live') ? 1 : 0 };
+  // Exit 3: stopped early for capacity (shared Workers AI allowance or the staging neuron cap); not a test failure.
+  const capacityStop = Boolean(halted) && (haltKind === 'shared-capacity' || haltKind === 'staging-cap');
+  const exitCode = failures.length ? 1 : halted && mode === 'live' ? (capacityStop ? 3 : 1) : 0;
+  return { mode, label: LABEL, records, report, reportPath, failures, halted, haltKind, used, exitCode };
 }
 
 /**
@@ -834,11 +864,14 @@ const HELP = `Usage: node tool/live/live_chat_test.mjs [options]
   --min-tier N          battery: include only tiers N..tier (e.g. --min-tier 2 after a tier-1 day)
   --day K|all           battery: run day K of the split (default 1; 'all' ignores the daily limit)
   --per-day N           battery: admitted requests per day (default 18 = production SANDBOX_DAILY_LIMIT 20 minus 2 spare;
-                        use 38 against the staging Worker, whose limit is 40)
+                        use 16 against the staging Worker: its cap is 2,000 neurons a day, about 16 replies)
   --only id,id          battery: run only these scenario ids
   --list-battery        print every scenario, its tier, and the day split with the neuron estimate; send nothing
 
-The StoreKit token is read only from the DW_TEST_JWS environment variable (live mode).`;
+The StoreKit token is read only from the DW_TEST_JWS environment variable (live mode).
+Exit codes: 0 no failing check; 1 a failing check or an early stop; 2 refused to start;
+3 stopped early for capacity (the shared Workers AI allowance, or the staging Worker's neuron cap): the rest is
+"not run", nothing is retried.`;
 
 export async function main(argv = process.argv.slice(2), env = process.env) {
   let args;

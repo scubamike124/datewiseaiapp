@@ -319,8 +319,10 @@ jobs:
               where = '[env.staging]'
               if st.get('name') != os.environ['STAGING_WORKER_NAME']: errors.append(f"{where} name must be {os.environ['STAGING_WORKER_NAME']}, got {st.get('name')}")
               if st.get('name') == cfg.get('name') or st.get('name') == os.environ['WORKER_NAME']: errors.append(f'{where} must not use the production Worker name')
-              for k in ('main', 'route', 'routes', 'workers_dev', 'legacy_env', 'compatibility_date'):
-                  if k in st: errors.append(f'{where} must not set {k} (it inherits main and compatibility_date; no routes)')
+              for k in ('route', 'routes', 'workers_dev', 'legacy_env', 'compatibility_date'):
+                  if k in st: errors.append(f'{where} must not set {k} (it inherits compatibility_date; no routes)')
+              # The staging entry file (worker.js plus the throwaway test root, max 2 hours): production never uses it.
+              if st.get('main') != 'staging_entry.js': errors.append(f"{where} main must be staging_entry.js, got {st.get('main')}")
               if ((st.get('ai') or {}).get('binding')) != 'AI': errors.append(f'{where}: [env.staging.ai] binding = "AI" is missing')
               # Nothing that reaches another Worker (production's Durable Object, service bindings, tail consumers).
               for b in ((st.get('durable_objects') or {}).get('bindings') or []):
@@ -347,7 +349,8 @@ jobs:
                   if not re.fullmatch(r'[1-9][0-9]*', str(vars_.get(k, ''))): errors.append(f'{where}.vars {k} must be a whole number above 0, got "{vars_.get(k, "")}"')
               try:
                   d, sb = int(vars_.get('DAILY_NEURON_BUDGET', 0)), int(vars_.get('SANDBOX_NEURON_BUDGET', 0))
-                  if d > 4000: errors.append(f'{where}.vars DAILY_NEURON_BUDGET must be at most 4000 (free allowance), got {d}')
+                  if d > 2000: errors.append(f'{where}.vars DAILY_NEURON_BUDGET must be at most 2000 (owner cap: 20% of the shared free allowance), got {d}')
+                  if int(vars_.get('SANDBOX_DAILY_LIMIT', 0)) > int(prod_vars.get('SANDBOX_DAILY_LIMIT', 0)): errors.append(f'{where}.vars SANDBOX_DAILY_LIMIT must not exceed production ({prod_vars.get("SANDBOX_DAILY_LIMIT")})')
                   if sb > d: errors.append(f'{where}.vars SANDBOX_NEURON_BUDGET exceeds DAILY_NEURON_BUDGET')
               except ValueError:
                   pass
@@ -408,9 +411,9 @@ jobs:
           set -euo pipefail
           log="$RUNNER_TEMP/dryrun.log"
           need() { grep -Eq "$1" "$log" || { echo "::error::staging dry-run lacks: $2"; exit 1; }; }
-          need 'env\.SANDBOX_DAILY_LIMIT \("40"\)' 'SANDBOX_DAILY_LIMIT 40'
-          need 'env\.SANDBOX_NEURON_BUDGET \("3000"\)' 'SANDBOX_NEURON_BUDGET 3000'
-          need 'env\.DAILY_NEURON_BUDGET \("([1-9][0-9]{0,2}|[1-3][0-9]{3}|4000)"\)' 'DAILY_NEURON_BUDGET at most 4000'
+          need 'env\.SANDBOX_DAILY_LIMIT \("20"\)' 'SANDBOX_DAILY_LIMIT 20'
+          need 'env\.SANDBOX_NEURON_BUDGET \("2000"\)' 'SANDBOX_NEURON_BUDGET 2000'
+          need 'env\.DAILY_NEURON_BUDGET \("([1-9][0-9]{0,2}|1[0-9]{3}|2000)"\)' 'DAILY_NEURON_BUDGET at most 2000'
           need 'env\.ALLOW_SANDBOX \("1"\)' 'ALLOW_SANDBOX 1'
           need 'env\.LEGACY_CLIENTS \("0"\)' 'LEGACY_CLIENTS 0'
           need 'env\.REQUIRE_SUBSCRIPTION \("1"\)' 'REQUIRE_SUBSCRIPTION 1'
@@ -418,11 +421,24 @@ jobs:
           need 'env\.APPLE_PRODUCT_ID \("datewise_premium_monthly"\)' 'APPLE_PRODUCT_ID'
           echo "Staging dry run has the test-sized limits and the production security settings."
 
+      - name: Production bundle must contain no staging test-trust code
+        if: steps.plan.outputs.cf_env == 'production'
+        run: |
+          set -euo pipefail
+          ls "$RUNNER_TEMP/dist/worker.js" >/dev/null
+          if grep -lE 'STAGING_TEST_ROOT_CERT_B64|staging-neurons|MAX_TEST_ROOT_LIFETIME' "$RUNNER_TEMP"/dist/*.js; then
+            echo "::error::the production bundle contains staging test-trust code"; exit 1
+          fi
+          echo "Production bundle has no staging test-trust code."
+
       - name: Bundle must report the expected ?version
         env:
           EXPECT: ${{ steps.plan.outputs.expect }}
+          CF_ENV: ${{ steps.plan.outputs.cf_env }}
         run: |
-          node --input-type=module - "$RUNNER_TEMP/dist/worker.js" <<'EOF'
+          # Production bundles worker.js; staging bundles its own entry file.
+          bundle=worker.js; [ "$CF_ENV" = "staging" ] && bundle=staging_entry.js
+          node --input-type=module - "$RUNNER_TEMP/dist/$bundle" <<'EOF'
           import { pathToFileURL } from 'node:url';
           const mod = await import(pathToFileURL(process.argv[2]).href);
           const res = await mod.default.fetch(new Request('https://bundle.invalid/?version'), {}, {});
@@ -447,7 +463,7 @@ jobs:
             if [ "$CF_ENV" = "staging" ]; then echo "- **STAGING**: Worker \`$STAGING_WORKER_NAME\` (\`wrangler deploy --env staging\`). Production is not touched."; else echo "- Worker: \`$WORKER_NAME\` (production)"; fi
             echo "- Commit: \`$SHA\` ($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$SHA)"
             echo "- Wrangler: \`$WRANGLER_VERSION\`"
-            echo "- Bundle size: $(wc -c < "$RUNNER_TEMP/dist/worker.js") bytes"
+            echo "- Bundle size: $(cat "$RUNNER_TEMP"/dist/*.js | wc -c) bytes"
             if [ "$DEPLOY" = "true" ]; then echo "- The deploy job waits for approval in the production-worker environment. **Approve only if this commit is the one you mean to deploy.**"; else echo "- Dry run only: nothing was deployed."; fi
           } >> "$GITHUB_STEP_SUMMARY"
 

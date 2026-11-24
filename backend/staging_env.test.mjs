@@ -16,7 +16,6 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TEST_DAY_VARS } from '../tool/live/live_chat_test.mjs';
 
 const TOML_PATH = fileURLToPath(new URL('./wrangler.toml', import.meta.url));
 const WORKFLOW = readFileSync(new URL('../.github/workflows/deploy-worker.yml', import.meta.url), 'utf8');
@@ -64,7 +63,8 @@ test('staging: its own Worker name, AI binding, Durable Object, migration and ra
   assert.deepEqual(Object.keys(cfg.env), ['staging'], 'only one extra environment');
   assert.equal(st.name, 'datewise-coach-staging');
   assert.notEqual(st.name, cfg.name);
-  for (const k of ['main', 'route', 'routes', 'workers_dev', 'legacy_env']) assert.ok(!(k in st), `[env.staging] must not set ${k}`);
+  for (const k of ['route', 'routes', 'workers_dev', 'legacy_env']) assert.ok(!(k in st), `[env.staging] must not set ${k}`);
+  assert.equal(st.main, 'staging_entry.js', 'staging has its own entry; production main stays worker.js');
   assert.deepEqual(st.ai, { binding: 'AI' });
   assert.deepEqual(st.durable_objects.bindings, [{ name: 'USAGE_GUARD', class_name: 'UsageGuard' }]);
   assert.deepEqual(st.migrations, [{ tag: 'v1-usage-guard', new_sqlite_classes: ['UsageGuard'] }]);
@@ -97,14 +97,14 @@ test('staging: production security settings, test-sized limits inside the free a
     assert.equal(v[k], prod[k], k);
   }
   // Test-sized limits.
-  assert.equal(v.SANDBOX_DAILY_LIMIT, '40');
-  assert.equal(v.SANDBOX_NEURON_BUDGET, '3000');
+  // Owner cap (2026-11-24): at most 2,000 neurons a day in total (20% of the shared free 10,000).
+  assert.equal(v.SANDBOX_DAILY_LIMIT, prod.SANDBOX_DAILY_LIMIT, 'production per-subscriber limit');
+  assert.equal(v.SANDBOX_NEURON_BUDGET, '2000');
   const daily = Number(v.DAILY_NEURON_BUDGET);
-  assert.ok(daily > 0 && daily <= 4000, 'DAILY_NEURON_BUDGET at most 4000 (free allowance is 10,000 a day per account)');
+  assert.equal(daily, 2000);
+  assert.ok(daily > 0 && daily <= 2000, 'DAILY_NEURON_BUDGET at most 2000 (free allowance is 10,000 a day per account, shared)');
   assert.ok(Number(v.SANDBOX_NEURON_BUDGET) <= daily);
   for (const [k, val] of Object.entries(v)) assert.ok(val !== '' && val !== '-1', `${k} is set explicitly`);
-  // The SIMULATED run uses the same test-day limits as the staging Worker.
-  for (const [k, val] of Object.entries(TEST_DAY_VARS)) assert.equal(v[k], val, `TEST_DAY_VARS.${k}`);
 });
 
 // --- the deploy workflow's own wrangler.toml checks ---------------------------------
@@ -139,7 +139,7 @@ test('workflow check: the real wrangler.toml passes for chat-v7 and chat-v7-stag
   for (const target of ['chat-v7-cost-guard', 'chat-v7-staging']) {
     const r = runCheck(target, toml);
     assert.ok(r.ok, r.out);
-    assert.match(r.out, /\[env\.staging\] name=datewise-coach-staging SANDBOX_DAILY_LIMIT=40 SANDBOX_NEURON_BUDGET=3000/);
+    assert.match(r.out, /\[env\.staging\] name=datewise-coach-staging SANDBOX_DAILY_LIMIT=20 SANDBOX_NEURON_BUDGET=2000/);
   }
   // chat-v7-staging needs [env.staging].
   const noStaging = toml.slice(0, toml.indexOf('# STAGING:'));
@@ -165,11 +165,11 @@ test('workflow check: a broken staging section fails (on staging and production 
     [broken('namespace_id = "740221"', 'namespace_id = "740219"'), /production's; staging needs its own/],
     [broken('namespace_id = "740221"', 'namespace_id = "REPLACE_ME"'), /namespace_id must be a positive integer/],
     [broken('[env.staging.ai]\nbinding = "AI"', '[env.staging.ai]\nbinding = "X"'), /binding = "AI" is missing/],
-    [broken('DAILY_NEURON_BUDGET = "4000"', 'DAILY_NEURON_BUDGET = "0"'), /DAILY_NEURON_BUDGET must be above 0/],
-    [broken('DAILY_NEURON_BUDGET = "4000"', 'DAILY_NEURON_BUDGET = "9000"'), /at most 4000/],
-    [broken('DAILY_NEURON_BUDGET = "4000"', 'DAILY_NEURON_BUDGET = "TODO"'), /placeholder/],
-    [broken('SANDBOX_NEURON_BUDGET = "3000"', 'SANDBOX_NEURON_BUDGET = "-1"'), /SANDBOX_NEURON_BUDGET must be a whole number above 0/],
-    [broken('SANDBOX_DAILY_LIMIT = "40"', 'SANDBOX_DAILY_LIMIT = "0"'), /SANDBOX_DAILY_LIMIT must be a whole number above 0/],
+    [broken('DAILY_NEURON_BUDGET = "2000"', 'DAILY_NEURON_BUDGET = "0"'), /DAILY_NEURON_BUDGET must be above 0/],
+    [broken('DAILY_NEURON_BUDGET = "2000"', 'DAILY_NEURON_BUDGET = "2001"'), /at most 2000/],
+    [broken('DAILY_NEURON_BUDGET = "2000"', 'DAILY_NEURON_BUDGET = "TODO"'), /placeholder/],
+    [broken('SANDBOX_NEURON_BUDGET = "2000"', 'SANDBOX_NEURON_BUDGET = "-1"'), /SANDBOX_NEURON_BUDGET must be a whole number above 0/],
+    [broken('SANDBOX_DAILY_LIMIT = "20"', 'SANDBOX_DAILY_LIMIT = "0"'), /SANDBOX_DAILY_LIMIT must be a whole number above 0/],
     [broken('ALLOW_SANDBOX = "1"', 'ALLOW_SANDBOX = "0"'), /ALLOW_SANDBOX must be "1"/],
     [broken('LEGACY_CLIENTS = "0"', 'LEGACY_CLIENTS = "1"'), /LEGACY_CLIENTS must be "0"/],
     [broken('REQUIRE_SUBSCRIPTION = "1"', 'REQUIRE_SUBSCRIPTION = "0"'), /REQUIRE_SUBSCRIPTION must be "1"/],

@@ -1,0 +1,357 @@
+name: Live AI test (staging)
+
+# Runs one day's chunk of the 106-scenario live AI battery (tool/live/battery.mjs) against the isolated staging
+# Worker "datewise-coach-staging", with throwaway authentication generated per run. Manual only: workflow_dispatch,
+# never scheduled. Docs: docs/qa/LIVE_AI_TEST_PLAN.md (section 3a), docs/launch/WORKER_DEPLOY_RUNBOOK.md (section 9),
+# threat model: docs/qa/STAGING_TEST_AUTH_THREAT_MODEL.md.
+#
+# One job, one owner approval (environment production-worker, which holds the Cloudflare secrets; nothing else does).
+#   1. a throwaway CA is generated on the runner (tool/live/staging_auth.mjs): valid 2 hours; its PRIVATE key lives only
+#      in that process's memory and is gone when it exits; only the PUBLIC root certificate leaves it;
+#   2. the staging Worker is deployed with `wrangler deploy --env staging --var STAGING_TEST_ROOT_CERT_B64:<public root>`
+#      (staging's own entry file, backend/staging_entry.js; production's bundle is untouched and is checked here);
+#   3. test tokens (<= 50 minutes, real bundle id, product id, Sandbox) are used through the job environment, masked;
+#   4. the battery runs; it stops at once on any sign that the shared free Workers AI allowance is used up (production
+#      and Amber take priority) and never retries;
+#   5. always: staging is redeployed WITHOUT the test root, and the CA files are deleted.
+# Spend: $0. Workers Free only (no paid plan, model or provider). Staging may use at most 2,000 neurons a day.
+on:
+  workflow_dispatch:
+    inputs:
+      day:
+        description: 'Battery day to run (1 to 7; 16 admitted requests a day, so the neuron cap holds). Run the days on different UTC days.'
+        type: string
+        default: '1'
+      tier:
+        description: 'Include scenario tiers up to this one (1 = must run, 2 = full, 3 = everything)'
+        type: choice
+        options: ['3', '2', '1']
+        default: '3'
+
+permissions:
+  contents: read
+
+# Shared with the deploy workflow: never two Worker changes at once.
+concurrency:
+  group: deploy-worker
+  cancel-in-progress: false
+
+env:
+  WRANGLER_VERSION: '4.158.0'
+  WRANGLER_SEND_METRICS: 'false'
+  WORKER_NAME: datewise-photo-coach
+  STAGING_WORKER_NAME: datewise-coach-staging
+  REVIEWED_BRANCH: main
+  PER_DAY: '16'
+  # Owner cap (2026-11-24): at most 2,000 neurons a day for staging in total. One request reserves at most 209.
+  NEURON_CAP: '2000'
+  RESERVE_NEURONS: '210'
+
+jobs:
+  guard:
+    name: Cloudflare secrets must be environment secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Repository-level Cloudflare secrets are refused
+        # This job has no environment, so it only sees repository or organization secrets, which would bypass the gate.
+        env:
+          REPO_CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          REPO_CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          bad=0
+          [ -z "$REPO_CF_TOKEN" ] || { echo "::error::CLOUDFLARE_API_TOKEN is a repository/organization secret. Move it to the production-worker environment only."; bad=1; }
+          [ -z "$REPO_CF_ACCOUNT" ] || { echo "::error::CLOUDFLARE_ACCOUNT_ID is a repository/organization secret. Move it to the production-worker environment."; bad=1; }
+          exit $bad
+
+  live:
+    name: Live AI battery on staging (owner approval)
+    needs: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production-worker
+    steps:
+      - name: Validate the inputs
+        id: plan
+        env:
+          IN_DAY: ${{ inputs.day }}
+          IN_TIER: ${{ inputs.tier }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$IN_DAY" =~ ^[1-9]$ ]] || { echo "::error::day must be a single digit 1 to 9"; exit 1; }
+          [[ "$IN_TIER" =~ ^[123]$ ]] || { echo "::error::tier must be 1, 2 or 3"; exit 1; }
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::unexpected GITHUB_SHA"; exit 1; }
+          printf 'day=%s\ntier=%s\n' "$IN_DAY" "$IN_TIER" >> "$GITHUB_OUTPUT"
+          echo "Battery day $IN_DAY, tier <= $IN_TIER, $PER_DAY admitted requests a day"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: This run's commit must be on main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --quiet --no-tags origin "+refs/heads/$REVIEWED_BRANCH:refs/remotes/origin/$REVIEWED_BRANCH" \
+            || { echo "::error::could not fetch $REVIEWED_BRANCH"; exit 1; }
+          git merge-base --is-ancestor "$GITHUB_SHA" "refs/remotes/origin/$REVIEWED_BRANCH" \
+            || { echo "::error::commit $GITHUB_SHA is not on $REVIEWED_BRANCH. Run this workflow from main."; exit 1; }
+          [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] || { echo "::error::checked-out commit differs"; exit 1; }
+          echo "Commit $GITHUB_SHA is on $REVIEWED_BRANCH"
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Refuse files that change what Wrangler builds or connects to, and check the staging config
+        shell: bash
+        run: |
+          set -uo pipefail
+          shopt -s nullglob dotglob
+          bad=0
+          for f in .npmrc backend/.npmrc backend/package.json backend/node_modules \
+                   backend/wrangler.json backend/wrangler.jsonc \
+                   .env .env.* backend/.env backend/.env.* backend/.dev.vars backend/.dev.vars.*; do
+            if [ -e "$f" ]; then echo "::error::$f must not exist (it could change what Wrangler builds, installs or connects to)"; bad=1; fi
+          done
+          python3 - <<'EOF' || bad=1
+          import os, re, sys, tomllib
+          errors = []
+          cfg = tomllib.load(open('backend/wrangler.toml', 'rb'))
+          st = (cfg.get('env') or {}).get('staging') or {}
+          if sorted((cfg.get('env') or {}).keys()) != ['staging']: errors.append('only [env.staging] is allowed')
+          if cfg.get('main') != 'worker.js': errors.append('production main must be worker.js')
+          if cfg.get('name') != os.environ['WORKER_NAME']: errors.append('production name changed')
+          if st.get('name') != os.environ['STAGING_WORKER_NAME'] or st.get('name') == cfg.get('name'): errors.append('staging name must be ' + os.environ['STAGING_WORKER_NAME'])
+          if st.get('main') != 'staging_entry.js': errors.append('staging main must be staging_entry.js')
+          for k in ('route', 'routes', 'workers_dev', 'services', 'tail_consumers'):
+              if k in st: errors.append(f'[env.staging] must not set {k}')
+          v = st.get('vars') or {}
+          cap = int(os.environ['NEURON_CAP'])
+          def num(k):
+              x = str(v.get(k, ''))
+              if not re.fullmatch(r'0|[1-9][0-9]*', x): errors.append(f'staging {k} must be a whole number, got "{x}"'); return 10**9
+              return int(x)
+          if not 0 < num('DAILY_NEURON_BUDGET') <= cap: errors.append(f'staging DAILY_NEURON_BUDGET must be 1..{cap}')
+          if num('SANDBOX_NEURON_BUDGET') > num('DAILY_NEURON_BUDGET'): errors.append('staging SANDBOX_NEURON_BUDGET exceeds DAILY_NEURON_BUDGET')
+          if num('SANDBOX_DAILY_LIMIT') > int((cfg.get('vars') or {}).get('SANDBOX_DAILY_LIMIT', 0)): errors.append('staging SANDBOX_DAILY_LIMIT exceeds production')
+          for k in ('PER_MINUTE_LIMIT', 'MAX_CONCURRENT', 'MAX_INPUT_TOKENS', 'MAX_OUTPUT_TOKENS', 'DAILY_MESSAGE_LIMIT', 'APPLE_BUNDLE_ID', 'APPLE_PRODUCT_ID', 'ALLOW_SANDBOX'):
+              if str(v.get(k)) != str((cfg.get('vars') or {}).get(k)): errors.append(f'staging {k} must equal production')
+          if 'STAGING_TEST_ROOT_CERT_B64' in v: errors.append('a test root must never be committed in [env.staging.vars]')
+          def walk(o, path):
+              if isinstance(o, dict):
+                  for k, x in o.items():
+                      if k.strip().lower() == 'build': errors.append('wrangler.toml must not have a build key: ' + '.'.join(path + [k]))
+                      walk(x, path + [k])
+              elif isinstance(o, list):
+                  for i, x in enumerate(o): walk(x, path + [str(i)])
+          walk(cfg, [])
+          for e in errors: print(f'::error::{e}')
+          sys.exit(1 if errors else 0)
+          EOF
+          exit $bad
+
+      - name: Offline tests must pass (Worker, staging auth, live kit)
+        run: node --test backend/*.test.mjs tool/live/*.test.mjs
+
+      - name: Production bundle must contain no staging test-trust code
+        working-directory: backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          # No credentials in this step: a dry run of the PRODUCTION config (no --env).
+          npx --yes "wrangler@${WRANGLER_VERSION}" deploy --dry-run --outdir "$RUNNER_TEMP/prod-dist" > "$RUNNER_TEMP/prod-dryrun.log" 2>&1 || { cat "$RUNNER_TEMP/prod-dryrun.log"; echo "::error::production dry run failed"; exit 1; }
+          [ -f "$RUNNER_TEMP/prod-dist/worker.js" ] || { echo "::error::the production bundle is not worker.js"; exit 1; }
+          if grep -lE 'STAGING_TEST_ROOT_CERT_B64|staging-neurons|MAX_TEST_ROOT_LIFETIME' "$RUNNER_TEMP"/prod-dist/*.js; then
+            echo "::error::the production bundle contains staging test-trust code"; exit 1
+          fi
+          echo "Production bundle sha256: $(sha256sum "$RUNNER_TEMP/prod-dist/worker.js" | cut -d' ' -f1) (no staging test-trust code)"
+
+      - name: Check that the chosen day exists
+        env:
+          DAY: ${{ steps.plan.outputs.day }}
+          TIER: ${{ steps.plan.outputs.tier }}
+        run: |
+          node --input-type=module -e '
+            import { selectBattery } from "./tool/live/live_chat_test.mjs";
+            const b = selectBattery({ battery: "all", tier: process.env.TIER, day: process.env.DAY, perDay: process.env.PER_DAY });
+            console.log(`day ${b.dayNo} of ${b.days.length}: ${b.chosen.length} scenario(s) of ${b.total}`);
+          '
+
+      - name: Generate the throwaway CA and test tokens (private key stays in memory, then is gone)
+        id: mint
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          dir="$RUNNER_TEMP/staging_auth"
+          rm -rf "$dir"
+          node tool/live/staging_auth.mjs --out-dir "$dir" --count 1
+          # Only these two files may exist: the public root and the tokens (0600). No key material.
+          [ "$(ls "$dir" | sort | tr '\n' ' ')" = "root.b64 tokens " ] || { echo "::error::unexpected files in the CA folder"; rm -rf "$dir"; exit 1; }
+          root=$(tr -d '\n' < "$dir/root.b64")
+          [[ "$root" =~ ^[A-Za-z0-9+/]+={0,2}$ ]] && [ "${#root}" -le 2000 ] || { echo "::error::the root certificate has an unexpected shape"; rm -rf "$dir"; exit 1; }
+          # The tokens are secrets for the run: masked as soon as they are read, in every step that reads them.
+          while IFS= read -r t; do [ -z "$t" ] || echo "::add-mask::$t"; done < "$dir/tokens"
+          echo "The throwaway CA exists for 2 hours; tokens expire in 50 minutes."
+
+      - name: Deploy the staging Worker with the PUBLIC test root only
+        id: deploy
+        working-directory: backend
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ENV: staging
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Add the CLOUDFLARE_API_TOKEN secret to the production-worker environment"; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "::error::Add the CLOUDFLARE_ACCOUNT_ID secret to the production-worker environment"; exit 1; }
+          root=$(tr -d '\n' < "$RUNNER_TEMP/staging_auth/root.b64")
+          [[ "$root" =~ ^[A-Za-z0-9+/]+={0,2}$ ]] || { echo "::error::bad root certificate"; exit 1; }
+          # Always --env staging: the staging Worker, never production. The var is the public certificate.
+          npx --yes "wrangler@${WRANGLER_VERSION}" deploy --env staging --var "STAGING_TEST_ROOT_CERT_B64:${root}" 2>&1 | sed -E 's/(STAGING_TEST_ROOT_CERT_B64[^ ]*) .*/\1 (public root, value not shown)/'
+
+      - name: Find the staging URL and wait until it answers
+        id: live
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -uo pipefail
+          sub=$(curl -sS --max-time 20 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" \
+            | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{try{const v=JSON.parse(s).result?.subdomain||"";process.stdout.write(/^[a-z0-9-]+$/.test(v)?v:"")}catch{}})') || true
+          [ -n "$sub" ] || { echo "::error::No workers.dev subdomain on this account (register it first)."; exit 1; }
+          url="https://${STAGING_WORKER_NAME}.${sub}.workers.dev"
+          [[ "$url" =~ ^https://${STAGING_WORKER_NAME}\.[a-z0-9-]+\.workers\.dev$ ]] || { echo "::error::not the staging host"; exit 1; }
+          printf 'url=%s\n' "$url" >> "$GITHUB_OUTPUT"
+          ok=""
+          for i in $(seq 1 18); do
+            got=$(curl -sS --max-time 15 "$url/?version" | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{try{process.stdout.write(String(JSON.parse(s).version||""))}catch{}})') || true
+            echo "attempt $i: ?version = ${got:-<none>}"
+            if [ "$got" = "chat-v7-cost-guard" ]; then ok=1; break; fi
+            sleep 10
+          done
+          [ -n "$ok" ] || { echo "::error::staging did not report chat-v7-cost-guard within 3 minutes"; exit 1; }
+
+      - name: Pre-flight, staging must accept the test token and have neuron headroom today
+        shell: bash
+        env:
+          URL: ${{ steps.live.outputs.url }}
+        run: |
+          set -euo pipefail
+          [[ "$URL" =~ ^https://${STAGING_WORKER_NAME}\.[a-z0-9-]+\.workers\.dev$ ]] || { echo "::error::not the staging host"; exit 1; }
+          tok=$(head -n1 "$RUNNER_TEMP/staging_auth/tokens")
+          echo "::add-mask::$tok"
+          # No model call: the staging read of its own neuron counter (needs a valid token, so it also proves the test root is trusted).
+          code=$(curl -sS --max-time 20 -o "$RUNNER_TEMP/neurons.json" -w '%{http_code}' -H "X-DateWise-Entitlement: $tok" "$URL/?staging-neurons") || code=000
+          [ "$code" = "200" ] || { echo "::error::the staging Worker did not accept the test token (HTTP $code). Not starting."; exit 1; }
+          spent=$(node -e 'const j=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));if(j.overCap||!Number.isInteger(j.spent)||!Number.isInteger(j.cap)||j.cap>Number(process.env.NEURON_CAP))process.exit(2);process.stdout.write(String(j.spent))' "$RUNNER_TEMP/neurons.json") || { echo "::error::unreadable counter, or over the cap, or the Worker cap is above $NEURON_CAP. Not starting."; exit 1; }
+          if [ $((spent + RESERVE_NEURONS)) -gt "$NEURON_CAP" ]; then
+            echo "::error::staging has already used $spent of $NEURON_CAP neurons today (one request can reserve $RESERVE_NEURONS). Not starting; run again after 00:00 UTC."
+            exit 1
+          fi
+          echo "Staging neurons used today: $spent of $NEURON_CAP."
+
+      - name: Run the battery (stops at once if the shared Workers AI allowance runs out)
+        id: battery
+        shell: bash
+        env:
+          URL: ${{ steps.live.outputs.url }}
+          DAY: ${{ steps.plan.outputs.day }}
+          TIER: ${{ steps.plan.outputs.tier }}
+        run: |
+          set -uo pipefail
+          [[ "$URL" =~ ^https://${STAGING_WORKER_NAME}\.[a-z0-9-]+\.workers\.dev$ ]] || { echo "::error::not the staging host"; exit 1; }
+          DW_TEST_JWS=$(head -n1 "$RUNNER_TEMP/staging_auth/tokens")
+          echo "::add-mask::$DW_TEST_JWS"
+          export DW_TEST_JWS
+          mkdir -p "$RUNNER_TEMP/report"
+          rc=0
+          node tool/live/live_chat_test.mjs --battery all --mode live --confirm-live --base-url "$URL" \
+            --tier "$TIER" --day "$DAY" --per-day "$PER_DAY" --budget 30 --out "$RUNNER_TEMP/report" || rc=$?
+          unset DW_TEST_JWS
+          printf 'rc=%s\n' "$rc" >> "$GITHUB_OUTPUT"
+          case "$rc" in
+            0) echo "Battery day $DAY finished: no failing check." ;;
+            3) echo "::warning::Stopped early for capacity (the staging cap or the shared Workers AI allowance). The rest is 'not run'; nothing was retried. Run the day again after 00:00 UTC (--only for the missing ids)." ;;
+            *) echo "::warning::The battery ended with exit code $rc (a failing check or a refusal). See the report." ;;
+          esac
+          exit 0
+
+      - name: Neuron usage
+        if: always() && steps.battery.outcome != 'skipped'
+        shell: bash
+        env:
+          URL: ${{ steps.live.outputs.url }}
+          RC: ${{ steps.battery.outputs.rc }}
+        run: |
+          set -uo pipefail
+          tok=$(head -n1 "$RUNNER_TEMP/staging_auth/tokens" 2>/dev/null) || tok=""
+          [ -z "$tok" ] || echo "::add-mask::$tok"
+          line="staging neuron counter unavailable"
+          if [ -n "$tok" ] && [[ "$URL" =~ ^https://${STAGING_WORKER_NAME}\.[a-z0-9-]+\.workers\.dev$ ]] \
+             && curl -sS --max-time 20 -o "$RUNNER_TEMP/neurons2.json" -H "X-DateWise-Entitlement: $tok" "$URL/?staging-neurons"; then
+            line=$(node -e 'try{const j=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(Number.isInteger(j.spent)?`staging neurons used today (UTC ${j.day}): ${j.spent} of ${j.cap}`:"staging neuron counter unavailable")}catch{process.stdout.write("staging neuron counter unavailable")}' "$RUNNER_TEMP/neurons2.json") || true
+          fi
+          est=$(grep -m1 -E '^\| Estimated neurons' "$RUNNER_TEMP"/report/*.md 2>/dev/null | head -n1 | cut -c1-200) || est=""
+          echo "$line"
+          {
+            echo "### Live AI battery (staging), exit code ${RC:-?}"
+            echo "- $line (cap $NEURON_CAP; the free allowance is 10,000 a day, shared with production and Amber)"
+            [ -z "$est" ] || echo "- Report row: $est"
+            echo "- The artifact holds the LIVE report and the grader packet (gradable only for real replies)."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: always() && steps.battery.outcome != 'skipped'
+        with:
+          name: live-ai-report-day-${{ steps.plan.outputs.day }}
+          path: ${{ runner.temp }}/report
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Cleanup, remove the test root from staging and delete the CA files
+        if: always() && steps.mint.outcome != 'skipped'
+        shell: bash
+        working-directory: backend
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ENV: staging
+          URL: ${{ steps.live.outputs.url }}
+          DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
+        run: |
+          set -uo pipefail
+          tok=$(head -n1 "$RUNNER_TEMP/staging_auth/tokens" 2>/dev/null) || tok=""
+          [ -z "$tok" ] || echo "::add-mask::$tok"
+          rc=0
+          # Redeploy staging WITHOUT --var: the test root is gone from the Worker (it also expires by itself after 2 hours).
+          if [ "${DEPLOY_OUTCOME:-skipped}" != "skipped" ] && [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            npx --yes "wrangler@${WRANGLER_VERSION}" deploy --env staging > "$RUNNER_TEMP/cleanup-deploy.log" 2>&1 || { tail -n 5 "$RUNNER_TEMP/cleanup-deploy.log"; echo "::error::Could not redeploy staging without the test root. It expires by itself within 2 hours; run Deploy coach Worker (chat-v7-staging) to remove it now."; rc=1; }
+          fi
+          # Proof, when the URL is known: the old test token is now refused (no model call).
+          if [ "$rc" -eq 0 ] && [ -n "$tok" ] && [[ "${URL:-}" =~ ^https://${STAGING_WORKER_NAME}\.[a-z0-9-]+\.workers\.dev$ ]]; then
+            sleep 5
+            code=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' -H "X-DateWise-Entitlement: $tok" "$URL/?staging-neurons") || code=000
+            if [ "$code" = "403" ]; then echo "Staging no longer accepts the test token (HTTP 403)."; else echo "::warning::After cleanup staging answered HTTP $code to the test token (it expires by itself)."; fi
+          fi
+          rm -rf "$RUNNER_TEMP/staging_auth" "$RUNNER_TEMP/neurons.json" "$RUNNER_TEMP/neurons2.json"
+          [ ! -e "$RUNNER_TEMP/staging_auth" ] || { echo "::error::CA files were not deleted"; rc=1; }
+          echo "The runner holds no CA material: the private key was never written, the public root and tokens are deleted."
+          exit $rc
+
+      - name: Fail the run if the battery had a failing check
+        if: always() && steps.battery.outcome != 'skipped'
+        env:
+          RC: ${{ steps.battery.outputs.rc }}
+        shell: bash
+        run: |
+          case "${RC:-}" in
+            0|3) exit 0 ;;
+            *) echo "::error::battery exit code ${RC:-unknown}: a failing check, a refusal to start, or the step did not finish. See the report artifact."; exit 1 ;;
+          esac

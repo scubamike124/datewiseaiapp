@@ -49,15 +49,23 @@ jobs:
           need 'env\.USAGE_GUARD \(UsageGuard\).*Durable Object' 'USAGE_GUARD Durable Object'
           need 'env\.AI[[:space:]].*AI' 'AI binding'
           need 'env\.RATE_LIMITER .*Rate Limit' 'RATE_LIMITER'
-          need 'env\.SANDBOX_DAILY_LIMIT \("40"\)' 'SANDBOX_DAILY_LIMIT 40'
-          need 'env\.SANDBOX_NEURON_BUDGET \("3000"\)' 'SANDBOX_NEURON_BUDGET 3000'
-          need 'env\.DAILY_NEURON_BUDGET \("4000"\)' 'DAILY_NEURON_BUDGET 4000'
+          need 'env\.SANDBOX_DAILY_LIMIT \("20"\)' 'SANDBOX_DAILY_LIMIT 20'
+          need 'env\.SANDBOX_NEURON_BUDGET \("2000"\)' 'SANDBOX_NEURON_BUDGET 2000'
+          need 'env\.DAILY_NEURON_BUDGET \("2000"\)' 'DAILY_NEURON_BUDGET 2000'
           need 'env\.ALLOW_SANDBOX \("1"\)' 'ALLOW_SANDBOX 1'
           need 'env\.LEGACY_CLIENTS \("0"\)' 'LEGACY_CLIENTS 0'
-          node --input-type=module - "$RUNNER_TEMP/dist/worker.js" <<'JS'
+          node --input-type=module - "$RUNNER_TEMP/dist/staging_entry.js" <<'JS'
           import { pathToFileURL } from 'node:url';
           const mod = await import(pathToFileURL(process.argv[2]).href);
           const { version } = await (await mod.default.fetch(new Request('https://bundle.invalid/?version'), {}, {})).json();
           console.log(`staging bundle reports version=${version}`);
           if (version !== 'chat-v7-cost-guard') { console.log(`::error::expected chat-v7-cost-guard, got ${version}`); process.exit(1); }
           JS
+      - name: Production bundle has no staging test-trust code
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.158.0 deploy --dry-run --outdir "$RUNNER_TEMP/prod" > /dev/null 2>&1
+          test -f "$RUNNER_TEMP/prod/worker.js"
+          ! grep -lE 'STAGING_TEST_ROOT_CERT_B64|staging-neurons|MAX_TEST_ROOT_LIFETIME' "$RUNNER_TEMP"/prod/*.js
+          sha256sum "$RUNNER_TEMP/prod/worker.js"

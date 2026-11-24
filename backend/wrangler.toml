@@ -151,6 +151,12 @@ FAIL_OPEN_MAX_MINUTES = "15"
 # ---------------------------------------------------------------------------
 [env.staging]
 name = "datewise-coach-staging"
+# The staging Worker has its own entry file: worker.js unchanged, plus a throwaway
+# test root for the automated live AI test (valid at most 2 hours, only if the
+# deploy passes STAGING_TEST_ROOT_CERT_B64) and the GET /?staging-neurons read.
+# Production's main stays worker.js, so none of this is in the production bundle
+# (docs/qa/STAGING_TEST_AUTH_THREAT_MODEL.md).
+main = "staging_entry.js"
 
 [env.staging.ai]
 binding = "AI"
@@ -176,11 +182,11 @@ namespace_id = "740221"
   period = 60
 
 [env.staging.vars]
-# Test-sized budgets. DAILY_NEURON_BUDGET stays well under the account's free
-# 10,000-neuron daily allowance (at most 4000 here), so a run cannot spend money
-# on Workers Free. The full live plan needs about 2,019 neurons (worst case
-# stopped by SANDBOX_NEURON_BUDGET at 3,000).
-DAILY_NEURON_BUDGET = "4000"
+# Owner cap (2026-11-24): staging may use at most 2,000 neurons a day in total,
+# 20% of the account's free 10,000 (shared with production and Amber, which take
+# priority). About 16 replies a day at roughly 110 neurons each (the 106-scenario
+# battery takes 7 days, tool/live/battery.mjs). Workers Free only: no paid plan.
+DAILY_NEURON_BUDGET = "2000"
 # No v1 traffic on staging: no anonymous slice.
 ANON_NEURON_BUDGET = "0"
 MONTHLY_NEURON_BUDGET = "0"
@@ -206,9 +212,10 @@ LEGACY_MAX_OUTPUT_TOKENS = "500"
 APPLE_BUNDLE_ID = "com.datewise.datewiseAi"
 APPLE_PRODUCT_ID = "datewise_premium_monthly"
 ALLOW_SANDBOX = "1"
-# Test-sized: the full live plan admits 30 requests per Sandbox subscriber.
-SANDBOX_DAILY_LIMIT = "40"
-SANDBOX_NEURON_BUDGET = "3000"
+# Production's per-subscriber limit (the battery's 16 a day fits with spare); the
+# Sandbox slice equals the whole staging cap and is never above DAILY_NEURON_BUDGET.
+SANDBOX_DAILY_LIMIT = "20"
+SANDBOX_NEURON_BUDGET = "2000"
 EXPIRY_LEEWAY_MINUTES = "60"
 BILLING_GRACE_DAYS = "0"
 ASSN_ENABLED = "0"

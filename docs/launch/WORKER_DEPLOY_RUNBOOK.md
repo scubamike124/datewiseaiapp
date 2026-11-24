@@ -201,16 +201,16 @@ would otherwise mean production chat-v7).
 
    `[env.staging]`, whenever it exists (on every run, and required for chat-v7-staging), is checked on its own, because
    Wrangler environments inherit no bindings or vars: name `datewise-coach-staging` (never the production name), no
-   `main`/`route(s)`/`workers_dev`, its own `AI`, `USAGE_GUARD`, `UsageGuard` migration and `RATE_LIMITER` with a
+   `route(s)`/`workers_dev` and no other `main` than `staging_entry.js`, its own `AI`, `USAGE_GUARD`, `UsageGuard` migration and `RATE_LIMITER` with a
    namespace_id that is not production's (`740219`, `740220`); every production var declared, no placeholders; the same
    app/product ids, expiry leeway and grace as production; `ALLOW_SANDBOX = "1"`, `LEGACY_CLIENTS = "0"`,
-   `REQUIRE_SUBSCRIPTION = "1"`, ASSN and fail-open off; `SANDBOX_DAILY_LIMIT` and `SANDBOX_NEURON_BUDGET` above 0,
-   `DAILY_NEURON_BUDGET` from 1 to 4000. Any other `[env.*]` is refused. The `build`-key check (step 3) already walks the
+   `REQUIRE_SUBSCRIPTION = "1"`, ASSN and fail-open off; `SANDBOX_DAILY_LIMIT` and `SANDBOX_NEURON_BUDGET` above 0 (the daily limit not above production's),
+   `DAILY_NEURON_BUDGET` from 1 to 2000 (owner cap), `main = "staging_entry.js"`. Any other `[env.*]` is refused. The `build`-key check (step 3) already walks the
    whole file, `[env.staging]` included.
 6. `wrangler@4.158.0 deploy --dry-run --outdir`. For chat-v7, the binding list
    it prints must contain `AI`, `USAGE_GUARD (UsageGuard)`, `RATE_LIMITER` and
    the budget variables. chat-v7-staging runs `deploy --env staging --dry-run`, and its list must also show
-   `SANDBOX_DAILY_LIMIT ("40")`, `SANDBOX_NEURON_BUDGET ("3000")`, `DAILY_NEURON_BUDGET` at most 4000,
+   `SANDBOX_DAILY_LIMIT ("20")`, `SANDBOX_NEURON_BUDGET ("2000")`, `DAILY_NEURON_BUDGET` at most 2000,
    `ALLOW_SANDBOX ("1")`, `LEGACY_CLIENTS ("0")`, `REQUIRE_SUBSCRIPTION ("1")`, `ASSN_ENABLED ("0")` and the product id.
    With `[env.staging]` in the file, Wrangler warns that no environment was named on the production runs; that is
    expected (no `--env` = the top-level, production config).
@@ -316,9 +316,9 @@ One deploy path per Worker version stops the systems from drifting apart.
 
 ## 9. Staging Worker for the live AI test
 
-The live AI test (`docs/qa/LIVE_AI_TEST_PLAN.md`, 36 requests) needs more Sandbox room than production allows
-(`SANDBOX_DAILY_LIMIT` 20, `SANDBOX_NEURON_BUDGET` 1000). Instead of changing production variables, it runs against a
-separate staging Worker, so production is never touched and there is nothing to restore.
+The live AI test (`docs/qa/LIVE_AI_TEST_PLAN.md`) runs against a separate staging Worker instead of changing
+production variables, so production is never touched and there is nothing to restore. Since 2026-11-24 staging has its
+own throwaway test authentication and a 2,000-neuron daily cap (below).
 
 | | Production | Staging |
 |---|---|---|
@@ -327,7 +327,8 @@ separate staging Worker, so production is never touched and there is nothing to 
 | Durable Object | `USAGE_GUARD` (own namespace) | `USAGE_GUARD` (own namespace: separate counters and budget) |
 | Rate limit | `RATE_LIMITER`, namespace `740219` | `RATE_LIMITER`, namespace `740221` |
 | `ID_HASH_SALT` | `production-worker` secret or set on the Worker | a random one the workflow sets if the staging Worker has none; never production's |
-| Limits | `[vars]` | same caps; `SANDBOX_DAILY_LIMIT` 40, `SANDBOX_NEURON_BUDGET` 3000, `DAILY_NEURON_BUDGET` 4000, no v1 |
+| Entry (`main`) | `worker.js` | `staging_entry.js`: `worker.js` plus an optional throwaway test root (valid at most 2 hours) and `GET /?staging-neurons`; not in the production bundle |
+| Limits | `[vars]` | same caps; `SANDBOX_DAILY_LIMIT` 20, `SANDBOX_NEURON_BUDGET` 2000, `DAILY_NEURON_BUDGET` 2000 (owner cap 2026-11-24), no v1 |
 | Security | v2 needs a verified StoreKit JWS; Sandbox allowed | the same; also `LEGACY_CLIENTS = "0"`, `REQUIRE_SUBSCRIPTION = "1"`; ASSN and fail-open off |
 
 **What the workflow guarantees for staging.** The same protections as production: the run's commit and the code commit
@@ -361,10 +362,32 @@ Object, `AI`, `RATE_LIMITER (60 requests/60s)` and the 31 vars with the staging 
 `chat-v7-cost-guard`. The production dry run's binding list and bundle are byte-identical to before the staging section
 was added. CI repeats the staging dry run on every pull request (Backend tests, job `staging-dry-run`).
 
+### Automated live test (workflow **Live AI test (staging)**)
+
+`.github/workflows/live-ai-test-staging.yml`, workflow_dispatch only, one job in the `production-worker` environment
+(one approval; the Cloudflare secrets stay there and only the deploy, URL and cleanup steps see them). Inputs: `day`
+(1 to 7) and `tier`. Steps: input and commit-on-`main` checks; config guard (staging main, 2,000 cap, no committed test
+root); offline tests; **production dry run must contain no staging test-trust code**; mint the throwaway CA (private
+key only in memory, 2-hour root, 50-minute tokens, `tool/live/staging_auth.mjs`); `wrangler deploy --env staging --var
+STAGING_TEST_ROOT_CERT_B64:<public root>`; wait for `?version`; pre-flight (token accepted, neuron headroom for one
+more request, else it refuses to start); run the day with `tool/live/live_chat_test.mjs --battery ... --per-day 16`;
+print the neuron counter; upload the report and grader packet; **always**: redeploy staging without the test root,
+confirm the token is refused, delete the CA files. It shares the `deploy-worker` concurrency group.
+Steps are tested under `bash -e -o pipefail` with fakes in `backend/live_ai_workflow.test.mjs`.
+
+**Production identity.** Production's `main` is `worker.js`; the test trust lives only in `staging_entry.js`. Check
+before merging: `tool/prod_bundle_hash.sh <base checkout>/backend` and `tool/prod_bundle_hash.sh backend` must print the
+same `worker.js` sha256 (2026-11-24: `6a933be54cc11a389d12c6bec101b1372ec7c2b8e7ed2265c06462f1e6595043` before and after,
+wrangler 4.158.0). CI also greps the production dry-run bundle for the staging markers (deploy and Backend tests workflows).
+
+**Owner checks that no workflow can do:** the account must stay on Workers **Free** (Billing, Workers plan = Free; no
+usage-based billing); this cannot be read with the deploy token's permissions. Production and Amber take priority on the
+shared 10,000 free neurons a day: the run stops at the first sign of exhaustion and never retries.
+
 No new GitHub environment, secret or variable is needed. Rollback of a staging deploy:
 `cd backend && npx wrangler@4.158.0 rollback <version-id> --env staging -m "rollback"`.
 
 **Cost:** $0. Workers Free covers the extra Worker, its SQLite Durable Object and the rate-limit binding; the deploy
-checks use no neurons. The test uses about 2,497 neurons (stopped at 3,000 by `SANDBOX_NEURON_BUDGET`, and the
-staging Worker as a whole at 4,000), inside the account's free 10,000-neuron daily allowance, which staging and
-production share on the test day (on Workers Free, use past the allowance fails rather than bills).
+checks use no neurons. Staging uses at most 2,000 neurons a day (`SANDBOX_NEURON_BUDGET` and
+`DAILY_NEURON_BUDGET` 2000; the battery takes at most about 1,775 expected neurons a day, over 7 days), inside the account's free 10,000-neuron
+daily allowance, which staging, production and Amber share (on Workers Free, use past the allowance fails rather than bills).

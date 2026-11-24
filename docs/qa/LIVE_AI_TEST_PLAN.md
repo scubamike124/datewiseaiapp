@@ -40,9 +40,9 @@ test-sized:
 
 | Variable | Production (`[vars]`, unchanged) | Staging (`[env.staging.vars]`) | Why |
 |---|---|---|---|
-| `SANDBOX_DAILY_LIMIT` | 20 | **40** | The full plan has 30 admitted requests per Sandbox subscriber (each counts, also the cancelled ones) |
-| `SANDBOX_NEURON_BUDGET` | 1000 | **3000** | Expected spend plus two in-flight reservations is about 2,930 neurons (section 3) |
-| `DAILY_NEURON_BUDGET` | 10000 | **4000** | The staging Worker's own breaker, well inside the account's free 10,000 a day |
+| `SANDBOX_DAILY_LIMIT` | 20 | **20** (production's) | The battery runs 16 admitted requests a day (section 3a) |
+| `SANDBOX_NEURON_BUDGET` | 6000 (App Review window) | **2000** | Owner cap 2026-11-24: staging uses at most 2,000 neurons a day in total |
+| `DAILY_NEURON_BUDGET` | 10000 | **2000** | The staging Worker's own breaker: 20% of the account's free 10,000 a day, which production and Amber share and which take priority |
 | `ANON_NEURON_BUDGET` | 2000 | 0 | No v1 traffic on staging |
 
 The per-subscriber and per-request caps the plan measures (`PER_MINUTE_LIMIT` 12, `MAX_CONCURRENT` 2, token caps) are
@@ -113,6 +113,39 @@ Steps (Mac with Xcode, iPhone):
    ```
    Then clear the clipboard on both devices (copy any other text).
 
+## 3a. Automated run (GitHub Actions, no iPhone, no Mac)
+
+Actions, **Live AI test (staging)**, Run workflow from `main`: `day` (1 to 7) and `tier` (3 = everything). One owner
+approval (`production-worker`). It runs one day's chunk of the 106-scenario battery with **throwaway authentication**:
+a CA created on the runner that is valid 2 hours, tokens that expire in 50 minutes (the Worker accepts a token 60
+minutes after that, so 110 minutes at most), the private key never written to disk, only the public root certificate
+sent to the staging Worker (`--var STAGING_TEST_ROOT_CERT_B64`). Genuine Apple Sandbox tokens still work on staging
+(Apple Root CA - G3 stays trusted); a token from any other chain is refused. How it is built, why it cannot reach
+production and what an attacker could do: `docs/qa/STAGING_TEST_AUTH_THREAT_MODEL.md`. Manual only: it is never scheduled.
+
+**Cap and plan.** Staging may use at most **2,000 neurons a day** (`DAILY_NEURON_BUDGET` = `SANDBOX_NEURON_BUDGET` =
+2000, 20% of the shared free 10,000). A reply is about 105 to 112 neurons and one request reserves up to 209 before it
+runs, so at most 17 requests fit in a day (`backend/staging_auth.test.mjs` proves 17 with 107-neuron replies); the
+workflow runs **at most 16 admitted requests a day** (`--per-day 16`): **7 days** for the 106 scenarios (`--list-battery
+--per-day 16`: 16, 16, 16, 16, 13, 16 and 12 admitted requests), at most about 1,775 expected neurons on the busiest day. Run each day on a different UTC day. A day stopped
+early is repeated after 00:00 UTC with `--only` for the missing ids (they are listed as "not run" in the report).
+
+**Stops.** The workflow refuses to start when staging's own counter for today plus one request's reservation (210)
+would pass 2,000 (pre-flight, `GET /?staging-neurons`, no model call). During the run, the first sign that the shared
+allowance is used up (a 502 "Workers AI error", for example code 4006; a 429 or 503 that is not the Worker's own guard
+code; a stream error naming capacity, quota or neurons) stops the run immediately, marks every remaining scenario
+**"not run: shared capacity"** and never retries; the Worker's own cap (`SERVICE_BUDGET_EXHAUSTED`) does the same with
+"not run: staging daily neuron cap". Both end with exit code 3 and the job still uploads the report. **No paid
+fallback of any kind**: no paid plan, model or provider. The account must stay on Workers Free for this to be safe
+(a paid plan would let calls past the free allowance bill; the 2,000 cap would still bound staging at about $0.02 a day,
+but production and Amber would no longer fail closed). The workflow cannot read the account's billing settings without
+extra API permissions, so this is a check for the owner: Cloudflare dashboard, Billing, Workers plan = Free.
+
+**Output.** The LIVE report and `.grader.json` (artifact `live-ai-report-day-N`, 30 days; `gradable: true` only for
+real replies, items only for real replies) and the neuron count in the job summary. Hand the `.grader.json` to the
+grader with `docs/qa/LIVE_AI_GRADER_RUBRIC.md`. At the end (also on failure or cancel) staging is redeployed without the
+test root and the CA files are deleted. The local mode (`--mode local`, SIMULATED) is unchanged.
+
 ## 3. Command and cost
 
 Estimate first (sends nothing):
@@ -131,7 +164,11 @@ node tool/live/live_chat_test.mjs --mode live --confirm-live \
 The kit refuses `https://datewise-photo-coach.…` (production) unless `--allow-production-worker` is passed.
 
 The kit reads the token only from `DW_TEST_JWS` and refuses `--jws` on the command line. It prints and stores only
-`sha256:<12 hex>…`. Exit code 0 = no failing check, 1 = a failing check or an early stop, 2 = refused to start.
+`sha256:<12 hex>…`. Exit code 0 = no failing check, 1 = a failing check or an early stop, 2 = refused to start,
+3 = stopped early for capacity (shared Workers AI allowance or the staging neuron cap; not a test failure).
+
+**The 21-scenario base plan below no longer fits one staging day** (limit 20 requests, 2,000 neurons since 2026-11-24);
+use the battery in daily chunks (section 3a). Its numbers stay for the SIMULATED run.
 
 **Expected cost of the full plan: 36 HTTP requests, 30 admitted, about 2,497 neurons** (worst case 6,260, but the staging
 Worker stops it at `SANDBOX_NEURON_BUDGET` 3,000). That is about 24% of the free 10,000-neuron daily allowance, so **$0**:
