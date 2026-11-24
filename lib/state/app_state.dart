@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/chat_message.dart';
 import '../models/chat_thread.dart';
 import '../models/coach.dart';
@@ -713,6 +714,10 @@ class AppState extends ChangeNotifier {
   /// Whether [title] is an untouched "New conversation" title (shown in the
   /// UI language).
   static bool isDefaultTitle(String title) => _defaultTitles.contains(title);
+
+  /// [title] as shown: an untouched "New conversation" title is always shown
+  /// in the UI language, whichever coach (and coach language) created it.
+  static String threadTitle(String title, AppLocalizations l) => isDefaultTitle(title) ? l.newConversation : title;
 
   void _autoTitle(ChatThread thread) {
     if (!_defaultTitles.contains(thread.title)) return;

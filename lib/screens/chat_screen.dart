@@ -582,7 +582,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       for (final t in threads)
                         ListTile(
                           minTileHeight: 56,
-                          title: Text(AppState.isDefaultTitle(t.title) ? l.newConversation : t.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppText.label),
+                          title: Text(AppState.threadTitle(t.title, l), maxLines: 1, overflow: TextOverflow.ellipsis, style: AppText.label),
                           // Plain text: no markdown markers or OPTIONS line,
                           // on screen or in what VoiceOver reads.
                           subtitle: Text(plainPreview(t.preview),
@@ -1523,6 +1523,22 @@ class _Locked extends StatelessWidget {
                     onPressed: () => showPaywall(context),
                   ),
                 ],
+              ),
+            ),
+            // A read-only preview of how the coach talks, below the premium
+            // card so See Premium stays where it was: the built-in greeting,
+            // rendered locally. No composer, no send, no AI call.
+            const SizedBox(height: 20),
+            Text(l.lockedPreviewLabel(coach.name).toUpperCase(),
+                key: const ValueKey('locked-preview-label'), style: AppText.eyebrow),
+            const SizedBox(height: 10),
+            KeyedSubtree(
+              key: const ValueKey('locked-preview-greeting'),
+              child: _Bubble(
+                message: ChatMessage(
+                    id: 'preview-greeting', role: MessageRole.coach, text: coach.greeting, createdAt: DateTime(2026)),
+                coach: coach,
+                showOptions: false,
               ),
             ),
           ],

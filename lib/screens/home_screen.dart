@@ -48,9 +48,9 @@ class HomeScreen extends StatelessWidget {
     final speech = context.read<SpeechService>();
     final coach = state.selectedCoach;
     final last = state.latestThreadFor(coach);
-    final resume = last != null && last.messages.any((m) => m.isUser) ? last.title : null;
     final top = MediaQuery.paddingOf(context).top;
     final l = context.l10n;
+    final resume = last != null && last.messages.any((m) => m.isUser) ? AppState.threadTitle(last.title, l) : null;
     // iPad: a wider column, a larger portrait and a wider text column, so
     // the hero keeps the phone's proportions instead of a small strip.
     final tablet = isTabletLayout(context);
