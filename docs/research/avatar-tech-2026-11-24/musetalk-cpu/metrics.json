@@ -1,0 +1,43 @@
+{
+ "window_s": [
+  26.0,
+  36.0
+ ],
+ "frames": 250,
+ "Ditto": {
+  "gap_corr_lag0": 0.028,
+  "best_lag_frames": -1,
+  "gap_corr_best": 0.121,
+  "gap_min": 0.038,
+  "gap_speaking_mean": 0.1128,
+  "gap_silent_mean": 0.109,
+  "frames_lips_closed_lt_0.01": 0,
+  "lip_landmark_accel_px": 1.46,
+  "face_found_pct": 100.0,
+  "bilabial_min_gap": {
+   "important": 0.0544,
+   "playful,": 0.0511,
+   "specific,": 0.083,
+   "me": 0.0399,
+   "backup": 0.038
+  }
+ },
+ "MuseTalk": {
+  "gap_corr_lag0": -0.128,
+  "best_lag_frames": -4,
+  "gap_corr_best": 0.033,
+  "gap_min": 0.0044,
+  "gap_speaking_mean": 0.0549,
+  "gap_silent_mean": 0.0565,
+  "frames_lips_closed_lt_0.01": 6,
+  "lip_landmark_accel_px": 1.38,
+  "face_found_pct": 100.0,
+  "bilabial_min_gap": {
+   "important": 0.0158,
+   "playful,": 0.025,
+   "specific,": 0.0335,
+   "me": 0.0153,
+   "backup": 0.0307
+  }
+ }
+}
