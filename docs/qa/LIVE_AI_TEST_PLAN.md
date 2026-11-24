@@ -133,7 +133,7 @@ The kit refuses `https://datewise-photo-coach.…` (production) unless `--allow-
 The kit reads the token only from `DW_TEST_JWS` and refuses `--jws` on the command line. It prints and stores only
 `sha256:<12 hex>…`. Exit code 0 = no failing check, 1 = a failing check or an early stop, 2 = refused to start.
 
-**Expected cost of the full plan: 36 HTTP requests, 30 admitted, about 2,019 neurons** (worst case 5,785, but the staging
+**Expected cost of the full plan: 36 HTTP requests, 30 admitted, about 2,043 neurons** (worst case 5,806, but the staging
 Worker stops it at `SANDBOX_NEURON_BUDGET` 3,000). That is about 20% of the free 10,000-neuron daily allowance, so **$0**:
 on Workers Free, AI calls past the allowance fail rather than bill (about $0.02 at the paid rate, $0.011 per 1,000
 neurons, `docs/business/AI_COST_MODEL.md`). The allowance is per account, so staging and production share it on the test
@@ -143,13 +143,13 @@ itself (Workers Free, SQLite Durable Object, rate-limit binding) costs nothing, 
 
 - Input per request: the Worker's own estimate of the server-built coach prompt plus the turns (about 1,000 to 1,200
   tokens; it over-counts, UTF-8 bytes / 3). Llama 3.3 70B: 26,668 neurons per million input tokens, 204,805 per million output.
-- Output: 300 tokens per full reply (18 replies, about 89 to 93 neurons each), 20 tokens per request the kit cancels
+- Output: 300 tokens per full reply (18 replies, about 89 to 96 neurons each), 20 tokens per request the kit cancels
   after the first token or the headers (2 concurrency + 10 burst, about 26 each). Refused requests cost 0.
 - Worst case: every admitted request at the 800-token output cap. The guard reserves that much per request in flight
   (about 195 neurons, at most 2 at once), so with the staging `SANDBOX_NEURON_BUDGET=3000` an unexpectedly long run is
   stopped by `SERVICE_BUDGET_EXHAUSTED` before it can pass 3,000 neurons (and `DAILY_NEURON_BUDGET=4000` bounds the
   staging Worker as a whole).
-- Split runs: `--skip concurrency,burst` is 22 requests, 18 admitted, about 1,635 neurons; the limits part alone is
+- Split runs: `--skip concurrency,burst` is 22 requests, 18 admitted, about 1,659 neurons; the limits part alone is
   15 requests, 12 admitted, about 384 neurons.
 
 `--budget` caps HTTP requests (the preflight included); requests past it are listed as "Not sent". It takes about two to
