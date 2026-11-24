@@ -23,3 +23,15 @@ Source: read-only App Store Connect API check, workflow `asc-verify.yml`, run 45
 Status: every App Store Connect setting the app depends on is correct, and the agreement blocker is cleared (owner
 verification, 2026-11-24). The subscription is not marked as passing
 until it loads and completes a sandbox purchase on the owner's iPhone with build 203.
+
+## Live AI coach backend (checked 2026-11-24 16:50 UTC)
+
+| Check | Result |
+|---|---|
+| Live Worker version (`?version`) | `chat-v5`, the retired model; live coach chat still fails |
+| chat-v7 deploy rehearsal on `main` (run 45441299151, dry run, no upload, no credentials) | PASS: offline Worker tests, wrangler.toml checks, bundle, guard bindings, expected `?version` |
+| Last real deploy attempt (run 45310505107, 02:11 UTC) | FAILED at the first step: `CLOUDFLARE_API_TOKEN` (and `CLOUDFLARE_ACCOUNT_ID`) are empty in the `production-worker` environment |
+
+Remaining owner step: add `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and `ID_HASH_SALT` as secrets of the
+`production-worker` environment (Settings → Environments), then run Actions → Deploy coach Worker on `main`, target
+`chat-v7-cost-guard`, with "Dry run" unticked. After that: real EN/ES coach conversations on the device are tested.
