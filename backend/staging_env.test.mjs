@@ -28,7 +28,7 @@ const parse = (path = TOML_PATH) =>
 
 // The production (top-level) config, without [env.*]. Update this pin only in a
 // reviewed PR that is meant to change production.
-const PRODUCTION_SHA256 = 'ff5449b03692bd4f198711d359caa9059b1b691c1dcce32c470632d28bc3bda2';
+const PRODUCTION_SHA256 = '15a27dcd80d4aa236d32d45c9eac6c984655db6c39dd8fe3102f3c7aba1695b7';
 const canonical = (v) =>
   Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
   : v && typeof v === 'object' ? `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canonical(v[k])}`).join(',')}}`
@@ -46,7 +46,9 @@ test('production config: unchanged by the staging section, and fully enforced', 
   const v = prod.vars;
   assert.equal(v.DAILY_NEURON_BUDGET, '10000');
   assert.equal(v.SANDBOX_DAILY_LIMIT, '20');
-  assert.equal(v.SANDBOX_NEURON_BUDGET, '1000');
+  // TestFlight / App Review window (owner, 2026-11-24): a slice of the unchanged 10000 total.
+  assert.equal(v.SANDBOX_NEURON_BUDGET, '6000');
+  assert.ok(Number(v.SANDBOX_NEURON_BUDGET) <= Number(v.DAILY_NEURON_BUDGET));
   // Full enforcement (owner, 2026-11-23): no model call without a valid StoreKit token.
   assert.equal(v.LEGACY_CLIENTS, '0');
   assert.equal(v.REQUIRE_SUBSCRIPTION, '1');
