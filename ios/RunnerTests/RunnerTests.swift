@@ -151,15 +151,20 @@ final class StoreKitTestBridge {
     case "setTimeRate":
       let s = try activeSession()
       switch args["rate"] as? String {
-      case "monthlyRenewalEveryThirtySeconds": s.timeRate = .monthlyRenewalEveryThirtySeconds
+      case "monthlyRenewalEveryThirtySeconds":
+        if #available(iOS 15.2, *) {
+          s.timeRate = .monthlyRenewalEveryThirtySeconds
+        } else {
+          throw NSError(domain: "StoreKitTestBridge", code: 4, userInfo: [NSLocalizedDescriptionKey: "Needs iOS 15.2"])
+        }
       default: s.timeRate = .realTime
       }
       return nil
     case "transactions":
       return try activeSession().allTransactions().map { t -> [String: Any] in
         var m: [String: Any] = [
-          "id": t.identifier,
-          "originalId": t.originalTransactionIdentifier,
+          "id": Int(t.identifier),
+          "originalId": Int(t.originalTransactionIdentifier),
           "productId": t.productIdentifier,
           "pendingAskToBuy": t.pendingAskToBuyConfirmation,
           "autoRenew": t.autoRenewingEnabled,
@@ -177,16 +182,16 @@ final class StoreKitTestBridge {
       try activeSession().forceRenewalOfSubscription(productIdentifier: try Self.string(args, "productId"))
       return nil
     case "refund":
-      try activeSession().refundTransaction(identifier: try Self.int(args, "id"))
+      try activeSession().refundTransaction(identifier: try Self.uint(args, "id"))
       return nil
     case "approveAskToBuy":
-      try activeSession().approveAskToBuyTransaction(identifier: try Self.int(args, "id"))
+      try activeSession().approveAskToBuyTransaction(identifier: try Self.uint(args, "id"))
       return nil
     case "declineAskToBuy":
-      try activeSession().declineAskToBuyTransaction(identifier: try Self.int(args, "id"))
+      try activeSession().declineAskToBuyTransaction(identifier: try Self.uint(args, "id"))
       return nil
     case "disableAutoRenew":
-      try activeSession().disableAutoRenewForTransaction(identifier: try Self.int(args, "id"))
+      try activeSession().disableAutoRenewForTransaction(identifier: try Self.uint(args, "id"))
       return nil
     case "log":
       print("[storekit-e2e] \(args["message"] as? String ?? "")")
@@ -204,6 +209,14 @@ final class StoreKitTestBridge {
       throw NSError(domain: "StoreKitTestBridge", code: 3, userInfo: [NSLocalizedDescriptionKey: "Missing \(key)"])
     }
     return v
+  }
+
+  private static func uint(_ args: [String: Any], _ key: String) throws -> UInt {
+    let v = try int(args, key)
+    guard v >= 0 else {
+      throw NSError(domain: "StoreKitTestBridge", code: 3, userInfo: [NSLocalizedDescriptionKey: "Negative \(key)"])
+    }
+    return UInt(v)
   }
 
   private static func int(_ args: [String: Any], _ key: String) throws -> Int {
