@@ -5,7 +5,7 @@
 //   AVATAR_FRAMING_OUT=<dir> flutter test tool/avatar/render_framing_test.dart
 //
 // "before" is the 2:1 stage with the portrait box as tall as the stage;
-// "after" is what the app draws now (CoachStageAvatar.stageHeight and
+// "after" is what the app draws now (CoachStageAvatar.portraitSize and
 // portraitOverscan). Both use the app's own AvatarPainter and fade.
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -23,7 +23,8 @@ import 'package:datewise_ai/theme/app_theme.dart';
 void main() {
   final outDir = Platform.environment['AVATAR_FRAMING_OUT'];
   const scale = 3.0;
-  const screens = {'se': 375.0, 'iphone15': 393.0, 'promax': 430.0};
+  // name: (screen width, screen height).
+  const screens = {'se': (375.0, 667.0), 'iphone15': (393.0, 852.0), 'promax': (430.0, 932.0)};
 
   Future<void> render(Coach coach, String file, double w, double h, double k) async {
     final frames = (await AvatarFrames.load(coach))!;
@@ -49,10 +50,13 @@ void main() {
     await tester.runAsync(() async {
       for (final coach in Coaches.all) {
         for (final s in screens.entries) {
-          final w = s.value - 24;
+          final w = s.value.$1 - 24;
           await render(coach, '${coach.id}-${s.key}-before.png', w, (w / 2.0).clamp(150.0, 240.0), 1.0);
-          final h = CoachStageAvatar.stageHeight(w, largeText: false);
-          await render(coach, '${coach.id}-${s.key}-after.png', w, h, CoachStageAvatar.overscanFor(largeText: false));
+          final p = CoachStageAvatar.portraitSize(w, largeText: false, screenHeight: s.value.$2);
+          await render(coach, '${coach.id}-${s.key}-after.png', p.width, p.height, CoachStageAvatar.overscanFor(largeText: false));
+          // Large text (2.0): a shorter, narrower box with the same framing.
+          final l = CoachStageAvatar.portraitSize(w, largeText: true, screenHeight: s.value.$2);
+          await render(coach, '${coach.id}-${s.key}-after-x2.png', l.width, l.height, CoachStageAvatar.overscanFor(largeText: true));
         }
       }
     });
