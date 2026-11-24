@@ -360,12 +360,6 @@ class AppStoreService extends StoreService {
   bool _loadingProduct = false;
 
   @override
-  void dispose() {
-    OwnerAccess.instance.removeListener(notifyListeners);
-    super.dispose();
-  }
-
-  @override
   bool get ready => _ready;
 
   @override
@@ -866,6 +860,7 @@ class AppStoreService extends StoreService {
   @override
   void dispose() {
     _disposed = true;
+    OwnerAccess.instance.removeListener(notifyListeners);
     _sub?.cancel();
     super.dispose();
   }
