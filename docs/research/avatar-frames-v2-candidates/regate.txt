@@ -1,0 +1,84 @@
+[ WARN:0@0.009] global net_impl_backend.cpp:388 setPreferableTarget Targets are not supported by the new graph engine for now
+[ WARN:0@0.105] global net_impl_backend.cpp:388 setPreferableTarget Targets are not supported by the new graph engine for now
+ava/mbp: ok id=0.645 master=0.910 eye={'ab': 0.0, 'L': 0.0} 
+ava/a: ok id=0.680 master=0.833 eye={'ab': 0.0, 'L': 0.0} 
+ava/a2: ok id=0.743 master=0.879 eye={'ab': 0.0, 'L': 0.0} 
+ava/e: ok id=0.748 master=0.851 eye={'ab': 0.0, 'L': 0.0} 
+ava/e2: ok id=0.732 master=0.873 eye={'ab': 0.0, 'L': 0.0} 
+ava/i: ok id=0.713 master=0.882 eye={'ab': 0.0, 'L': 0.0} 
+ava/i2: ok id=0.682 master=0.902 eye={'ab': 0.0, 'L': 0.0} 
+ava/o: ok id=0.762 master=0.900 eye={'ab': 0.0, 'L': 0.0} 
+ava/o2: ok id=0.783 master=0.910 eye={'ab': 0.0, 'L': 0.0} 
+ava/u: ok id=0.715 master=0.931 eye={'ab': 0.0, 'L': 0.0} 
+ava/u2: ok id=0.695 master=0.926 eye={'ab': 0.0, 'L': 0.0} 
+ava/fv: ok id=0.726 master=0.917 eye={'ab': 0.0, 'L': 0.0} 
+ava/l: ok id=0.727 master=0.867 eye={'ab': 0.0, 'L': 0.0} 
+ava/th: ok id=0.714 master=0.877 eye={'ab': 0.0, 'L': 0.0} 
+ava/cons: ok id=0.738 master=0.870 eye={'ab': 0.0, 'L': 0.0} 
+ava/sh: ok id=0.728 master=0.909 eye={'ab': 0.0, 'L': 0.0} 
+ava/blink_half: ok id=0.709 master=0.890 eye={} 
+ava/blink_closed: ok id=0.692 master=0.874 eye={} 
+ava/gaze: ok id=0.700 master=0.816 eye={'ab': 2.1, 'L': 3.9} 
+ava worst: eye chroma 2.1 (max 5.0), eye lightness 3.9 (max 15.0), identity 0.645 (min 0.45), master 0.816 (min 0.75)
+ethan/mbp: ok id=0.899 master=0.968 eye={'ab': 0.0, 'L': 0.0} 
+ethan/a: ok id=0.831 master=0.925 eye={'ab': 0.0, 'L': 0.0} 
+ethan/a2: ok id=0.842 master=0.932 eye={'ab': 0.0, 'L': 0.0} 
+ethan/e: ok id=0.843 master=0.919 eye={'ab': 0.0, 'L': 0.0} 
+ethan/e2: ok id=0.876 master=0.952 eye={'ab': 0.0, 'L': 0.0} 
+ethan/i: ok id=0.869 master=0.945 eye={'ab': 0.0, 'L': 0.0} 
+ethan/i2: ok id=0.862 master=0.952 eye={'ab': 0.0, 'L': 0.0} 
+ethan/o: ok id=0.871 master=0.955 eye={'ab': 0.0, 'L': 0.0} 
+ethan/o2: ok id=0.875 master=0.956 eye={'ab': 0.0, 'L': 0.0} 
+ethan/u: ok id=0.869 master=0.951 eye={'ab': 0.0, 'L': 0.0} 
+ethan/u2: ok id=0.880 master=0.966 eye={'ab': 0.0, 'L': 0.0} 
+ethan/fv: ok id=0.894 master=0.966 eye={'ab': 0.0, 'L': 0.0} 
+ethan/l: ok id=0.823 master=0.921 eye={'ab': 0.0, 'L': 0.0} 
+ethan/th: ok id=0.872 master=0.946 eye={'ab': 0.0, 'L': 0.0} 
+ethan/cons: ok id=0.866 master=0.952 eye={'ab': 0.0, 'L': 0.0} 
+ethan/sh: ok id=0.884 master=0.964 eye={'ab': 0.0, 'L': 0.0} 
+ethan/blink_half: ok id=0.898 master=0.930 eye={} 
+ethan/blink_closed: ok id=0.859 master=0.901 eye={} 
+ethan/gaze: ok id=0.866 master=0.908 eye={'ab': 3.1, 'L': 1.8} 
+ethan worst: eye chroma 3.1 (max 5.0), eye lightness 1.8 (max 15.0), identity 0.823 (min 0.45), master 0.901 (min 0.75)
+sofia/mbp: ok id=0.624 master=0.919 eye={'ab': 0.0, 'L': 0.0} 
+sofia/a: ok id=0.538 master=0.803 eye={'ab': 0.0, 'L': 0.0} 
+sofia/a2: ok id=0.576 master=0.818 eye={'ab': 0.0, 'L': 0.0} 
+sofia/e: ok id=0.563 master=0.828 eye={'ab': 0.0, 'L': 0.0} 
+sofia/e2: ok id=0.632 master=0.879 eye={'ab': 0.0, 'L': 0.0} 
+sofia/i: ok id=0.637 master=0.883 eye={'ab': 0.0, 'L': 0.0} 
+sofia/i2: ok id=0.662 master=0.915 eye={'ab': 0.0, 'L': 0.0} 
+sofia/o: ok id=0.723 master=0.919 eye={'ab': 0.0, 'L': 0.0} 
+sofia/o2: ok id=0.724 master=0.942 eye={'ab': 0.0, 'L': 0.0} 
+sofia/u: ok id=0.646 master=0.921 eye={'ab': 0.0, 'L': 0.0} 
+sofia/u2: ok id=0.633 master=0.931 eye={'ab': 0.0, 'L': 0.0} 
+sofia/fv: ok id=0.677 master=0.933 eye={'ab': 0.0, 'L': 0.0} 
+sofia/l: ok id=0.578 master=0.826 eye={'ab': 0.0, 'L': 0.0} 
+sofia/th: ok id=0.609 master=0.869 eye={'ab': 0.0, 'L': 0.0} 
+sofia/cons: ok id=0.640 master=0.892 eye={'ab': 0.0, 'L': 0.0} 
+sofia/sh: ok id=0.650 master=0.899 eye={'ab': 0.0, 'L': 0.0} 
+sofia/blink_half: ok id=0.694 master=0.853 eye={} 
+sofia/blink_closed: ok id=0.705 master=0.853 eye={} 
+sofia/gaze: ok id=0.673 master=0.801 eye={'ab': 0.1, 'L': 0.9} 
+sofia worst: eye chroma 0.1 (max 5.0), eye lightness 0.9 (max 15.0), identity 0.538 (min 0.45), master 0.801 (min 0.75)
+diego/mbp: ok id=0.858 master=0.969 eye={'ab': 0.0, 'L': 0.0} 
+diego/a: ok id=0.758 master=0.867 eye={'ab': 0.0, 'L': 0.0} 
+diego/a2: ok id=0.777 master=0.885 eye={'ab': 0.0, 'L': 0.0} 
+diego/e: ok id=0.796 master=0.886 eye={'ab': 0.0, 'L': 0.0} 
+diego/e2: ok id=0.826 master=0.925 eye={'ab': 0.0, 'L': 0.0} 
+diego/i: ok id=0.851 master=0.940 eye={'ab': 0.0, 'L': 0.0} 
+diego/i2: ok id=0.856 master=0.949 eye={'ab': 0.0, 'L': 0.0} 
+diego/o: ok id=0.853 master=0.948 eye={'ab': 0.0, 'L': 0.0} 
+diego/o2: ok id=0.867 master=0.933 eye={'ab': 0.0, 'L': 0.0} 
+diego/u: ok id=0.772 master=0.895 eye={'ab': 0.0, 'L': 0.0} 
+diego/u2: ok id=0.780 master=0.887 eye={'ab': 0.0, 'L': 0.0} 
+diego/fv: ok id=0.851 master=0.958 eye={'ab': 0.0, 'L': 0.0} 
+diego/l: ok id=0.769 master=0.881 eye={'ab': 0.0, 'L': 0.0} 
+diego/th: ok id=0.828 master=0.927 eye={'ab': 0.0, 'L': 0.0} 
+diego/cons: ok id=0.840 master=0.936 eye={'ab': 0.0, 'L': 0.0} 
+diego/sh: ok id=0.813 master=0.941 eye={'ab': 0.0, 'L': 0.0} 
+diego/blink_half: ok id=0.857 master=0.915 eye={} 
+diego/blink_closed: ok id=0.849 master=0.905 eye={} 
+diego/gaze: ok id=0.837 master=0.900 eye={'ab': 4.4, 'L': 8.5} 
+diego worst: eye chroma 4.4 (max 5.0), eye lightness 8.5 (max 15.0), identity 0.758 (min 0.45), master 0.867 (min 0.75)
+
+76/76 frames pass
