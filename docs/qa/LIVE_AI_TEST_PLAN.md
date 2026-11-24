@@ -41,7 +41,7 @@ test-sized:
 | Variable | Production (`[vars]`, unchanged) | Staging (`[env.staging.vars]`) | Why |
 |---|---|---|---|
 | `SANDBOX_DAILY_LIMIT` | 20 | **40** | The full plan has 30 admitted requests per Sandbox subscriber (each counts, also the cancelled ones) |
-| `SANDBOX_NEURON_BUDGET` | 1000 | **3000** | Expected spend plus two in-flight reservations is about 2,400 neurons (section 3) |
+| `SANDBOX_NEURON_BUDGET` | 1000 | **3000** | Expected spend plus two in-flight reservations is about 2,850 neurons (section 3) |
 | `DAILY_NEURON_BUDGET` | 10000 | **4000** | The staging Worker's own breaker, well inside the account's free 10,000 a day |
 | `ANON_NEURON_BUDGET` | 2000 | 0 | No v1 traffic on staging |
 
@@ -133,24 +133,24 @@ The kit refuses `https://datewise-photo-coach.…` (production) unless `--allow-
 The kit reads the token only from `DW_TEST_JWS` and refuses `--jws` on the command line. It prints and stores only
 `sha256:<12 hex>…`. Exit code 0 = no failing check, 1 = a failing check or an early stop, 2 = refused to start.
 
-**Expected cost of the full plan: 36 HTTP requests, 30 admitted, about 2,043 neurons** (worst case 5,806, but the staging
-Worker stops it at `SANDBOX_NEURON_BUDGET` 3,000). That is about 20% of the free 10,000-neuron daily allowance, so **$0**:
+**Expected cost of the full plan: 36 HTTP requests, 30 admitted, about 2,417 neurons** (worst case 6,179, but the staging
+Worker stops it at `SANDBOX_NEURON_BUDGET` 3,000). That is about 24% of the free 10,000-neuron daily allowance, so **$0**:
 on Workers Free, AI calls past the allowance fail rather than bill (about $0.02 at the paid rate, $0.011 per 1,000
 neurons, `docs/business/AI_COST_MODEL.md`). The allowance is per account, so staging and production share it on the test
 day: run on a quiet day, or after the account separation (`CLOUDFLARE_ACCOUNT_SEPARATION_PLAN.md`). The staging Worker
 itself (Workers Free, SQLite Durable Object, rate-limit binding) costs nothing, and its deploy checks use no neurons. How it is estimated
 (`estimatePlan` in the kit, with `neuronsFor` and `estimateTokens` from `backend/cost_guard.js`):
 
-- Input per request: the Worker's own estimate of the server-built coach prompt plus the turns (about 1,000 to 1,200
+- Input per request: the Worker's own estimate of the server-built coach prompt plus the turns (about 1,500 to 1,700
   tokens; it over-counts, UTF-8 bytes / 3). Llama 3.3 70B: 26,668 neurons per million input tokens, 204,805 per million output.
-- Output: 300 tokens per full reply (18 replies, about 89 to 96 neurons each), 20 tokens per request the kit cancels
-  after the first token or the headers (2 concurrency + 10 burst, about 26 each). Refused requests cost 0.
+- Output: 300 tokens per full reply (18 replies, about 102 to 109 neurons each), 20 tokens per request the kit cancels
+  after the first token or the headers (2 concurrency + 10 burst, about 44 each). Refused requests cost 0.
 - Worst case: every admitted request at the 800-token output cap. The guard reserves that much per request in flight
-  (about 195 neurons, at most 2 at once), so with the staging `SANDBOX_NEURON_BUDGET=3000` an unexpectedly long run is
+  (about 211 neurons, at most 2 at once), so with the staging `SANDBOX_NEURON_BUDGET=3000` an unexpectedly long run is
   stopped by `SERVICE_BUDGET_EXHAUSTED` before it can pass 3,000 neurons (and `DAILY_NEURON_BUDGET=4000` bounds the
   staging Worker as a whole).
-- Split runs: `--skip concurrency,burst` is 22 requests, 18 admitted, about 1,659 neurons; the limits part alone is
-  15 requests, 12 admitted, about 384 neurons.
+- Split runs: `--skip concurrency,burst` is 22 requests, 18 admitted, about 1,887 neurons; the limits part alone is
+  15 requests, 12 admitted, about 530 neurons.
 
 `--budget` caps HTTP requests (the preflight included); requests past it are listed as "Not sent". It takes about two to
 four minutes: the kit paces itself under `PER_MINUTE_LIMIT` (12) and waits for a fresh minute before the limit tests.
