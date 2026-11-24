@@ -1,0 +1,58 @@
+[
+ {
+  "turn": 0,
+  "text": "¡Qué bien!",
+  "wer": 0.0,
+  "hyp": "¡Qué bien!",
+  "sec": 0.65
+ },
+ {
+  "turn": 0,
+  "text": "A ver, primero: no lo pienses tanto.",
+  "wer": 0.0,
+  "hyp": "A ver, primero no lo pienses tanto.",
+  "sec": 1.64
+ },
+ {
+  "turn": 0,
+  "text": "Cuéntame, ¿qué te llamó la atención de su perfil?",
+  "wer": 0.0,
+  "hyp": "Cuéntame, ¿qué te llamó la atención de su perfil?",
+  "sec": 2.97
+ },
+ {
+  "turn": 1,
+  "text": "¡Ja!",
+  "wer": 0.0,
+  "hyp": "ja",
+  "sec": 0.44
+ },
+ {
+  "turn": 1,
+  "text": "Ahí está tu primer mensaje.",
+  "wer": 0.0,
+  "hyp": "Ahí está tu primer mensaje.",
+  "sec": 1.65
+ },
+ {
+  "turn": 1,
+  "text": "Prueba algo así: oye, pregunta importante, ¿el perro también come tacos después de la caminata?",
+  "wer": 0.067,
+  "hyp": "¿Pruéba algo así? Oye, pregunta importante.  ¿El perro también come tacos después de la caminata?",
+  "sec": 5.07
+ },
+ {
+  "turn": 1,
+  "text": "Es divertido, es específico y es muy fácil de contestar.",
+  "wer": 0.0,
+  "hyp": "Es divertido, es específico y es muy fácil de contestar.",
+  "sec": 3.63
+ },
+ {
+  "turn": 1,
+  "text": "¿Quieres que te dé otra opción, por si acaso?",
+  "wer": 0.0,
+  "hyp": "¿Quieres que te dé otra opción por si acaso?",
+  "sec": 2.39
+ }
+]

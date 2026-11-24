@@ -1,0 +1,58 @@
+[
+ {
+  "turn": 0,
+  "text": "That's completely normal.",
+  "wer": 0.0,
+  "hyp": "that's completely normal.",
+  "sec": 1.23
+ },
+ {
+  "turn": 0,
+  "text": "Nervous just means you care.",
+  "wer": 0.0,
+  "hyp": "Nervous just means you care.",
+  "sec": 1.64
+ },
+ {
+  "turn": 0,
+  "text": "Where are you meeting?",
+  "wer": 0.0,
+  "hyp": "Where are you meeting?",
+  "sec": 0.95
+ },
+ {
+  "turn": 1,
+  "text": "Good, coffee is perfect for a first date.",
+  "wer": 0.0,
+  "hyp": "Good, coffee is perfect for a first date.",
+  "sec": 2.48
+ },
+ {
+  "turn": 1,
+  "text": "Short, relaxed, and easy to extend if it's going well.",
+  "wer": 0.0,
+  "hyp": "short, relaxed and easy to extend if it's going well.",
+  "sec": 2.89
+ },
+ {
+  "turn": 1,
+  "text": "Here's my advice: pick one thing you're genuinely curious about, ask about it, and then really listen.",
+  "wer": 0.0,
+  "hyp": "Here's my advice, pick one thing you're genuinely curious about, ask about it, and then really listen.",
+  "sec": 4.82
+ },
+ {
+  "turn": 1,
+  "text": "You don't need a script.",
+  "wer": 0.0,
+  "hyp": "You don't need a script.",
+  "sec": 1.2
+ },
+ {
+  "turn": 1,
+  "text": "Just be curious.",
+  "wer": 0.0,
+  "hyp": "Just be curious.",
+  "sec": 1.02
+ }
+]

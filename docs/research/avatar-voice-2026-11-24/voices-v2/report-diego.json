@@ -1,0 +1,58 @@
+[
+ {
+  "turn": 0,
+  "text": "Es totalmente normal.",
+  "wer": 0.0,
+  "hyp": "es totalmente normal.",
+  "sec": 1.27
+ },
+ {
+  "turn": 0,
+  "text": "Los nervios solo significan que te importa.",
+  "wer": 0.0,
+  "hyp": "Los nervios solo significan que te importa.",
+  "sec": 2.36
+ },
+ {
+  "turn": 0,
+  "text": "¿Dónde se van a ver?",
+  "wer": 0.0,
+  "hyp": "¿Dónde se van a ver?",
+  "sec": 0.92
+ },
+ {
+  "turn": 1,
+  "text": "Muy bien, un café es perfecto para una primera cita.",
+  "wer": 0.0,
+  "hyp": "Muy bien, un café es perfecto para una primera cita.",
+  "sec": 2.68
+ },
+ {
+  "turn": 1,
+  "text": "Es corto, relajado y fácil de alargar si todo va bien.",
+  "wer": 0.0,
+  "hyp": "es corto, relajado y fácil de alargar si todo va bien.",
+  "sec": 2.89
+ },
+ {
+  "turn": 1,
+  "text": "Mi consejo: piensa en algo que de verdad te dé curiosidad, pregúntalo y luego escucha de verdad.",
+  "wer": 0.118,
+  "hyp": "Mi consejo, piensen algo que de verdad te dé curiosidad.  Pregúntalo y luego escucha de verdad.",
+  "sec": 5.6
+ },
+ {
+  "turn": 1,
+  "text": "No necesitas un guion.",
+  "wer": 0.25,
+  "hyp": "No necesitas un guión.",
+  "sec": 1.53
+ },
+ {
+  "turn": 1,
+  "text": "Solo ten curiosidad.",
+  "wer": 0.0,
+  "hyp": "solo ten curiosidad.",
+  "sec": 1.16
+ }
+]
