@@ -11,6 +11,7 @@ import '../services/ai_config.dart';
 import '../services/store_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/store_status_sheet.dart';
 import '../widgets/dw.dart';
 import 'get_help_screen.dart';
 import 'legal_screen.dart';
@@ -298,11 +299,17 @@ class SettingsScreen extends StatelessWidget {
                 // so a TestFlight tester can confirm the build (not localized:
                 // App Store builds never show it).
                 final host = AIConfig.testBuildHost();
-                return Text(
-                  '${l.settingsFootnote}${v.isEmpty ? '' : '\n${l.appVersion(v)}'}'
-                  '${host == null ? '' : '\nTest build · coach server: $host'}',
-                  textAlign: TextAlign.center,
-                  style: AppText.small,
+                // Long-press: the hidden "Store status" readout (what StoreKit
+                // returned for the subscription product), for TestFlight.
+                return GestureDetector(
+                  key: const ValueKey('settings-footnote'),
+                  onLongPress: () => showStoreStatus(context),
+                  child: Text(
+                    '${l.settingsFootnote}${v.isEmpty ? '' : '\n${l.appVersion(v)}'}'
+                    '${host == null ? '' : '\nTest build · coach server: $host'}',
+                    textAlign: TextAlign.center,
+                    style: AppText.small,
+                  ),
                 );
               },
             ),
