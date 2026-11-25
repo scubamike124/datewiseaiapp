@@ -48,6 +48,8 @@ class OwnerAccess extends ChangeNotifier {
         final p = await SharedPreferences.getInstance();
         await p.remove(_kToken);
         await p.remove(_kDevice);
+      } catch (_) {}
+      try {
         await _store.delete(_kToken);
       } catch (_) {}
       return;
