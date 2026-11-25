@@ -81,6 +81,28 @@ void main() {
     expect(() => KokoroTimeline.fromJson(startNotNum), throwsFormatException);
   });
 
+  test('the remaining guards: non-finite start, a mouth that is not a list, fps between 0 and 1, mouth out of range', () {
+    Map<String, dynamic> base() => {
+          'fps': 10,
+          'sentences': [
+            {'text': 'Hi', 'start_s': 0, 'duration_s': 1, 'mouth': [0.5]},
+          ],
+        };
+    final infStart = base();
+    ((infStart['sentences'] as List).first as Map)['start_s'] = double.infinity;
+    expect(() => KokoroTimeline.fromJson(infStart), throwsFormatException);
+    final mouthNotList = base();
+    ((mouthNotList['sentences'] as List).first as Map)['mouth'] = 'open';
+    expect(() => KokoroTimeline.fromJson(mouthNotList), throwsFormatException);
+    expect(() => KokoroTimeline.fromJson({...base(), 'fps': 0.5}), throwsFormatException);
+    final mouthOver = base();
+    ((mouthOver['sentences'] as List).first as Map)['mouth'] = [1.5];
+    expect(() => KokoroTimeline.fromJson(mouthOver), throwsFormatException);
+    final overflow = base();
+    ((overflow['sentences'] as List).first as Map)['duration_s'] = 1e300;
+    expect(() => KokoroTimeline.fromJson(overflow), throwsFormatException);
+  });
+
   test('word timings: one per word, in order, with the exact character positions', () {
     final t = KokoroTimeline.fromJson(jsonDecode(_fixture) as Map<String, dynamic>);
     final words = t.wordTimings(_text);

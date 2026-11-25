@@ -33,13 +33,13 @@ class KokoroSentence {
     if (text is! String || start is! num || duration is! num || mouth is! List) {
       throw const FormatException('kokoro sentence: text, start_s, duration_s and mouth are required');
     }
-    if (!start.isFinite || !duration.isFinite || start < 0 || duration <= 0) {
+    if (!start.isFinite || !duration.isFinite || start < 0 || duration <= 0 || (start + duration) > 1e9) {
       throw const FormatException('kokoro sentence: start_s must be finite and >= 0, duration_s finite and > 0');
     }
     final values = <double>[];
     for (final v in mouth) {
-      if (v is! num || !v.isFinite) {
-        throw const FormatException('kokoro sentence: every mouth value must be a finite number');
+      if (v is! num || !v.isFinite || v < 0 || v > 1) {
+        throw const FormatException('kokoro sentence: every mouth value must be a number from 0 to 1');
       }
       values.add(v.toDouble());
     }
