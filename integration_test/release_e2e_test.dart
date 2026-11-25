@@ -377,13 +377,16 @@ void main() {
       final path = _audio.levelValues > 0 && _audio.starts > 0 ? 'native AVSpeechSynthesizer.write' : 'flutter_tts fallback (no native audio)';
       r.addAll({
         'voicePicked': _describe(DeviceVoiceService.pickVoiceDistinct(_voices, coach, coach.language)),
-        'nativeSpeakCalls': _audio.speakCalls,
+        'nativeSpeakCalls': [..._audio.speakCalls],
+        'nativeTimeline': [..._audio.timeline],
+        'chunksPlayedNatively': '${_audio.playedNatively.where((b) => b).length}/${_audio.playedNatively.length}',
+        'audioSecondsPerCall': [for (final s in _audio.audioSeconds) double.parse(s.toStringAsFixed(2))],
         'audioPath': path,
         'nativeEvents': _audio.counts(),
         'levelValues': _audio.levelValues,
         'levelHopSeconds': maxHop,
         'markers': _audio.markers,
-        'errors': _audio.errors,
+        'errors': [..._audio.errors],
         'lipSyncHasAudio': hasAudio,
         'speakingMs': speakMs,
         ...m,
@@ -552,33 +555,58 @@ class _TapBackend implements SpeechAudioBackend {
   double lastHop = 0;
   double? latency;
 
+  /// Audio seconds rendered per speak call (the end of its last loudness window).
+  final audioSeconds = <double>[];
+
+  /// Whether each speak call's audio started playing natively.
+  final playedNatively = <bool>[];
+
+  /// What happened, in order, with milliseconds since the speak call it belongs to.
+  final timeline = <String>[];
+  final _sinceSpeak = Stopwatch();
+  bool _sawLevels = false;
+
   void reset() {
     speakCalls.clear();
     errors.clear();
+    audioSeconds.clear();
+    playedNatively.clear();
+    timeline.clear();
     starts = levelEvents = levelValues = markers = synthesized = done = interrupted = 0;
     latency = null;
   }
+
+  void _mark(String what) => timeline.add('+${_sinceSpeak.elapsedMilliseconds}ms $what');
 
   void _on(SpeechAudioEvent e) {
     switch (e) {
       case SpeechAudioStarted(:final latency):
         starts++;
         this.latency = latency;
-      case SpeechAudioLevels(:final values, :final hop):
+        if (playedNatively.isNotEmpty) playedNatively[playedNatively.length - 1] = true;
+        _mark('start (latency ${(latency * 1000).toStringAsFixed(1)} ms)');
+      case SpeechAudioLevels(:final values, :final hop, :final t0):
         levelEvents++;
         levelValues += values.length;
         lastHop = hop;
+        if (!_sawLevels) _mark('first levels');
+        _sawLevels = true;
+        final end = t0 + values.length * hop;
+        if (audioSeconds.isNotEmpty && end > audioSeconds.last) audioSeconds[audioSeconds.length - 1] = end;
       case SpeechAudioMarker():
         markers++;
       case SpeechAudioSynthesized():
         synthesized++;
+        _mark('synthesized (${audioSeconds.isEmpty ? 0 : audioSeconds.last.toStringAsFixed(2)} s of audio)');
       case SpeechAudioDone(:final interrupted, :final reason):
         done++;
+        _mark('done${interrupted ? ' interrupted: $reason' : ''}');
         if (interrupted) {
           this.interrupted++;
           errors.add('done interrupted: $reason');
         }
       case SpeechAudioError(:final message, :final started):
+        _mark('error: $message (started: $started)');
         errors.add('error: $message (started: $started)');
     }
   }
@@ -598,11 +626,21 @@ class _TapBackend implements SpeechAudioBackend {
   @override
   Future<void> speak({required String text, String? voice, required String language, required double rate, required double pitch}) {
     speakCalls.add({'text': text, 'voice': voice, 'language': language, 'rate': rate, 'pitch': pitch});
+    _sinceSpeak
+      ..reset()
+      ..start();
+    _sawLevels = false;
+    audioSeconds.add(0);
+    playedNatively.add(false);
+    _mark('speak #${speakCalls.length}');
     return _inner.speak(text: text, voice: voice, language: language, rate: rate, pitch: pitch);
   }
 
   @override
-  Future<void> stop() => _inner.stop();
+  Future<void> stop() {
+    _mark('stop');
+    return _inner.stop();
+  }
 }
 
 /// One rendered avatar frame: what the painter drew.
