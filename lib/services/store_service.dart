@@ -547,7 +547,8 @@ class AppStoreService extends StoreService {
       _available = false;
     }
     _diag.canMakePayments = _available;
-    if (_available) {
+    // A store disposed while isAvailable() was pending must not start a purchase-stream listener.
+    if (_available && !_disposed) {
       _sub ??= _iap.purchaseStream.listen(_onPurchases, onError: (Object e) {
         _error = StoreError.purchaseFailed;
         _finishPending(PurchaseResult.failed);
@@ -741,6 +742,9 @@ class AppStoreService extends StoreService {
   Future<PurchaseResult> buy() async {
     final product = _product;
     if (!_available || product == null) return PurchaseResult.unavailable;
+    // A second tap while a purchase is in flight joins that purchase; it never replaces the pending completer.
+    final inFlight = _pending;
+    if (inFlight != null) return inFlight.future;
     _busy = true;
     _error = null;
     _notify();
