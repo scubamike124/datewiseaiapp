@@ -124,6 +124,7 @@ Future<AppState> appState(BackendAIService ai, {Map<String, Object> prefs = cons
   SharedPreferences.setMockInitialValues({
     'dw_onboarded': true,
     'dw_ai_consent': true,
+    'dw_ai_consent_version': StorageService.aiConsentVersion,
     'dw_coach': 'ava',
     'dw_profile': '{"goals":["conversations"],"language":"en"}',
     ...prefs,
@@ -523,7 +524,10 @@ void main() {
       await state.sendMessage('Hi');
       final body = server.bodies.last;
       expect(body.keys.toSet(), {'tier', 'coachId', 'profile', 'messages'});
-      expect((body['profile'] as Map).keys.toSet(), {'goals', 'language'});
+      // Plus, at most, the crisis-line region (compliance F1): one of four codes, never a city.
+      final profile = body['profile'] as Map;
+      expect(profile.keys.toSet().difference({'country'}), {'goals', 'language'});
+      if (profile.containsKey('country')) expect(profile['country'], isIn(['US', 'CA', 'MX', 'ES']));
       final all = jsonEncode(body);
       for (final v1 in ['Austin', 'Hinge', '"age"', '"gender"', '"city"', 'interestedIn', '"app"']) {
         expect(all, isNot(contains(v1)), reason: 'v1 field leaked: $v1');

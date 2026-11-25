@@ -56,8 +56,8 @@ class MockAIService implements AIService {
     // Most specific intents first: "fotos de perfil" is about photos, and
     // "se enfrió, ¿qué le escribo?" is a stalled chat, not a first message.
     if (has(['foto'])) {
-      return 'Envíame tus fotos y te digo cuáles mantener. La primera debe mostrar **tu cara con buena luz** '
-          'y una sonrisa natural.';
+      return 'Descríbeme tus fotos (qué se ve en cada una) y te digo cuáles dejar. La primera debe mostrar '
+          '**tu cara con buena luz** y una sonrisa natural.';
     }
     if (has(['enfri', 'no contesta', 'dejó de', 'dejo de', 'ya no me escribe', 'visto'])) {
       return 'Pasa más de lo que crees, y no siempre significa desinterés. Envía **un solo mensaje ligero**, '
@@ -76,7 +76,7 @@ class MockAIService implements AIService {
     }
     if (has(['cita', 'salir', 'quedar', 'conocer'])) {
       return 'Para una primera cita, algo sencillo y en **un lugar público**: un café o un paseo de una hora. '
-          'Avisa a un amigo de dónde estarás y llega por tu cuenta. '
+          'Avísale a alguien de confianza dónde vas a estar y llega por tu cuenta. '
           '**¿Qué les gusta a los dos?** Así te propongo un plan concreto.';
     }
     return 'Cuéntame un poco más: **¿en qué punto estás** (perfil, conversación, primera cita o relación) '

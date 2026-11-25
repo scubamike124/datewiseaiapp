@@ -371,6 +371,6 @@ No new GitHub environment, secret or variable is needed. Rollback of a staging d
 `cd backend && npx wrangler@4.158.0 rollback <version-id> --env staging -m "rollback"`.
 
 **Cost:** $0. Workers Free covers the extra Worker, its SQLite Durable Object and the rate-limit binding; the deploy
-checks use no neurons. The test uses about 2,019 neurons (stopped at 3,000 by `SANDBOX_NEURON_BUDGET`, and the
+checks use no neurons. The test uses about 2,497 neurons (stopped at 3,000 by `SANDBOX_NEURON_BUDGET`, and the
 staging Worker as a whole at 4,000), inside the account's free 10,000-neuron daily allowance, which staging and
 production share on the test day (on Workers Free, use past the allowance fails rather than bills).

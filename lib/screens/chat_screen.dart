@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +11,7 @@ import '../models/chat_message.dart';
 import '../models/coach.dart';
 import '../models/reply_options.dart';
 import '../services/coach_limit_messages.dart';
+import '../services/backend_ai_service.dart' show BackendAIService;
 import '../services/coach_usage.dart';
 import '../services/reply_language.dart';
 import '../services/speech_service.dart';
@@ -20,6 +22,8 @@ import '../theme/app_theme.dart';
 import '../widgets/coach_text.dart';
 import '../widgets/dw.dart';
 import '../widgets/find_table_link.dart';
+import '../widgets/subtitle_chunk.dart';
+import 'get_help_screen.dart';
 import 'paywall_screen.dart';
 import 'shell.dart';
 import '../l10n/l10n.dart';
@@ -37,7 +41,7 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final _input = TextEditingController();
   final _focus = FocusNode();
 
@@ -74,6 +78,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _state = context.read<AppState>();
     _voice = context.read<VoiceService>();
     _speech = context.read<SpeechService>();
@@ -113,8 +118,16 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  // The keyboard opening or closing: the Scaffold hides it from the body's
+  // MediaQuery, so the voice stage is rebuilt from here.
+  @override
+  void didChangeMetrics() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     // A lapsed subscription swapped the tabs for the paywall: keep what was
     // typed, plus whatever was recognized so far, for when the chat reopens.
     // Listening stops below (the microphone is released). Not after "Delete
@@ -204,6 +217,15 @@ class _ChatScreenState extends State<ChatScreen> {
       if (fromComposer && mounted && _input.text == text) _input.clear();
     });
     if (!sent && fromVoice && mounted) _keepTranscript(text, note: _state.canChat);
+  }
+
+  /// "Try again": like sending, it first asks for the AI data-sharing
+  /// consent when that was withdrawn (You › Privacy); "Not now" sends
+  /// nothing (re-test R2).
+  Future<void> _retry() async {
+    if (_state.isResponding) return;
+    if (!_state.aiConsentGiven && !await _askAiConsent()) return;
+    await _state.retryLastReply();
   }
 
   /// Asks once, before anything is sent, for permission to share the user's
@@ -460,6 +482,7 @@ class _ChatScreenState extends State<ChatScreen> {
          child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (_state.canChat)
             _SheetTile(
               key: const ValueKey('menu-new'),
               icon: Icons.add_comment_outlined,
@@ -485,6 +508,15 @@ class _ChatScreenState extends State<ChatScreen> {
               onTap: () {
                 Navigator.pop(ctx);
                 context.read<ShellController>().go(AppTab.coaches);
+              },
+            ),
+            _SheetTile(
+              key: const ValueKey('menu-get-help'),
+              icon: Icons.health_and_safety_outlined,
+              label: l.getHelpNow,
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.of(context).push(GetHelpScreen.route(firstCountry: _state.deviceCountry));
               },
             ),
             if (!_speech.available)
@@ -561,7 +593,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       for (final t in threads)
                         ListTile(
                           minTileHeight: 56,
-                          title: Text(AppState.isDefaultTitle(t.title) ? l.newConversation : t.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppText.label),
+                          title: Text(AppState.threadTitle(t.title, l), maxLines: 1, overflow: TextOverflow.ellipsis, style: AppText.label),
                           // Plain text: no markdown markers or OPTIONS line,
                           // on screen or in what VoiceOver reads.
                           subtitle: Text(plainPreview(t.preview),
@@ -623,6 +655,39 @@ class _ChatScreenState extends State<ChatScreen> {
       ));
   }
 
+  /// The on-screen keyboard is up. The Scaffold hides its inset from the body's
+  /// MediaQuery, so this asks the view itself.
+  static bool _keyboardOpen(BuildContext context) => MediaQueryData.fromView(View.of(context)).viewInsets.bottom > 0;
+
+  /// Whether the avatar is hidden in the voice conversation: the user's saved
+  /// choice, else by screen. A small phone (iPhone SE, 12 mini), a short
+  /// (landscape) screen and large text start with the avatar hidden, so the
+  /// conversation always has room; tall screens start with it shown.
+  static bool avatarCollapsed(BuildContext context, bool? saved) {
+    if (saved != null) return saved;
+    final size = MediaQuery.sizeOf(context);
+    final large = MediaQuery.textScalerOf(context).scale(1) > 1.3;
+    return large || size.width <= kSmallPhoneWidth || size.height < kTallScreenHeight;
+  }
+
+  /// Widest phone treated as small (iPhone SE and 12 mini are 375 pt).
+  static const double kSmallPhoneWidth = 380;
+
+  /// Screens shorter than this start with the avatar hidden.
+  static const double kTallScreenHeight = 800;
+
+  /// Tallest the voice stage may be: with the keyboard up the controls row
+  /// and a peek of the subtitle; otherwise half the screen (it scrolls
+  /// beyond that, so the talk dock is never pushed off screen).
+  double _stageCap(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    if (_keyboardOpen(context)) {
+      final large = MediaQuery.textScalerOf(context).scale(1) > 1.3;
+      return large ? _Stage.controlsHeight + _Stage.bottomMargin : math.max(size.height * 0.18, _Stage.controlsHeight + _Stage.bottomMargin + 8);
+    }
+    return size.height * 0.5;
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
@@ -630,7 +695,12 @@ class _ChatScreenState extends State<ChatScreen> {
     context.watch<StoreService>();
     final coach = state.selectedCoach;
     final entitled = state.canChat;
+    // A lapsed subscription locks the composer, but the user's own saved
+    // conversations stay readable, and the menu (Past conversations, delete
+    // one) stays usable (QA M-1).
+    final readOnly = !entitled && state.threadsFor(coach).any((t) => t.messages.any((m) => m.isUser));
     final top = MediaQuery.paddingOf(context).top;
+    final avatarHidden = avatarCollapsed(context, state.voiceAvatarCollapsed);
 
     return ValueListenableBuilder<bool>(
       valueListenable: _voice.speaking,
@@ -652,7 +722,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: _Header(
                       coach: coach,
                       speaking: speaking,
-                      onMenu: entitled ? _openMenu : null,
+                      onMenu: entitled || readOnly ? _openMenu : null,
                     ),
                   ),
                 ],
@@ -662,10 +732,7 @@ class _ChatScreenState extends State<ChatScreen> {
               // At large text the stage is capped and scrolls, instead of
               // pushing the talk dock off screen; normal text is unchanged.
               ConstrainedBox(
-                constraints: BoxConstraints(
-                    maxHeight: MediaQuery.textScalerOf(context).scale(1) > 1.3
-                        ? MediaQuery.sizeOf(context).height * 0.18
-                        : double.infinity),
+                constraints: BoxConstraints(maxHeight: _stageCap(context)),
                 child: SingleChildScrollView(
                   key: const ValueKey('voice-stage-scroll'),
                   child: ContentWidth(
@@ -677,24 +744,36 @@ class _ChatScreenState extends State<ChatScreen> {
                       lipSync: _voice is LipSyncSource ? (_voice as LipSyncSource).lipSync : null,
                       elapsed: _elapsed,
                       captions: _captions,
-                      caption: _currentCaption(state),
+                      replyText: _latestReplyText(state),
+                      responding: state.isResponding,
                       onToggleCaptions: () => setState(() => _captions = !_captions),
+                      avatarHidden: avatarHidden,
+                      onToggleAvatar: () => state.setVoiceAvatarCollapsed(!avatarHidden),
+                      compact: _keyboardOpen(context),
                     ),
                   ),
                 ),
               ),
             Expanded(
-              child: entitled
+              child: entitled || readOnly
                   ? _MessageList(
                       coach: coach,
                       compact: _voiceMode,
                       onStarter: _send,
+                      onRetry: _retry,
                       showIntro: !_voiceMode,
                       speaking: speaking,
+                      readOnly: !entitled,
                     )
                   : _Locked(coach: coach),
             ),
-            if (entitled) const ContentWidth(child: _UsageNotice()),
+            if (readOnly) ContentWidth(child: _LockedBar(coach: coach)),
+            // With the keyboard up at large text the room is needed for the
+            // conversation and the controls; the notice returns with it closed.
+            if (entitled &&
+                MediaQuery.sizeOf(context).height >= 500 &&
+                !(_keyboardOpen(context) && MediaQuery.textScalerOf(context).scale(1) > 1.3))
+              const ContentWidth(child: _UsageNotice()),
             if (entitled)
               ContentWidth(
                 key: _dockKey,
@@ -730,15 +809,14 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  String _currentCaption(AppState state) {
+  /// The text of the coach's latest reply (or the greeting): the source of
+  /// the live subtitle. The reply itself is shown in the message list only.
+  String _latestReplyText(AppState state) {
     final msgs = state.activeThread?.messages ?? const <ChatMessage>[];
     for (var i = msgs.length - 1; i >= 0; i--) {
-      if (!msgs[i].isUser) {
-        // The whole reply: the caption box scrolls instead of cutting it.
-        return parseReply(msgs[i].text).body.replaceAll(RegExp(r'\*\*'), '').replaceAll('\n', ' ');
-      }
+      if (!msgs[i].isUser) return parseReply(msgs[i].text).body.replaceAll('**', '');
     }
-    return state.selectedCoach.greeting.replaceAll('**', '').replaceAll('\n', ' ');
+    return state.selectedCoach.greeting.replaceAll('**', '');
   }
 }
 
@@ -789,8 +867,9 @@ class _Header extends StatelessWidget {
                 // still reads it in full). "AI" comes first, so it always shows.
                 MediaQuery.withClampedTextScaling(
                   maxScaleFactor: kHeaderSubtitleMaxScale,
-                  child: Text(l.aiLabel(coach),
+                  child: Text(l.aiLabelShort,
                       key: const ValueKey('ai-label'),
+                      semanticsLabel: l.aiLabel(coach),
                       maxLines: 1,
                       softWrap: false,
                       overflow: TextOverflow.ellipsis,
@@ -815,7 +894,9 @@ class _Header extends StatelessWidget {
 /// Voice-mode stage: the coach as an animated portrait (lib/avatar/:
 /// on-device frame compositing with lip-sync to the device's speech; the
 /// still portrait under Reduce Motion), a soft glow while speaking, the
-/// session timer and the live captions. Not video.
+/// session timer and a short live subtitle. Not video. The avatar can be
+/// hidden ([avatarHidden]): the stage is then only the controls row and the
+/// subtitle, and the coach stays as the circle in the header.
 class _Stage extends StatelessWidget {
   const _Stage({
     required this.coach,
@@ -824,9 +905,19 @@ class _Stage extends StatelessWidget {
     required this.lipSync,
     required this.elapsed,
     required this.captions,
-    required this.caption,
+    required this.replyText,
+    required this.responding,
     required this.onToggleCaptions,
+    required this.avatarHidden,
+    required this.onToggleAvatar,
+    this.compact = false,
   });
+
+  /// With the keyboard open the portrait is dropped (the controls row and
+  /// subtitle stay), so the talk dock stays above the keyboard.
+  final bool compact;
+  static const double bottomMargin = 8;
+  static const double controlsHeight = 44;
 
   final Coach coach;
   final bool speaking;
@@ -834,16 +925,73 @@ class _Stage extends StatelessWidget {
   final LipSyncDriver? lipSync;
   final String elapsed;
   final bool captions;
-  final String caption;
+
+  /// The coach's latest reply: the subtitle shows one sentence of it.
+  final String replyText;
+  final bool responding;
   final VoidCallback onToggleCaptions;
+  final bool avatarHidden;
+  final VoidCallback onToggleAvatar;
 
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
+    final showPortrait = !compact && !avatarHidden;
+    final controls = SizedBox(
+      height: controlsHeight,
+      child: Row(
+        key: const ValueKey('voice-stage-controls'),
+        children: [
+          Expanded(
+            // One line, scaled down to fit, so the row is always as tall as
+            // the buttons at any text size.
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: GlassChip(key: const ValueKey('voice-timer'), label: l.voiceSession(elapsed)),
+              ),
+            ),
+          ),
+          CircleIconButton(
+            key: const ValueKey('toggle-captions'),
+            icon: captions ? Icons.closed_caption_rounded : Icons.closed_caption_off_outlined,
+            tooltip: captions ? l.hideCaptions : l.showCaptions,
+            onPressed: onToggleCaptions,
+            filled: true,
+            size: controlsHeight,
+          ),
+          const SizedBox(width: 4),
+          CircleIconButton(
+            key: const ValueKey('toggle-avatar'),
+            icon: avatarHidden ? Icons.face_rounded : Icons.expand_less_rounded,
+            tooltip: avatarHidden ? l.showAvatar : l.hideAvatar,
+            onPressed: onToggleAvatar,
+            filled: true,
+            size: controlsHeight,
+          ),
+        ],
+      ),
+    );
+    // A short (landscape) screen keeps its room for the conversation: no subtitle.
+    final short = MediaQuery.sizeOf(context).height < 500;
+    final subtitle = captions && !short
+        ? Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: _Subtitle(
+              key: const ValueKey('voice-subtitle'),
+              speaking: speaking,
+              responding: responding,
+              lipSync: lipSync,
+              replyText: replyText,
+            ),
+          )
+        : const SizedBox.shrink();
     return AnimatedContainer(
       // The speaking glow fades in, unless Reduce Motion is on.
       duration: motion(context, const Duration(milliseconds: 400)),
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, bottomMargin),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(26),
@@ -851,61 +999,146 @@ class _Stage extends StatelessWidget {
         boxShadow: speaking ? const [BoxShadow(color: Color(0x40DDB67F), blurRadius: 28, spreadRadius: 1)] : const [],
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          LayoutBuilder(
-            // The portrait's height follows the stage width (about 2:1), so
-            // the face and mouth keep their place on iPad and at large text.
-            builder: (context, box) => SizedBox(
-              height: CoachStageAvatar.stageHeight(box.maxWidth,
-                  largeText: MediaQuery.textScalerOf(context).scale(1) > 1.3),
-              child: Stack(
-              fit: StackFit.expand,
-              children: [
-                CoachStageAvatar(coach: coach, mood: mood, lipSync: lipSync),
-                const FadeToBackground(stops: [CoachStageAvatar.fadeStart, 1], color: AppColors.surface),
-                Positioned(top: 12, left: 12, child: GlassChip(key: const ValueKey('voice-timer'), label: l.voiceSession(elapsed))),
-                Positioned(
-                  top: 6,
-                  right: 6,
-                  child: CircleIconButton(
-                    icon: captions ? Icons.closed_caption_rounded : Icons.closed_caption_off_outlined,
-                    tooltip: captions ? l.hideCaptions : l.showCaptions,
-                    onPressed: onToggleCaptions,
-                    filled: true,
-                  ),
-                ),
-              ],
-              ),
-            ),
-          ),
-          if (captions)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(coach.name.toUpperCase(), style: AppText.eyebrow.copyWith(fontSize: 11)),
-                  const SizedBox(height: 4),
-                  // The whole reply, never truncated: it scrolls inside a
-                  // capped height, so long replies at large text stay readable.
-                  // It starts at the end, the part being read aloud last.
-                  ConstrainedBox(
-                    constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.22),
-                    child: SingleChildScrollView(
-                      key: const ValueKey('voice-caption-scroll'),
-                      reverse: true,
-                      child: Text(caption,
-                          key: const ValueKey('voice-caption'),
-                          style: const TextStyle(fontSize: 13.5, height: 1.45, color: AppColors.text)),
+      child: showPortrait
+          // The avatar window on the left (the whole face, from the hair to
+          // the chin; nothing is drawn over it), the timer, buttons and the
+          // live subtitle beside it.
+          ? LayoutBuilder(builder: (context, box) {
+              final win = CoachStageAvatar.windowSize(box.maxWidth, screenHeight: MediaQuery.sizeOf(context).height);
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(10, 10, 4, 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      key: const ValueKey('avatar-window'),
+                      width: win.width,
+                      height: win.height,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppColors.line2),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: CoachStageAvatar(coach: coach, mood: mood, lipSync: lipSync),
                     ),
-                  ),
-                ],
-              ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          controls,
+                          Padding(padding: const EdgeInsets.only(right: 8), child: subtitle),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            })
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(padding: const EdgeInsets.fromLTRB(12, 0, 6, 0), child: controls),
+                if (captions && !short) Padding(padding: const EdgeInsets.fromLTRB(14, 0, 14, 10), child: subtitle),
+              ],
             ),
-        ],
-      ),
+    );
+  }
+}
+
+/// The live subtitle: the sentence being spoken, at most three lines, never
+/// the whole reply (that is in the message list). It follows the speech
+/// through the lip-sync timeline's word that is being said; before and
+/// between speech it shows the first sentence of the latest reply, and
+/// nothing while the coach is still writing. Its text size stops growing at
+/// 1.3x so it stays short.
+class _Subtitle extends StatefulWidget {
+  const _Subtitle({super.key, required this.speaking, required this.responding, required this.lipSync, required this.replyText});
+  final bool speaking;
+  final bool responding;
+  final LipSyncDriver? lipSync;
+  final String replyText;
+
+  static const double fontSize = 13.5;
+  static const double lineHeight = 1.35;
+  static const double maxTextScale = 1.3;
+  static const int maxLines = 3;
+
+  @override
+  State<_Subtitle> createState() => _SubtitleState();
+}
+
+class _SubtitleState extends State<_Subtitle> {
+  Timer? _poll;
+
+  @override
+  void initState() {
+    super.initState();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(_Subtitle old) {
+    super.didUpdateWidget(old);
+    _sync();
+  }
+
+  /// Polls the speech position, only while something is being spoken.
+  void _sync() {
+    if (widget.speaking && _poll == null) {
+      _poll = Timer.periodic(const Duration(milliseconds: 200), (_) {
+        if (mounted) setState(() {});
+      });
+    } else if (!widget.speaking) {
+      _poll?.cancel();
+      _poll = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    super.dispose();
+  }
+
+  String _text(int maxChars) {
+    if (widget.responding) return '';
+    final d = widget.lipSync;
+    final tl = d?.timeline;
+    if (widget.speaking && d != null && tl != null && d.active) {
+      final t = d.planTime();
+      if (t != null && tl.words.isNotEmpty) {
+        var k = 0;
+        for (var i = 0; i < tl.words.length; i++) {
+          if (tl.words[i].start <= t) k = i;
+        }
+        return subtitleAt(tl.text, tl.words[k].charStart, maxChars: maxChars);
+      }
+    }
+    return firstSubtitle(widget.replyText, maxChars: maxChars);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(context).clamp(maxScaleFactor: _Subtitle.maxTextScale);
+    final size = scaler.scale(_Subtitle.fontSize);
+    return MediaQuery.withClampedTextScaling(
+      maxScaleFactor: _Subtitle.maxTextScale,
+      child: LayoutBuilder(builder: (context, box) {
+        // About how many characters three lines hold here, so a chunk fits.
+        final perLine = box.maxWidth / (size * 0.5);
+        final maxChars = (perLine * _Subtitle.maxLines * 0.85).floor().clamp(24, 120);
+        return ConstrainedBox(
+          // Reserves two lines, so the stage does not jump between sentences.
+          constraints: BoxConstraints(minHeight: size * _Subtitle.lineHeight * 2),
+          child: Text(_text(maxChars),
+              key: const ValueKey('voice-caption'),
+              textAlign: TextAlign.start,
+              maxLines: _Subtitle.maxLines,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: _Subtitle.fontSize, height: _Subtitle.lineHeight, color: AppColors.text)),
+        );
+      }),
     );
   }
 }
@@ -915,15 +1148,24 @@ class _MessageList extends StatelessWidget {
     required this.coach,
     required this.compact,
     required this.onStarter,
+    required this.onRetry,
     required this.showIntro,
     required this.speaking,
+    this.readOnly = false,
   });
 
   final Coach coach;
   final bool compact;
   final ValueChanged<String> onStarter;
+
+  /// "Try again" under a failed, stopped or interrupted reply.
+  final VoidCallback onRetry;
   final bool showIntro;
   final bool speaking;
+
+  /// Saved conversations shown without a subscription: no starters and no
+  /// "Try again" (nothing can be sent).
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -944,9 +1186,9 @@ class _MessageList extends StatelessWidget {
           coach: coach,
           showOptions: i == messages.length - 1,
           showFindTable: datePlan && i == messages.length - 1,
-          onRetry: i == messages.length - 1 && state.canRetry ? state.retryLastReply : null,
+          onRetry: !readOnly && i == messages.length - 1 && state.canRetry ? onRetry : null,
         ),
-      if (!hasUser) _Starters(coach: coach, onTap: onStarter),
+      if (!hasUser && !readOnly) _Starters(coach: coach, onTap: onStarter),
     ];
 
     // Newest at the bottom (reversed list), but a short conversation starts
@@ -954,13 +1196,17 @@ class _MessageList extends StatelessWidget {
     return ContentWidth(
       child: Align(
         alignment: Alignment.topCenter,
-        child: ListView.builder(
-          key: ValueKey('messages-${coach.id}'),
-          reverse: true,
-          shrinkWrap: true,
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-          itemCount: items.length,
-          itemBuilder: (_, i) => items[items.length - 1 - i],
+        // Long-press selects and copies any part of a reply (SelectionArea),
+        // and the list scrolls, so a long reply is never cut off.
+        child: SelectionArea(
+          child: ListView.builder(
+            key: ValueKey('messages-${coach.id}'),
+            reverse: true,
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            itemCount: items.length,
+            itemBuilder: (_, i) => items[items.length - 1 - i],
+          ),
         ),
       ),
     );
@@ -1122,6 +1368,30 @@ class _ReplyOptions extends StatelessWidget {
   const _ReplyOptions({required this.options});
   final List<ReplyOption> options;
 
+  /// Copies [text] and says "Copied" only when the copy worked (QA m-1); a
+  /// failure says so instead. The snackbar floats above the composer, like
+  /// the other chat snackbars.
+  static Future<void> _copy(BuildContext context, String text) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final l = context.l10n;
+    final margin = context.findAncestorStateOfType<_ChatScreenState>()?._aboveDock() ??
+        const EdgeInsets.fromLTRB(15, 5, 15, 10);
+    var ok = true;
+    try {
+      await Clipboard.setData(ClipboardData(text: text));
+    } catch (_) {
+      ok = false;
+    }
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        key: ValueKey(ok ? 'copy-ok' : 'copy-failed'),
+        behavior: SnackBarBehavior.floating,
+        margin: margin,
+        content: WholeWordsText(ok ? l.copiedReply : l.copyFailed),
+      ));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Wrap(
@@ -1136,10 +1406,7 @@ class _ReplyOptions extends StatelessWidget {
             child: InkWell(
               key: ValueKey('option-${o.label}'),
               borderRadius: BorderRadius.circular(14),
-              onTap: () {
-                Clipboard.setData(ClipboardData(text: o.text));
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.copiedReply)));
-              },
+              onTap: () => _copy(context, o.text),
               child: Container(
                 constraints: const BoxConstraints(minHeight: 44, maxWidth: 240),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -1248,7 +1515,17 @@ class _Composer extends StatelessWidget {
                 controller: controller,
                 focusNode: focus,
                 minLines: 1,
-                maxLines: 5,
+                // Three lines at large text, so the conversation keeps room above the keyboard.
+                maxLines: MediaQuery.textScalerOf(context).scale(1) > 1.3 ? 3 : 5,
+                // The Worker reads at most this much per message (code review m3); the
+                // counter appears only near the limit.
+                maxLength: BackendAIService.maxMessageChars,
+                maxLengthEnforcement: MaxLengthEnforcement.enforced,
+                buildCounter: (_, {required currentLength, required isFocused, maxLength}) =>
+                    maxLength != null && currentLength > maxLength - 500
+                        ? Text('$currentLength/$maxLength',
+                            key: const ValueKey('composer-counter'), style: AppText.small)
+                        : null,
                 textCapitalization: TextCapitalization.sentences,
                 textInputAction: TextInputAction.send,
                 // While a reply streams, Enter does nothing: the text and the
@@ -1408,6 +1685,9 @@ class _VoiceDock extends StatelessWidget {
               ),
             ],
           ),
+          // The hint is dropped on a short (landscape) screen, which needs the
+          // room for the conversation.
+          if (MediaQuery.sizeOf(context).height >= 500) ...[
           const SizedBox(height: 12),
           // With VoiceOver/TalkBack the talk button toggles with a tap.
           Text(
@@ -1418,6 +1698,7 @@ class _VoiceDock extends StatelessWidget {
             textAlign: TextAlign.center,
             style: AppText.small,
           ),
+          ],
         ],
       ),
     );
@@ -1457,6 +1738,56 @@ class _Locked extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+            // A read-only preview of how the coach talks, below the premium
+            // card so See Premium stays where it was: the built-in greeting,
+            // rendered locally. No composer, no send, no AI call.
+            const SizedBox(height: 20),
+            Text(l.lockedPreviewLabel(coach.name).toUpperCase(),
+                key: const ValueKey('locked-preview-label'), style: AppText.eyebrow),
+            const SizedBox(height: 10),
+            KeyedSubtree(
+              key: const ValueKey('locked-preview-greeting'),
+              child: _Bubble(
+                message: ChatMessage(
+                    id: 'preview-greeting', role: MessageRole.coach, text: coach.greeting, createdAt: DateTime(2026)),
+                coach: coach,
+                showOptions: false,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The premium card above the locked composer while saved conversations are
+/// shown read-only (QA M-1).
+class _LockedBar extends StatelessWidget {
+  const _LockedBar({required this.coach});
+  final Coach coach;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    return Padding(
+      key: const ValueKey('locked-bar'),
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+      child: DwCard(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(l.premiumEyebrow.toUpperCase(), style: AppText.eyebrow),
+            const SizedBox(height: 6),
+            WholeWordsText(l.lockedHistoryNote(coach.name), key: const ValueKey('locked-history-note'), style: AppText.body),
+            const SizedBox(height: 10),
+            DwButton(
+              key: const ValueKey('locked-subscribe'),
+              label: l.seePremium,
+              expand: true,
+              onPressed: () => showPaywall(context),
             ),
           ],
         ),

@@ -22,7 +22,7 @@ import 'package:datewise_ai/state/app_state.dart';
 
 Future<(AppState, StorageService)> make({Map<String, Object> prefs = const {}, StoreService? store, DateTime? now}) async {
   // The user already agreed to share messages with the AI provider.
-  SharedPreferences.setMockInitialValues({'dw_ai_consent': true, ...prefs});
+  SharedPreferences.setMockInitialValues({'dw_ai_consent': true, 'dw_ai_consent_version': StorageService.aiConsentVersion, ...prefs});
   final storage = await StorageService.create();
   final state = AppState(storage: storage, ai: MockAIService(), store: store, clock: now == null ? null : () => now);
   return (state, storage);
@@ -170,7 +170,7 @@ void main() {
       expect(lookupAppLocalizations(const Locale('en')).planItemTitle(CoachingGoal.profile, Coaches.ava),
           'Rewrite your bio with Ava');
       expect(lookupAppLocalizations(const Locale('es')).planItemTitle(CoachingGoal.profile, Coaches.sofia),
-          'Reescribe tu biografía con\u00a0Sofía');
+          'Reescribe tu bio con\u00a0Sofía');
     });
 
     test('ticks reset when a new week starts; items stay', () async {

@@ -24,6 +24,7 @@
  * Every limit is a Worker variable (wrangler.toml [vars]). The defaults are
  * provisional; see docs/business/AI_COST_MODEL.md.
  */
+import { ownerAttemptOp, verifyOwnerToken, ownerKey, handleOwner } from './owner_access.js';
 import { JwsError, sha256Hex, verifyAppleJws } from './apple_jws.js';
 
 export const GUARD_VERSION = 'chat-v7-cost-guard';
@@ -157,6 +158,50 @@ export function neuronsFor(model, inTokens, outTokens) {
   return Math.ceil((inTokens * i + outTokens * o) / 1e6);
 }
 
+// --- request bodies and upstream errors ---------------------------------------
+/**
+ * Reads a request body as UTF-8 text, counting bytes as they arrive, and stops
+ * (returning null) as soon as more than maxBytes arrived. A missing, false or
+ * junk Content-Length cannot make the Worker buffer more than the cap.
+ */
+export async function readBodyCapped(request, maxBytes) {
+  if (!request.body) return '';
+  const reader = request.body.getReader();
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      reader.cancel().catch(() => {});
+      return null;
+    }
+    chunks.push(value);
+  }
+  const all = new Uint8Array(total);
+  let off = 0;
+  for (const c of chunks) {
+    all.set(c, off);
+    off += c.byteLength;
+  }
+  return new TextDecoder().decode(all);
+}
+
+/**
+ * What a client may see of an upstream (Workers AI) error: the error class and
+ * the numeric codes in it (Workers AI error codes such as 5016 or 5028, HTTP
+ * statuses such as 410), nothing else. The raw message can echo the prompt,
+ * account ids or internal URLs, so it is never returned.
+ */
+export function upstreamErrorDetail(e) {
+  const msg = typeof e === 'string' ? e : String(e?.message ?? '');
+  const fromMsg = msg.match(/^\s*([A-Z][A-Za-z]{1,30}Error)\b/);
+  const name = fromMsg ? fromMsg[1] : typeof e?.name === 'string' && /^[A-Z][A-Za-z]{1,30}$/.test(e.name) ? e.name : 'Error';
+  const codes = [...new Set(msg.match(/\b(?:[1-9]\d{3}|[45]\d\d)\b/g) || [])].slice(0, 3);
+  return [name, ...codes].join(' ');
+}
+
 // --- network buckets ----------------------------------------------------------
 /** IPv4: the address. IPv6: the /64 (a home or phone network usually gets a whole /64). */
 export function ipBucket(ip) {
@@ -208,6 +253,9 @@ export async function checkEntitlement(jws, cfg, now) {
   }
   if (!environmentAllowed(cfg, payload.environment)) return { code: 'SUBSCRIPTION_INVALID', reason: 'environment' };
   if (!payload.originalTransactionId) return { code: 'SUBSCRIPTION_INVALID', reason: 'no_original_id' };
+  // Superseded by an upgrade: the entitlement moved to the new transaction
+  // (Transaction.currentEntitlements never returns this one), so a saved copy is refused.
+  if (payload.isUpgraded === true) return { code: 'SUBSCRIPTION_INVALID', reason: 'upgraded' };
   if (payload.revocationDate) return { code: 'SUBSCRIPTION_REVOKED', tx: payload };
   const expires = Number(payload.expiresDate);
   const allowance = cfg.EXPIRY_LEEWAY_MINUTES * 60_000 + cfg.BILLING_GRACE_DAYS * 86_400_000;
@@ -296,6 +344,7 @@ export class UsageGuard {
       'set-revoked': () => this.setRevoked(body),
       'sub-event': () => this.subEvent(body),
       'sub-status': () => this.subStatus(body),
+      'owner-attempt': () => ownerAttemptOp(this.storage, body),
     };
     if (!Object.hasOwn(ops, op)) return new Response('not found', { status: 404 });
     return new Response(JSON.stringify(await ops[op]()), { headers: { 'Content-Type': 'application/json' } });
@@ -569,7 +618,14 @@ export async function admit(request, env, cors, { kind, model, inTokens, outToke
     softPercent: cfg.SOFT_NOTICE_PERCENT,
     leaseMs: cfg.LEASE_SECONDS * 1000,
   };
-  if (jws) {
+  // Owner-only premium (owner_access.js): a valid owner token counts as a Production subscriber with the
+  // normal limits. Absent, invalid, expired or disabled: the request is judged as before, by the JWS.
+  const ownerTok = request.headers.get('X-DateWise-Owner');
+  const owner = ownerTok ? await verifyOwnerToken(ownerTok, env, now) : null;
+  if (owner) {
+    key = await ownerKey(cfg, owner.deviceId);
+    limits = { ...base, daily: cfg.DAILY_MESSAGE_LIMIT, monthly: cfg.MONTHLY_MESSAGE_LIMIT };
+  } else if (jws) {
     let r = await checkEntitlement(jws, cfg, now);
     if (r.code === 'SUBSCRIPTION_EXPIRED' && r.tx && cfg.ASSN_ENABLED && hasGuard) {
       // The device may still hold the previous period's token (a renewal that
@@ -614,7 +670,7 @@ export async function admit(request, env, cors, { kind, model, inTokens, outToke
     key = netKey;
     limits = { ...base, daily: cfg.ANON_DAILY_LIMIT, monthly: cfg.ANON_MONTHLY_LIMIT };
   }
-  const anon = !jws;
+  const anon = !jws && !owner;
   const sandbox = verified?.environment === 'Sandbox';
   const who = cfg.SALT_SET ? key.slice(0, key.indexOf(':') + 13) : undefined;
   const reserveNeurons = neurons ?? neuronsFor(model, inTokens, outTokens);
@@ -724,6 +780,18 @@ export async function admit(request, env, cors, { kind, model, inTokens, outToke
  * outcome is 'done', 'error' (the upstream stream failed: a server-side
  * error) or 'canceled' (the client went away: what was produced still counts).
  */
+/** Owner redeem/renew routes: the durable attempt counter lives in the UsageGuard Durable Object. */
+export async function ownerRoute(request, env, cors, path) {
+  const cfg = guardConfig(env);
+  const now = Date.now();
+  const netKey = await anonKey(cfg, request.headers.get('CF-Connecting-IP') || 'unknown');
+  const attempt = async (name, max) => {
+    if (!(env.USAGE_GUARD && typeof env.USAGE_GUARD.idFromName === 'function')) throw new Error('no guard');
+    return (await callDo(env, name, 'owner-attempt', { now, max })).ok;
+  };
+  return handleOwner(request, env, cors, { path, ipHash: netKey.slice(5, 37), now, attempt });
+}
+
 export function meterStream(stream, onEnd) {
   const decoder = new TextDecoder();
   const reader = stream.getReader();
@@ -850,12 +918,17 @@ export const ASSN_EFFECTS = {
   REFUND_REVERSED: 'reinstate',
 };
 
+export const ASSN_MAX_BODY_BYTES = 128 * 1024;
+
 export async function handleAppleNotification(request, env) {
   const cfg = guardConfig(env);
   if (!cfg.ASSN_ENABLED || !env.USAGE_GUARD) return new Response('not found', { status: 404 });
+  // A notification is at most a few tens of KB (the JWS cap below is 64k).
   let body;
   try {
-    body = await request.json();
+    const text = await readBodyCapped(request, ASSN_MAX_BODY_BYTES);
+    if (text === null) return new Response('too large', { status: 413 });
+    body = JSON.parse(text);
   } catch {
     return new Response('bad request', { status: 400 });
   }

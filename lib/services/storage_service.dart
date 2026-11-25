@@ -29,8 +29,17 @@ class StorageService {
   static const _kMemoryOn = 'dw_memory_on';
   static const _kMemoryText = 'dw_memory_text';
   static const _kActiveDays = 'dw_active_days';
+  static const _kVoiceAvatarCollapsed = 'dw_voice_avatar_collapsed';
   static const _kUnderage = 'dw_underage';
   static const _kAiConsent = 'dw_ai_consent';
+  static const _kAiConsentVersion = 'dw_ai_consent_version';
+
+  /// Version of the AI data-sharing consent text (`aiConsentBody`). Raise it
+  /// whenever that text discloses something new, so everyone who agreed to
+  /// an older text is asked again before anything more is sent.
+  /// 1: the first text (stored as a plain `dw_ai_consent` flag, no version).
+  /// 2: also discloses the country sent for crisis lines (re-test R3).
+  static const aiConsentVersion = 2;
 
   static Future<StorageService> create() async {
     final prefs = await SharedPreferences.getInstance();
@@ -57,8 +66,20 @@ class StorageService {
 
   /// Set once the user agreed to share their messages with the AI provider
   /// (App Store Guideline 5.1.2(i)). Removed by "Delete my data".
-  bool get aiConsent => _prefs.getBool(_kAiConsent) ?? false;
-  Future<void> setAiConsent() => _prefs.setBool(_kAiConsent, true);
+  /// Only consent to the current text ([aiConsentVersion]) counts: an older
+  /// agreement (no version stored, or a lower one) asks again.
+  bool get aiConsent =>
+      (_prefs.getBool(_kAiConsent) ?? false) && (_prefs.getInt(_kAiConsentVersion) ?? 1) >= aiConsentVersion;
+  Future<void> setAiConsent() async {
+    await _prefs.setInt(_kAiConsentVersion, aiConsentVersion);
+    await _prefs.setBool(_kAiConsent, true);
+  }
+
+  /// Withdraws only that permission (You › Privacy); all other data stays.
+  Future<void> clearAiConsent() async {
+    await _prefs.remove(_kAiConsent);
+    await _prefs.remove(_kAiConsentVersion);
+  }
 
   // --- Intro slider (first-launch walkthrough) ----------------------------
 
@@ -100,6 +121,12 @@ class StorageService {
 
   bool get memoryEnabled => _prefs.getBool(_kMemoryOn) ?? false;
   Future<void> setMemoryEnabled(bool on) => _prefs.setBool(_kMemoryOn, on);
+
+  /// Whether the user hid the avatar in the voice conversation; null when
+  /// they never chose (the screen then picks by its size). Removed by
+  /// [clearAll] with the other `dw_` keys.
+  bool? get voiceAvatarCollapsed => _prefs.getBool(_kVoiceAvatarCollapsed);
+  Future<void> setVoiceAvatarCollapsed(bool collapsed) => _prefs.setBool(_kVoiceAvatarCollapsed, collapsed);
 
   String get memoryText => _prefs.getString(_kMemoryText) ?? '';
   Future<void> saveMemoryText(String text) => _prefs.setString(_kMemoryText, text);

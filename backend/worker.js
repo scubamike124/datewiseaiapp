@@ -19,8 +19,8 @@
  * (1.0.2): its chat and photo coach keep their chat-v6 behaviour, in the
  * anonymous caps and their budget slice, while LEGACY_CLIENTS=1. See docs/business/AI_COST_MODEL.md.
  */
-import { admit, estimateTokens, fitToInputBudget, guardConfig, guardError, handleAppleNotification, meterStream, meteredAi, neuronsFor, GUARD_VERSION } from './cost_guard.js';
-import { coachMessages, resolveCoachId } from './coach_prompts.js';
+import { admit, estimateTokens, fitToInputBudget, guardConfig, guardError, handleAppleNotification, ownerRoute, meterStream, meteredAi, neuronsFor, readBodyCapped, upstreamErrorDetail, GUARD_VERSION } from './cost_guard.js';
+import { cleanClientText, coachMessages, resolveCoachId } from './coach_prompts.js';
 export { UsageGuard } from './cost_guard.js';
 
 const MODEL = '@cf/meta/llama-3.2-11b-vision-instruct';
@@ -52,7 +52,7 @@ function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': DEFAULT_ORIGIN,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-DateWise-Entitlement',
+    'Access-Control-Allow-Headers': 'Content-Type, X-DateWise-Entitlement, X-DateWise-Owner',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
@@ -65,6 +65,14 @@ const MAX_IMAGE_BASE64_CHARS = 1_500_000;
 
 // Max photos in a single "rank & compare" request.
 const MAX_BATCH = 4;
+
+// Error responses that still carry model output (the v1 photo coach's `raw`):
+// the model ran for this client, so the message is not given back.
+const MODEL_OUTPUT_SENT = new WeakSet();
+function withModelOutput(res) {
+  MODEL_OUTPUT_SENT.add(res);
+  return res;
+}
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -99,6 +107,9 @@ a one-sentence headline; the predicted change in match rate as a percentage; and
 // 70B fp8-fast stays active, is on the JSON Mode list, and returns the same
 // `response` shape (and the same SSE stream) the photo coach and the app read.
 const TEXT_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+// Largest request body accepted: v2 chat (history is trimmed client- and server-side) vs the v1 photo path.
+export const MAX_CHAT_BODY_BYTES = 256 * 1024;
+export const MAX_LEGACY_BODY_BYTES = 12 * 1024 * 1024;
 
 // --- Chat (AI coach replies) ----------------------------------------------
 // The same free text model powers the coaching chat. Replies stream back
@@ -443,7 +454,7 @@ async function handleBatch(env, images, mode, userNote) {
       ),
     );
   } catch (e) {
-    return json({ error: 'Workers AI error', detail: String(e) }, 502);
+    return json({ error: 'Workers AI error', detail: upstreamErrorDetail(e) }, 502);
   }
 
   // Primary: parse each critique directly and rank locally (no converter call).
@@ -498,7 +509,7 @@ async function handleBatch(env, images, mode, userNote) {
   }
 
   if (!parsed) {
-    return json({ error: 'Could not format ranking as JSON', raw: labelled }, 502);
+    return withModelOutput(json({ error: 'Could not format ranking as JSON', raw: labelled }, 502));
   }
   return json(normalizeBatch(parsed, images.length), 200);
 }
@@ -512,7 +523,7 @@ function sanitizeMessages(messages) {
   const cleaned = [];
   for (const m of messages) {
     if (!m || typeof m.content !== 'string' || !roles.has(m.role)) continue;
-    const content = m.content.slice(0, 6000).trim();
+    const content = cleanClientText(m.content.slice(0, 6000)).trim();
     if (content) cleaned.push({ role: m.role, content });
   }
   if (cleaned.length === 0) return null;
@@ -604,7 +615,7 @@ function legacyUpdateNotice(request, body) {
 async function handleChat(request, env, ctx, body) {
   const cfg = guardConfig(env);
   const legacy =
-    (body.coachId === undefined || body.coachId === null) && !request.headers.get('X-DateWise-Entitlement');
+    (body.coachId === undefined || body.coachId === null) && !request.headers.get('X-DateWise-Entitlement') && !request.headers.get('X-DateWise-Owner');
   let safe;
   if (legacy) {
     if (!cfg.LEGACY_CLIENTS) return legacyUpdateNotice(request, body);
@@ -644,7 +655,7 @@ async function handleChat(request, env, ctx, body) {
     stream = await runChatStream(env, modelMessages, modelMaxOut);
   } catch (e) {
     ctx?.waitUntil?.(ticket.finish(0, { refund: true }));
-    return json({ error: 'Workers AI error', detail: String(e) }, 502);
+    return json({ error: 'Workers AI error', detail: upstreamErrorDetail(e) }, 502);
   }
   const metered = meterStream(stream, (m) => {
     const actual = neuronsFor(CHAT_MODEL, m.inTokens || estimateTokens(modelMessages), m.outTokens);
@@ -731,7 +742,11 @@ async function route(request, env, ctx) {
       return json({ error: 'Method not allowed' }, 405);
     }
     // Optional App Store Server Notifications v2 (refunds/revocations); off by default.
-    if (new URL(request.url).pathname === '/apple/notifications') {
+    const pathname = new URL(request.url).pathname;
+    if (pathname === '/owner/redeem' || pathname === '/owner/renew') {
+      return await ownerRoute(request, env, corsHeaders(), pathname);
+    }
+    if (pathname === '/apple/notifications') {
       return await handleAppleNotification(request, env);
     }
     if (!env.AI) {
@@ -741,9 +756,27 @@ async function route(request, env, ctx) {
       );
     }
 
+    // Refuse oversized bodies before parsing them (security review M5). A v2 chat request is a few KB; the
+    // limit only grows while the v1 photo path (base64 images) is still served.
+    const legacyServed = guardConfig(env).LEGACY_CLIENTS;
+    const maxBody = legacyServed ? MAX_LEGACY_BODY_BYTES : MAX_CHAT_BODY_BYTES;
+    // An oversized request without a subscription token has the v1 (1.0.2) signature: its photo requests carry
+    // base64 images well over the v2 cap. Once v1 is no longer served it gets the same "please update" notice as
+    // a small v1 photo request (v1 shows the body text), not a bare 413 (code review M1). Nothing is parsed.
+    const tooLarge = () =>
+      !legacyServed && !request.headers.get('X-DateWise-Entitlement') && !request.headers.get('X-DateWise-Owner')
+        ? guardError('APP_UPDATE_REQUIRED', corsHeaders(), { message: 'Please update DateWise from the App Store.' })
+        : json({ error: 'Request too large', code: 'PAYLOAD_TOO_LARGE' }, 413);
+    const declared = Number(request.headers.get('Content-Length') || 0);
+    if (declared > maxBody) return tooLarge();
+
     let body;
     try {
-      body = await request.json();
+      // The cap counts UTF-8 bytes as they arrive, so a missing or false
+      // Content-Length, or multi-byte text, cannot get past it (security review R2 S-1).
+      const text = await readBodyCapped(request, maxBody);
+      if (text === null) return tooLarge();
+      body = JSON.parse(text);
     } catch {
       return json({ error: 'Invalid JSON body' }, 400);
     }
@@ -774,11 +807,13 @@ async function route(request, env, ctx) {
     try {
       photoResponse = await handlePhoto({ ...env, AI: meter.ai }, { imageBase64, images, tier, mode, userNote });
     } catch (e) {
-      photoResponse = json({ error: 'Workers AI error', detail: String(e) }, 502);
+      photoResponse = json({ error: 'Workers AI error', detail: upstreamErrorDetail(e) }, 502);
     }
     const spent = meter.neurons();
     // Refund the message only when the server failed or no model ran (a bad image).
-    ctx?.waitUntil?.(photoGate.ticket.finish(spent, { refund: photoResponse.status >= 500 || spent === 0 }));
+    // A failure that still hands the client the model's output (`raw`) counts.
+    const refund = spent === 0 || (photoResponse.status >= 500 && !MODEL_OUTPUT_SENT.has(photoResponse));
+    ctx?.waitUntil?.(photoGate.ticket.finish(spent, { refund }));
     for (const [k, v] of Object.entries(photoGate.ticket.headers)) photoResponse.headers.set(k, v);
     return photoResponse;
   }
@@ -831,8 +866,9 @@ async function handlePhoto(env, { imageBase64, images, tier, mode, userNote }) {
         max_tokens: isQuick ? 350 : 800,
       });
     } catch (e) {
-      const detail = String(e);
-      if (detail.includes('5016') || /terms/i.test(detail)) {
+      const raw = String(e);
+      const detail = upstreamErrorDetail(e);
+      if (raw.includes('5016') || /terms/i.test(raw)) {
         return json(
           {
             error:
@@ -908,7 +944,7 @@ async function handlePhoto(env, { imageBase64, images, tier, mode, userNote }) {
     }
 
     if (!analysis) {
-      return json({ error: 'Could not format analysis as JSON', raw: critique }, 502);
+      return withModelOutput(json({ error: 'Could not format analysis as JSON', raw: critique }, 502));
     }
     return json(normalize(analysis), 200);
 }

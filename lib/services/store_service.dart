@@ -1,10 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart' show InAppPurchaseStoreKitPlatform;
 import 'package:in_app_purchase_storekit/store_kit_2_wrappers.dart';
 
 import 'coach_usage.dart';
+import 'owner_access.dart';
 
 /// DateWise has exactly one product: an auto-renewable monthly subscription.
 /// No free plan, no trial, no annual plan.
@@ -31,8 +34,143 @@ enum PurchaseResult { purchased, pending, canceled, failed, unavailable }
 /// message for each.
 enum StoreError { storeUnavailable, storeUnreachable, productUnavailable, purchaseFailed, restoreFailed }
 
+/// What the last StoreKit product query returned, for the hidden "Store
+/// status" readout (long-press the paywall's plan card, or the version line
+/// under You › About) and the device log. It holds no secrets: no
+/// transaction, receipt or JWS is ever stored here.
+class StoreDiagnostics {
+  StoreDiagnostics({required this.productId});
+
+  /// The product id the app queries ([StoreConfig.productId]).
+  final String productId;
+
+  /// How many product queries have run, and when the last one finished.
+  int queries = 0;
+  DateTime? lastQueryAt;
+
+  /// Products StoreKit returned (null before the first query finished).
+  int? productsReturned;
+  List<String> returnedIds = const [];
+  List<String> notFoundIds = const [];
+
+  /// The plugin's error for the last query (IAPError code and message, or
+  /// the exception thrown), null when the query succeeded without one.
+  String? errorCode;
+  String? errorMessage;
+
+  /// `AppStore.canMakePayments` (StoreKit 2) / `isAvailable()`; null before
+  /// it was read.
+  bool? canMakePayments;
+
+  /// The App Store storefront country (StoreKit 2 `Storefront.current`,
+  /// ISO 3166-1 alpha-3, e.g. "USA"), or why it could not be read.
+  String? storefront;
+  String? storefrontError;
+
+  /// Whether the plugin runs on StoreKit 2 (iOS only; null elsewhere).
+  bool? storeKit2;
+
+  /// The price StoreKit returned (shown so the owner can see it loaded).
+  String? price;
+
+  /// Filled in when the readout is built: the store's current state.
+  bool entitled = false;
+  bool ready = false;
+  String? lastError;
+
+  /// Field and value pairs for the readout (no secrets). [w] gives the
+  /// words used in values ("not yet", "unknown", yes and no), so the sheet
+  /// can show them in the UI language.
+  List<(StoreStatusField, String)> entries([StoreStatusWords w = StoreStatusWords.en]) {
+    String yn(bool b) => b ? w.yes : w.no;
+    return [
+      (StoreStatusField.productId, productId),
+      (StoreStatusField.queries, '$queries'),
+      (StoreStatusField.lastQuery, lastQueryAt?.toLocal().toIso8601String() ?? w.notYet),
+      (StoreStatusField.productsReturned, productsReturned?.toString() ?? w.notYet),
+      (StoreStatusField.returnedIds, returnedIds.isEmpty ? '-' : returnedIds.join(', ')),
+      (StoreStatusField.notFoundIds, notFoundIds.isEmpty ? '-' : notFoundIds.join(', ')),
+      (StoreStatusField.errorCode, errorCode ?? '-'),
+      (StoreStatusField.errorMessage, errorMessage ?? '-'),
+      (StoreStatusField.canMakePayments, canMakePayments == null ? w.unknown : yn(canMakePayments!)),
+      (
+        StoreStatusField.storefront,
+        storefront ?? (storefrontError == null ? w.unknown : '${w.unavailable} ($storefrontError)'),
+      ),
+      (StoreStatusField.storeKit2, storeKit2 == null ? w.notApplicable : yn(storeKit2!)),
+      (StoreStatusField.price, price ?? '-'),
+      (StoreStatusField.subscribed, yn(entitled)),
+      (StoreStatusField.statusRead, yn(ready)),
+      (StoreStatusField.paywallError, lastError ?? '-'),
+    ];
+  }
+
+  /// English label and value pairs, for copying and the log.
+  List<(String, String)> rows() => [for (final (f, v) in entries()) (f.english, v)];
+
+  @override
+  String toString() => rows().map((r) => '${r.$1}: ${r.$2}').join('\n');
+}
+
+/// The rows of the "Store status" readout.
+enum StoreStatusField {
+  productId('Product id queried'),
+  queries('Queries run'),
+  lastQuery('Last query'),
+  productsReturned('Products returned'),
+  returnedIds('Returned ids'),
+  notFoundIds('notFoundIDs'),
+  errorCode('Error code'),
+  errorMessage('Error message'),
+  canMakePayments('Can make payments'),
+  storefront('Storefront'),
+  storeKit2('StoreKit 2'),
+  price('Price from store'),
+  subscribed('Subscribed'),
+  statusRead('Status read'),
+  paywallError('Paywall error');
+
+  const StoreStatusField(this.english);
+
+  /// The English label (copy and log).
+  final String english;
+}
+
+/// Words used in the readout's values.
+class StoreStatusWords {
+  const StoreStatusWords({
+    required this.notYet,
+    required this.unknown,
+    required this.notApplicable,
+    required this.unavailable,
+    required this.yes,
+    required this.no,
+  });
+
+  /// English, as the copied readout has always read.
+  static const en = StoreStatusWords(
+      notYet: 'not yet', unknown: 'unknown', notApplicable: 'n/a', unavailable: 'unavailable', yes: 'true', no: 'false');
+
+  final String notYet, unknown, notApplicable, unavailable, yes, no;
+}
+
+/// Shortens a plugin message for the readout and the log.
+String _clip(String s) => s.length <= 300 ? s : '${s.substring(0, 300)}…';
+
 /// Subscription state and actions. The UI only talks to this interface.
 abstract class StoreService extends ChangeNotifier {
+  /// The last product query's details for the hidden "Store status" readout;
+  /// null for stores without StoreKit (web, review builds).
+  StoreDiagnostics? get diagnostics => null;
+
+  /// True while [retryProduct] is querying the store.
+  bool get loadingProduct => false;
+
+  /// Queries the subscription product again if it is not loaded (paywall
+  /// opened, "Try again" tapped). Never unlocks anything: it only loads the
+  /// product and its StoreKit price.
+  Future<void> retryProduct() async {}
+
   /// Whether purchases can be made from this build (false on web).
   bool get canPurchase;
 
@@ -58,6 +196,10 @@ abstract class StoreService extends ChangeNotifier {
 
   /// Restores purchases; returns whether an active subscription was found.
   Future<bool> restore();
+
+  /// Whether the last [restore] ended because the user canceled the Apple
+  /// Account sign-in prompt. That is not an error: the UI shows nothing.
+  bool get lastRestoreCanceled => false;
 
   /// Re-reads the entitlement (called whenever the app comes back to the
   /// foreground, so a subscription canceled or expired meanwhile locks chat).
@@ -167,12 +309,33 @@ class AppStoreService extends StoreService {
     this.purchaseRereadDelay = const Duration(seconds: 1),
     this.launchRereadDelay = const Duration(seconds: 1),
     this.launchReadTimeout = const Duration(seconds: 4),
+    Future<void> Function()? appStoreSync,
   })
-      : _iap = iap ?? InAppPurchase.instance {
-    EntitlementToken.refresher = refresh;
+      : _iap = iap ?? InAppPurchase.instance,
+        _appStoreSync = appStoreSync ?? (() => AppStore().sync()) {
+    EntitlementToken.refresher = _refreshIfLive;
+    OwnerAccess.instance.addListener(_onOwnerChanged);
+  }
+
+  /// Notifies listeners only while this store is alive. Purchase, restore and product callbacks can finish after
+  /// dispose, and notifying a disposed ChangeNotifier throws in debug builds.
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
+
+  void _onOwnerChanged() => _notify();
+
+  /// The token hook keeps a reference to this store, so it refreshes only while the store is alive.
+  Future<void> _refreshIfLive() async {
+    if (_disposed) return;
+    await refresh();
   }
 
   final InAppPurchase _iap;
+
+  /// StoreKit 2 `AppStore.sync()`, which Restore Purchases calls on iOS (the
+  /// plugin's restorePurchases only re-reads the current entitlements).
+  final Future<void> Function() _appStoreSync;
 
   /// Google Play re-delivers active purchases asynchronously after
   /// `restorePurchases()`. This is how long a refresh waits for them before
@@ -203,16 +366,33 @@ class AppStoreService extends StoreService {
   bool _ready = false;
   StoreError? _error;
   Completer<PurchaseResult>? _pending;
+  final StoreDiagnostics _diag = StoreDiagnostics(productId: StoreConfig.productId);
+
+  /// The product query in flight, shared by every caller (launch, resume,
+  /// paywall open, Try again) so they never run two at once.
+  Future<void>? _productLoad;
+  bool _loadingProduct = false;
 
   @override
   bool get ready => _ready;
+
+  @override
+  bool get loadingProduct => _loadingProduct;
+
+  @override
+  StoreDiagnostics get diagnostics => _diag
+    ..entitled = _entitled
+    ..ready = _ready
+    ..lastError = _error?.name
+    ..price = _product?.price
+    ..storeKit2 = _isIOS ? InAppPurchaseStoreKitPlatform.isStoreKit2Enabled : null;
 
   bool get _isIOS => defaultTargetPlatform == TargetPlatform.iOS;
 
   @override
   bool get canPurchase => _available && _product != null;
   @override
-  bool get isEntitled => _entitled;
+  bool get isEntitled => _entitled || OwnerAccess.instance.active;
   @override
   String? get storePrice => _product?.price;
   @override
@@ -230,7 +410,7 @@ class AppStoreService extends StoreService {
       _error ??= StoreError.storeUnreachable;
     }
     _ready = true;
-    notifyListeners();
+    _notify();
   }
 
   Future<void> _init() async {
@@ -240,14 +420,18 @@ class AppStoreService extends StoreService {
       } catch (_) {
         _available = false;
       }
+      // The store can be disposed while isAvailable() is pending; never subscribe on a disposed store.
+      if (_disposed) return;
+      _diag.canMakePayments = _available;
       if (!_available) {
+        debugPrint('[DW store] canMakePayments=false: the App Store is not available on this device');
         _error = StoreError.storeUnavailable;
         // iOS: purchases may be unavailable (Screen Time "In-App Purchases:
         // Don't Allow", a StoreKit hiccup) while the subscription is still
         // active. Transaction.currentEntitlements is local, so read it anyway:
         // a subscriber keeps chat and sees no paywall.
         if (_isIOS) await _readEntitlementAtLaunch();
-        notifyListeners();
+        _notify();
         return;
       }
       _sub = _iap.purchaseStream.listen(_onPurchases, onError: (Object e) {
@@ -271,7 +455,7 @@ class AppStoreService extends StoreService {
     } catch (_) {
       _error = StoreError.storeUnreachable;
     }
-    notifyListeners();
+    _notify();
   }
 
   /// Reads the iOS entitlement at launch, twice if the first read fails or
@@ -289,21 +473,108 @@ class AppStoreService extends StoreService {
   }
 
   /// Loads the subscription product (price, title). Failure leaves
-  /// [canPurchase] false and is retried by [refresh].
-  Future<void> _loadProduct() async {
+  /// [canPurchase] false and is retried by [refresh] (app resume) and
+  /// [retryProduct] (paywall open, Try again). Concurrent callers share one
+  /// query.
+  Future<void> _loadProduct() => _productLoad ??= _queryProduct().whenComplete(() => _productLoad = null);
+
+  Future<void> _queryProduct() async {
+    String? code;
+    String? message;
+    var returned = <ProductDetails>[];
+    var notFound = <String>[];
     try {
       final res = await _iap.queryProductDetails({StoreConfig.productId});
-      if (res.productDetails.isNotEmpty) {
-        _product = res.productDetails.first;
-        // Only the product error is cleared: a failed entitlement read
-        // (storeUnreachable) still needs to be shown.
-        if (_error == StoreError.productUnavailable) _error = null;
-      } else {
-        _error = StoreError.productUnavailable;
+      returned = res.productDetails;
+      notFound = res.notFoundIDs;
+      if (res.error != null) {
+        code = res.error!.code;
+        message = _clip(res.error!.message);
       }
-    } catch (_) {
+    } catch (e) {
+      code = e.runtimeType.toString();
+      message = _clip('$e');
+    }
+    // Only the product the app sells counts, whatever else StoreKit returns.
+    final mine = returned.where((p) => p.id == StoreConfig.productId).toList();
+    if (mine.isNotEmpty) {
+      _product = mine.first;
+      // Only the product error is cleared: a failed entitlement read
+      // (storeUnreachable) still needs to be shown.
+      if (_error == StoreError.productUnavailable) _error = null;
+    } else if (_product == null) {
       _error = StoreError.productUnavailable;
     }
+    _diag
+      ..queries += 1
+      ..lastQueryAt = DateTime.now()
+      ..productsReturned = returned.length
+      ..returnedIds = [for (final p in returned) p.id]
+      ..notFoundIds = List.of(notFound)
+      ..errorCode = code
+      ..errorMessage = message;
+    if (mine.isEmpty) await _readStorefront();
+    debugPrint('[DW store] product query #${_diag.queries}: id=${StoreConfig.productId} '
+        'returned=${returned.length} ${_diag.returnedIds} notFoundIDs=$notFound '
+        'error=${code ?? '-'} ${message ?? ''} canMakePayments=${_diag.canMakePayments} '
+        'storefront=${_diag.storefront ?? _diag.storefrontError ?? 'unknown'} '
+        'price=${_product?.price ?? '-'}');
+    // A query that finishes after a caller's timeout already notified must
+    // still redraw the paywall (price, Subscribe).
+    _notify();
+  }
+
+  /// Reads the storefront country (StoreKit 2 `Storefront.current` through
+  /// the plugin) for the diagnostics; a failure is recorded, never fatal.
+  Future<void> _readStorefront() async {
+    try {
+      final c = await _iap.countryCode().timeout(const Duration(seconds: 5));
+      _diag
+        ..storefront = c.isEmpty ? null : c
+        ..storefrontError = c.isEmpty ? 'empty' : null;
+    } catch (e) {
+      _diag.storefrontError = e is TimeoutException ? 'timed out' : _clip(e.runtimeType.toString());
+    }
+  }
+
+  /// Re-checks that purchases can be made and starts listening to the
+  /// purchase stream once they can. Returns whether they can.
+  Future<bool> _ensureAvailable() async {
+    if (_available) return true;
+    try {
+      _available = await _iap.isAvailable().timeout(const Duration(seconds: 10));
+    } catch (_) {
+      _available = false;
+    }
+    _diag.canMakePayments = _available;
+    if (_available) {
+      _sub ??= _iap.purchaseStream.listen(_onPurchases, onError: (Object e) {
+        _error = StoreError.purchaseFailed;
+        _finishPending(PurchaseResult.failed);
+      });
+    }
+    return _available;
+  }
+
+  @override
+  Future<void> retryProduct() async {
+    // Before launch finished, init's own query is still running.
+    if (!_ready || _product != null || _loadingProduct) return;
+    _loadingProduct = true;
+    _notify();
+    try {
+      if (await _ensureAvailable()) {
+        if (_error == StoreError.storeUnavailable) _error = null;
+        await _loadProduct().timeout(const Duration(seconds: 10));
+      } else {
+        _error = StoreError.storeUnavailable;
+      }
+    } catch (_) {
+      // Timed out: the query keeps running and still applies its result.
+      if (_product == null) _error ??= StoreError.productUnavailable;
+    }
+    _loadingProduct = false;
+    _notify();
   }
 
   /// Incremented by every entitlement read; only the newest read's result is
@@ -314,7 +585,7 @@ class AppStoreService extends StoreService {
   void _applyEntitlement(bool entitled) {
     if (_entitled == entitled) return;
     _entitled = entitled;
-    notifyListeners();
+    _notify();
   }
 
   /// The newest read, which superseded callers wait for (see [_refreshEntitlement]).
@@ -371,11 +642,12 @@ class AppStoreService extends StoreService {
   }
 
   Future<void> _onPurchases(List<PurchaseDetails> list) async {
+    if (_disposed) return;
     for (final p in list) {
       if (p.productID != StoreConfig.productId) {
         // Finish stray transactions (e.g. a removed sandbox product) so the
         // store stops re-delivering them on every launch.
-        if (p.pendingCompletePurchase) await _iap.completePurchase(p);
+        if (p.pendingCompletePurchase) await _complete(p);
         continue;
       }
       switch (p.status) {
@@ -437,10 +709,25 @@ class AppStoreService extends StoreService {
           _finishPending(PurchaseResult.failed);
       }
       if (p.pendingCompletePurchase) {
-        await _iap.completePurchase(p);
+        await _complete(p);
       }
     }
-    notifyListeners();
+    _notify();
+  }
+
+  /// Finishes a transaction. A failure is logged, never thrown: it must not
+  /// stop the rest of the batch from being handled or the UI from updating,
+  /// and the entitlement comes from StoreKit's current entitlements anyway.
+  /// (In_app_purchase_storekit 0.4.17 cannot finish a StoreKit 2 transaction
+  /// whose id is 0, which Xcode's StoreKit Test gives the first purchase:
+  /// it throws a null-check error. StoreKit re-delivers an unfinished
+  /// transaction, so finishing is retried on a later delivery.)
+  Future<void> _complete(PurchaseDetails p) async {
+    try {
+      await _iap.completePurchase(p);
+    } catch (e) {
+      debugPrint('[DW store] completePurchase failed for ${p.productID} (purchaseID ${p.purchaseID ?? 'null: StoreKit Test id 0'}): ${e.runtimeType}');
+    }
   }
 
   void _finishPending(PurchaseResult r) {
@@ -456,7 +743,7 @@ class AppStoreService extends StoreService {
     if (!_available || product == null) return PurchaseResult.unavailable;
     _busy = true;
     _error = null;
-    notifyListeners();
+    _notify();
     final completer = Completer<PurchaseResult>();
     _pending = completer;
     try {
@@ -468,7 +755,7 @@ class AppStoreService extends StoreService {
     final result = await completer.future
         .timeout(const Duration(minutes: 5), onTimeout: () => PurchaseResult.failed);
     _busy = false;
-    notifyListeners();
+    _notify();
     return result;
   }
 
@@ -480,19 +767,52 @@ class AppStoreService extends StoreService {
     return list.reduce((a, b) => expiry(b) > expiry(a) ? b : a);
   }
 
+  bool _restoreCanceled = false;
+
+  @override
+  bool get lastRestoreCanceled => _restoreCanceled;
+
+  /// Whether an `AppStore.sync` error is the user canceling the sign-in
+  /// prompt. The plugin reports every sync failure with one code
+  /// (`storekit2_failed_to_sync_to_app_store`) and puts the Swift error in
+  /// `details` (`userCancelled` from StoreKit 2, or SKError
+  /// `paymentCancelled`).
+  @visibleForTesting
+  static bool isSyncCanceled(Object e) {
+    if (e is! PlatformException) return false;
+    final d = '${e.details ?? ''} ${e.message ?? ''}'.toLowerCase();
+    return d.contains('usercancelled') || d.contains('usercanceled') || d.contains('paymentcancelled');
+  }
+
   @override
   Future<bool> restore() async {
     // iOS can read its local entitlements even when purchases are unavailable.
     if (!_available && !_isIOS) return false;
     _busy = true;
-    notifyListeners();
+    _notify();
     try {
       // iOS: AppStore.sync, then read currentEntitlements. A failed sync
       // (offline, Apple ID sign-in canceled) does not hide a subscription
       // StoreKit already holds, so the local read still happens. Android: the
       // refresh itself asks Play to re-deliver and waits for the result.
       var syncFailed = false;
+      _restoreCanceled = false;
       if (_isIOS) {
+        // AppStore.sync asks the App Store for this Apple ID's transactions
+        // (it may ask the user to sign in); the plugin's restorePurchases
+        // then re-delivers the current entitlements. Only Restore, a user
+        // action, calls sync, as Apple recommends.
+        try {
+          await _appStoreSync();
+        } catch (e) {
+          debugPrint('[DW store] AppStore.sync failed: ${e.runtimeType}');
+          // The user canceled the Apple Account prompt: not a failure.
+          if (isSyncCanceled(e)) {
+            _restoreCanceled = true;
+          } else {
+            syncFailed = true;
+          }
+        }
         try {
           await _iap.restorePurchases();
         } catch (_) {
@@ -502,19 +822,26 @@ class AppStoreService extends StoreService {
       await _refreshEntitlement();
       if (_entitled) {
         _error = null;
+        _restoreCanceled = false;
+      } else if (_restoreCanceled && !syncFailed) {
+        // Canceled sign-in and nothing held locally: the paywall stays as it
+        // was (a product error stays), with no restore error.
+        if (_error == StoreError.restoreFailed) _error = null;
       } else if (syncFailed) {
         _error = StoreError.restoreFailed;
       } else {
         // The sync and the read both worked: there really is no subscription.
         // A stale error (e.g. "Could not reach the App Store" from a failed
-        // launch read) must not replace "No active subscription found".
-        _error = null;
+        // launch read) must not replace "No active subscription found". A
+        // product that never loaded is still not available, though, so the
+        // paywall keeps saying so (and keeps Try again).
+        _error = _available && _product == null ? StoreError.productUnavailable : null;
       }
     } catch (_) {
       _error = StoreError.restoreFailed;
     }
     _busy = false;
-    notifyListeners();
+    _notify();
     return _entitled;
   }
 
@@ -523,17 +850,8 @@ class AppStoreService extends StoreService {
     if (!_available) {
       // The store may have been unreachable at launch: try again.
       if (!_ready) return;
-      try {
-        _available = await _iap.isAvailable().timeout(const Duration(seconds: 10));
-      } catch (_) {
-        _available = false;
-      }
-      if (_available) {
+      if (await _ensureAvailable()) {
         _error = null;
-        _sub ??= _iap.purchaseStream.listen(_onPurchases, onError: (Object e) {
-          _error = StoreError.purchaseFailed;
-          _finishPending(PurchaseResult.failed);
-        });
       } else if (!_isIOS) {
         return;
       }
@@ -551,11 +869,17 @@ class AppStoreService extends StoreService {
     } catch (_) {
       // Keep the last known state when the App Store cannot be reached.
     }
-    notifyListeners();
+    _notify();
   }
+
+  bool _disposed = false;
 
   @override
   void dispose() {
+    _disposed = true;
+    OwnerAccess.instance.removeListener(_onOwnerChanged);
+    // Release the static hook if it still points at this store; a newer store may have replaced it.
+    if (EntitlementToken.refresher == _refreshIfLive) EntitlementToken.refresher = null;
     _sub?.cancel();
     super.dispose();
   }

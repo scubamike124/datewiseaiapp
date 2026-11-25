@@ -522,40 +522,53 @@ void main() {
       await t.pumpAndSettle(const Duration(seconds: 6));
     });
 
-    testWidgets('a transcript after the subscription lapsed waits in the composer behind the paywall', (t) async {
+    testWidgets('paywall closed before subscribing: a later lapse still swaps in the paywall; the words wait', (t) async {
       final speech = _Speech();
-      final store = FakeStoreService(entitled: true);
+      final store = FakeStoreService();
       final app = await pumpApp(t, prefs: onboardedPrefs(), tab: AppTab.chat, speech: speech, store: store);
       await t.pumpAndSettle();
+      // "Not now" on the paywall, then subscribed later in the session.
+      expect(find.byType(PaywallScreen), findsOneWidget);
+      app.state.dismissPaywall();
+      await t.pumpAndSettle();
+      final first = store.buy();
+      await t.pump(const Duration(milliseconds: 20));
+      await first;
+      await t.pumpAndSettle();
+      if (find.byType(PaywallScreen).evaluate().isNotEmpty) {
+        Navigator.of(t.element(find.byType(PaywallScreen))).pop();
+        await t.pumpAndSettle();
+      }
       await t.tap(find.byKey(const ValueKey('voice-mode')));
       await t.pumpAndSettle();
       final g = await t.startGesture(t.getCenter(_talk));
       await t.pump();
       expect(find.text('Listening…'), findsOneWidget);
-      // The paywall was closed earlier this session, so the app stays in
-      // the tabs (chat locked) when the subscription lapses.
-      app.state.dismissPaywall();
-      store.expire();
+      speech.onWords!('Ask her out for coffee');
       await t.pump();
-      speech.onEnded!('Ask her out for coffee');
+      // The earlier "Not now" does not outlive the subscription: the lapse
+      // replaces the tabs with the paywall at once.
+      store.expire();
       await t.pumpAndSettle();
-      await g.up();
       expect(find.byType(PaywallScreen), findsOneWidget);
+      expect(find.byKey(const ValueKey('composer')), findsNothing);
+      expect(app.state.canChat, isFalse);
+      speech.onEnded?.call('Ask her out for coffee tonight');
+      await g.up();
+      await t.pumpAndSettle();
       expect(app.state.activeThread?.messages.where((m) => m.isUser), anyOf(isNull, isEmpty), reason: 'nothing sent');
       // Subscribed again: what was said is in the message box.
       final bought = store.buy();
       await t.pump(const Duration(milliseconds: 20));
       await bought;
       await t.pumpAndSettle();
-      if (find.byType(PaywallScreen).evaluate().isNotEmpty) {
-        Navigator.of(t.element(find.byType(PaywallScreen))).pop();
-        await t.pumpAndSettle();
-      }
+      expect(find.byType(PaywallScreen), findsNothing);
       if (find.byTooltip('Type instead').evaluate().isNotEmpty) {
         await t.tap(find.byTooltip('Type instead'));
         await t.pumpAndSettle();
       }
       expect(t.widget<TextField>(find.byKey(const ValueKey('composer'))).controller!.text, 'Ask her out for coffee');
+      expect(app.state.activeThread?.messages.where((m) => m.isUser), anyOf(isNull, isEmpty), reason: 'never sent by itself');
     });
 
     testWidgets('speaking when a lapse swaps in the paywall: listening stops, the words wait in the composer', (t) async {

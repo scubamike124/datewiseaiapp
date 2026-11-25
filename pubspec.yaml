@@ -67,9 +67,15 @@ dependencies:
   # StoreKit 2 current entitlements are read via in_app_purchase_storekit.
   in_app_purchase: ^3.3.1
   in_app_purchase_storekit: ^0.4.17
+  flutter_secure_storage: ^9.2.2
+  video_player: ^2.14.1
 
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+  # On-simulator end-to-end tests (integration_test/), e.g. the StoreKit Test
+  # subscription test run by .github/workflows/storekit-e2e.yml.
+  integration_test:
     sdk: flutter
 
   # Provides a fake image for Image.network in widget tests.
@@ -85,6 +91,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  video_player_platform_interface: ^6.9.0
 
 # App launcher icon (Android + iOS), generated from a single source image.
 # Run `dart run flutter_launcher_icons` after changing app_icon.png.
@@ -123,6 +130,8 @@ flutter:
     - assets/avatar/ethan/
     - assets/avatar/sofia/
     - assets/avatar/diego/
+    # Approved prerecorded coach clips (PR #58): Ava reference + opening, Ethan, Diego, Sofía.
+    - assets/coach_clips/
 
   # Bundled OFL fonts (licenses in assets/fonts/OFL-*.txt).
   fonts:

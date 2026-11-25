@@ -78,6 +78,10 @@ on:
           - cloud
           - api
         default: manual
+      owner_access:
+        description: 'Compile in the hidden owner-access code (DW_OWNER_ACCESS). Internal TestFlight only: leave OFF for any build sent to App Review (Apple 3.1.1 / 2.3.1).'
+        type: boolean
+        default: false
       revoke_api_cert:
         description: 'signing=api only: revoke the certificate it created at the end of the run (after the TestFlight upload). The profile it created is always deleted.'
         type: boolean
@@ -416,6 +420,7 @@ jobs:
         env:
           AVATAR_AUDIO_PATH: ${{ inputs.avatar_audio_path && 'true' || 'false' }}
           COACH_BACKEND: ${{ inputs.coach_backend }}
+          OWNER_ACCESS: ${{ inputs.owner_access && 'true' || 'false' }}
           SIGNING: ${{ inputs.signing }}
         run: |
           flutter pub get
@@ -425,6 +430,7 @@ jobs:
           # AIConfig.productionUrl.
           STAGING_COACH_URL="https://datewise-coach-staging.scubamike124.workers.dev"
           DEFINES=(--dart-define=DW_AVATAR_AUDIO_PATH="$AVATAR_AUDIO_PATH")
+          if [ "$OWNER_ACCESS" = "true" ]; then DEFINES+=(--dart-define=DW_OWNER_ACCESS=true); fi
           case "$COACH_BACKEND" in
             production|"") COACH_BACKEND=production ;;
             staging) DEFINES+=(--dart-define=COACH_BACKEND_URL="$STAGING_COACH_URL") ;;

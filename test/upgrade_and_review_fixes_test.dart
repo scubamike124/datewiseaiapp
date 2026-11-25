@@ -266,7 +266,8 @@ void main() {
       final after = jsonDecode(stored.getString('dw_profile')!) as Map<String, dynamic>;
       expect(after.keys.toSet(), {'goals', 'language'});
       final payload = backend.buildPayload(history, AppState.aiTier, state.profileForCoach, state.selectedCoach);
-      expect((payload['profile'] as Map).keys.toSet(), {'goals', 'language', 'memory'});
+      // Plus the crisis-line region (US, CA, MX or ES) when the device has one (compliance F1).
+      expect((payload['profile'] as Map).keys.toSet().difference({'country'}), {'goals', 'language', 'memory'});
     });
 
     test('a v2 profile with stray legacy keys keeps its v2 fields and stays onboarded', () async {
@@ -499,13 +500,14 @@ void main() {
       final avatarPatch = RegExp(r'^assets/avatar/(ava|ethan|sofia|diego)/[a-z0-9_]+\.(jpg|json)$');
       final images = assets.where((a) => RegExp(r'\.(jpe?g|png|webp|gif|heic)$', caseSensitive: false).hasMatch(a));
       for (final a in images) {
-        expect(a.startsWith('assets/coaches/') || avatarPatch.hasMatch(a) || a.startsWith('assets/icon/'),
+        expect(a.startsWith('assets/coaches/') || avatarPatch.hasMatch(a) || a.startsWith('assets/icon/') || a.startsWith('assets/coach_clips/'),
             isTrue, reason: a);
       }
       for (final a in assets) {
         expect(
           a.startsWith('assets/coaches/') ||
               avatarPatch.hasMatch(a) ||
+              a.startsWith('assets/coach_clips/') || // owner-approved pilot clips (PR #58)
               a.startsWith('assets/fonts/') ||
               a.startsWith('assets/icon/') ||
               a.startsWith('packages/') ||

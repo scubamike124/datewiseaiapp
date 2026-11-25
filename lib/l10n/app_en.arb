@@ -25,6 +25,7 @@
     }
   },
   "coachAiLabel": "AI dating coach · {language}",
+  "coachAiLabelShort": "AI coach",
   "@coachAiLabel": {
     "placeholders": {
       "language": {
@@ -99,7 +100,7 @@
   "valueConversations": "Better conversations",
   "valueProfile": "Profile help",
   "valueDates": "First-date plans",
-  "welcomeFootnote": "AI coaches · For adults 18+ · English · Español",
+  "welcomeFootnote": "AI\u00a0coaches · For\u00a0adults\u00a018+ · English\u00a0·\u00a0Español",
   "stepOf": "Step {step} of {total}",
   "@stepOf": {
     "placeholders": {
@@ -111,7 +112,7 @@
       }
     }
   },
-  "goalsTitle": "What would you like help with?",
+  "goalsTitle": "What would you like help\u00a0with?",
   "goalsSubtitle": "Pick up to three. They become your plan for the week.",
   "goalConversations": "Better conversations",
   "goalProfile": "A stronger profile",
@@ -128,12 +129,12 @@
   "underageBody": "You need to be 18 or older to use DateWise AI.",
   "underageClose": "You can close the app now.",
   "chooseCoachTitle": "Choose your dating coach",
-  "chooseCoachSubtitle": "All four are AI coaches. Pick a style; switch any time.",
+  "chooseCoachSubtitle": "All four are AI coaches. Pick a style; switch any\u00a0time.",
   "coachesEyebrow": "AI dating coaches",
   "greetingMorning": "Good morning.",
   "greetingAfternoon": "Good afternoon.",
   "greetingEvening": "Good evening.",
-  "homeReady": "{name} is ready when you are. Your AI coach, any time.",
+  "homeReady": "{name} is ready when you are. Your AI coach, any\u00a0time.",
   "@homeReady": {
     "placeholders": {
       "name": {
@@ -250,6 +251,8 @@
   },
   "hideCaptions": "Hide captions",
   "showCaptions": "Show captions",
+  "hideAvatar": "Hide avatar",
+  "showAvatar": "Show avatar",
   "coachTyping": "{name} is typing",
   "@coachTyping": {
     "placeholders": {
@@ -675,7 +678,7 @@
   "@aiConsentTitle": {
     "description": "AI data-sharing consent (before the first message): title."
   },
-  "aiConsentBody": "To write your coach's replies, DateWise sends your messages (typed or spoken, as text), your coaching preferences and, if Coach memory is on, your memory note to Cloudflare Workers AI, which runs Meta's Llama model. They are processed only to write the reply: they are not stored on our servers, not used to train AI models and not linked to your identity. See our Privacy Policy for details.",
+  "aiConsentBody": "To write your coach's replies, DateWise sends your messages (typed or spoken, as text), your coaching preferences, your country (US, Canada, Mexico or Spain only, for the right crisis lines) and, if Coach memory is on, your memory note to Cloudflare Workers AI, which runs Meta's Llama model. They are processed only to write the reply: they are not stored on our servers, not used to train AI models and not linked to your identity. See our Privacy Policy for details.",
   "@aiConsentBody": {
     "description": "AI data-sharing consent: body. Must match the Privacy Policy."
   },
@@ -686,5 +689,166 @@
   "aiConsentNotNow": "Not now",
   "@aiConsentNotNow": {
     "description": "AI data-sharing consent: decline button; nothing is sent."
-  }
+  },
+  "copyFailed": "Couldn't copy that. Try again.",
+  "@copyFailed": {
+    "description": "Snackbar when copying a reply option failed."
+  },
+  "coachLimitTooLong": "That message is too long for your coach. Shorten it and try again, or start a new conversation.",
+  "@coachLimitTooLong": {
+    "description": "Chat notice for PAYLOAD_TOO_LARGE (HTTP 413)."
+  },
+  "lockedHistoryNote": "Your conversations are saved. Subscribe to keep chatting with {name}.",
+  "@lockedHistoryNote": {
+    "description": "Above the locked composer when the subscription lapsed and saved conversations are shown read-only.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "sectionPrivacy": "Privacy",
+  "@sectionPrivacy": {
+    "description": "You tab section label."
+  },
+  "aiSharingTitle": "Share messages with the AI provider",
+  "@aiSharingTitle": {
+    "description": "You › Privacy switch that grants or withdraws AI data-sharing consent."
+  },
+  "aiSharingOn": "On. Your messages go to Cloudflare Workers AI only to write each reply.",
+  "@aiSharingOn": {
+    "description": "Subtitle of the AI sharing switch when on."
+  },
+  "aiSharingOff": "Off. Nothing is sent and your coach can't reply. Your conversations stay on this device.",
+  "@aiSharingOff": {
+    "description": "Subtitle of the AI sharing switch when off."
+  },
+  "sectionSafety": "Safety",
+  "@sectionSafety": {
+    "description": "You tab section label."
+  },
+  "getHelpNow": "Get help now",
+  "@getHelpNow": {
+    "description": "Row / menu item / title of the static crisis-lines screen."
+  },
+  "getHelpSubtitle": "Crisis and emergency lines",
+  "@getHelpSubtitle": {
+    "description": "Subtitle of the Get help now row."
+  },
+  "getHelpIntro": "If you or someone else is in danger, call your local emergency number now. These official lines are confidential and open 24 hours. DateWise is not a crisis service.",
+  "@getHelpIntro": {
+    "description": "Intro of the Get help now screen."
+  },
+  "helpCountryUS": "United States",
+  "@helpCountryUS": {
+    "description": "Country heading."
+  },
+  "helpCountryCA": "Canada",
+  "@helpCountryCA": {
+    "description": "Country heading."
+  },
+  "helpCountryMX": "Mexico",
+  "@helpCountryMX": {
+    "description": "Country heading."
+  },
+  "helpCountryES": "Spain",
+  "@helpCountryES": {
+    "description": "Country heading."
+  },
+  "helpEmergency": "Emergencies",
+  "@helpEmergency": {
+    "description": "Emergency number label."
+  },
+  "helpUsSuicide": "988 Suicide & Crisis Lifeline: call or text (free, 24/7, Spanish available)",
+  "@helpUsSuicide": {
+    "description": "US 988."
+  },
+  "helpUsAbuse": "National Domestic Violence Hotline (free, 24/7)",
+  "@helpUsAbuse": {
+    "description": "US DV hotline."
+  },
+  "helpUsAbuseText": "Domestic violence: text START to 88788",
+  "@helpUsAbuseText": {
+    "description": "US DV text line."
+  },
+  "helpCaSuicide": "9-8-8 Suicide Crisis Helpline: call or text (24/7, English or French)",
+  "@helpCaSuicide": {
+    "description": "Canada 9-8-8. Do not call it free."
+  },
+  "helpCaAbuse": "Family or gender-based violence: contact your province's or territory's crisis line, or 9-1-1 in an emergency.",
+  "@helpCaAbuse": {
+    "description": "Canada has no national DV line."
+  },
+  "helpMxSuicide": "Línea de la Vida (free, 24/7)",
+  "@helpMxSuicide": {
+    "description": "Mexico 800 911 2000."
+  },
+  "helpMxWomen": "Línea de las Mujeres, gender-based violence: dial 079, then option 1 (free, 24/7)",
+  "@helpMxWomen": {
+    "description": "Mexico 079 option 1."
+  },
+  "helpEsSuicide": "024 suicide crisis line (free, confidential, 24/7)",
+  "@helpEsSuicide": {
+    "description": "Spain 024."
+  },
+  "helpEsAbuse": "016 violence against women (free, 24/7, not shown on the phone bill)",
+  "@helpEsAbuse": {
+    "description": "Spain 016."
+  },
+  "helpEsWhatsApp": "016 on WhatsApp",
+  "@helpEsWhatsApp": {
+    "description": "Spain 016 WhatsApp 600 000 016."
+  },
+  "helpFootnote": "Numbers checked on official government and service websites, November 2026. In another country, call your local emergency number.",
+  "@helpFootnote": {
+    "description": "Footnote of the Get help now screen."
+  },
+  "lockedPreviewLabel": "How {name} starts a conversation",
+  "@lockedPreviewLabel": {
+    "description": "Label above the coach greeting preview in the locked chat (before subscribing).",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "storeStatusTitle": "Store status",
+  "storeStatusCopy": "Copy",
+  "storeStatusQueryAgain": "Query again",
+  "storeStatusQuerying": "Querying…",
+  "storeStatusStore": "Store",
+  "storeStatusNoStoreKit": "{store} (no StoreKit in this build)",
+  "@storeStatusNoStoreKit": {
+    "placeholders": {
+      "store": {
+        "type": "String"
+      }
+    }
+  },
+  "storeStatusProductId": "Product id queried",
+  "storeStatusQueries": "Queries run",
+  "storeStatusLastQuery": "Last query",
+  "storeStatusProductsReturned": "Products returned",
+  "storeStatusReturnedIds": "Returned ids",
+  "storeStatusNotFoundIds": "notFoundIDs",
+  "storeStatusErrorCode": "Error code",
+  "storeStatusErrorMessage": "Error message",
+  "storeStatusCanMakePayments": "Can make payments",
+  "storeStatusStorefront": "Storefront",
+  "storeStatusStoreKit2": "StoreKit 2",
+  "storeStatusPrice": "Price from store",
+  "storeStatusSubscribed": "Subscribed",
+  "storeStatusStatusRead": "Status read",
+  "storeStatusPaywallError": "Paywall error",
+  "storeStatusNotYet": "not yet",
+  "storeStatusUnknown": "unknown",
+  "storeStatusNotApplicable": "n/a",
+  "storeStatusUnavailable": "unavailable",
+  "storeStatusYes": "yes",
+  "storeStatusNo": "no",
+  "coachClipPlay": "Play clip",
+  "coachClipPause": "Pause clip",
+  "coachClipUnavailable": "This clip could not be played on this device.",
+  "coachClipReference": "Reference",
+  "coachClipOpening": "Opening line"
 }

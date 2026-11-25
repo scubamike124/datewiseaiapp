@@ -78,6 +78,9 @@ class _ScriptedIap implements InAppPurchase {
 
   final stream = StreamController<List<PurchaseDetails>>.broadcast();
   final completed = <PurchaseDetails>[];
+  /// Purchase ids whose completePurchase throws (the plugin's null-check
+  /// error for a StoreKit Test transaction with id 0).
+  final Set<String?> completeThrowsFor = {};
   int buys = 0;
   int restores = 0;
 
@@ -117,7 +120,10 @@ class _ScriptedIap implements InAppPurchase {
   }
 
   @override
-  Future<void> completePurchase(PurchaseDetails purchase) async => completed.add(purchase);
+  Future<void> completePurchase(PurchaseDetails purchase) async {
+    if (completeThrowsFor.contains(purchase.purchaseID)) throw TypeError();
+    completed.add(purchase);
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -125,6 +131,16 @@ class _ScriptedIap implements InAppPurchase {
 
 /// StoreKit 2 host API: only what AppStoreService uses (currentEntitlements).
 class _FakeSK2 implements InAppPurchase2API {
+  /// AppStore.sync (Restore purchases): counted; throws when [syncFails].
+  int syncs = 0;
+  bool syncFails = false;
+
+  @override
+  Future<void> sync() async {
+    syncs++;
+    if (syncFails) throw StateError('AppStore.sync failed');
+  }
+
   List<String> entitled = [];
   bool fail = false;
 
@@ -201,6 +217,25 @@ void main() {
       await _settle();
       expect(store.isEntitled, isTrue);
       expect(iap.completed.last.status, PurchaseStatus.purchased);
+    });
+
+    test('a completePurchase failure is contained: purchased, entitled, the rest of the batch handled', () async {
+      final iap = _ScriptedIap()..completeThrowsFor.add('tx-purchased');
+      final store = AppStoreService(iap: iap);
+      await store.init();
+      var notified = 0;
+      store.addListener(() => notified++);
+      final r = await store.buy();
+      await _settle();
+      expect(r, PurchaseResult.purchased);
+      expect(store.isEntitled, isTrue);
+      expect(store.busy, isFalse);
+      // A stray transaction delivered after the failing one in the same batch is still finished.
+      notified = 0;
+      iap.emit([_details(PurchaseStatus.purchased), _details(PurchaseStatus.restored, productId: 'old_iap')]);
+      await _settle();
+      expect(iap.completed.map((p) => p.productID), ['old_iap']);
+      expect(notified, greaterThan(0));
     });
 
     test('error: failed, purchaseFailed shown, not entitled, transaction still completed', () async {
@@ -346,6 +381,25 @@ void main() {
       expect(await state.sendMessage('again'), isFalse);
       expect(await state.retryLastReply(), isFalse);
       expect(ai.calls, 1, reason: 'nothing reaches the backend once the subscription lapsed');
+    });
+
+    test('canceled (auto-renew off) but paid up: still entitled through launch, refreshes and resume; locked only when StoreKit drops it at expiry', () async {
+      SharedPreferences.setMockInitialValues(onboardedPrefs());
+      // StoreKit keeps returning a canceled subscription from currentEntitlements
+      // until its period ends; the app derives entitlement from that alone.
+      sk2.entitled = [StoreConfig.productId];
+      final store = AppStoreService(iap: _ScriptedIap());
+      await store.init();
+      final state = AppState(storage: await StorageService.create(), ai: _CountingAI(), store: store);
+      for (var i = 0; i < 3; i++) {
+        await store.refresh();
+        expect(store.isEntitled, isTrue, reason: 'refresh $i: the paid period has not ended');
+        expect(state.canChat, isTrue);
+      }
+      sk2.entitled = []; // the period ended and it did not renew
+      await store.refresh();
+      expect(store.isEntitled, isFalse);
+      expect(state.canChat, isFalse);
     });
 
     test('App Store unreachable on refresh: the last known state is kept', () async {

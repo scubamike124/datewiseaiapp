@@ -215,4 +215,28 @@ void main() {
       }
     }
   });
+
+  // UI review M2: the server knows about a refund, revocation or expiry first, so the app re-reads the
+  // entitlement at once (StoreKit then locks the composer); other refusals don't trigger a re-read.
+  for (final (code, rereads) in [
+    (CoachLimitCode.subscriptionRevoked, 1),
+    (CoachLimitCode.subscriptionExpired, 1),
+    (CoachLimitCode.subscriptionRequired, 1),
+    (CoachLimitCode.dailyLimit, 0),
+    (CoachLimitCode.subscriptionInvalid, 0),
+  ]) {
+    testWidgets('$code ${rereads == 1 ? 're-reads' : 'does not re-read'} the entitlement', (tester) async {
+      setSurface(tester, const Size(390, 844), 1);
+      SharedPreferences.setMockInitialValues(onboardedPrefs());
+      final storage = await StorageService.create();
+      final store = FakeStoreService(entitled: true);
+      final app = TestApp(AppState(storage: storage, ai: _RefusingAI(403, code), store: store), store, storage);
+      await tester.pumpWidget(wrap(app, const DateWiseApp(initialTab: AppTab.chat)));
+      await tester.pump();
+      final before = store.refreshCalls;
+      await _send(tester, 'Hi');
+      expect(store.refreshCalls - before, rereads);
+    });
+  }
 }
+

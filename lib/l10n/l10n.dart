@@ -57,6 +57,10 @@ extension CoachL10n on AppLocalizations {
 
   String aiLabel(Coach coach) => coachAiLabel(languageName(coach.language));
 
+  /// The chat header's subtitle: no language, so it never truncates (the
+  /// language is in [aiLabel], read by VoiceOver, and in the coach's chip).
+  String get aiLabelShort => coachAiLabelShort;
+
   String chip(Coach coach) => coachChip(coach.name, languageName(coach.language));
 
   /// `female` / `male`, for the Spanish adjective agreement in a few strings.

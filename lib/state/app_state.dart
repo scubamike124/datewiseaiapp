@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/chat_message.dart';
 import '../models/chat_thread.dart';
 import '../models/coach.dart';
@@ -27,17 +28,35 @@ class AppState extends ChangeNotifier {
     required AIService ai,
     StoreService? store,
     DateTime Function()? clock,
+    String? Function()? deviceRegion,
   })  : _storage = storage,
         _ai = ai,
         _store = store,
-        _clock = clock ?? DateTime.now {
+        _clock = clock ?? DateTime.now,
+        _deviceRegion = deviceRegion ?? _platformRegion {
+    _store?.addListener(_onStoreChanged);
     _load();
+  }
+
+  @override
+  void dispose() {
+    _store?.removeListener(_onStoreChanged);
+    super.dispose();
+  }
+
+  /// While the subscription is active nothing has been dismissed: buying
+  /// closes the paywall through the same callback as "Not now", and a
+  /// subscription that then expires or is refunded in the foreground must
+  /// bring the paywall back at once (it replaces the tabs, see RootGate).
+  void _onStoreChanged() {
+    if (_store?.isEntitled ?? false) _paywallDismissed = false;
   }
 
   final StorageService _storage;
   final AIService _ai;
   final StoreService? _store;
   final DateTime Function() _clock;
+  final String? Function() _deviceRegion;
   final _uuid = const Uuid();
 
   /// DateWise has one premium plan; the backend protocol still names a tier,
@@ -55,11 +74,15 @@ class AppState extends ChangeNotifier {
   bool _onboarded = false;
   bool get onboarded => _onboarded;
 
-  /// Set when the user closes the paywall this session (not persisted, so a
-  /// non-subscriber sees it again on the next launch).
+  /// Set when the user closes the paywall this session without an active
+  /// subscription (not persisted, so a non-subscriber sees it again on the
+  /// next launch). Cleared while subscribed, so a lapse shows the paywall.
   bool _paywallDismissed = false;
   bool get paywallDismissed => _paywallDismissed;
   void dismissPaywall() {
+    // A purchase closes the paywall through this same callback: that is not
+    // a dismissal, or a later lapse would leave the tabs in place.
+    if (_store?.isEntitled ?? false) return;
     _paywallDismissed = true;
     notifyListeners();
   }
@@ -92,12 +115,24 @@ class AppState extends ChangeNotifier {
 
   /// True once the user agreed, in the chat, to share their messages with
   /// the third-party AI provider (Cloudflare Workers AI). Nothing is sent
-  /// before that ([sendMessage] refuses). Cleared by [deleteMyData].
+  /// before that ([sendMessage] refuses). Cleared by [revokeAiConsent] (the
+  /// You › Privacy switch, which keeps all data) and by [deleteMyData].
   bool get aiConsentGiven => _aiConsent;
 
   Future<void> giveAiConsent() async {
     _aiConsent = true;
     await _storage.setAiConsent();
+    notifyListeners();
+  }
+
+  /// Withdraws the AI data-sharing consent (You › Privacy switch, Guideline
+  /// 5.1.1(ii)) without deleting anything: conversations, plan, progress and
+  /// memory stay on the device. A reply that is streaming is stopped, and
+  /// nothing more is sent until the user agrees again.
+  Future<void> revokeAiConsent() async {
+    _aiConsent = false;
+    await cancelReply();
+    await _storage.clearAiConsent();
     notifyListeners();
   }
 
@@ -117,9 +152,27 @@ class AppState extends ChangeNotifier {
     await _storage.savePlan(_plan!);
     await selectCoach(coachId);
     _onboarded = true;
+    _openChatFirst = true;
     await _storage.setOnboarded();
     notifyListeners();
     return true;
+  }
+
+  bool _openChatFirst = false;
+
+  /// True after onboarding ended with "Chat with {coach}" in this session: the
+  /// app (after the paywall) opens on the Chat tab, not Home (QA m-4).
+  /// Not stored: a later launch opens on Home as usual.
+  bool get openChatFirst => _openChatFirst;
+
+  /// Returns [openChatFirst] and clears it: the flag opens Chat once, right
+  /// after onboarding. Later rebuilds of the tab shell (after a paywall, for
+  /// example) and review deep links open their own tab (re-test R1).
+  /// Does not notify: it is read while the root gate builds.
+  bool takeOpenChatFirst() {
+    final v = _openChatFirst;
+    _openChatFirst = false;
+    return v;
   }
 
   Future<void> setLanguage(CoachLanguage lang) async {
@@ -141,6 +194,22 @@ class AppState extends ChangeNotifier {
     final latest = latestThreadFor(coach);
     _activeThreadId = latest?.id;
     notifyListeners();
+  }
+
+  // --- Voice conversation: avatar shown or hidden --------------------------
+
+  bool? _voiceAvatarCollapsed;
+
+  /// The user's choice to hide the avatar in the voice conversation, or null
+  /// when they have not chosen (the chat screen then decides by screen size
+  /// and text size).
+  bool? get voiceAvatarCollapsed => _voiceAvatarCollapsed;
+
+  Future<void> setVoiceAvatarCollapsed(bool collapsed) async {
+    if (_voiceAvatarCollapsed == collapsed) return;
+    _voiceAvatarCollapsed = collapsed;
+    notifyListeners();
+    await _storage.setVoiceAvatarCollapsed(collapsed);
   }
 
   // --- Coach memory (OFF by default) --------------------------------------
@@ -174,9 +243,20 @@ class AppState extends ChangeNotifier {
   UserProfile? get profileForCoach {
     final base = _profile;
     final memory = _memoryEnabled && _memoryText.trim().isNotEmpty ? _memoryText.trim() : null;
-    if (base == null) return memory == null ? null : UserProfile(memory: memory);
-    return memory == null ? base.copyWith(clearMemory: true) : base.copyWith(memory: memory);
+    final country = deviceCountry;
+    if (base == null) {
+      return memory == null && country == null ? null : UserProfile(memory: memory, country: country);
+    }
+    return memory == null
+        ? base.copyWith(clearMemory: true, country: country)
+        : base.copyWith(memory: memory, country: country);
   }
+
+  /// The device region when it has its own crisis lines (US, CA, MX, ES),
+  /// else null (the coach then lists all four). Read from the device locale.
+  String? get deviceCountry => UserProfile.crisisCountryOf(_deviceRegion());
+
+  static String? _platformRegion() => PlatformDispatcher.instance.locale.countryCode;
 
   // --- Weekly plan --------------------------------------------------------
 
@@ -244,6 +324,7 @@ class AppState extends ChangeNotifier {
     _profile = _storage.loadProfile();
     _coachId = _storage.loadCoachId();
     _memoryEnabled = _storage.memoryEnabled;
+    _voiceAvatarCollapsed = _storage.voiceAvatarCollapsed;
     _memoryText = _storage.memoryText;
     _activeDays = _storage.loadActiveDays();
     final plan = _storage.loadPlan();
@@ -518,6 +599,13 @@ class AppState extends ChangeNotifier {
                 coachMsg.failedStatus = e is CoachUnavailableException ? e.statusCode : null;
                 coachMsg.failedCode = e is CoachUnavailableException ? e.code : null;
                 coachMsg.failure = replyFailureFor(e);
+                // The server knows about a refund, revocation or expiry before the device may: re-read the
+                // entitlement now, so the composer locks and Settings stops saying "Active" (UI review M2).
+                // Not twice: BackendAIService may already have re-read it for this reply (code review m4).
+                if (CoachLimitCode.entitlementChanged.contains(coachMsg.failedCode) &&
+                    !(e is CoachUnavailableException && e.entitlementRefreshed)) {
+                  unawaited(_store?.refresh());
+                }
                 finish();
               },
               onDone: finish,
@@ -641,11 +729,13 @@ class AppState extends ChangeNotifier {
     _coachId = null;
     _plan = null;
     _memoryEnabled = false;
+    _voiceAvatarCollapsed = null;
     _memoryText = '';
     _activeDays = {};
     _onboarded = false;
     _paywallDismissed = false;
     _aiConsent = false;
+    _openChatFirst = false;
     notifyListeners();
   }
 
@@ -661,6 +751,10 @@ class AppState extends ChangeNotifier {
   /// Whether [title] is an untouched "New conversation" title (shown in the
   /// UI language).
   static bool isDefaultTitle(String title) => _defaultTitles.contains(title);
+
+  /// [title] as shown: an untouched "New conversation" title is always shown
+  /// in the UI language, whichever coach (and coach language) created it.
+  static String threadTitle(String title, AppLocalizations l) => isDefaultTitle(title) ? l.newConversation : title;
 
   void _autoTitle(ChatThread thread) {
     if (!_defaultTitles.contains(thread.title)) return;

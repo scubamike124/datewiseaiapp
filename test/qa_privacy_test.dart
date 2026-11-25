@@ -203,7 +203,10 @@ void main() {
       await state.sendMessage('hi');
       await Future<void>.delayed(const Duration(milliseconds: 5));
       expect(ai.payloads.last.keys.toSet(), {'tier', 'coachId', 'profile', 'messages'});
-      expect((ai.payloads.last['profile'] as Map).keys.toSet(), {'goals', 'language'});
+      final profile = ai.payloads.last['profile'] as Map;
+      // The device country is sent only as one of four crisis-line regions (compliance F1), never more precise.
+      expect(profile.keys.toSet().difference({'country'}), {'goals', 'language'});
+      if (profile.containsKey('country')) expect(profile['country'], isIn(['US', 'CA', 'MX', 'ES']));
     });
   });
 

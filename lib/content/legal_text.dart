@@ -47,13 +47,13 @@ DateWise AI ("DateWise AI", "we", "us") provides an AI dating-coaching app with 
 - Your conversations, preferences, weekly plan, progress counts and Coach memory note are stored locally on your device and are not uploaded to us.
 
 # How we use information
-- To provide AI coaching: your messages, your coaching preferences and (only when Coach memory is on) your note are sent to our AI processing provider to generate replies, which are returned to you.
+- To provide AI coaching: your messages, your coaching preferences, your device's country setting (only when it is the US, Canada, Mexico or Spain, so the coach gives the right crisis lines) and (only when Coach memory is on) your note are sent to our AI processing provider to generate replies, which are returned to you.
 - To operate, secure, and improve the app.
 - We do not sell your personal information, do not use your messages to train AI models, and the app contains no advertising, analytics, or tracking.
 
 # Your permission before anything is shared
-- Asked first: before your first message is sent, the app asks whether you agree to share your messages (typed or spoken, as text), your coaching preferences and, if Coach memory is on, your memory note with Cloudflare Workers AI, which runs Meta's Llama model, to write your coach's replies. Nothing is sent to the AI provider until you tap Agree. If you tap Not now, nothing is sent and the app asks again the next time you send a message.
-- Withdrawing your permission: you can withdraw it at any time with You › Delete my data. This erases everything DateWise stored on your device, including your permission, so nothing more is sent until you agree again. Messages already processed were not stored on our servers, so there is nothing further for us to delete.
+- Asked first: before your first message is sent, the app asks whether you agree to share your messages (typed or spoken, as text), your coaching preferences, your country (US, Canada, Mexico or Spain only, for the right crisis lines) and, if Coach memory is on, your memory note with Cloudflare Workers AI, which runs Meta's Llama model, to write your coach's replies. Nothing is sent to the AI provider until you tap Agree. If you tap Not now, nothing is sent and the app asks again the next time you send a message.
+- Withdrawing your permission: you can withdraw it at any time by turning off You › Privacy › Share messages with the AI provider. Nothing more is sent until you turn it on again, and your conversations stay on your device. You › Delete my data also withdraws it, and erases everything DateWise stored on your device. Messages already processed were not stored on our servers, so there is nothing further for us to delete.
 
 # Voice
 - Voice mode uses your device's built-in speech recognition to turn what you say into text while you hold the talk button (or, with VoiceOver, from when you tap it until you tap it again); only the resulting text is sent to your coach. Replies are read aloud with your device's built-in voices.
@@ -91,7 +91,7 @@ Our providers may process information on servers located in various countries. B
 DateWise AI is for users aged 18 and older. We do not knowingly collect data from anyone under 18. If you believe a minor has used the app, contact us.
 
 # Your choices
-Your conversations and preferences stay on your device and you can delete them at any time in the app. Sharing your messages with our AI provider needs your permission, which you can withdraw at any time with You › Delete my data. Our server holds no conversation content and nothing linked to your identity. Depending on where you live, you may have rights to access, correct, or delete your personal information; email support@datewiseai.com.
+Your conversations and preferences stay on your device and you can delete them at any time in the app. Sharing your messages with our AI provider needs your permission, which you can withdraw at any time in You › Privacy › Share messages with the AI provider. Our server holds no conversation content and nothing linked to your identity. Depending on where you live, you may have rights to access, correct, or delete your personal information; email support@datewiseai.com.
 
 # Changes to this policy
 We may update this policy from time to time. We will revise the "Last updated" date above, and significant changes will be reflected in the app.
@@ -153,13 +153,13 @@ DateWise AI ("DateWise AI", "nosotros") ofrece una app de coaching de citas con 
 - Tus conversaciones, preferencias, plan semanal, conteos de progreso y la nota de memoria del coach se guardan localmente en tu dispositivo y no se suben a nuestros servidores.
 
 # Cómo usamos la información
-- Para darte coaching con IA: tus mensajes, tus preferencias de coaching y (solo si la memoria del coach está activada) tu nota se envían a nuestro proveedor de procesamiento de IA para generar las respuestas, que se te devuelven.
+- Para darte coaching con IA: tus mensajes, tus preferencias de coaching, el país configurado en tu dispositivo (solo si es Estados Unidos, Canadá, México o España, para que el coach te dé las líneas de crisis correctas) y (solo si la memoria del coach está activada) tu nota se envían a nuestro proveedor de procesamiento de IA para generar las respuestas, que se te devuelven.
 - Para operar, proteger y mejorar la app.
 - No vendemos tu información personal, no usamos tus mensajes para entrenar modelos de IA y la app no contiene publicidad, analítica ni rastreo.
 
 # Tu permiso antes de compartir nada
-- Te lo preguntamos primero: antes de enviar tu primer mensaje, la app te pregunta si aceptas compartir tus mensajes (escritos o dichos en voz alta, como texto), tus preferencias de coaching y, si la Memoria del coach está activada, tu nota con Cloudflare Workers AI, que ejecuta el modelo Llama de Meta, para escribir las respuestas de tu coach. No se envía nada al proveedor de IA hasta que tocas Aceptar. Si tocas Ahora no, no se envía nada y la app te lo vuelve a preguntar la próxima vez que envíes un mensaje.
-- Retirar tu permiso: puedes retirarlo en cualquier momento con Tú › Eliminar mis datos. Esto borra todo lo que DateWise guardó en tu dispositivo, incluido tu permiso, así que no se envía nada más hasta que vuelvas a aceptar. Los mensajes ya procesados no se guardaron en nuestros servidores, así que no hay nada más que debamos eliminar.
+- Te lo preguntamos primero: antes de enviar tu primer mensaje, la app te pregunta si aceptas compartir tus mensajes (escritos o dichos en voz alta, como texto), tus preferencias de coaching, tu país (solo Estados Unidos, Canadá, México o España, para las líneas de crisis correctas) y, si la Memoria del coach está activada, tu nota con Cloudflare Workers AI, que ejecuta el modelo Llama de Meta, para escribir las respuestas de tu coach. No se envía nada al proveedor de IA hasta que tocas Aceptar. Si tocas Ahora no, no se envía nada y la app te lo vuelve a preguntar la próxima vez que envíes un mensaje.
+- Retirar tu permiso: puedes retirarlo en cualquier momento desactivando Tú › Privacidad › Compartir mensajes con el proveedor de IA. No se envía nada más hasta que lo vuelvas a activar, y tus conversaciones se quedan en tu dispositivo. Tú › Eliminar mis datos también lo retira y borra todo lo que DateWise guardó en tu dispositivo. Los mensajes ya procesados no se guardaron en nuestros servidores, así que no hay nada más que debamos eliminar.
 
 # Voz
 - El modo de voz usa el reconocimiento de voz integrado de tu dispositivo para convertir en texto lo que dices mientras mantienes presionado el botón para hablar (o, con VoiceOver, desde que lo tocas hasta que lo vuelves a tocar); solo el texto resultante se envía a tu coach. Las respuestas se leen en voz alta con las voces integradas de tu dispositivo.
@@ -197,7 +197,7 @@ Nuestros proveedores pueden procesar información en servidores ubicados en dist
 DateWise AI es para personas de 18 años o más. No recopilamos a sabiendas datos de menores de 18 años. Si crees que un menor usó la app, contáctanos.
 
 # Tus opciones
-Tus conversaciones y preferencias permanecen en tu dispositivo y puedes eliminarlas en cualquier momento desde la app. Compartir tus mensajes con nuestro proveedor de IA requiere tu permiso, que puedes retirar en cualquier momento con Tú › Eliminar mis datos. Nuestro servidor no guarda contenido de tus conversaciones ni nada vinculado a tu identidad. Según dónde vivas, puedes tener derecho a acceder, corregir o eliminar tu información personal; escríbenos a support@datewiseai.com.
+Tus conversaciones y preferencias permanecen en tu dispositivo y puedes eliminarlas en cualquier momento desde la app. Compartir tus mensajes con nuestro proveedor de IA requiere tu permiso, que puedes retirar en cualquier momento en Tú › Privacidad › Compartir mensajes con el proveedor de IA. Nuestro servidor no guarda contenido de tus conversaciones ni nada vinculado a tu identidad. Según dónde vivas, puedes tener derecho a acceder, corregir o eliminar tu información personal; escríbenos a support@datewiseai.com.
 
 # Cambios a esta política
 Podemos actualizar esta política de vez en cuando. Cambiaremos la fecha de "Última actualización" de arriba, y los cambios importantes se reflejarán en la app.

@@ -188,6 +188,12 @@ abstract class AppLocalizations {
   /// **'AI dating coach · {language}'**
   String coachAiLabel(String language);
 
+  /// No description provided for @coachAiLabelShort.
+  ///
+  /// In en, this message translates to:
+  /// **'AI coach'**
+  String get coachAiLabelShort;
+
   /// No description provided for @coachPortrait.
   ///
   /// In en, this message translates to:
@@ -703,6 +709,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Show captions'**
   String get showCaptions;
+
+  /// No description provided for @hideAvatar.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide avatar'**
+  String get hideAvatar;
+
+  /// No description provided for @showAvatar.
+  ///
+  /// In en, this message translates to:
+  /// **'Show avatar'**
+  String get showAvatar;
 
   /// No description provided for @coachTyping.
   ///
@@ -1570,7 +1588,7 @@ abstract class AppLocalizations {
   /// AI data-sharing consent: body. Must match the Privacy Policy.
   ///
   /// In en, this message translates to:
-  /// **'To write your coach\'s replies, DateWise sends your messages (typed or spoken, as text), your coaching preferences and, if Coach memory is on, your memory note to Cloudflare Workers AI, which runs Meta\'s Llama model. They are processed only to write the reply: they are not stored on our servers, not used to train AI models and not linked to your identity. See our Privacy Policy for details.'**
+  /// **'To write your coach\'s replies, DateWise sends your messages (typed or spoken, as text), your coaching preferences, your country (US, Canada, Mexico or Spain only, for the right crisis lines) and, if Coach memory is on, your memory note to Cloudflare Workers AI, which runs Meta\'s Llama model. They are processed only to write the reply: they are not stored on our servers, not used to train AI models and not linked to your identity. See our Privacy Policy for details.'**
   String get aiConsentBody;
 
   /// AI data-sharing consent: agree button.
@@ -1584,6 +1602,366 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Not now'**
   String get aiConsentNotNow;
+
+  /// Snackbar when copying a reply option failed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t copy that. Try again.'**
+  String get copyFailed;
+
+  /// Chat notice for PAYLOAD_TOO_LARGE (HTTP 413).
+  ///
+  /// In en, this message translates to:
+  /// **'That message is too long for your coach. Shorten it and try again, or start a new conversation.'**
+  String get coachLimitTooLong;
+
+  /// Above the locked composer when the subscription lapsed and saved conversations are shown read-only.
+  ///
+  /// In en, this message translates to:
+  /// **'Your conversations are saved. Subscribe to keep chatting with {name}.'**
+  String lockedHistoryNote(String name);
+
+  /// You tab section label.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy'**
+  String get sectionPrivacy;
+
+  /// You › Privacy switch that grants or withdraws AI data-sharing consent.
+  ///
+  /// In en, this message translates to:
+  /// **'Share messages with the AI provider'**
+  String get aiSharingTitle;
+
+  /// Subtitle of the AI sharing switch when on.
+  ///
+  /// In en, this message translates to:
+  /// **'On. Your messages go to Cloudflare Workers AI only to write each reply.'**
+  String get aiSharingOn;
+
+  /// Subtitle of the AI sharing switch when off.
+  ///
+  /// In en, this message translates to:
+  /// **'Off. Nothing is sent and your coach can\'t reply. Your conversations stay on this device.'**
+  String get aiSharingOff;
+
+  /// You tab section label.
+  ///
+  /// In en, this message translates to:
+  /// **'Safety'**
+  String get sectionSafety;
+
+  /// Row / menu item / title of the static crisis-lines screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Get help now'**
+  String get getHelpNow;
+
+  /// Subtitle of the Get help now row.
+  ///
+  /// In en, this message translates to:
+  /// **'Crisis and emergency lines'**
+  String get getHelpSubtitle;
+
+  /// Intro of the Get help now screen.
+  ///
+  /// In en, this message translates to:
+  /// **'If you or someone else is in danger, call your local emergency number now. These official lines are confidential and open 24 hours. DateWise is not a crisis service.'**
+  String get getHelpIntro;
+
+  /// Country heading.
+  ///
+  /// In en, this message translates to:
+  /// **'United States'**
+  String get helpCountryUS;
+
+  /// Country heading.
+  ///
+  /// In en, this message translates to:
+  /// **'Canada'**
+  String get helpCountryCA;
+
+  /// Country heading.
+  ///
+  /// In en, this message translates to:
+  /// **'Mexico'**
+  String get helpCountryMX;
+
+  /// Country heading.
+  ///
+  /// In en, this message translates to:
+  /// **'Spain'**
+  String get helpCountryES;
+
+  /// Emergency number label.
+  ///
+  /// In en, this message translates to:
+  /// **'Emergencies'**
+  String get helpEmergency;
+
+  /// US 988.
+  ///
+  /// In en, this message translates to:
+  /// **'988 Suicide & Crisis Lifeline: call or text (free, 24/7, Spanish available)'**
+  String get helpUsSuicide;
+
+  /// US DV hotline.
+  ///
+  /// In en, this message translates to:
+  /// **'National Domestic Violence Hotline (free, 24/7)'**
+  String get helpUsAbuse;
+
+  /// US DV text line.
+  ///
+  /// In en, this message translates to:
+  /// **'Domestic violence: text START to 88788'**
+  String get helpUsAbuseText;
+
+  /// Canada 9-8-8. Do not call it free.
+  ///
+  /// In en, this message translates to:
+  /// **'9-8-8 Suicide Crisis Helpline: call or text (24/7, English or French)'**
+  String get helpCaSuicide;
+
+  /// Canada has no national DV line.
+  ///
+  /// In en, this message translates to:
+  /// **'Family or gender-based violence: contact your province\'s or territory\'s crisis line, or 9-1-1 in an emergency.'**
+  String get helpCaAbuse;
+
+  /// Mexico 800 911 2000.
+  ///
+  /// In en, this message translates to:
+  /// **'Línea de la Vida (free, 24/7)'**
+  String get helpMxSuicide;
+
+  /// Mexico 079 option 1.
+  ///
+  /// In en, this message translates to:
+  /// **'Línea de las Mujeres, gender-based violence: dial 079, then option 1 (free, 24/7)'**
+  String get helpMxWomen;
+
+  /// Spain 024.
+  ///
+  /// In en, this message translates to:
+  /// **'024 suicide crisis line (free, confidential, 24/7)'**
+  String get helpEsSuicide;
+
+  /// Spain 016.
+  ///
+  /// In en, this message translates to:
+  /// **'016 violence against women (free, 24/7, not shown on the phone bill)'**
+  String get helpEsAbuse;
+
+  /// Spain 016 WhatsApp 600 000 016.
+  ///
+  /// In en, this message translates to:
+  /// **'016 on WhatsApp'**
+  String get helpEsWhatsApp;
+
+  /// Footnote of the Get help now screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Numbers checked on official government and service websites, November 2026. In another country, call your local emergency number.'**
+  String get helpFootnote;
+
+  /// Label above the coach greeting preview in the locked chat (before subscribing).
+  ///
+  /// In en, this message translates to:
+  /// **'How {name} starts a conversation'**
+  String lockedPreviewLabel(String name);
+
+  /// No description provided for @storeStatusTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Store status'**
+  String get storeStatusTitle;
+
+  /// No description provided for @storeStatusCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get storeStatusCopy;
+
+  /// No description provided for @storeStatusQueryAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Query again'**
+  String get storeStatusQueryAgain;
+
+  /// No description provided for @storeStatusQuerying.
+  ///
+  /// In en, this message translates to:
+  /// **'Querying…'**
+  String get storeStatusQuerying;
+
+  /// No description provided for @storeStatusStore.
+  ///
+  /// In en, this message translates to:
+  /// **'Store'**
+  String get storeStatusStore;
+
+  /// No description provided for @storeStatusNoStoreKit.
+  ///
+  /// In en, this message translates to:
+  /// **'{store} (no StoreKit in this build)'**
+  String storeStatusNoStoreKit(String store);
+
+  /// No description provided for @storeStatusProductId.
+  ///
+  /// In en, this message translates to:
+  /// **'Product id queried'**
+  String get storeStatusProductId;
+
+  /// No description provided for @storeStatusQueries.
+  ///
+  /// In en, this message translates to:
+  /// **'Queries run'**
+  String get storeStatusQueries;
+
+  /// No description provided for @storeStatusLastQuery.
+  ///
+  /// In en, this message translates to:
+  /// **'Last query'**
+  String get storeStatusLastQuery;
+
+  /// No description provided for @storeStatusProductsReturned.
+  ///
+  /// In en, this message translates to:
+  /// **'Products returned'**
+  String get storeStatusProductsReturned;
+
+  /// No description provided for @storeStatusReturnedIds.
+  ///
+  /// In en, this message translates to:
+  /// **'Returned ids'**
+  String get storeStatusReturnedIds;
+
+  /// No description provided for @storeStatusNotFoundIds.
+  ///
+  /// In en, this message translates to:
+  /// **'notFoundIDs'**
+  String get storeStatusNotFoundIds;
+
+  /// No description provided for @storeStatusErrorCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Error code'**
+  String get storeStatusErrorCode;
+
+  /// No description provided for @storeStatusErrorMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Error message'**
+  String get storeStatusErrorMessage;
+
+  /// No description provided for @storeStatusCanMakePayments.
+  ///
+  /// In en, this message translates to:
+  /// **'Can make payments'**
+  String get storeStatusCanMakePayments;
+
+  /// No description provided for @storeStatusStorefront.
+  ///
+  /// In en, this message translates to:
+  /// **'Storefront'**
+  String get storeStatusStorefront;
+
+  /// No description provided for @storeStatusStoreKit2.
+  ///
+  /// In en, this message translates to:
+  /// **'StoreKit 2'**
+  String get storeStatusStoreKit2;
+
+  /// No description provided for @storeStatusPrice.
+  ///
+  /// In en, this message translates to:
+  /// **'Price from store'**
+  String get storeStatusPrice;
+
+  /// No description provided for @storeStatusSubscribed.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscribed'**
+  String get storeStatusSubscribed;
+
+  /// No description provided for @storeStatusStatusRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Status read'**
+  String get storeStatusStatusRead;
+
+  /// No description provided for @storeStatusPaywallError.
+  ///
+  /// In en, this message translates to:
+  /// **'Paywall error'**
+  String get storeStatusPaywallError;
+
+  /// No description provided for @storeStatusNotYet.
+  ///
+  /// In en, this message translates to:
+  /// **'not yet'**
+  String get storeStatusNotYet;
+
+  /// No description provided for @storeStatusUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'unknown'**
+  String get storeStatusUnknown;
+
+  /// No description provided for @storeStatusNotApplicable.
+  ///
+  /// In en, this message translates to:
+  /// **'n/a'**
+  String get storeStatusNotApplicable;
+
+  /// No description provided for @storeStatusUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'unavailable'**
+  String get storeStatusUnavailable;
+
+  /// No description provided for @storeStatusYes.
+  ///
+  /// In en, this message translates to:
+  /// **'yes'**
+  String get storeStatusYes;
+
+  /// No description provided for @storeStatusNo.
+  ///
+  /// In en, this message translates to:
+  /// **'no'**
+  String get storeStatusNo;
+
+  /// No description provided for @coachClipPlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Play clip'**
+  String get coachClipPlay;
+
+  /// No description provided for @coachClipPause.
+  ///
+  /// In en, this message translates to:
+  /// **'Pause clip'**
+  String get coachClipPause;
+
+  /// No description provided for @coachClipUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This clip could not be played on this device.'**
+  String get coachClipUnavailable;
+
+  /// No description provided for @coachClipReference.
+  ///
+  /// In en, this message translates to:
+  /// **'Reference'**
+  String get coachClipReference;
+
+  /// No description provided for @coachClipOpening.
+  ///
+  /// In en, this message translates to:
+  /// **'Opening line'**
+  String get coachClipOpening;
 }
 
 class _AppLocalizationsDelegate

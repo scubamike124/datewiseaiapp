@@ -48,14 +48,15 @@ class HomeScreen extends StatelessWidget {
     final speech = context.read<SpeechService>();
     final coach = state.selectedCoach;
     final last = state.latestThreadFor(coach);
-    final resume = last != null && last.messages.any((m) => m.isUser) ? last.title : null;
     final top = MediaQuery.paddingOf(context).top;
     final l = context.l10n;
+    final resume = last != null && last.messages.any((m) => m.isUser) ? AppState.threadTitle(last.title, l) : null;
     // iPad: a wider column, a larger portrait and a wider text column, so
     // the hero keeps the phone's proportions instead of a small strip.
     final tablet = isTabletLayout(context);
 
-    return SingleChildScrollView(
+    return StatusBarScrim(
+      child: SingleChildScrollView(
       key: const PageStorageKey('home-scroll'),
       child: ContentWidth(
         maxWidth: tablet ? kWideContentMaxWidth : kContentMaxWidth,
@@ -130,7 +131,7 @@ class HomeScreen extends StatelessWidget {
                               child: WholeWordsText(l.greetingFor(DateTime.now()),
                                   key: const ValueKey('home-greeting'),
                                   maxWidth: tablet ? 340 : 240,
-                                  style: AppText.display.copyWith(fontSize: tablet ? 42 : 34, height: 1.05)),
+                                  style: AppText.display.copyWith(fontSize: tablet ? 42 : 30, height: 1.08)),
                             ),
                             const SizedBox(height: 10),
                             Text(
@@ -187,6 +188,7 @@ class HomeScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

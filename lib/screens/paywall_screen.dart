@@ -6,6 +6,7 @@ import '../services/store_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/dw.dart';
+import '../widgets/store_status_sheet.dart';
 import 'legal_screen.dart';
 import '../l10n/l10n.dart';
 
@@ -59,6 +60,24 @@ class _PaywallScreenState extends State<PaywallScreen> {
   /// A message for the last action, built in the current language.
   String Function(AppLocalizations l)? _message;
 
+  @override
+  void initState() {
+    super.initState();
+    // The product (and its StoreKit price) may have failed to load at launch
+    // (offline, App Store Connect not ready yet): query it again whenever the
+    // paywall opens. This only loads the product; nothing is unlocked.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final store = context.read<StoreService>();
+      if (!store.canPurchase || store.storePrice == null) store.retryProduct();
+    });
+  }
+
+  Future<void> _retryProduct(StoreService store) async {
+    setState(() => _message = null);
+    await store.retryProduct();
+  }
+
   Future<void> _buy(StoreService store) async {
     setState(() => _message = null);
     final result = await store.buy();
@@ -85,6 +104,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
     final error = store.lastError;
     if (ok) {
       widget.onClose();
+    } else if (store.lastRestoreCanceled) {
+      // The user canceled the Apple Account prompt: nothing to report.
+      return;
     } else {
       setState(() => _message = (l) => restoreFailureText(l, error, l.noSubscriptionForAppleId));
     }
@@ -107,18 +129,27 @@ class _PaywallScreenState extends State<PaywallScreen> {
     return Scaffold(
       key: const ValueKey('paywall'),
       backgroundColor: AppColors.background,
-      body: SingleChildScrollView(
+      body: StatusBarScrim(
+        child: SingleChildScrollView(
         child: ContentWidth(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SizedBox(
-                height: 230 + top,
+                // Capped so the price and Subscribe show without scrolling on an
+                // iPhone SE and at larger text sizes (UI audit 12/13).
+                height: (MediaQuery.sizeOf(context).height * 0.21).clamp(150.0, 230.0) + top,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    CoachImage(coach: coach, semanticLabel: l.coachPortrait(coach.name)),
-                    const FadeToBackground(stops: [0.4, 1]),
+                    // The band is short (UI audit 12/13), so frame the whole face (brows to chin) and
+                    // start the fade below the mouth instead of at the nose (independent review, major 1).
+                    CoachImage(
+                      coach: coach,
+                      semanticLabel: l.coachPortrait(coach.name),
+                      alignment: Alignment(coach.heroFocus.x, (coach.heroFocus.y + 0.25).clamp(-1.0, 1.0)),
+                    ),
+                    const FadeToBackground(stops: [0.62, 1]),
                     const Positioned(
                       left: 0,
                       right: 0,
@@ -166,65 +197,86 @@ class _PaywallScreenState extends State<PaywallScreen> {
                       header: true,
                       child: Text(l.paywallHeadline(coach.name), style: AppText.title),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                     _Benefit(l.benefitCoaches),
                     _Benefit(l.benefitVoice),
                     _Benefit(l.benefitPlan),
-                    const SizedBox(height: 18),
-                    DwCard(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF2E2019), AppColors.surface],
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(StoreConfig.productTitle, style: AppText.label),
-                                const SizedBox(height: 2),
-                                Text(l.monthlyAutoRenews, style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          // Flexible + scaleDown: a long localized StoreKit price ("US$19.99",
-                          // "MX$399.00") at large Dynamic Type shrinks to fit instead of overflowing.
-                          Flexible(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                if (price != null) ...[
-                                  FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    alignment: Alignment.centerRight,
-                                    child: Text(
-                                      price,
-                                      key: const ValueKey('paywall-price'),
-                                      maxLines: 1,
-                                      style: const TextStyle(fontFamily: AppFonts.serif, fontSize: 26, color: AppColors.gold, height: 1.1),
+                    const SizedBox(height: 14),
+                    // Long-press: the hidden "Store status" readout (product
+                    // query result, StoreKit error, storefront) for TestFlight.
+                    GestureDetector(
+                      key: const ValueKey('paywall-plan'),
+                      onLongPress: () => showStoreStatus(context),
+                      child: DwCard(
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF2E2019), AppColors.surface],
+                        ),
+                        // Narrow screens and large Dynamic Type (320 pt at 200%): the price goes under the
+                        // plan name instead of beside it, so the name keeps the full width and never
+                        // breaks inside a word (code review m9).
+                        child: LayoutBuilder(builder: (context, c) {
+                          final stacked = c.maxWidth - 148 < 140 * MediaQuery.textScalerOf(context).scale(1);
+                          final name = Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const WholeWordsText(StoreConfig.productTitle, key: ValueKey('paywall-plan-name'), style: AppText.label),
+                              const SizedBox(height: 2),
+                              WholeWordsText(l.monthlyAutoRenews, style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                            ],
+                          );
+                          final priceColumn =
+                            ConstrainedBox(
+                              constraints: BoxConstraints(maxWidth: stacked ? double.infinity : 140),
+                              child: Column(
+                                crossAxisAlignment: stacked ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+                                children: [
+                                  if (price != null) ...[
+                                    FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: stacked ? Alignment.centerLeft : Alignment.centerRight,
+                                      child: Text(
+                                        price,
+                                        key: const ValueKey('paywall-price'),
+                                        maxLines: 1,
+                                        style: const TextStyle(fontFamily: AppFonts.serif, fontSize: 26, color: AppColors.gold, height: 1.1),
+                                      ),
                                     ),
-                                  ),
-                                  Text(l.perMonth, style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted)),
-                                ] else
-                                  ConstrainedBox(
-                                    constraints: const BoxConstraints(maxWidth: 130),
-                                    child: Text(
-                                      l.priceFromAppStore,
-                                      key: const ValueKey('paywall-price'),
-                                      textAlign: TextAlign.end,
-                                      style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                                    Text(l.perMonth, style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted)),
+                                  ] else
+                                    ConstrainedBox(
+                                      constraints: const BoxConstraints(maxWidth: 130),
+                                      child: Text(
+                                        l.priceFromAppStore,
+                                        key: const ValueKey('paywall-price'),
+                                        textAlign: stacked ? TextAlign.start : TextAlign.end,
+                                        style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                                      ),
                                     ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ],
+                                ],
+                              ),
+                            );
+                          return stacked
+                              ? Column(
+                                  key: const ValueKey('paywall-plan-stacked'),
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [name, const SizedBox(height: 10), priceColumn],
+                                )
+                              : Row(
+                                  children: [
+                                    Expanded(child: name),
+                                    const SizedBox(width: 8),
+                                    // The price takes only the width it needs (up to 140), so the plan name and
+                                    // "Monthly · auto-renews" keep the rest (UI review M1). scaleDown: a long
+                                    // localized StoreKit price ("MX$399.00") shrinks to fit instead of overflowing.
+                                    priceColumn,
+                                  ],
+                                );
+                        }),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                     if (unsupported)
                       DwCard(
                         key: const ValueKey('paywall-web'),
@@ -241,6 +293,21 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         busy: store.busy,
                         onPressed: store.canPurchase && price != null ? () => _buy(store) : null,
                       ),
+                    // Without the product from StoreKit, Subscribe stays disabled; Try again queries
+                    // the App Store again (as do opening the paywall and returning to the app).
+                    if (!unsupported && (!store.canPurchase || price == null)) ...[
+                      const SizedBox(height: 10),
+                      DwButton(
+                        key: const ValueKey('paywall-retry'),
+                        label: l.retry,
+                        style: DwButtonStyle.ghost,
+                        expand: true,
+                        height: 48,
+                        fontSize: 15,
+                        busy: store.loadingProduct,
+                        onPressed: store.busy || store.loadingProduct ? null : () => _retryProduct(store),
+                      ),
+                    ],
                     if (_message != null || (!unsupported && !store.canPurchase && store.lastError != null)) ...[
                       const SizedBox(height: 10),
                       Text(_message?.call(l) ?? storeErrorText(l, store.lastError!),
@@ -281,6 +348,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

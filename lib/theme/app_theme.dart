@@ -90,8 +90,8 @@ class AppText {
 
   static const display = TextStyle(
     fontFamily: AppFonts.serif,
-    fontSize: 40,
-    height: 1.04,
+    fontSize: 34,
+    height: 1.06,
     letterSpacing: -0.8,
     color: AppColors.text,
     fontWeight: FontWeight.w400,
@@ -99,8 +99,8 @@ class AppText {
 
   static const title = TextStyle(
     fontFamily: AppFonts.serif,
-    fontSize: 32,
-    height: 1.08,
+    fontSize: 28,
+    height: 1.1,
     letterSpacing: -0.6,
     color: AppColors.text,
     fontWeight: FontWeight.w400,

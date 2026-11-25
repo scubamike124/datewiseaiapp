@@ -351,3 +351,62 @@ When real numbers exist (from the guard's count-only logs: messages, estimated n
 
 Once deployed, the count-only usage logs (`event: usage`) give measured messages per subscriber and neurons per
 message. Replace the ASSUMPTION rows in section 3 with them and re-run `ai_cost_model.mjs`.
+
+## 10. Voice and avatar options: cost per subscriber (2026-11-24, planning only)
+
+Nothing in this section is integrated or approved. Today the app uses the on-device Apple voice (free) and a still
+portrait. These figures size the options under review in docs/research/avatar-voice-2026-11-24 so the owner can decide.
+No pricing, limits or providers were changed.
+
+Assumptions per subscriber per month (chat figures from section 4; voice and avatar minutes are estimates, since the
+app has no live usage yet):
+
+- Light: 60 messages, 10 voice minutes, 5 avatar minutes.
+- Average: 250 messages, 40 voice minutes, 20 avatar minutes.
+- Heavy: 1,200 messages, 200 voice minutes, 100 avatar minutes.
+- Extreme: the fair-use maximum of 150 replies a day (4,500 a month), 1,500 voice minutes, 1,500 avatar minutes.
+
+Vendor rates are public list prices found on 2026-11-24 (per minute of generated audio or video): Deepgram Aura-2
+about $0.027, Cartesia Sonic about $0.035, ElevenLabs Flash about $0.036, Simli about $0.01, bitHuman (on-device) about $0.02, HeyGen LiveAvatar LITE
+about $0.10, Anam about $0.13, Tavus about $0.30. Self-hosted figures are marginal GPU estimates (a rented RTX 4090 at
+roughly $0.35–0.70/hour serving several sessions) and exclude idle time, which dominates at low volume. Hume and PlayHT
+have shut down and are excluded. Prices must be re-checked before any purchase.
+
+Net revenue per subscriber after Apple and 3% refunds: $16.48 (15% Small Business) / $13.57 (30%).
+
+| Usage | Chat msgs/mo | Voice min/mo | Avatar min/mo | Chat AI | + Cartesia voice | + Simli avatar | + HeyGen LITE avatar | + Tavus avatar |
+|---|---|---|---|---|---|---|---|---|
+| Light | 60 | 10 | 5 | $0.05 | $0.40 | $0.45 | $0.90 | $1.90 |
+| Average | 250 | 40 | 20 | $0.32 | $1.72 | $1.92 | $3.71 | $7.71 |
+| Heavy | 1200 | 200 | 100 | $2.32 | $9.32 | $10.32 | $19.32 | $39.32 |
+| Extreme (fair-use max 150 replies/day) | 4500 | 1500 | 1500 | $8.69 | $61.19 | $76.19 | $211.19 | $511.19 |
+
+Voice only, per subscriber per month:
+
+| Usage | On-device Apple voice (today) | Kokoro self-hosted (est.) | Deepgram Aura-2 | Cartesia Sonic | ElevenLabs Flash |
+|---|---|---|---|---|---|
+| Light | $0.00 | $0.02 | $0.27 | $0.35 | $0.36 |
+| Average | $0.00 | $0.08 | $1.08 | $1.40 | $1.44 |
+| Heavy | $0.00 | $0.40 | $5.40 | $7.00 | $7.20 |
+| Extreme (fair-use max 150 replies/day) | $0.00 | $3.00 | $40.50 | $52.50 | $54.00 |
+
+Avatar only, per subscriber per month:
+
+| Usage | None (portrait + voice) | Self-hosted open source on a rented 4090 (marginal) | Simli | bitHuman on-device | HeyGen LiveAvatar LITE | Anam | Tavus |
+|---|---|---|---|---|---|---|---|
+| Light | $0.00 | $0.03 | $0.05 | $0.10 | $0.50 | $0.65 | $1.50 |
+| Average | $0.00 | $0.10 | $0.20 | $0.40 | $2.00 | $2.60 | $6.00 |
+| Heavy | $0.00 | $0.50 | $1.00 | $2.00 | $10.00 | $13.00 | $30.00 |
+| Extreme (fair-use max 150 replies/day) | $0.00 | $7.50 | $15.00 | $30.00 | $150.00 | $195.00 | $450.00 |
+
+### What this means
+
+- Chat alone is cheap at every tier (under $9 even at the extreme fair-use maximum).
+- Premium cloud voice multiplies cost about 5x for an average user and makes extreme users unprofitable at $19.99.
+  On-device Apple voice or a self-hosted open-source voice (Kokoro, Apache 2.0) keeps voice near zero.
+- Streaming video avatars are the biggest risk. With HeyGen, Anam or Tavus, a heavy user costs more than the $13.57–16.48
+  DateWise keeps after Apple's cut, and Tavus already uses about half of it for an average user. Simli or a self-hosted open-source avatar stays affordable,
+  but self-hosting needs an always-on GPU (about $250–500/month) before the first user, which is only worth it at
+  roughly 100+ active subscribers.
+- Any avatar or premium voice needs its own monthly minute allowance (for example 60–120 avatar minutes) before launch.
+  That is a pricing and limits decision for the owner; nothing has been changed.

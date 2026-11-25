@@ -85,7 +85,7 @@ void main() {
     expect(find.text('Tú'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('tab-chat')));
     await tester.pumpAndSettle();
-    expect(find.text('Coach de citas con IA · Español'), findsOneWidget);
+    expect(find.text('Coach con IA'), findsOneWidget);
     expect(find.text('Escríbele a Sofía…'), findsOneWidget);
     await tester.enterText(find.byKey(const ValueKey('composer')), 'Quiero una cita');
     await tester.tap(find.byKey(const ValueKey('send')));

@@ -13,6 +13,7 @@ String? coachLimitMessage(AppLocalizations l, String? code) => switch (code) {
       CoachLimitCode.subscriptionRevoked => l.coachLimitRevoked,
       CoachLimitCode.subscriptionInvalid => l.coachLimitVerify,
       CoachLimitCode.appUpdateRequired => l.coachLimitUpdateApp,
+      CoachLimitCode.payloadTooLarge => l.coachLimitTooLong,
       _ => null,
     };
 
