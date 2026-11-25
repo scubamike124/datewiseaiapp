@@ -13,15 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Install the App Store Connect client dependency
-        run: python -m pip install --quiet pyjwt cryptography
+        run: python3 -m pip install --quiet --user pyjwt cryptography
       - name: Read subscription metadata (GET only)
         env:
           ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           ASC_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
-        run: python tool/asc/subscription_check.py
+        run: python3 tool/asc/subscription_check.py
