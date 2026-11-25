@@ -17,7 +17,10 @@ class VideoPlayerClipPlayer implements KokoroClipPlayer {
   @override
   Future<void> load(Uri audioUrl) async {
     await _controller?.dispose();
-    final c = VideoPlayerController.networkUrl(audioUrl, videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false));
+    final options = VideoPlayerOptions(mixWithOthers: false);
+    final c = audioUrl.scheme == 'asset'
+        ? VideoPlayerController.asset(audioUrl.path.replaceFirst(RegExp(r'^/'), ''), videoPlayerOptions: options)
+        : VideoPlayerController.networkUrl(audioUrl, videoPlayerOptions: options);
     _controller = c;
     await c.initialize();
     c.addListener(_onValue);
