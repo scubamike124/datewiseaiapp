@@ -22,6 +22,16 @@ Future<void> showPlanTableSheet(BuildContext context) {
 }
 
 class PlanTableSheet extends StatefulWidget {
+  /// The pickers' frame. Text scaling is capped at [pickerMaxTextScale]: Material's date and time dialogs cut day
+  /// numbers and the dial apart at 2.0 (the sheet itself keeps the user's full size). When the language writes times
+  /// in 24-hour form, the picker reads typed times that way too (otherwise Spanish 20:00 is refused and 9:15 becomes 21:15).
+  static MediaQueryData pickerMediaQuery(MediaQueryData mq, TimeOfDayFormat languageFormat) => mq.copyWith(
+        textScaler: mq.textScaler.clamp(maxScaleFactor: pickerMaxTextScale),
+        alwaysUse24HourFormat: mq.alwaysUse24HourFormat || hourFormat(of: languageFormat) != HourFormat.h,
+      );
+
+  static const double pickerMaxTextScale = 1.3;
+
   const PlanTableSheet({super.key});
 
   /// Opens [uri] outside the app. Tests replace it to record the launch.
@@ -70,9 +80,15 @@ class _PlanTableSheetState extends State<PlanTableSheet> {
   TablePlan get _plan =>
       TablePlan(area: _area.text, cuisine: _cuisine.text, budget: _budget, date: _date, time: _time, partySize: _party);
 
+  Widget _pickerFrame(BuildContext context, Widget? child) => MediaQuery(
+        data: PlanTableSheet.pickerMediaQuery(MediaQuery.of(context), MaterialLocalizations.of(context).timeOfDayFormat()),
+        child: child!,
+      );
+
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
+      builder: _pickerFrame,
       initialDate: _date,
       firstDate: _today,
       lastDate: DateTime(_today.year + 1, _today.month, _today.day),
@@ -81,7 +97,7 @@ class _PlanTableSheetState extends State<PlanTableSheet> {
   }
 
   Future<void> _pickTime() async {
-    final picked = await showTimePicker(context: context, initialTime: _time);
+    final picked = await showTimePicker(context: context, initialTime: _time, builder: _pickerFrame);
     if (picked != null && mounted) setState(() => _time = picked);
   }
 
@@ -160,6 +176,9 @@ class _PlanTableSheetState extends State<PlanTableSheet> {
                       key: ValueKey('plan-table-budget-$level'),
                       label: Text('\$' * level, semanticsLabel: l.planTableBudgetLevel('$level')),
                       selected: _budget == level,
+                      selectedColor: AppColors.gold,
+                      checkmarkColor: AppColors.goldInk,
+                      labelStyle: TextStyle(color: _budget == level ? AppColors.goldInk : null),
                       // Tapping the selected level again clears the budget.
                       onSelected: (on) => setState(() => _budget = on ? level : 0),
                     ),

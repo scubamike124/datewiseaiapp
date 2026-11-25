@@ -68,6 +68,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   String _partial = '';
   DateTime? _voiceStarted;
   Timer? _ticker;
+
+  /// True for [stopGuard] after a message is accepted: the gold button turns into Stop at once, and the second tap of
+  /// a quick double tap on Send must not stop the reply it just asked for.
+  bool _justSent = false;
+  Timer? _justSentTimer;
+  static const stopGuard = Duration(milliseconds: 600);
+
+  void _stopReply() {
+    if (_justSent) return;
+    _state.cancelReply();
+  }
   bool _wasResponding = false;
 
   /// True between pointer-down and pointer-up on the talk button, so a
@@ -161,6 +172,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _state.removeListener(_onState);
     _lifecycle.dispose();
     _ticker?.cancel();
+    _justSentTimer?.cancel();
     _listenGen++;
     _voice.stop();
     _speech.cancel();
@@ -248,6 +260,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
     final sent = await _state.sendMessage(text, onAccepted: () {
       if (fromComposer && mounted && _input.text == text) _input.clear();
+      _justSent = true;
+      _justSentTimer?.cancel();
+      _justSentTimer = Timer(stopGuard, () => _justSent = false);
       // The user's message and the reply appear at the bottom: show them even if the list was scrolled up.
       if (mounted) _showNewest();
     });
@@ -851,7 +866,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         hint: context.l10n.messageHint(coach.name),
                         busy: state.isResponding,
                         onSend: () => _send(_input.text, fromComposer: true),
-                        onStop: _state.cancelReply,
+                        onStop: _stopReply,
                         onVoice: _speech.available ? _enterVoice : null,
                       ),
               ),

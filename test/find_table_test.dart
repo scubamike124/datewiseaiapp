@@ -88,6 +88,7 @@ ChatMessage _user(String t) => ChatMessage(id: t, role: MessageRole.user, text: 
 final _greeting = ChatMessage(id: 'g', role: MessageRole.coach, text: 'Hi', createdAt: DateTime(2026));
 
 void main() {
+  pickerFrameTests();
   late List<Uri> launched;
   final realLaunch = PlanTableSheet.launch;
   final realNow = PlanTableSheet.now;
@@ -529,4 +530,21 @@ void main() {
     expect(button, findsNothing);
     expect(launched, isEmpty);
   }, variant: ios);
+}
+
+void pickerFrameTests() {
+  group('the date and time pickers', () {
+    test('cap text at 1.3 and read typed times in 24-hour form when the language writes them so', () {
+      const big = MediaQueryData(textScaler: TextScaler.linear(2.0));
+      final es = PlanTableSheet.pickerMediaQuery(big, TimeOfDayFormat.HH_colon_mm);
+      expect(es.textScaler.scale(10), closeTo(13, 1e-9));
+      expect(es.alwaysUse24HourFormat, isTrue, reason: 'Spanish 20:00 must be accepted, 9:15 must stay 09:15');
+      final en = PlanTableSheet.pickerMediaQuery(big, TimeOfDayFormat.h_colon_mm_space_a);
+      expect(en.alwaysUse24HourFormat, isFalse);
+      const user24 = MediaQueryData(alwaysUse24HourFormat: true);
+      expect(PlanTableSheet.pickerMediaQuery(user24, TimeOfDayFormat.h_colon_mm_space_a).alwaysUse24HourFormat, isTrue);
+      const small = MediaQueryData(textScaler: TextScaler.linear(1.1));
+      expect(PlanTableSheet.pickerMediaQuery(small, TimeOfDayFormat.HH_colon_mm).textScaler.scale(10), closeTo(11, 1e-9));
+    });
+  });
 }

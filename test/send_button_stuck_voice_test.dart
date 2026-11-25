@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:datewise_ai/screens/shell.dart';
+import 'package:datewise_ai/models/chat_message.dart';
 import 'package:datewise_ai/models/coach.dart';
 import 'package:datewise_ai/services/speech_service.dart';
 
@@ -45,6 +46,7 @@ void main() {
   });
 
   micTests();
+  doubleTapTests();
 }
 
 /// A recognizer that hears one utterance per session, in order. Like the device recognizer, stop() returns the words
@@ -146,5 +148,37 @@ void micTests() {
 
     expect(_users(app), ['How do I start a conversation', 'What should I wear'],
         reason: 'the second press is not lost and the first words are not sent again');
+  });
+}
+
+void doubleTapTests() {
+  testWidgets('a quick double tap on the gold button sends once and does not stop the reply', (t) async {
+    final app = await pumpApp(t, tab: AppTab.chat, prefs: onboardedPrefs());
+    await t.pumpAndSettle();
+    await t.enterText(find.byKey(const ValueKey('composer')), 'Where should we go for dinner?');
+    await t.tap(find.byKey(const ValueKey('send')));
+    await t.pump(const Duration(milliseconds: 120));
+    // The button is Stop now; the second tap of the double tap lands on it.
+    await t.tap(find.byKey(const ValueKey('stop')));
+    await t.pump();
+    expect(app.state.isResponding, isTrue, reason: 'the reply keeps going');
+    await settleReply(t, app.state);
+    final last = app.state.activeThread!.messages.last;
+    expect(last.isUser, isFalse);
+    expect(last.status, isNot(MessageStatus.stopped));
+    expect(_users(app), ['Where should we go for dinner?']);
+  });
+
+  testWidgets('a deliberate Stop after the guard still stops the reply', (t) async {
+    final app = await pumpApp(t, tab: AppTab.chat, prefs: onboardedPrefs());
+    await t.pumpAndSettle();
+    await t.enterText(find.byKey(const ValueKey('composer')), 'Give me a long answer about first dates');
+    await t.tap(find.byKey(const ValueKey('send')));
+    await t.pump(const Duration(milliseconds: 700));
+    if (!app.state.isResponding) return; // the offline coach finished first; nothing to stop
+    await t.tap(find.byKey(const ValueKey('stop')));
+    await t.pump();
+    expect(app.state.isResponding, isFalse);
+    await settleReply(t, app.state);
   });
 }
