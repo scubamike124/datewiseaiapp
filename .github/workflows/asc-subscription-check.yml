@@ -1,0 +1,24 @@
+name: ASC subscription check (read-only)
+
+# Manual only. Reads the DateWise subscription's App Store Connect metadata and prints which fields are missing.
+# It makes GET requests only. It uses the same App Store Connect key secrets as the iOS build.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Install the App Store Connect client dependency
+        run: python3 -m pip install --quiet --user pyjwt cryptography
+      - name: Read subscription metadata (GET only)
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+        run: python3 tool/asc/subscription_check.py

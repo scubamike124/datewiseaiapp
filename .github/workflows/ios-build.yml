@@ -47,6 +47,10 @@ on:
       - '.github/workflows/deploy-worker.yml'
       # The DateWise handoff is part of the release record; a docs-only PR must still get the required check.
       - 'docs/RESUME.md'
+      # The read-only App Store subscription check ships with its own workflow and script; without these paths a PR that
+      # only adds them could never get the required check.
+      - '.github/workflows/asc-subscription-check.yml'
+      - 'tool/asc/**'
   workflow_dispatch:
     inputs:
       run_tests:
