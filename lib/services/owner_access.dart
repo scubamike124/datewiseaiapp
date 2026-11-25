@@ -42,7 +42,16 @@ class OwnerAccess extends ChangeNotifier {
   /// Reads a saved token at launch and renews it when it is close to the end. Also moves a token saved by an
   /// earlier build (SharedPreferences) into the Keychain.
   Future<void> load({String? baseUrl, http.Client? client}) async {
-    if (!enabled) return;
+    if (!enabled) {
+      // Public builds never use owner access, but a token left by an earlier internal build is removed.
+      try {
+        final p = await SharedPreferences.getInstance();
+        await p.remove(_kToken);
+        await p.remove(_kDevice);
+        await _store.delete(_kToken);
+      } catch (_) {}
+      return;
+    }
     try {
       await _migrate();
       _token = await _store.read(_kToken);
@@ -87,12 +96,13 @@ class OwnerAccess extends ChangeNotifier {
     final p = await SharedPreferences.getInstance();
     final old = p.getString(_kToken);
     if (old != null) {
-      await _store.write(_kToken, old);
+      // Never overwrite a newer token already in the Keychain; the old copy is only removed.
+      if (await _store.read(_kToken) == null) await _store.write(_kToken, old);
       await p.remove(_kToken);
     }
     final oldDev = p.getString(_kDevice);
     if (oldDev != null) {
-      await _store.write(_kDevice, oldDev);
+      if (await _store.read(_kDevice) == null) await _store.write(_kDevice, oldDev);
       await p.remove(_kDevice);
     }
   }
