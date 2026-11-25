@@ -121,8 +121,9 @@ test('the client system prompt is ignored; the server builds the coach prompt', 
   assert.equal(sent.filter((m) => m.role === 'system').length, 1);
   assert.match(sent[0].content, /You are Sofía/);
   assert.match(sent[0].content, /ONLY coach on dating/);
-  assert.match(sent[0].content, /DATE PLANNING is part of your job/);
-  assert.match(sent[0].content, /cannot see live availability and you cannot book a table/);
+  assert.match(sent[0].content, /communication and date planning \(places, activities, itineraries\)/);
+  assert.match(sent[0].content, /you cannot see availability or book/);
+  assert.match(sent[0].content, /or present an invented venue as real/);
   assert.match(sent[0].content, /Never say a table is available, held or booked/);
   assert.match(sent[0].content, /more confidence/);
   assert.ok(!sent.some((m) => m.content.includes('general assistant')));
