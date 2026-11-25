@@ -104,7 +104,16 @@ final class SpeechAudioChannel: NSObject, FlutterStreamHandler {
   }
 
   @objc private func onEngineChange(_ note: Notification) {
-    DispatchQueue.main.async { self.interrupt("engine") }
+    DispatchQueue.main.async {
+      // Activating the session for an utterance (and the microphone's
+      // session before it) can change the hardware format, and this
+      // notification arrives asynchronously. Before playback has started, or
+      // once the engine runs again, it is stale: the next buffer (re)starts
+      // the engine. Only an engine that stopped itself during playback ends
+      // the utterance.
+      guard self.started, !self.engine.isRunning else { return }
+      self.interrupt("engine")
+    }
   }
 
   @objc private func onBackground(_ note: Notification) {
@@ -204,6 +213,7 @@ final class SpeechAudioChannel: NSObject, FlutterStreamHandler {
         // The synthesizer produced no audio at all (missing voice, empty
         // text after cleaning...): nothing will play, let Dart fall back.
         stopPlayback()
+        deactivateSession()  // as in fail(): do not leave other apps' audio ducked
         send(["e": "error", "message": "no audio rendered", "started": false])
         return
       }
@@ -221,6 +231,13 @@ final class SpeechAudioChannel: NSObject, FlutterStreamHandler {
       fail("could not convert audio")
       return
     }
+    if started && !engine.isRunning {
+      // The engine stopped itself during playback (its notification is not
+      // handled yet): restarting it here would leave the player stopped and
+      // the rest of the reply silent.
+      interrupt("engine")
+      return
+    }
     if connectedFormat == nil || connectedFormat! != playable.format {
       if engine.isRunning { engine.stop() }
       if connectedFormat == nil { engine.attach(player) } else { engine.disconnectNodeOutput(player) }
@@ -234,7 +251,10 @@ final class SpeechAudioChannel: NSObject, FlutterStreamHandler {
       }
     }
     let rate = playable.format.sampleRate
-    send(["e": "levels", "t0": Double(scheduledFrames) / rate, "hop": 0.01, "v": levels(playable)])
+    // The exact hop in seconds (220 frames at 22.05 kHz are 9.98 ms).
+    let hop = max(1, Int(rate * 0.01))
+    send(["e": "levels", "t0": Double(scheduledFrames) / rate, "hop": Double(hop) / rate,
+          "v": levels(playable, hop: hop)])
     scheduledFrames += AVAudioFramePosition(playable.frameLength)
     pendingBuffers += 1
     // .dataPlayedBack: called when the samples have actually been heard, so
@@ -245,6 +265,9 @@ final class SpeechAudioChannel: NSObject, FlutterStreamHandler {
         self.pendingBuffers -= 1
         if self.synthesisDone && self.pendingBuffers == 0 { self.finish(gen: gen) }
       }
+    }
+    if started && !player.isPlaying {
+      player.play()  // a format change above restarted the engine
     }
     if !started {
       started = true
@@ -285,11 +308,10 @@ final class SpeechAudioChannel: NSObject, FlutterStreamHandler {
     return out
   }
 
-  /// RMS of the first channel per 10 ms.
-  private func levels(_ pcm: AVAudioPCMBuffer) -> [Double] {
+  /// RMS of the first channel per [hop] frames (about 10 ms).
+  private func levels(_ pcm: AVAudioPCMBuffer, hop: Int) -> [Double] {
     guard let data = pcm.floatChannelData?[0] else { return [] }
     let n = Int(pcm.frameLength)
-    let hop = max(1, Int(pcm.format.sampleRate * 0.01))
     var out: [Double] = []
     var i = 0
     while i < n {

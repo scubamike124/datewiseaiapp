@@ -64,9 +64,30 @@ assets/coaches/<id>-hero.jpg                     native audio path (iOS 13+ API,
   converted with the buffer format's bytes per frame and sample rate)
   to Dart (`lib/avatar/speech_audio.dart`).
   * An audio-session interruption (a call, Siri), losing the output route
-    (headphones unplugged), an engine configuration change or the app going
-    to the background ends the utterance with "done": the stage stops
-    speaking; the next reply uses the native path again.
+    (headphones unplugged), the engine stopping itself during playback (a
+    configuration change) or the app going to the background ends the
+    utterance with "done": the stage stops speaking; the next reply uses the
+    native path again. An engine configuration change before playback has
+    started is ignored (activating the session for each sentence, after the
+    microphone's session, can cause one; the next buffer restarts the
+    engine). If one still ends an utterance before anything was heard
+    (`interrupted: "engine"`), Dart speaks that reply through flutter_tts,
+    counted like a start timeout.
+  * If "done" never comes (the synthesizer's final empty buffer or a
+    played-back callback missing), Dart ends the sentence 2.5 s after the
+    audio received so far should have been heard (10 s for Kokoro), stops
+    the native path and goes on with the next sentence, so the stage never
+    stays "speaking".
+  * Levels are placed at each buffer's start time with the exact hop
+    (220 frames at 22.05 kHz), not appended: a buffer is rarely a whole
+    number of hops, and appending put the loudness up to 0.35 s behind the
+    audio after 5 s of 1024-frame buffers.
+  * Word markers whose times are squeezed into the first part of the audio
+    (last marked word before 70% of where the plan's proportions put it:
+    a byte/sample unit mistake would give a half or a quarter) are ignored,
+    like markers past the audio; the loudness warp maps the plan instead.
+    Apple documents `byteSampleOffset` as a byte offset; this is unverified
+    on a device.
   * If the synthesizer renders no audio at all, the channel reports an error
     before playback (the same reply is spoken through flutter_tts and the
     app keeps flutter_tts for the session). Dart also waits at most 3 s for
@@ -225,6 +246,32 @@ estimated alignment, so exact-shape agreement is modest without markers.
 rasterize a 1098×510 px frame in software (an upper bound; iPhones use the
 GPU). Decoded images 11.1–12.6 MB per coach. iPhone numbers are still to be
 measured.
+
+## Evidence (2026-11-25, before the audio-path TestFlight build)
+
+`docs/avatar/evidence/2026-11-25/` (4 MB): per coach, the native audio path
+(`AVATAR_DEMO_MODE=audio`: loudness only, as on iOS 15/16; no word markers)
+speaking one line (Ava and Ethan in English, Sofía and Diego in Spanish)
+with its audio, a mouth contact sheet at 10 fps labeled with the shown shape
+and jaw, and 9 s of listening, thinking and idle. Rendered by
+`tool/avatar/render_demo_test.dart` with the app's own driver and painter.
+The voices are Kokoro (offline stand-ins), not the iPhone's voices.
+
+What the frames show:
+
+* No seams at the patch edges, no teeth through closed lips (hard
+  switches), irises stay the portrait's brown in the blink and glance
+  frames, and blinks close both eyes evenly (single and double blinks).
+* The open vowels (`a`, `a2`, `e`, `l`) show the teeth together with the
+  lips drawn apart: there is no open mouth cavity. At full jaw (loud
+  syllables, 1–4% of speaking frames) the jaw warp stretches the lower lip
+  and lower teeth downward instead of opening the mouth. This comes from the
+  generated frames, not the timing; better frames need a regeneration with a
+  wider jaw opening (`tool/avatar/regenerate.sh`).
+* `o`/`o2` are strong puckers; Spanish lines (Diego: a quarter of the frames)
+  look more pursed than real Spanish speech.
+* Only the mouth, eyelids and a small whole-head transform move: no
+  eyebrows, cheeks or head turns.
 
 ## Blocked / to do
 

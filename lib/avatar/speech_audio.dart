@@ -20,7 +20,9 @@ sealed class SpeechAudioEvent {
       'levels' => SpeechAudioLevels(d(raw['t0']), d(raw['hop']), [for (final v in (raw['v'] as List? ?? const [])) d(v)]),
       'marker' => SpeechAudioMarker((raw['start'] as num).toInt(), (raw['end'] as num).toInt(), d(raw['t'])),
       'synthesized' => const SpeechAudioSynthesized(),
-      'done' => SpeechAudioDone(interrupted: raw['interrupted'] != null && raw['interrupted'] != false),
+      'done' => SpeechAudioDone(
+          interrupted: raw['interrupted'] != null && raw['interrupted'] != false,
+          reason: raw['interrupted'] is String ? raw['interrupted'] as String : null),
       'error' => SpeechAudioError('${raw['message']}', started: raw['started'] == true),
       _ => null,
     };
@@ -57,10 +59,14 @@ class SpeechAudioSynthesized extends SpeechAudioEvent {
 }
 
 class SpeechAudioDone extends SpeechAudioEvent {
-  const SpeechAudioDone({this.interrupted = false});
+  const SpeechAudioDone({this.interrupted = false, this.reason});
 
   /// Cut short (interruption, lost route, engine reset): not a normal end.
   final bool interrupted;
+
+  /// Why it was cut short, when the native side says: "interruption",
+  /// "route", "engine" or "background".
+  final String? reason;
 }
 
 class SpeechAudioError extends SpeechAudioEvent {
@@ -151,10 +157,17 @@ class AudioAlignment {
 
   bool get hasLevels => _levels.isNotEmpty;
 
-  /// Appends loudness values starting at audio time [t0].
+  /// Adds loudness values starting at audio time [t0].
+  ///
+  /// Each native buffer ends with a partial hop (a buffer is rarely a whole
+  /// number of hops), so a buffer can bring one value more than the time it
+  /// covers. Values are placed at [t0], replacing such an overhang: appending
+  /// them instead put the loudness behind the audio by up to one hop per
+  /// buffer (about 0.35 s after 5 s of 1024-frame buffers).
   void addLevels(double t0, double hop, List<double> values) {
     _hop = hop;
     final startIndex = (t0 / hop).round();
+    if (_levels.length > startIndex) _levels.removeRange(startIndex, _levels.length);
     while (_levels.length < startIndex) {
       _levels.add(0);
     }
@@ -370,8 +383,15 @@ class AudioAlignment {
   List<int>? _mk;
   List<double>? _mt;
 
-  /// Markers that make sense: in word order, and not past the audio
-  /// (a unit mistake would put them there); otherwise none are used.
+  /// The last marked word must start at least this fraction of the time the
+  /// plan's proportions predict for it in the audio.
+  static const double markerPlausible = 0.7;
+
+  /// Markers that make sense: in word order, not past the audio, and not
+  /// squeezed into its first part; otherwise none are used (the loudness
+  /// warp maps the plan instead). Either unit mistake in converting the
+  /// byte offsets (bytes vs. samples, 2 or 4 bytes per sample) would put the
+  /// markers past the audio or at a half or a quarter of their real times.
   void _rebuildMarkers() {
     final ks = _markers.keys.toList()..sort();
     final audioLen = _levels.length * _hop;
@@ -380,6 +400,16 @@ class AudioAlignment {
       final t = _markers[ks[i]]!;
       if (i > 0 && t < _markers[ks[i - 1]]!) ok = false;
       if (_complete && t > audioLen + 0.1) ok = false;
+    }
+    if (ok && _complete && ks.length >= 3 && _peak > 0 && timeline.words.isNotEmpty) {
+      var last = _levels.length - 1;
+      while (last > 0 && _levels[last] <= silenceRatio * _peak) {
+        last--;
+      }
+      final voicedEnd = (last + 1) * _hop;
+      final planEnd = timeline.words.last.end;
+      final expected = planEnd > 0 ? timeline.words[ks.last].start / planEnd * voicedEnd : 0.0;
+      if (expected > 0.5 && _markers[ks.last]! < markerPlausible * expected) ok = false;
     }
     _mk = ok ? ks : const [];
     _mt = ok ? [for (final k in ks) _markers[k]!] : const [];
