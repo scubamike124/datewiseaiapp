@@ -1,0 +1,143 @@
+name: iOS simulator release E2E
+
+# End-to-end test of the app's own widgets on an iPhone simulator before a
+# TestFlight build: the gold Send button, Find a table / Plan a table (EN and
+# ES), and the talking avatar of all four coaches reading a reply aloud
+# through the native AVSpeechSynthesizer audio path (DW_AVATAR_AUDIO_PATH).
+#
+# Offline and $0: the demo coach (DW_MOCK_AI) and the review build's simulated
+# store (DW_FAKE_STORE). No request reaches the coach backend, no Apple
+# account, nothing is signed, uploaded or submitted. Speech recognition is a
+# stand-in (the simulator cannot grant it); speech output is the real one.
+#
+# Evidence (artifact ios-sim-release-e2e): screenshots of every step, the
+# avatar window at 3x while each coach speaks, and summary.json with the
+# measurements (mouth shapes, audio levels, blinks, voices, launched URLs).
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - claude/ios-sim-e2e
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-sim-release-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.47.9'
+
+jobs:
+  release-e2e:
+    name: Release E2E (iOS simulator)
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Toolchain
+        run: |
+          flutter --version
+          xcodebuild -version
+          sw_vers
+          # The simulator plays audio through the host: record whether the runner has an output device.
+          system_profiler SPAudioDataType || true
+
+      - run: flutter pub get
+
+      - name: Pick and boot an iPhone simulator
+        id: sim
+        run: |
+          xcrun simctl list runtimes
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, re, sys
+          d = json.load(sys.stdin)["devices"]
+          def ver(rt):
+              m = re.search(r"iOS-(\d+)-(\d+)", rt)
+              return (int(m[1]), int(m[2])) if m else (0, 0)
+          rts = [r for r in d if "iOS" in r and any(x["name"].startswith("iPhone") for x in d[r])]
+          rt = max(rts, key=ver)
+          phones = [x for x in d[rt] if x["name"].startswith("iPhone")]
+          pro = [x for x in phones if "Pro" in x["name"] and "Max" not in x["name"]]
+          phone = (pro or phones)[0]
+          print(phone["udid"])
+          print("%s on %s" % (phone["name"], rt), file=sys.stderr)
+          ')
+          test -n "$UDID"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+
+      - name: flutter test integration_test/release_e2e_test.dart
+        run: |
+          set -o pipefail
+          OUT="$PWD/build/release-e2e"
+          mkdir -p "$OUT/sim-screens"
+          UDID="${{ steps.sim.outputs.udid }}"
+          # Whole-simulator screenshots every 20 s (keyboard and system UI included) and the app's log.
+          ( for i in $(seq 1 90); do sleep 20; xcrun simctl io "$UDID" screenshot "$OUT/sim-screens/$i.png" >/dev/null 2>&1 || true; done ) &
+          SHOTS=$!
+          xcrun simctl spawn "$UDID" log stream --style compact \
+            --predicate 'process == "Runner" OR subsystem BEGINSWITH "com.apple.speech" OR subsystem BEGINSWITH "com.apple.coreaudio" OR subsystem BEGINSWITH "com.apple.avfaudio"' \
+            > "$OUT/simulator.log" 2>&1 &
+          LOGS=$!
+          trap 'kill $SHOTS $LOGS 2>/dev/null || true' EXIT
+          flutter test integration_test/release_e2e_test.dart -d "$UDID" -r expanded \
+            --dart-define=DW_AVATAR_AUDIO_PATH=true \
+            --dart-define=DW_MOCK_AI=true \
+            --dart-define=DW_FAKE_STORE=true \
+            --dart-define=E2E_OUT_DIR="$OUT" \
+            2>&1 | tee "$OUT/flutter-test.log"
+
+      - name: Collect evidence from the app's container
+        if: always()
+        run: |
+          OUT="$PWD/build/release-e2e"
+          mkdir -p "$OUT/app-tmp"
+          C=$(xcrun simctl get_app_container "${{ steps.sim.outputs.udid }}" com.datewise.datewiseAi data 2>/dev/null || true)
+          if [ -n "$C" ] && [ -d "$C/tmp/release-e2e" ]; then cp -R "$C/tmp/release-e2e/." "$OUT/app-tmp/"; fi
+          ls -la "$OUT" "$OUT/app-tmp" | head -100
+
+      - name: Scenario summary
+        if: always()
+        run: |
+          S=build/release-e2e/summary.json
+          [ -f "$S" ] || S=build/release-e2e/app-tmp/summary.json
+          {
+            echo "## iOS simulator release E2E"
+            echo ""
+            if [ -f "$S" ]; then
+              python3 - "$S" <<'PY'
+          import json, sys
+          s = json.load(open(sys.argv[1]))
+          print("| Scenario | Result |")
+          print("|---|---|")
+          for name, v in s.get("scenarios", {}).items():
+              print("| %s | %s |" % (name, v.get("result")))
+          print("")
+          print("```json")
+          print(json.dumps(s, indent=1)[:60000])
+          print("```")
+          PY
+            else
+              echo '```'
+              grep -E '\[release-e2e\]|All tests passed|Some tests failed|EXCEPTION' build/release-e2e/flutter-test.log | head -100 || echo "(no test output)"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: always()
+        with:
+          name: ios-sim-release-e2e
+          path: build/release-e2e
+          retention-days: 7
+          if-no-files-found: ignore
