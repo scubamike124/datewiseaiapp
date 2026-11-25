@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DateWise AI · Coaches</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#141217;color:#f7f4f1;font:17px/1.45 system-ui}main{width:min(100%,540px);margin:auto;padding:20px}header{display:flex;align-items:baseline;justify-content:space-between}h1{font:42px Georgia,serif;margin:.2em 0}header span{color:#ddd1bf}video{display:block;width:100%;height:min(54svh,530px);background:#201e22;border-radius:16px;object-fit:contain}button{font:inherit;border:1px solid #807783;border-radius:10px;background:#28242d;color:white;padding:12px 14px;cursor:pointer}button[aria-pressed=true]{background:#e9dbca;color:#281f24}nav{display:flex;gap:8px;flex-wrap:wrap}p{margin:14px 0}</style></head>
+<body><main><header><h1 id="coach">Ava</h1><span>DateWise AI</span></header>
+<video controls playsinline preload="metadata" poster="ava/relaxed.jpg" src="ava/natural-speech.mp4" aria-label="Ava speaking"></video>
+<p id="status" role="status">Relaxed expression · English · 10 seconds</p>
+<nav aria-label="Choose a coach or recording"><button data-src="ava/natural-speech.mp4" data-label="Relaxed expression · English · 10 seconds" aria-pressed="true">Relaxed expression</button></nav></main>
+<script>
+const player = document.querySelector('video');
+const statusLine = document.querySelector('#status');
+const menu = document.querySelector("nav");
+function bindChoice(choice) {
+  choice.onclick = async () => {
+    if (player.getAttribute('src') !== choice.dataset.src) player.src = choice.dataset.src;
+    const name = choice.dataset.name || "Ava";
+    document.querySelector("#coach").textContent = name;
+    player.setAttribute("aria-label", name + " speaking");
+    if (name === "Ava") player.poster = "ava/relaxed.jpg";
+    else player.removeAttribute("poster");
+    player.currentTime = 0;
+    for (const item of menu.querySelectorAll("button")) item.setAttribute('aria-pressed', String(item === choice));
+    statusLine.textContent = choice.dataset.label;
+    try { await player.play(); } catch { statusLine.textContent = 'Tap the video play button to begin.'; }
+  };
+}
+for (const choice of menu.querySelectorAll("button")) bindChoice(choice);
+fetch("ava/lines.json", {cache:"no-cache"}).then(response => {
+  if (!response.ok) throw new Error("Catalog unavailable");
+  return response.json();
+}).then(lines => {
+  for (const line of lines) {
+    if (!/^ava\/[a-f0-9]{24}\.mp4$/.test(line.src)) continue;
+    const choice = document.createElement("button");
+    const names = {ava: "Ava", ethan: "Ethan", diego: "Diego", sofia: "Sofía"};
+    choice.dataset.name = names[line.coach || "ava"];
+    choice.textContent = line.coach && line.coach !== "ava" ? line.title + " · " + line.language : line.title;
+    choice.dataset.src = line.src;
+    choice.dataset.label = [line.title, line.language, line.seconds + " seconds"].join(" · ");
+    choice.setAttribute("aria-pressed", "false");
+    bindChoice(choice);
+    menu.append(choice);
+  }
+}).catch(() => { /* The approved reference stays playable offline. */ });
+</script></body></html>
