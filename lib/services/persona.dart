@@ -35,7 +35,7 @@ Write the labels and messages in the language of your reply. Do not use this lin
   /// matching block goes into the prompt; an unknown country gets `ANY`.
   /// Mirrors `CRISIS_LINES` in backend/coach_prompts.js character for
   /// character (backend/cost_guard.test.mjs checks it). The static "Get help
-  /// now" screen (lib/content/crisis_lines.dart) shows the same numbers
+  /// now" screen (lib/screens/get_help_screen.dart) shows the same numbers
   /// without the AI.
   static const Map<String, String> crisisLines = {
     'US': '''US: call or text 988 (Suicide & Crisis Lifeline, free, 24/7, Spanish available); danger: 911; abuse: National Domestic Violence Hotline 1-800-799-7233 or text START to 88788.''',

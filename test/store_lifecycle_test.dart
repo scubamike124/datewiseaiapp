@@ -17,6 +17,22 @@ class _QuietIap extends Fake implements InAppPurchase {
   Future<bool> isAvailable() async => false;
 }
 
+/// Availability stays pending until the test completes it, so the store is disposed while it waits.
+class _PendingAvailabilityIap extends Fake implements InAppPurchase {
+  _PendingAvailabilityIap(this._avail);
+  final Completer<bool> _avail;
+  int listens = 0;
+
+  @override
+  Stream<List<PurchaseDetails>> get purchaseStream {
+    listens++;
+    return const Stream.empty();
+  }
+
+  @override
+  Future<bool> isAvailable() => _avail.future;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -39,6 +55,16 @@ void main() {
     // Notifies every owner-access listener. A disposed store must not be one of them, and must not throw.
     await OwnerAccess.instance.clear();
     expect(notified, 0, reason: 'a disposed store must not notify its listeners');
+  });
+
+  test('a store disposed while availability is pending never starts a purchase-stream listener', () async {
+    final avail = Completer<bool>();
+    final iap = _PendingAvailabilityIap(avail);
+    final store = AppStoreService(iap: iap, appStoreSync: () async {});
+    store.dispose();
+    avail.complete(true);
+    await Future<void>.delayed(Duration.zero);
+    expect(iap.listens, 0, reason: 'a disposed store must not subscribe to the purchase stream');
   });
 
   test('a second store replaces the hook, and disposing the first does not clear the second', () {
