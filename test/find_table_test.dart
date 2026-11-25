@@ -94,6 +94,26 @@ void main() {
     expect(FindTableLink.isDatePlan([user('Rewrite my dating bio.'), user('Help me prepare for a date.')]), isFalse);
   });
 
+  test('the link also appears when the latest message asks about a restaurant or a reservation (EN and ES)', () {
+    ChatMessage user(String t) => ChatMessage(id: t, role: MessageRole.user, text: t, createdAt: DateTime(2026));
+    final greeting = ChatMessage(id: 'g', role: MessageRole.coach, text: 'Hi', createdAt: DateTime(2026));
+    for (final p in [
+      'Can you book reservations?',
+      'Can you help me book a table for two on Friday?',
+      'Where should we go for dinner?',
+      'Any romantic restaurants near me?',
+      '¿Puedes hacer una reserva?',
+      'Busco un restaurante romántico para el sábado',
+      '¿Dónde podemos cenar?',
+    ]) {
+      expect(FindTableLink.wantsTable([greeting, user(p)]), isTrue, reason: p);
+    }
+    expect(FindTableLink.wantsTable([greeting, user('Help me reply to a message.')]), isFalse);
+    expect(FindTableLink.wantsTable([greeting]), isFalse);
+    // The latest user message decides: an earlier restaurant question does not keep the link forever.
+    expect(FindTableLink.wantsTable([user('Any restaurants?'), user('How do I text her back?')]), isFalse);
+  });
+
   testWidgets('EN: shown under the reply on the date path, launches only on tap', (tester) async {
     final app = await pumpApp(tester, prefs: onboardedPrefs());
     await openDatePlan(tester, app);

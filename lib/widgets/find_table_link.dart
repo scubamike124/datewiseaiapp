@@ -51,6 +51,24 @@ class FindTableLink extends StatelessWidget {
     return false;
   }
 
+  /// Restaurant or reservation words, English and Spanish, whole words only.
+  static final RegExp _tableWords = RegExp(
+    r"\b(reservations?|reserve|book(ing)? a table|restaurants?|dinner|table for|reservas?|reservar|restaurantes?|cena|cenar|mesa para)\b",
+    caseSensitive: false,
+    unicode: true,
+  );
+
+  /// Whether the link belongs under the latest reply: a first-date-plan
+  /// conversation, or the user's latest message asks about a restaurant or a
+  /// reservation (so the coach's "tap Find a table" advice always has the button).
+  static bool wantsTable(List<ChatMessage> messages) {
+    if (isDatePlan(messages)) return true;
+    for (final m in messages.reversed) {
+      if (m.isUser) return _tableWords.hasMatch(m.text);
+    }
+    return false;
+  }
+
   Future<void> _open(BuildContext context) async {
     final uri = AppLinks.findTableUri(context.l10n.findTableQuery);
     final ok = await launch(uri).catchError((_) => false);

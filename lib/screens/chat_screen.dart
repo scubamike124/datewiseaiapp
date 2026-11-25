@@ -212,7 +212,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       if (fromVoice) _keepTranscript(text, note: false);
       return;
     }
-    await _voice.stop();
+    // The speech engine can fail to report that it stopped (seen on iPhone): never let that block a send.
+    await _voice.stop().timeout(const Duration(milliseconds: 1500), onTimeout: () {});
     final sent = await _state.sendMessage(text, onAccepted: () {
       if (fromComposer && mounted && _input.text == text) _input.clear();
     });
@@ -1175,7 +1176,7 @@ class _MessageList extends StatelessWidget {
         [ChatMessage(id: 'greeting', role: MessageRole.coach, text: coach.greeting, createdAt: DateTime(2026))];
     final hasUser = messages.any((m) => m.isUser);
     // First-date plans: "Find a table" under the coach's latest reply.
-    final datePlan = FindTableLink.available && FindTableLink.isDatePlan(messages);
+    final datePlan = FindTableLink.available && FindTableLink.wantsTable(messages);
 
     final items = <Widget>[
       if (showIntro) _IntroCard(coach: coach),
