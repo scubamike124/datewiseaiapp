@@ -482,7 +482,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (!_listening || gen != _listenGen) return;
     final mine = ++_listenGen;
     // A recognizer that never reports its result must not swallow what was said: after [stopWait] what was heard so
-    // far is used, and recognition is cancelled.
+    // far is used, and recognition is canceled.
     final words = await _speech.stop().timeout(stopWait, onTimeout: () {
       _speech.cancel();
       return '';

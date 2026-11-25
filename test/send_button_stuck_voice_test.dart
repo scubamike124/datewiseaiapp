@@ -127,7 +127,7 @@ void micTests() {
     await settleReply(t, app.state);
 
     expect(_users(app), ['Where should we go for dinner']);
-    expect(speech.cancels, greaterThanOrEqualTo(1), reason: 'the recognizer is cancelled, releasing the microphone');
+    expect(speech.cancels, greaterThanOrEqualTo(1), reason: 'the recognizer is canceled, releasing the microphone');
   });
 
   testWidgets('a short press while the coach is still speaking and its stop hangs sends the new words, once', (t) async {
