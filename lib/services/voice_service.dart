@@ -496,7 +496,13 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
     }
 
     bool free(Map<String, String> v) => !avoid.contains(v['identifier'] ?? '${v['name']}|${v['locale']}');
-    return best((v) => genderMatch(v) == true && free(v)) ??
+    // The old novelty voices (Fred, Albert...) only as a last resort: a real voice of the coach's gender in a later
+    // locale (en-GB Daniel) beats one in the first locale. Seen on the iOS simulator, which has no other en-US male
+    // voice: Ethan spoke as Fred.
+    bool real(Map<String, String> v) => quality(v) > 0;
+    return best((v) => genderMatch(v) == true && real(v) && free(v)) ??
+        best((v) => genderMatch(v) == true && real(v)) ??
+        best((v) => genderMatch(v) == true && free(v)) ??
         best((v) => genderMatch(v) == true) ??
         best((v) => genderMatch(v) == null && free(v)) ??
         best((v) => genderMatch(v) == null) ??
