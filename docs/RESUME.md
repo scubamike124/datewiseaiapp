@@ -23,8 +23,9 @@ Owner rules: AGENTS.md. $0 spend unless the owner approves. No App Store review 
 - PR #57 checks are green (test, staging-dry-run, worker, unsigned build). PR #54 head be7c04e: iOS build and StoreKit E2E green;
   backend suite 143/143 on that commit.
 - Avatar licences (from docs/research/avatar-tech-2026-11-24/imtalker-cpu/REPORT.md): IMTalker code Apache-2.0, weights MIT,
-  wav2vec2 Apache-2.0, MediaPipe Apache-2.0. Open item: the S3FD/FAN face-detector weights (licence unstated). Replace them with
-  MediaPipe (Apache-2.0) so every component is clean. Training data for the MIT weights is unnamed: record as a residual risk.
+  wav2vec2 Apache-2.0, MediaPipe Apache-2.0. Face detector: the CPU run (docs/research/avatar-tech-2026-11-24/imtalker-cpu/tools/run_cpu.py) stubs out
+  face_alignment, so the S3FD/FAN weights never load; cropping uses MediaPipe FaceLandmarker (Apache-2.0 package). Still to
+  confirm: the licence of the FaceLandmarker model file itself. Training data for the MIT weights is unnamed: record as a residual risk.
 - IMTalker on CPU: 50-90 s to render one second of video. Best lip closure of the three free options tested (Ditto, MuseTalk,
   IMTalker). Offline clips only until a GPU exists.
 - Voices: Piper (current repo GPL-3.0, older MIT release), Coqui XTTS-v2 (non-commercial weights, do not use), Cartesia (free tier not
@@ -34,7 +35,7 @@ Owner rules: AGENTS.md. $0 spend unless the owner approves. No App Store review 
 1. Merge PR #57, then PR #54, once required checks pass and the independent reviews approve.
 2. App Store subscription metadata: check `datewise_premium_monthly` through the App Store Connect API using the existing key
    secrets (read-only), and list exactly which fields are missing. Do not ask the owner to repeat steps already done.
-3. Avatar: swap the S3FD/FAN detector for MediaPipe, then render the four coach clips on CPU, check them against the approved
+3. Avatar: confirm the FaceLandmarker model-file licence, then render the four coach clips on CPU, check them against the approved
    portraits, and wire them into the existing clip player.
 4. Voice: choose a commercially licensed TTS route and record its licence per voice.
 5. Device checks still needed: purchase, restore, renew, cancel, refund; Spanish chat; voice pace; lip sync; keyboard behaviour.
