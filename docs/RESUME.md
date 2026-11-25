@@ -31,11 +31,20 @@ Owner rules: AGENTS.md. $0 spend unless the owner approves. No App Store review 
 - Voices: Piper (current repo GPL-3.0, older MIT release), Coqui XTTS-v2 (non-commercial weights, do not use), Cartesia (free tier not
   licensed for commercial use). Pick a commercially licensed voice route and record the licence per voice.
 
+## Voice test results (2026-11-25, measured on this sandbox CPU: 4 vCPU, no GPU)
+- Engine: Kokoro-82M v1.0 via kokoro-onnx 0.6.1 (MIT). Weights Apache-2.0 (model card). Phonemizer espeakng-loader bundles
+  libespeak-ng (GPL-3.0): fine server-side; shipping it in the app needs legal review. Install with prebuilt wheels only.
+- English voice af_heart: 0.75-0.80x real time for batch rendering. Short sentence: about 1.5 s to first audio.
+- Spanish voices ef_dora and em_alex: 0.69-0.72x real time. Short sentence: about 1.2 s to first audio.
+- Speaking speed: speed 0.9 gives 6.7 s of audio for the Spanish test sentence, 1.0 gives 6.3 s.
+- NOT verified by ear: naturalness and Spanish pronunciation need a listening review by the owner before any choice.
+- Live use: render sentence by sentence (about 1.2-1.5 s of latency per sentence, with the next sentence rendered while the first plays).
+
 ## Open items (in order)
 1. Merge PR #57, then PR #54, once required checks pass and the independent reviews approve.
 2. App Store subscription metadata: check `datewise_premium_monthly` through the App Store Connect API using the existing key
    secrets (read-only), and list exactly which fields are missing. Do not ask the owner to repeat steps already done.
 3. Avatar: confirm the FaceLandmarker model-file licence, then render the four coach clips on CPU, check them against the approved
    portraits, and wire them into the existing clip player.
-4. Voice: choose a commercially licensed TTS route and record its licence per voice.
+4. Voice: Kokoro (MIT engine, Apache-2.0 weights) is the leading route. Owner listening review of the ef_dora and em_alex samples, then a licence check of each voice's model card before use.
 5. Device checks still needed: purchase, restore, renew, cancel, refund; Spanish chat; voice pace; lip sync; keyboard behaviour.
