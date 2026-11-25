@@ -27,7 +27,7 @@ export const CHAT_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 export const GROUPS = ['errors', 'coaches', 'memory', 'safety', 'concurrency', 'burst'];
 // Test-day limits the SIMULATED run uses on top of backend/wrangler.toml [vars]:
 // the same values the staging Worker has ([env.staging.vars]; a test checks they agree).
-export const TEST_DAY_VARS = { SANDBOX_DAILY_LIMIT: '40', SANDBOX_NEURON_BUDGET: '3000' };
+export const TEST_DAY_VARS = { SANDBOX_DAILY_LIMIT: '40', SANDBOX_NEURON_BUDGET: '3300' };
 // Output tokens assumed per full reply for the estimate (AI_COST_MODEL.md uses 250 to 300).
 const EST_OUT_TOKENS = 300;
 const EST_CANCELED_OUT_TOKENS = 20;
