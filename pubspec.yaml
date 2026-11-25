@@ -91,6 +91,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  video_player_platform_interface: ^6.9.0
 
 # App launcher icon (Android + iOS), generated from a single source image.
 # Run `dart run flutter_launcher_icons` after changing app_icon.png.

@@ -73,7 +73,8 @@ class _CoachesScreenState extends State<CoachesScreen> with VoicePreview {
     stopPreview();
     setState(() {
       _clip = clip;
-      previewingId = clip == null ? null : coach.id;
+      // The card shows as previewing only while the clip actually plays (see onPlaybackChanged).
+      previewingId = null;
     });
   }
 
@@ -109,7 +110,11 @@ class _CoachesScreenState extends State<CoachesScreen> with VoicePreview {
               ),
               const SizedBox(height: 16),
               if (_clip != null) ...[
-                CoachClipPlayer(clip: _clip!, paused: tab != AppTab.coaches),
+                CoachClipPlayer(
+                  clip: _clip!,
+                  paused: tab != AppTab.coaches,
+                  onPlaybackChanged: (playing) => setState(() => previewingId = playing ? _clip?.coachId : null),
+                ),
                 const SizedBox(height: 16),
               ],
               CoachGrid(
