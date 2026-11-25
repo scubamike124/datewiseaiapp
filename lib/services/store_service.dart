@@ -313,8 +313,22 @@ class AppStoreService extends StoreService {
   })
       : _iap = iap ?? InAppPurchase.instance,
         _appStoreSync = appStoreSync ?? (() => AppStore().sync()) {
-    EntitlementToken.refresher = refresh;
-    OwnerAccess.instance.addListener(notifyListeners);
+    EntitlementToken.refresher = _refreshIfLive;
+    OwnerAccess.instance.addListener(_onOwnerChanged);
+  }
+
+  /// Notifies listeners only while this store is alive. Purchase, restore and product callbacks can finish after
+  /// dispose, and notifying a disposed ChangeNotifier throws in debug builds.
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
+
+  void _onOwnerChanged() => _notify();
+
+  /// The token hook keeps a reference to this store, so it refreshes only while the store is alive.
+  Future<void> _refreshIfLive() async {
+    if (_disposed) return;
+    await refresh();
   }
 
   final InAppPurchase _iap;
@@ -396,7 +410,7 @@ class AppStoreService extends StoreService {
       _error ??= StoreError.storeUnreachable;
     }
     _ready = true;
-    notifyListeners();
+    _notify();
   }
 
   Future<void> _init() async {
@@ -415,7 +429,7 @@ class AppStoreService extends StoreService {
         // active. Transaction.currentEntitlements is local, so read it anyway:
         // a subscriber keeps chat and sees no paywall.
         if (_isIOS) await _readEntitlementAtLaunch();
-        notifyListeners();
+        _notify();
         return;
       }
       _sub = _iap.purchaseStream.listen(_onPurchases, onError: (Object e) {
@@ -439,7 +453,7 @@ class AppStoreService extends StoreService {
     } catch (_) {
       _error = StoreError.storeUnreachable;
     }
-    notifyListeners();
+    _notify();
   }
 
   /// Reads the iOS entitlement at launch, twice if the first read fails or
@@ -505,7 +519,7 @@ class AppStoreService extends StoreService {
         'price=${_product?.price ?? '-'}');
     // A query that finishes after a caller's timeout already notified must
     // still redraw the paywall (price, Subscribe).
-    if (!_disposed) notifyListeners();
+    _notify();
   }
 
   /// Reads the storefront country (StoreKit 2 `Storefront.current` through
@@ -545,7 +559,7 @@ class AppStoreService extends StoreService {
     // Before launch finished, init's own query is still running.
     if (!_ready || _product != null || _loadingProduct) return;
     _loadingProduct = true;
-    notifyListeners();
+    _notify();
     try {
       if (await _ensureAvailable()) {
         if (_error == StoreError.storeUnavailable) _error = null;
@@ -558,7 +572,7 @@ class AppStoreService extends StoreService {
       if (_product == null) _error ??= StoreError.productUnavailable;
     }
     _loadingProduct = false;
-    notifyListeners();
+    _notify();
   }
 
   /// Incremented by every entitlement read; only the newest read's result is
@@ -569,7 +583,7 @@ class AppStoreService extends StoreService {
   void _applyEntitlement(bool entitled) {
     if (_entitled == entitled) return;
     _entitled = entitled;
-    notifyListeners();
+    _notify();
   }
 
   /// The newest read, which superseded callers wait for (see [_refreshEntitlement]).
@@ -695,7 +709,7 @@ class AppStoreService extends StoreService {
         await _complete(p);
       }
     }
-    notifyListeners();
+    _notify();
   }
 
   /// Finishes a transaction. A failure is logged, never thrown: it must not
@@ -726,7 +740,7 @@ class AppStoreService extends StoreService {
     if (!_available || product == null) return PurchaseResult.unavailable;
     _busy = true;
     _error = null;
-    notifyListeners();
+    _notify();
     final completer = Completer<PurchaseResult>();
     _pending = completer;
     try {
@@ -738,7 +752,7 @@ class AppStoreService extends StoreService {
     final result = await completer.future
         .timeout(const Duration(minutes: 5), onTimeout: () => PurchaseResult.failed);
     _busy = false;
-    notifyListeners();
+    _notify();
     return result;
   }
 
@@ -772,7 +786,7 @@ class AppStoreService extends StoreService {
     // iOS can read its local entitlements even when purchases are unavailable.
     if (!_available && !_isIOS) return false;
     _busy = true;
-    notifyListeners();
+    _notify();
     try {
       // iOS: AppStore.sync, then read currentEntitlements. A failed sync
       // (offline, Apple ID sign-in canceled) does not hide a subscription
@@ -824,7 +838,7 @@ class AppStoreService extends StoreService {
       _error = StoreError.restoreFailed;
     }
     _busy = false;
-    notifyListeners();
+    _notify();
     return _entitled;
   }
 
@@ -852,7 +866,7 @@ class AppStoreService extends StoreService {
     } catch (_) {
       // Keep the last known state when the App Store cannot be reached.
     }
-    notifyListeners();
+    _notify();
   }
 
   bool _disposed = false;
@@ -860,7 +874,9 @@ class AppStoreService extends StoreService {
   @override
   void dispose() {
     _disposed = true;
-    OwnerAccess.instance.removeListener(notifyListeners);
+    OwnerAccess.instance.removeListener(_onOwnerChanged);
+    // Release the static hook if it still points at this store; a newer store may have replaced it.
+    if (EntitlementToken.refresher == _refreshIfLive) EntitlementToken.refresher = null;
     _sub?.cancel();
     super.dispose();
   }
