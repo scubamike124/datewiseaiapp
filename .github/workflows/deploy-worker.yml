@@ -802,12 +802,23 @@ jobs:
             # guard is used. The binding is proven by the pre-deploy dry-run binding
             # check ("Dry-run output must list the guard bindings"); the Durable
             # Object itself is first exercised by a real v2 chat.
-            code=$(curl -sS --max-time 20 -o "$RUNNER_TEMP/h.json" -w '%{http_code}' -X POST "$url/" \
-              -H 'Content-Type: application/json' \
-              --data '{"coachId":"ava","messages":[{"role":"user","content":"deploy health check"}]}') || true
-            body_code=$(node -e 'try{process.stdout.write(String(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).code||""))}catch{}' "$RUNNER_TEMP/h.json")
-            echo "health: HTTP $code code=$body_code"
-            [ "$code" = "403" ] && [ "$body_code" = "SUBSCRIPTION_REQUIRED" ] || fail "health check expected 403 SUBSCRIPTION_REQUIRED, got $code $body_code"
+            # The very first request after an upload can hit a Worker that is still starting
+            # (deploy run 7 got one 502 within a second of going live, then 403 ever after), so
+            # retry for up to about 30 seconds before calling it a failure. Each attempt is the
+            # same token-less request: refused by the subscription check, no model call.
+            health_ok=""
+            code=""; body_code=""
+            for h in 1 2 3 4 5 6; do
+              rm -f "$RUNNER_TEMP/h.json"
+              code=$(curl -sS --max-time 20 -o "$RUNNER_TEMP/h.json" -w '%{http_code}' -X POST "$url/" \
+                -H 'Content-Type: application/json' \
+                --data '{"coachId":"ava","messages":[{"role":"user","content":"deploy health check"}]}') || true
+              body_code=$(node -e 'try{process.stdout.write(String(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).code||""))}catch{}' "$RUNNER_TEMP/h.json")
+              echo "health attempt $h: HTTP $code code=$body_code"
+              if [ "$code" = "403" ] && [ "$body_code" = "SUBSCRIPTION_REQUIRED" ]; then health_ok=1; break; fi
+              sleep 5
+            done
+            [ -n "$health_ok" ] || fail "health check expected 403 SUBSCRIPTION_REQUIRED, last answer $code $body_code"
           else
             # chat-v6: a plain GET is refused with 405 and makes no model call.
             code=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "$url/") || true
