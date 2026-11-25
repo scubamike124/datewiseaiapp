@@ -63,7 +63,10 @@ class KokoroTimeline {
     final list = j['sentences'];
     if (list is! List) throw const FormatException('kokoro timeline: sentences is required');
     final fpsRaw = j['fps'];
-    final fps = fpsRaw is num ? fpsRaw.toInt() : 10;
+    if (fpsRaw != null && (fpsRaw is! num || !fpsRaw.isFinite || fpsRaw <= 0)) {
+      throw const FormatException('kokoro timeline: fps must be a positive finite number');
+    }
+    final fps = fpsRaw == null ? 10 : (fpsRaw as num).toInt();
     if (fps <= 0) throw const FormatException('kokoro timeline: fps must be positive');
     final sentences = <KokoroSentence>[];
     for (final s in list) {
