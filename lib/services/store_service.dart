@@ -420,6 +420,8 @@ class AppStoreService extends StoreService {
       } catch (_) {
         _available = false;
       }
+      // The store can be disposed while isAvailable() is pending; never subscribe on a disposed store.
+      if (_disposed) return;
       _diag.canMakePayments = _available;
       if (!_available) {
         debugPrint('[DW store] canMakePayments=false: the App Store is not available on this device');
@@ -640,6 +642,7 @@ class AppStoreService extends StoreService {
   }
 
   Future<void> _onPurchases(List<PurchaseDetails> list) async {
+    if (_disposed) return;
     for (final p in list) {
       if (p.productID != StoreConfig.productId) {
         // Finish stray transactions (e.g. a removed sandbox product) so the

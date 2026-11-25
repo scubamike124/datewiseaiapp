@@ -33,10 +33,12 @@ void main() {
 
   test('owner-access changes after dispose do not reach the disposed store', () async {
     final store = AppStoreService(iap: _QuietIap(), appStoreSync: () async {});
+    var notified = 0;
+    store.addListener(() => notified++);
     store.dispose();
     // Notifies every owner-access listener. A disposed store must not be one of them, and must not throw.
     await OwnerAccess.instance.clear();
-    expect(store.isEntitled, isFalse);
+    expect(notified, 0, reason: 'a disposed store must not notify its listeners');
   });
 
   test('a second store replaces the hook, and disposing the first does not clear the second', () {
