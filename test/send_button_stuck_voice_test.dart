@@ -48,8 +48,8 @@ void main() {
 
 /// A recognizer that hears [words]; with [stuckStop] its stop() never returns (the engine failed to report it).
 class _Speech extends NoSpeechService {
-  _Speech({this.words = 'Where should we go for dinner', this.stuckStop = false});
-  final String words;
+  _Speech({this.stuckStop = false});
+  static const words = 'Where should we go for dinner';
   final bool stuckStop;
   int starts = 0;
 
