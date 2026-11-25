@@ -126,7 +126,9 @@ final class StoreKitTestBridge {
   }
 
   private func reset(_ s: SKTestSession) {
-    s.resetToDefaultState()
+    // Experiment (CI-verified): the per-scenario resetToDefaultState() appears to restart StoreKit Test's
+    // transaction id counter, so the first purchase of each scenario gets id 0, which the plugin cannot finish.
+    // This only clears transactions. Every setting below is set explicitly, so the scenario state is unchanged.
     s.clearTransactions()
     s.disableDialogs = true
     s.askToBuyEnabled = false
