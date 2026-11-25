@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
@@ -177,6 +178,16 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
   static Duration kokoroStartTimeout = const Duration(seconds: 20);
   Timer? _audioWatchdog;
 
+  /// How long after the end of the audio received so far (plus the output latency) the native path may stay silent
+  /// before the utterance is ended here. Its "done" comes from the synthesizer's final empty buffer and the player's
+  /// played-back callbacks; if one of them never comes, the reply would otherwise stay "speaking" and its next
+  /// sentences would never be spoken.
+  static Duration audioEndGrace = const Duration(milliseconds: 2500);
+  Timer? _audioEndWatchdog;
+  final Stopwatch _audioClock = Stopwatch();
+  double _audioLatency = 0;
+  double _audioKnownEnd = 0;
+
   /// Consecutive replies whose playback did not start in time. A cold
   /// Premium voice can be slow once, so the path is turned off only after
   /// [maxStartTimeouts] in a row.
@@ -199,6 +210,7 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
   @visibleForTesting
   Future<void> dispose() async {
     _audioWatchdog?.cancel();
+    _audioEndWatchdog?.cancel();
     await _audioSub?.cancel();
     final audio = _audio;
     if (audio is KokoroSpeechAudioBackend) await audio.dispose();
@@ -265,21 +277,54 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
         _fallback = null;
         _speaking.value = true;
         lipSync.started(latency: latency);
+        _audioClock
+          ..reset()
+          ..start();
+        _audioLatency = latency;
+        _armEndWatchdog();
       case SpeechAudioLevels(:final t0, :final hop, :final values):
         lipSync.addLevels(t0, hop, values);
+        final end = t0 + values.length * hop;
+        if (end > _audioKnownEnd) _audioKnownEnd = end;
+        _armEndWatchdog();
       case SpeechAudioMarker(:final charStart, :final t):
         lipSync.addMarker(charStart, t);
       case SpeechAudioSynthesized():
         lipSync.audioComplete();
+        _armEndWatchdog();
+      case SpeechAudioDone(:final interrupted, :final reason) when interrupted && reason == 'engine' && _fallback != null:
+        // The audio engine was reset before anything was heard: speak this reply through flutter_tts (counted like
+        // a start timeout, so two in a row turn the native path off).
+        _audioFailure(replay: true, timeout: true);
       case SpeechAudioDone(:final interrupted):
         // Also after an interruption, a lost route, an engine reset or
         // backgrounding (then the rest of the reply is not spoken).
         _audioWatchdog?.cancel();
+        _audioEndWatchdog?.cancel();
         _fallback = null;
         _chunkEnded(ok: !interrupted);
       case SpeechAudioError(:final started):
         _audioFailure(replay: !started);
     }
+  }
+
+  /// (Re)arms the end watchdog once playback has started: it fires [audioEndGrace] after the audio known so far
+  /// should have been heard, and ends the utterance as if "done" had come (the next sentence follows).
+  void _armEndWatchdog() {
+    if (_fallback != null || !_audioClock.isRunning) return; // not started yet: the start watchdog covers it
+    _audioEndWatchdog?.cancel();
+    final heardAt = _audioKnownEnd + _audioLatency - _audioClock.elapsedMicroseconds / 1e6;
+    // Kokoro streams its clip over the network, so it may pause to buffer: a longer grace.
+    final grace = _audio is KokoroSpeechAudioBackend ? audioEndGrace * 4 : audioEndGrace;
+    final wait = Duration(microseconds: (math.max(0.0, heardAt) * 1e6).round()) + grace;
+    final gen = _audioGeneration;
+    _audioEndWatchdog = Timer(wait, () {
+      if (gen != _audioGeneration || gen != _generation) return;
+      _audioGeneration = -1; // a late "done" changes nothing
+      _audioClock.stop();
+      unawaited(_audio?.stop().catchError((Object _) {}));
+      _chunkEnded(ok: true);
+    });
   }
 
   /// Mouth timing for the talking avatar (lib/avatar/): fed from the
@@ -526,6 +571,12 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
     if (_audioPathOn) {
       _audioGeneration = gen;
       _fallback = viaTts;
+      _audioEndWatchdog?.cancel();
+      _audioClock
+        ..stop()
+        ..reset();
+      _audioLatency = 0;
+      _audioKnownEnd = 0;
       // Nothing heard within the timeout (a silent failure): fall back. Kokoro renders the whole reply first, so it
       // gets the longer timeout; the native path sends the Apple voice identifier, Kokoro the Kokoro voice name.
       final audio = _audio!;
@@ -560,6 +611,7 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
   /// timeout only this reply falls back, unless it happens twice in a row.
   void _audioFailure({required bool replay, bool timeout = false}) {
     _audioWatchdog?.cancel();
+    _audioEndWatchdog?.cancel();
     // Late events of this attempt (a "start" after the timeout) are ignored.
     _audioGeneration = -1;
     if (timeout) {
@@ -628,6 +680,7 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
     _releaseChunk();
     _fallback = null;
     _audioWatchdog?.cancel();
+    _audioEndWatchdog?.cancel();
     // The state is final before anything is awaited, so a stop that completes late cannot end a reply started since.
     _speaking.value = false;
     lipSync.end();
