@@ -40,6 +40,21 @@ void main() {
     );
   });
 
+  test('malformed input is refused with a FormatException, never a TypeError', () {
+    Map<String, dynamic> one(Object? mouth, {Object? start = 0, Object? duration = 1}) => {
+          'fps': 10,
+          'sentences': [
+            {'text': 'Hi', 'start_s': start, 'duration_s': duration, 'mouth': mouth},
+          ],
+        };
+    expect(() => KokoroTimeline.fromJson(one([null])), throwsFormatException);
+    expect(() => KokoroTimeline.fromJson(one(['x'])), throwsFormatException);
+    expect(() => KokoroTimeline.fromJson(one([double.infinity])), throwsFormatException);
+    expect(() => KokoroTimeline.fromJson(one([0.5], duration: 0)), throwsFormatException);
+    expect(() => KokoroTimeline.fromJson({'fps': 10, 'sentences': [1]}), throwsFormatException);
+    expect(() => KokoroTimeline.fromJson({'fps': 10, 'sentences': 'x'}), throwsFormatException);
+  });
+
   test('word timings: one per word, in order, with the exact character positions', () {
     final t = KokoroTimeline.fromJson(jsonDecode(_fixture) as Map<String, dynamic>);
     final words = t.wordTimings(_text);
