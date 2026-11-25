@@ -500,13 +500,14 @@ void main() {
       final avatarPatch = RegExp(r'^assets/avatar/(ava|ethan|sofia|diego)/[a-z0-9_]+\.(jpg|json)$');
       final images = assets.where((a) => RegExp(r'\.(jpe?g|png|webp|gif|heic)$', caseSensitive: false).hasMatch(a));
       for (final a in images) {
-        expect(a.startsWith('assets/coaches/') || avatarPatch.hasMatch(a) || a.startsWith('assets/icon/'),
+        expect(a.startsWith('assets/coaches/') || avatarPatch.hasMatch(a) || a.startsWith('assets/icon/') || a.startsWith('assets/coach_clips/'),
             isTrue, reason: a);
       }
       for (final a in assets) {
         expect(
           a.startsWith('assets/coaches/') ||
               avatarPatch.hasMatch(a) ||
+              a.startsWith('assets/coach_clips/') || // owner-approved pilot clips (PR #58)
               a.startsWith('assets/fonts/') ||
               a.startsWith('assets/icon/') ||
               a.startsWith('packages/') ||

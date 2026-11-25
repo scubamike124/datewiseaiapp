@@ -304,5 +304,10 @@
   "storeStatusNotApplicable": "no aplica",
   "storeStatusUnavailable": "no disponible",
   "storeStatusYes": "sí",
-  "storeStatusNo": "no"
+  "storeStatusNo": "no",
+  "coachClipPlay": "Reproducir clip",
+  "coachClipPause": "Pausar clip",
+  "coachClipUnavailable": "Este clip no se pudo reproducir en este dispositivo.",
+  "coachClipReference": "Referencia",
+  "coachClipOpening": "Frase de inicio"
 }

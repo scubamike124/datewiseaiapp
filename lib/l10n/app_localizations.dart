@@ -1932,6 +1932,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'no'**
   String get storeStatusNo;
+
+  /// No description provided for @coachClipPlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Play clip'**
+  String get coachClipPlay;
+
+  /// No description provided for @coachClipPause.
+  ///
+  /// In en, this message translates to:
+  /// **'Pause clip'**
+  String get coachClipPause;
+
+  /// No description provided for @coachClipUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This clip could not be played on this device.'**
+  String get coachClipUnavailable;
+
+  /// No description provided for @coachClipReference.
+  ///
+  /// In en, this message translates to:
+  /// **'Reference'**
+  String get coachClipReference;
+
+  /// No description provided for @coachClipOpening.
+  ///
+  /// In en, this message translates to:
+  /// **'Opening line'**
+  String get coachClipOpening;
 }
 
 class _AppLocalizationsDelegate

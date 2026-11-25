@@ -845,5 +845,10 @@
   "storeStatusNotApplicable": "n/a",
   "storeStatusUnavailable": "unavailable",
   "storeStatusYes": "yes",
-  "storeStatusNo": "no"
+  "storeStatusNo": "no",
+  "coachClipPlay": "Play clip",
+  "coachClipPause": "Pause clip",
+  "coachClipUnavailable": "This clip could not be played on this device.",
+  "coachClipReference": "Reference",
+  "coachClipOpening": "Opening line"
 }

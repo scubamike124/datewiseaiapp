@@ -1122,4 +1122,20 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get storeStatusNo => 'no';
+
+  @override
+  String get coachClipPlay => 'Play clip';
+
+  @override
+  String get coachClipPause => 'Pause clip';
+
+  @override
+  String get coachClipUnavailable =>
+      'This clip could not be played on this device.';
+
+  @override
+  String get coachClipReference => 'Reference';
+
+  @override
+  String get coachClipOpening => 'Opening line';
 }

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../avatar/coach_clips.dart';
 import '../models/coach.dart';
+import '../widgets/coach_clip_player.dart';
 import '../services/voice_service.dart';
 import '../state/app_state.dart';
 import '../widgets/coach_card.dart';
@@ -61,9 +63,25 @@ class CoachesScreen extends StatefulWidget {
 }
 
 class _CoachesScreenState extends State<CoachesScreen> with VoicePreview {
+  /// The approved prerecorded clip shown for the coach the user last previewed.
+  CoachClip? _clip;
+
+  /// Shows the coach's approved clip, replacing any clip or device-voice preview already playing.
+  /// The clip's own voice is the only one heard here, so switching coaches never overlaps two voices.
+  void _previewClip(Coach coach) {
+    final clip = CoachClips.referenceFor(coach.id);
+    stopPreview();
+    setState(() {
+      _clip = clip;
+      previewingId = clip == null ? null : coach.id;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    // The grid stays alive in the tab stack, so pause the clip whenever another tab is showing.
+    final tab = context.watch<ShellController>().tab;
     final l = context.l10n;
     final top = MediaQuery.paddingOf(context).top;
     return DecoratedBox(
@@ -90,11 +108,15 @@ class _CoachesScreenState extends State<CoachesScreen> with VoicePreview {
                 center: true,
               ),
               const SizedBox(height: 16),
+              if (_clip != null) ...[
+                CoachClipPlayer(clip: _clip!, paused: tab != AppTab.coaches),
+                const SizedBox(height: 16),
+              ],
               CoachGrid(
                 selectedId: state.selectedCoach.id,
                 previewingId: previewingId,
                 preferred: state.chosenLanguage ?? AppLocales.languageOf(Localizations.localeOf(context)),
-                onPreview: previewHandler(),
+                onPreview: _previewClip,
                 onChat: (coach) async {
                   stopPreview();
                   await state.selectCoach(coach.id);
