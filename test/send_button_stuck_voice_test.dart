@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:datewise_ai/screens/shell.dart';
+import 'package:datewise_ai/models/coach.dart';
 import 'package:datewise_ai/services/speech_service.dart';
 
 import 'fake_voice.dart';
@@ -46,12 +47,16 @@ void main() {
   micTests();
 }
 
-/// A recognizer that hears [words]; with [stuckStop] its stop() never returns (the engine failed to report it).
+/// A recognizer that hears one utterance per session, in order. Like the device recognizer, stop() returns the words
+/// of the session it ends and nothing for a session that never started. With [stuckStop] stop() never returns.
 class _Speech extends NoSpeechService {
-  _Speech({this.stuckStop = false});
-  static const words = 'Where should we go for dinner';
+  _Speech({List<String> utterances = const ['Where should we go for dinner'], this.stuckStop = false})
+      : _queue = [...utterances];
+  final List<String> _queue;
   final bool stuckStop;
+  String _current = '';
   int starts = 0;
+  int cancels = 0;
 
   @override
   bool get available => true;
@@ -66,43 +71,80 @@ class _Speech extends NoSpeechService {
     void Function(String words)? onEnded,
   }) async {
     starts++;
-    onWords(words);
+    _current = _queue.isEmpty ? '' : _queue.removeAt(0);
+    onWords(_current);
     return SpeechStart.started;
   }
 
   @override
-  Future<String> stop() => stuckStop ? Completer<String>().future : Future.value(words);
+  Future<String> stop() {
+    if (stuckStop) return Completer<String>().future;
+    final w = _current;
+    _current = '';
+    return Future.value(w);
+  }
+
+  @override
+  Future<void> cancel() async {
+    cancels++;
+    _current = '';
+  }
 }
 
-Future<void> _holdToTalk(WidgetTester t) async {
+Future<void> _openVoice(WidgetTester t) async {
   await t.tap(find.byKey(const ValueKey('voice-mode')));
   await t.pumpAndSettle();
+}
+
+Future<void> _hold(WidgetTester t, Duration d) async {
   final hold = await t.startGesture(t.getCenter(find.byKey(const ValueKey('hold-to-talk'))));
-  await t.pump(const Duration(seconds: 2));
+  await t.pump(d);
   await hold.up();
   await t.pump(const Duration(seconds: 3));
 }
+
+List<String>? _users(TestApp app) => app.state.activeThread?.messages.where((m) => m.isUser).map((m) => m.text).toList();
 
 void micTests() {
   testWidgets('the talk button starts listening and sends even when the voice never reports that it stopped', (t) async {
     final speech = _Speech();
     final app = await pumpApp(t, tab: AppTab.chat, voice: _StuckStopVoice(), speech: speech, prefs: onboardedPrefs());
     await t.pumpAndSettle();
-    await _holdToTalk(t);
+    await _openVoice(t);
+    await _hold(t, const Duration(seconds: 2));
     await settleReply(t, app.state);
 
     expect(speech.starts, 1, reason: 'recognition started');
-    final users = app.state.activeThread?.messages.where((m) => m.isUser).map((m) => m.text).toList();
-    expect(users, ['Where should we go for dinner']);
+    expect(_users(app), ['Where should we go for dinner']);
   });
 
-  testWidgets('what was heard is sent even when the recognizer never reports its final result', (t) async {
-    final app = await pumpApp(t, tab: AppTab.chat, speech: _Speech(stuckStop: true), prefs: onboardedPrefs());
+  testWidgets('what was heard is sent even when the recognizer never reports its final result, and the mic is released', (t) async {
+    final speech = _Speech(stuckStop: true);
+    final app = await pumpApp(t, tab: AppTab.chat, speech: speech, prefs: onboardedPrefs());
     await t.pumpAndSettle();
-    await _holdToTalk(t);
+    await _openVoice(t);
+    await _hold(t, const Duration(seconds: 2));
     await settleReply(t, app.state);
 
-    final users = app.state.activeThread?.messages.where((m) => m.isUser).map((m) => m.text).toList();
-    expect(users, ['Where should we go for dinner']);
+    expect(_users(app), ['Where should we go for dinner']);
+    expect(speech.cancels, greaterThanOrEqualTo(1), reason: 'the recognizer is cancelled, releasing the microphone');
+  });
+
+  testWidgets('a short press while the coach is still speaking and its stop hangs sends the new words, once', (t) async {
+    final voice = _StuckStopVoice();
+    final speech = _Speech(utterances: ['How do I start a conversation', 'What should I wear']);
+    final app = await pumpApp(t, tab: AppTab.chat, voice: voice, speech: speech, prefs: onboardedPrefs());
+    await t.pumpAndSettle();
+    await _openVoice(t);
+    await _hold(t, const Duration(seconds: 2));
+    await settleReply(t, app.state);
+    // The coach is speaking, and its stop will never report back.
+    await voice.speak('Start with something you noticed in their profile.', Coaches.all.first);
+    await t.pump();
+    await _hold(t, const Duration(milliseconds: 500));
+    await settleReply(t, app.state);
+
+    expect(_users(app), ['How do I start a conversation', 'What should I wear'],
+        reason: 'the second press is not lost and the first words are not sent again');
   });
 }

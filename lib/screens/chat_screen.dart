@@ -235,6 +235,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
     // The speech engine can fail to report that it stopped (seen on iPhone): never let that block a send.
     await _stopVoice();
+    // Left the chat while waiting: leaving stops a reply, so nothing is sent (the text stays in the composer).
+    if (!mounted || !widget.active) return;
     final sent = await _state.sendMessage(text, onAccepted: () {
       if (fromComposer && mounted && _input.text == text) _input.clear();
       // The user's message and the reply appear at the bottom: show them even if the list was scrolled up.
@@ -360,9 +362,19 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       _partial = '';
     });
     HapticFeedback.lightImpact();
-    await _stopVoice();
-    if (!mounted || gen != _listenGen) return;
+    // Starting from here: a release during the wait below finishes once recognition has started, instead of
+    // stopping a recognizer that is not listening yet. The wait is only for a coach who is still speaking (so the
+    // microphone does not hear the coach); otherwise recognition starts at once.
     _starting = true;
+    if (_voice.speaking.value) {
+      await _stopVoice();
+    } else {
+      unawaited(_stopVoice());
+    }
+    if (!mounted || gen != _listenGen) {
+      _starting = false;
+      return;
+    }
     // The coach's language, or the other one if the user's last message was
     // in it; each with its regional fallbacks (es-MX → es-US → es-ES → es).
     final micLanguage = ReplyLanguage.forMic(_state.selectedCoach, _state.activeThread?.messages ?? const []);
@@ -468,14 +480,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Future<void> _finishListening(int gen) async {
     if (!_listening || gen != _listenGen) return;
-    _listenGen++;
+    final mine = ++_listenGen;
     // A recognizer that never reports its result must not swallow what was said: after [stopWait] what was heard so
     // far is used, and recognition is cancelled.
     final words = await _speech.stop().timeout(stopWait, onTimeout: () {
       _speech.cancel();
       return '';
     });
-    if (!mounted) return;
+    // The session was ended meanwhile (voice closed, data deleted, a new press): nothing is sent or shown.
+    if (!mounted || mine != _listenGen) return;
     final text = words.isNotEmpty ? words : _partial;
     setState(() {
       _listening = false;

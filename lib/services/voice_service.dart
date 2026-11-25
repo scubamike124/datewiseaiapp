@@ -464,8 +464,7 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
     if (stripped.isEmpty) return;
     final gen = ++_generation;
     _releaseChunk();
-    await _tts.stop();
-    if (_audioPathOn) await _stopAudio();
+    await _stopEngines();
     if (!_audioPathOn) await _prepareAudioSession();
     if (gen != _generation) return;
     // Coaches answer in the user's language, so the voice follows the
@@ -612,15 +611,26 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
     }
   }
 
+  /// The longest a native stop may take. On an iPhone the speech engine can fail to report that it stopped; an
+  /// unbounded wait left the send button, the talk button and the next reply waiting for ever.
+  static const engineStopWait = Duration(milliseconds: 1200);
+
+  /// Stops the native audio path and flutter_tts together (not one after the other, so one that hangs cannot keep the
+  /// other speaking), each bounded by [engineStopWait]. Errors are ignored: a stop that fails has nothing left to stop.
+  Future<void> _stopEngines() => Future.wait([
+        if (_audioPathOn) _stopAudio(),
+        Future<void>(() => _tts.stop()),
+      ].map((f) => f.timeout(engineStopWait, onTimeout: () {}).catchError((_) {})));
+
   @override
   Future<void> stop() async {
     _generation++;
     _releaseChunk();
     _fallback = null;
     _audioWatchdog?.cancel();
-    if (_audioPathOn) await _stopAudio();
-    await _tts.stop();
+    // The state is final before anything is awaited, so a stop that completes late cannot end a reply started since.
     _speaking.value = false;
     lipSync.end();
+    await _stopEngines();
   }
 }

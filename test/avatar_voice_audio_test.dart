@@ -98,6 +98,24 @@ void main() {
     expect(s.speaking.value, isFalse, reason: 'the current utterance still ends normally');
   });
 
+  test('a native stop that never reports back: stop() ends the speech at once and returns, and the next reply is spoken', () async {
+    final audio = FakeAudio();
+    final s = DeviceVoiceService.forTesting(FlutterTts(), voices, audio: audio);
+    await s.speak('Hi, I am Ava.', Coaches.ava);
+    audio.controller.add(const SpeechAudioStarted());
+    expect(s.speaking.value, isTrue);
+    holdStop = Completer<void>(); // flutter_tts stop() hangs, as seen on an iPhone
+    final watch = Stopwatch()..start();
+    final stopping = s.stop();
+    expect(s.speaking.value, isFalse, reason: 'the stage stops speaking before anything is awaited');
+    await stopping;
+    expect(watch.elapsed, lessThan(const Duration(seconds: 3)), reason: 'bounded');
+    await s.speak('Next reply.', Coaches.ava);
+    expect(audio.spoken, hasLength(2), reason: 'the next reply is spoken although the old stop never finished');
+    holdStop!.complete();
+    await s.dispose();
+  });
+
   test('audio path: native speech with the chosen voice; levels drive the jaw; done ends it', () async {
     final audio = FakeAudio();
     final s = DeviceVoiceService.forTesting(FlutterTts(), voices, audio: audio);
