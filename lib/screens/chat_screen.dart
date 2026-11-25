@@ -233,10 +233,19 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       if (fromVoice) _keepTranscript(text, note: false);
       return;
     }
-    // The speech engine can fail to report that it stopped (seen on iPhone): never let that block a send.
-    await _stopVoice();
-    // Left the chat while waiting: leaving stops a reply, so nothing is sent (the text stays in the composer).
-    if (!mounted || !widget.active) return;
+    // The speech engine can fail to report that it stopped (seen on iPhone): never let that block a send. The wait is
+    // only for a coach who is still speaking; otherwise the message goes at once.
+    if (_voice.speaking.value) {
+      await _stopVoice();
+    } else {
+      unawaited(_stopVoice());
+    }
+    // Left the chat while waiting: leaving stops a reply, so nothing is sent. Typed text is still in the composer; what
+    // was said is put there too.
+    if (!mounted || !widget.active) {
+      if (mounted && fromVoice) _keepTranscript(text, note: false);
+      return;
+    }
     final sent = await _state.sendMessage(text, onAccepted: () {
       if (fromComposer && mounted && _input.text == text) _input.clear();
       // The user's message and the reply appear at the bottom: show them even if the list was scrolled up.

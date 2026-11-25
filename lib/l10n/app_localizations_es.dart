@@ -832,7 +832,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get planTableHonest =>
-      'DateWise no puede ver la disponibilidad ni reservar. La página de OpenTable muestra las mesas disponibles y ahí reservas. Solo se envía lo que escribas aquí, cuando tocas una búsqueda.';
+      'DateWise no puede ver la disponibilidad ni reservar. La página de OpenTable muestra las mesas disponibles y ahí reservas. Solo se envía lo que indiques aquí, cuando tocas una búsqueda.';
 
   @override
   String get planTableArea => 'Zona o ciudad';
@@ -844,7 +844,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get planTableCuisine => 'Tipo de comida (opcional)';
 
   @override
-  String get planTableCuisineHint => 'p. ej. italiana';
+  String get planTableCuisineHint => 'p. ej. italianos';
 
   @override
   String get planTableBudget => 'Presupuesto (opcional)';

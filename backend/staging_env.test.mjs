@@ -98,7 +98,7 @@ test('staging: production security settings, test-sized limits inside the free a
   }
   // Test-sized limits.
   assert.equal(v.SANDBOX_DAILY_LIMIT, '40');
-  assert.equal(v.SANDBOX_NEURON_BUDGET, '3000');
+  assert.equal(v.SANDBOX_NEURON_BUDGET, '3300');
   const daily = Number(v.DAILY_NEURON_BUDGET);
   assert.ok(daily > 0 && daily <= 4000, 'DAILY_NEURON_BUDGET at most 4000 (free allowance is 10,000 a day per account)');
   assert.ok(Number(v.SANDBOX_NEURON_BUDGET) <= daily);
@@ -139,7 +139,7 @@ test('workflow check: the real wrangler.toml passes for chat-v7 and chat-v7-stag
   for (const target of ['chat-v7-cost-guard', 'chat-v7-staging']) {
     const r = runCheck(target, toml);
     assert.ok(r.ok, r.out);
-    assert.match(r.out, /\[env\.staging\] name=datewise-coach-staging SANDBOX_DAILY_LIMIT=40 SANDBOX_NEURON_BUDGET=3000/);
+    assert.match(r.out, /\[env\.staging\] name=datewise-coach-staging SANDBOX_DAILY_LIMIT=40 SANDBOX_NEURON_BUDGET=3300/);
   }
   // chat-v7-staging needs [env.staging].
   const noStaging = toml.slice(0, toml.indexOf('# STAGING:'));
@@ -168,7 +168,7 @@ test('workflow check: a broken staging section fails (on staging and production 
     [broken('DAILY_NEURON_BUDGET = "4000"', 'DAILY_NEURON_BUDGET = "0"'), /DAILY_NEURON_BUDGET must be above 0/],
     [broken('DAILY_NEURON_BUDGET = "4000"', 'DAILY_NEURON_BUDGET = "9000"'), /at most 4000/],
     [broken('DAILY_NEURON_BUDGET = "4000"', 'DAILY_NEURON_BUDGET = "TODO"'), /placeholder/],
-    [broken('SANDBOX_NEURON_BUDGET = "3000"', 'SANDBOX_NEURON_BUDGET = "-1"'), /SANDBOX_NEURON_BUDGET must be a whole number above 0/],
+    [broken('SANDBOX_NEURON_BUDGET = "3300"', 'SANDBOX_NEURON_BUDGET = "-1"'), /SANDBOX_NEURON_BUDGET must be a whole number above 0/],
     [broken('SANDBOX_DAILY_LIMIT = "40"', 'SANDBOX_DAILY_LIMIT = "0"'), /SANDBOX_DAILY_LIMIT must be a whole number above 0/],
     [broken('ALLOW_SANDBOX = "1"', 'ALLOW_SANDBOX = "0"'), /ALLOW_SANDBOX must be "1"/],
     [broken('LEGACY_CLIENTS = "0"', 'LEGACY_CLIENTS = "1"'), /LEGACY_CLIENTS must be "0"/],

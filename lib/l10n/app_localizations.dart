@@ -1396,7 +1396,7 @@ abstract class AppLocalizations {
   /// Honest note at the top of the Plan a table sheet: no availability or booking in DateWise.
   ///
   /// In en, this message translates to:
-  /// **'DateWise can\'t see availability or book. OpenTable\'s page shows live tables and you book there. Only what you type here is sent, when you tap a search.'**
+  /// **'DateWise can\'t see availability or book. OpenTable\'s page shows live tables and you book there. Only what you enter here is sent, when you tap a search.'**
   String get planTableHonest;
 
   /// No description provided for @planTableArea.

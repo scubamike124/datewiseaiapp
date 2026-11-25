@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart' show TimeOfDay;
+import 'package:flutter/material.dart' show StringCharacters, TimeOfDay;
 
 import '../app_links.dart';
 import '../l10n/l10n.dart';
@@ -48,7 +48,9 @@ class TablePlan {
   /// One line, single spaces, at most [maxTextLength] characters.
   static String clean(String s) {
     final one = s.replaceAll(RegExp(r'\s+'), ' ').trim();
-    return one.length <= maxTextLength ? one : one.substring(0, maxTextLength).trim();
+    // Cut by user-perceived characters (an emoji is one), like the text field's limit, never inside one.
+    final chars = one.characters;
+    return chars.length <= maxTextLength ? one : chars.take(maxTextLength).toString().trim();
   }
 
   /// The default date and time for [now]: today at 19:30, or the next half

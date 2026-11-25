@@ -50,7 +50,7 @@ jobs:
           need 'env\.AI[[:space:]].*AI' 'AI binding'
           need 'env\.RATE_LIMITER .*Rate Limit' 'RATE_LIMITER'
           need 'env\.SANDBOX_DAILY_LIMIT \("40"\)' 'SANDBOX_DAILY_LIMIT 40'
-          need 'env\.SANDBOX_NEURON_BUDGET \("3000"\)' 'SANDBOX_NEURON_BUDGET 3000'
+          need 'env\.SANDBOX_NEURON_BUDGET \("3300"\)' 'SANDBOX_NEURON_BUDGET 3300'
           need 'env\.DAILY_NEURON_BUDGET \("4000"\)' 'DAILY_NEURON_BUDGET 4000'
           need 'env\.ALLOW_SANDBOX \("1"\)' 'ALLOW_SANDBOX 1'
           need 'env\.LEGACY_CLIENTS \("0"\)' 'LEGACY_CLIENTS 0'

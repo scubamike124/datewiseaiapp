@@ -251,6 +251,9 @@ void main() {
         'Lunch date ideas',
         'Where should we grab drinks?',
         'RESTAURANT ideas for Saturday',
+        'Can you make a booking for Saturday?',
+        'Can you book us a spot at an Italian place Friday at 8?',
+        'Where should I take her on Friday in Austin?',
       ]) {
         expect(wants(p), isTrue, reason: p);
       }
@@ -270,6 +273,7 @@ void main() {
         '¿Conoces un buen lugar de comida mexicana?',
         'Ideas para un almuerzo',
         'RESERVACIÓN para cuatro',
+        '¿Me ayudas a apartar un lugar en un italiano?',
       ]) {
         expect(wants(p), isTrue, reason: p);
       }
@@ -289,9 +293,19 @@ void main() {
         '¿Cómo le respondo?',
         'Tengo una cita el sábado',
         'Booking.com sent me spam',
+        'He drinks too much, is that a red flag?',
+        'Mi comida favorita es la pizza',
+        'Pon las cartas sobre la mesa',
       ]) {
         expect(wants(p), isFalse, reason: p);
       }
+    });
+
+    test('the coach naming the button shows it, in either language, whatever the user asked', () {
+      ChatMessage coach(String t) => ChatMessage(id: 'c$t', role: MessageRole.coach, text: t, createdAt: DateTime(2026));
+      expect(FindTableLink.wantsTable([_user('Is Alinea available Saturday for two?'), coach('I cannot check that, but tap Find a table below.')]), isTrue);
+      expect(FindTableLink.wantsTable([_user('¿Hay mesa el sábado?'), coach('No puedo verlo; toca «Buscar mesa» abajo.')]), isTrue);
+      expect(FindTableLink.wantsTable([_user('How do I text her back?'), coach('Keep it short and warm.')]), isFalse);
     });
 
     test('the latest user message decides', () {

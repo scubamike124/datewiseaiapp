@@ -43,13 +43,13 @@ class AppLinks {
   // content, and opens outside the app only when tapped. DateWise asks for no
   // location permission: the map apps use their own location setting.
 
-  /// Apple Maps search (iPhone, iPad, Mac): https://maps.apple.com/?q=<query>.
+  /// Apple Maps search (iPhone, iPad, Mac): `https://maps.apple.com/?q=QUERY`.
   static Uri findTableUri(String query) =>
       Uri.parse('https://maps.apple.com/?q=${Uri.encodeComponent(query.trim())}');
 
   /// Google Maps search URL, as documented in "Get started with Maps URLs"
   /// (developers.google.com/maps/documentation/urls/get-started, checked
-  /// 2026-11-25): https://www.google.com/maps/search/?api=1&query=<query>,
+  /// 2026-11-25): `https://www.google.com/maps/search/?api=1&query=QUERY`,
   /// URL-encoded, no API key, opens the Google Maps app or the website.
   static Uri googleMapsSearchUri(String query) =>
       Uri.parse('https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(query.trim())}');

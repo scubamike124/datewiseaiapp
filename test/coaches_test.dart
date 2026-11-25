@@ -126,7 +126,7 @@ void main() {
 
     test('the full prompt never mentions plans or prices, and asks for reply options only as a final line', () {
       final p = CoachPersona.systemPrompt(SubscriptionTier.magnet, coach: Coaches.ethan);
-      expect(p, contains('Never mention prices, plans, upgrades or subscriptions.'));
+      expect(p, contains('Never mention DateWise prices, plans or subscriptions.'));
       expect(p, isNot(contains('Flame')));
       expect(p, contains('OPTIONS:'));
     });

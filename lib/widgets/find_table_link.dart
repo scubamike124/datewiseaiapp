@@ -52,20 +52,27 @@ class FindTableLink extends StatelessWidget {
   /// harmless button.
   static final RegExp _tableWords = RegExp(
     r'(?<![\p{L}\p{N}_])('
-    r'reservations?|reserve|book(ing)?( us)? a table|get us a table|a table|table for'
-    r'|restaurants?|dinner|brunch|lunch|drinks'
-    r'|reservas?|reservar|reservación|reservaciones|mesa|restaurantes?'
-    r'|cena|cenar|cenamos|almuerzo|almorzar|comida'
+    r'reservations?|reserve|make a booking|book( us)? a (table|spot)|book(ing)? a table|get us a table|a table|table for'
+    r'|restaurants?|dinner|brunch|lunch|(grab|get|for) drinks|where should (i|we) (take|go)'
+    r'|reservas?|reservar|reservación|reservaciones|una mesa|mesa para|apartar|restaurantes?'
+    r'|cena|cenar|cenamos|almuerzo|almorzar|lugar de comida'
     r')(?![\p{L}\p{N}_])',
     caseSensitive: false,
     unicode: true,
   );
 
+  /// The button's own label in either language, as the coach writes it when it
+  /// suggests the button (the prompt names both).
+  static final RegExp _buttonNamed = RegExp(r'find a table|buscar mesa', caseSensitive: false);
+
   /// Whether the link belongs under the latest reply: a first-date-plan
-  /// conversation, or the user's latest message asks about a restaurant or a
-  /// reservation (so the coach's "tap Find a table" advice always has the button).
+  /// conversation, the coach's latest reply names the button (so its "tap Find
+  /// a table" advice always has the button), or the user's latest message asks
+  /// about a restaurant or a reservation.
   static bool wantsTable(List<ChatMessage> messages) {
     if (isDatePlan(messages)) return true;
+    final last = messages.isEmpty ? null : messages.last;
+    if (last != null && !last.isUser && _buttonNamed.hasMatch(last.text)) return true;
     for (final m in messages.reversed) {
       if (m.isUser) return _tableWords.hasMatch(m.text);
     }
