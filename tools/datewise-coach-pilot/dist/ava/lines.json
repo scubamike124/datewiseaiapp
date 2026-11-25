@@ -1,0 +1,29 @@
+[
+  {
+    "src": "ava/390f2666f1bd3e3e8efc9e96.mp4",
+    "title": "Ava’s opening line",
+    "language": "English",
+    "seconds": 2.4
+  },
+  {
+    "src": "ava/de82aa3aab068010e679bf6b.mp4",
+    "title": "Ethan",
+    "language": "English",
+    "coach": "ethan",
+    "seconds": 2.5
+  },
+  {
+    "src": "ava/11ba4c3716a73e11eddf0fee.mp4",
+    "title": "Diego",
+    "language": "Spanish",
+    "coach": "diego",
+    "seconds": 2.1
+  },
+  {
+    "src": "ava/a28d87ad92280b73f0797c6e.mp4",
+    "title": "Sofía",
+    "language": "Spanish",
+    "coach": "sofia",
+    "seconds": 2.2
+  }
+]
