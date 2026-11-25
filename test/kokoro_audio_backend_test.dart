@@ -121,4 +121,19 @@ void main() {
     expect(events.whereType<SpeechAudioDone>().map((e) => e.interrupted), contains(true));
     expect(player.plays, 0, reason: 'a stopped reply must not start playing');
   });
+  test('dispose stops the player, a pending reply never plays, and nothing is emitted afterwards', () async {
+    final player = _FakePlayer();
+    final backend = KokoroSpeechAudioBackend(baseUrl: base, player: player, client: _client());
+    final got = <SpeechAudioEvent>[];
+    final sub = backend.events.listen(got.add);
+    final pending = backend.speak(text: 'Hi. Now.', language: 'en', rate: 0.5, pitch: 1, voice: 'af_bella');
+    await backend.dispose();
+    await pending;
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    await sub.cancel();
+    expect(player.stops, greaterThanOrEqualTo(1), reason: 'dispose must stop the player');
+    expect(player.plays, 0, reason: 'a reply pending at dispose must not start playing');
+    expect(got.whereType<SpeechAudioStarted>(), isEmpty);
+    expect(got.whereType<SpeechAudioDone>(), isEmpty);
+  });
 }
