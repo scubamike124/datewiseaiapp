@@ -443,6 +443,6 @@ After the run (and after `docs/qa/LIVE_AI_TEST_PLAN.md` if you run it on the sam
 - **Worker:** Workers Free covers the staging Worker, its Durable Object and the rate-limit binding.
 - **AI:** a demo of a few replies uses a small part of the account's free **10,000-neuron daily allowance**, which the
   staging and production Workers **share**. Staging stops itself at `DAILY_NEURON_BUDGET` 4000, and Sandbox users at
-  `SANDBOX_NEURON_BUDGET` 3000. On Workers Free, use past the allowance fails rather than bills.
+  `SANDBOX_NEURON_BUDGET` 3300. On Workers Free, use past the allowance fails rather than bills.
 
 No paid service or new account is needed.

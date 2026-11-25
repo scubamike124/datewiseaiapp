@@ -475,6 +475,54 @@ void main() {
       expect(a.planTime(0.9), isNot(closeTo(tl.words[1].start, 1e-9)));
     });
 
+    test('markers squeezed into the start of the audio (a unit mistake) are ignored; plausible ones are used', () {
+      const text = 'This is a short sentence with several plain words in it.';
+      final tl = VisemeTimeline.plan(text, CoachLanguage.en);
+      // Audio that speaks the plan at its own pace.
+      final n = (tl.duration / 0.01).ceil();
+      final v = [for (var i = 0; i < n; i++) tl.words.any((w) => w.start <= i * 0.01 && i * 0.01 <= w.end) ? 0.4 : 0.0];
+      AudioAlignment withMarkers(double scale) {
+        final a = AudioAlignment(tl)..addLevels(0, 0.01, v);
+        for (final w in tl.words) {
+          a.addMarker(w.charStart, w.start * scale);
+        }
+        return a..complete();
+      }
+
+      final good = withMarkers(1);
+      final mid = tl.words[tl.words.length ~/ 2];
+      expect(good.planTime(mid.start), closeTo(mid.start, 1e-9), reason: 'correct markers map exactly');
+      for (final scale in [0.5, 0.25]) {
+        // Byte offsets that were really sample offsets, divided by 2 or 4 bytes per sample.
+        final bad = withMarkers(scale);
+        expect(bad.planTime(mid.start * scale), isNot(closeTo(mid.start, 0.05)), reason: 'scale $scale: markers not used');
+        expect((bad.planTime(mid.start)! - mid.start).abs(), lessThan(0.15), reason: 'scale $scale: the loudness warp maps the plan');
+      }
+    });
+
+    test('levels of buffers that are not whole hops do not drift behind the audio', () {
+      const text = 'one two three';
+      final tl = VisemeTimeline.plan(text, CoachLanguage.en);
+      final a = AudioAlignment(tl);
+      // 1024-frame buffers at 22.05 kHz with 220-frame hops (as the native side sends them): 5 values for 4.65 hops.
+      const rate = 22050.0, frames = 1024, hopFrames = 220;
+      const hop = hopFrames / rate;
+      // Silence, then a loud burst from 5.0 s to 5.5 s, then silence, 6 s in all.
+      var at = 0;
+      while (at < 6 * rate) {
+        final values = <double>[];
+        for (var i = 0; i < frames; i += hopFrames) {
+          final t = (at + i) / rate;
+          values.add(t >= 5.0 && t < 5.5 ? 0.8 : 0.0);
+        }
+        a.addLevels(at / rate, hop, values);
+        at += frames;
+      }
+      expect(a.level(4.97), lessThan(0.05), reason: 'still silent just before the burst');
+      expect(a.level(5.03), greaterThan(0.9), reason: 'the burst is heard at 5.0 s, not 0.35 s later');
+      expect(a.level(5.53), lessThan(0.05));
+    });
+
     test('word markers (iOS 17) take precedence and map exactly', () {
       const text = 'one two three';
       final tl = VisemeTimeline.plan(text, CoachLanguage.en);
@@ -496,6 +544,10 @@ void main() {
       expect(SpeechAudioEvent.parse({'e': 'error', 'message': 'x', 'started': true}), isA<SpeechAudioError>());
       expect(SpeechAudioEvent.parse({'e': 'synthesized'}), isA<SpeechAudioSynthesized>());
       expect(SpeechAudioEvent.parse('junk'), isNull);
+      final d = SpeechAudioEvent.parse({'e': 'done', 'interrupted': 'engine'}) as SpeechAudioDone;
+      expect((d.interrupted, d.reason), (true, 'engine'));
+      final plain = SpeechAudioEvent.parse({'e': 'done'}) as SpeechAudioDone;
+      expect((plain.interrupted, plain.reason), (false, null));
     });
   });
 }

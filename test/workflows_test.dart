@@ -453,7 +453,7 @@ void main() {
       expect(s, contains("if 'staging' in envs: check_staging(envs['staging'] or {}, vars_)"));
       expect(s, contains("elif target == 'chat-v7-staging': errors.append('[env.staging] is missing')"));
       expect(s, contains("if: steps.plan.outputs.target == 'chat-v7-cost-guard' || steps.plan.outputs.target == 'chat-v7-staging'"));
-      expect(s, contains(r"""need 'env\.SANDBOX_NEURON_BUDGET \("3000"\)' 'SANDBOX_NEURON_BUDGET 3000'"""));
+      expect(s, contains(r"""need 'env\.SANDBOX_NEURON_BUDGET \("3300"\)' 'SANDBOX_NEURON_BUDGET 3300'"""));
       expect(s, contains('EXPECT: \${{ steps.plan.outputs.expect }}'));
     });
 

@@ -548,12 +548,84 @@
   },
   "findTable": "Find a table",
   "@findTable": {
-    "description": "Compact link-out button under the coach's reply on first-date plans. Opens Apple Maps; no in-app booking."
+    "description": "Compact button under the coach's reply on date plans and restaurant questions. Opens the Plan a table sheet; no in-app booking."
   },
-  "findTableSemantics": "Find a table nearby. Opens Apple Maps.",
-  "findTableQuery": "restaurants",
-  "@findTableQuery": {
-    "description": "The Apple Maps search term the Find a table button opens (searched near the phone)."
+  "findTableSemantics": "Find a table. Opens a restaurant search planner.",
+  "planTableTitle": "Plan a table",
+  "planTableHonest": "DateWise can't see availability or book. OpenTable's page shows live tables and you book there. Only what you enter here is sent, when you tap a search.",
+  "@planTableHonest": {
+    "description": "Honest note at the top of the Plan a table sheet: no availability or booking in DateWise."
+  },
+  "planTableArea": "Area or city",
+  "planTableAreaHint": "e.g. Wicker Park, Chicago",
+  "planTableCuisine": "Cuisine (optional)",
+  "planTableCuisineHint": "e.g. Italian",
+  "planTableBudget": "Budget (optional)",
+  "planTableBudgetLevel": "{level, select, 1{Inexpensive} 2{Moderate} 3{Upscale} other{Fine dining}}",
+  "@planTableBudgetLevel": {
+    "description": "What VoiceOver reads for the $ to $$$$ budget chips (level 1 to 4).",
+    "placeholders": {
+      "level": {
+        "type": "String"
+      }
+    }
+  },
+  "planTableBudgetQuery": "{level, select, 1{cheap} 2{moderately priced} 3{upscale} other{fine dining}}",
+  "@planTableBudgetQuery": {
+    "description": "The budget words put into the map search (level 1 to 4), e.g. 'cheap Italian restaurants in Chicago'.",
+    "placeholders": {
+      "level": {
+        "type": "String"
+      }
+    }
+  },
+  "planTableDate": "Date",
+  "planTableTime": "Time",
+  "planTableParty": "Party size",
+  "planTablePeople": "{count, plural, =1{1 person} other{{count} people}}",
+  "@planTablePeople": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "planTableFewer": "Fewer people",
+  "planTableMore": "More people",
+  "planTableSearchOn": "Search on",
+  "planTableOpenTable": "OpenTable",
+  "planTableGoogleMaps": "Google Maps",
+  "planTableAppleMaps": "Apple Maps",
+  "planTableOpensOutside": "Search {site}. Opens {site} outside DateWise.",
+  "@planTableOpensOutside": {
+    "placeholders": {
+      "site": {
+        "type": "String"
+      }
+    }
+  },
+  "planTableMapsWhat": "{budget} {cuisine} restaurants",
+  "@planTableMapsWhat": {
+    "description": "The map search for the planner's criteria; empty parts are dropped (extra spaces removed).",
+    "placeholders": {
+      "budget": {
+        "type": "String"
+      },
+      "cuisine": {
+        "type": "String"
+      }
+    }
+  },
+  "planTableMapsWhere": "{what} in {area}",
+  "@planTableMapsWhere": {
+    "placeholders": {
+      "what": {
+        "type": "String"
+      },
+      "area": {
+        "type": "String"
+      }
+    }
   },
   "settingsFootnote": "Your coaches are AI. Conversations are stored on this device.",
   "appVersion": "DateWise AI {version}",

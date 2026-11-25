@@ -210,7 +210,7 @@ would otherwise mean production chat-v7).
 6. `wrangler@4.158.0 deploy --dry-run --outdir`. For chat-v7, the binding list
    it prints must contain `AI`, `USAGE_GUARD (UsageGuard)`, `RATE_LIMITER` and
    the budget variables. chat-v7-staging runs `deploy --env staging --dry-run`, and its list must also show
-   `SANDBOX_DAILY_LIMIT ("40")`, `SANDBOX_NEURON_BUDGET ("3000")`, `DAILY_NEURON_BUDGET` at most 4000,
+   `SANDBOX_DAILY_LIMIT ("40")`, `SANDBOX_NEURON_BUDGET ("3300")`, `DAILY_NEURON_BUDGET` at most 4000,
    `ALLOW_SANDBOX ("1")`, `LEGACY_CLIENTS ("0")`, `REQUIRE_SUBSCRIPTION ("1")`, `ASSN_ENABLED ("0")` and the product id.
    With `[env.staging]` in the file, Wrangler warns that no environment was named on the production runs; that is
    expected (no `--env` = the top-level, production config).
@@ -333,7 +333,7 @@ separate staging Worker, so production is never touched and there is nothing to 
 | Durable Object | `USAGE_GUARD` (own namespace) | `USAGE_GUARD` (own namespace: separate counters and budget) |
 | Rate limit | `RATE_LIMITER`, namespace `740219` | `RATE_LIMITER`, namespace `740221` |
 | `ID_HASH_SALT` | `production-worker` secret or set on the Worker | a random one the workflow sets if the staging Worker has none; never production's |
-| Limits | `[vars]` | same caps; `SANDBOX_DAILY_LIMIT` 40, `SANDBOX_NEURON_BUDGET` 3000, `DAILY_NEURON_BUDGET` 4000, no v1 |
+| Limits | `[vars]` | same caps; `SANDBOX_DAILY_LIMIT` 40, `SANDBOX_NEURON_BUDGET` 3300, `DAILY_NEURON_BUDGET` 4000, no v1 |
 | Security | v2 needs a verified StoreKit JWS; Sandbox allowed | the same; also `LEGACY_CLIENTS = "0"`, `REQUIRE_SUBSCRIPTION = "1"`; ASSN and fail-open off |
 
 **What the workflow guarantees for staging.** The same protections as production: the run's commit and the code commit
@@ -371,6 +371,6 @@ No new GitHub environment, secret or variable is needed. Rollback of a staging d
 `cd backend && npx wrangler@4.158.0 rollback <version-id> --env staging -m "rollback"`.
 
 **Cost:** $0. Workers Free covers the extra Worker, its SQLite Durable Object and the rate-limit binding; the deploy
-checks use no neurons. The test uses about 2,497 neurons (stopped at 3,000 by `SANDBOX_NEURON_BUDGET`, and the
+checks use no neurons. The test uses about 2,566 neurons (stopped at 3,300 by `SANDBOX_NEURON_BUDGET`, and the
 staging Worker as a whole at 4,000), inside the account's free 10,000-neuron daily allowance, which staging and
 production share on the test day (on Workers Free, use past the allowance fails rather than bills).

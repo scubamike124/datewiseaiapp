@@ -138,7 +138,8 @@ class CoachText extends StatelessWidget {
       last = match.end;
     }
     if (last < content.length) {
-      spans.add(TextSpan(text: content.substring(last)));
+      // A ** with no partner (a reply still streaming, or a model slip) is not shown as text.
+      spans.add(TextSpan(text: content.substring(last).replaceAll('**', '')));
     }
     return TextSpan(style: base, children: spans);
   }

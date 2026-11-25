@@ -313,7 +313,10 @@ class DeviceSpeechService implements SpeechService {
       await Future<void>.delayed(const Duration(milliseconds: 350));
     }
     _onUnsupported = null;
-    return _words.trim();
+    // The words belong to this session only: a stop without a session (a quick tap) must never return the last one's.
+    final words = _words.trim();
+    _words = '';
+    return words;
   }
 
   @override

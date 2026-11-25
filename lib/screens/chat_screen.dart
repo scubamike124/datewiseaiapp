@@ -45,6 +45,22 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final _input = TextEditingController();
   final _focus = FocusNode();
 
+  /// The conversation list (reversed: offset 0 is the newest message).
+  final _scroll = ScrollController();
+
+  /// How long a send or the microphone waits for the speech engine to report that it stopped. On iPhone the engine
+  /// can fail to report it; an unbounded wait left the send button, the keyboard Send and the talk button dead.
+  static const stopWait = Duration(milliseconds: 1500);
+
+  /// Stops the coach's voice, waiting at most [stopWait].
+  Future<void> _stopVoice() => _voice.stop().timeout(stopWait, onTimeout: () {});
+
+  /// Brings the newest message into view (just above the composer and the keyboard).
+  void _showNewest() {
+    if (!_scroll.hasClients || _scroll.offset <= 0) return;
+    _scroll.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+  }
+
   bool _voiceMode = false;
   bool _captions = true;
   bool _readAloud = true;
@@ -52,6 +68,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   String _partial = '';
   DateTime? _voiceStarted;
   Timer? _ticker;
+
+  /// True for [stopGuard] after a message is accepted: the gold button turns into Stop at once, and the second tap of
+  /// a quick double tap on Send must not stop the reply it just asked for.
+  bool _justSent = false;
+  Timer? _justSentTimer;
+  static const stopGuard = Duration(milliseconds: 600);
+
+  void _stopReply() {
+    if (_justSent) return;
+    _state.cancelReply();
+  }
   bool _wasResponding = false;
 
   /// True between pointer-down and pointer-up on the talk button, so a
@@ -84,6 +111,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _speech = context.read<SpeechService>();
     _dataEpoch = _state.dataEpoch;
     _state.addListener(_onState);
+    // Opening the keyboard shows the newest message right above it.
+    _focus.addListener(() {
+      if (_focus.hasFocus) _showNewest();
+    });
     // Back from the paywall that interrupted the chat: what the user was
     // typing or saying is in the composer again (never sent by itself).
     final draft = _state.takeDraft();
@@ -141,11 +172,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _state.removeListener(_onState);
     _lifecycle.dispose();
     _ticker?.cancel();
+    _justSentTimer?.cancel();
     _listenGen++;
     _voice.stop();
     _speech.cancel();
     _input.dispose();
     _focus.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -212,9 +245,26 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       if (fromVoice) _keepTranscript(text, note: false);
       return;
     }
-    await _voice.stop();
+    // The speech engine can fail to report that it stopped (seen on iPhone): never let that block a send. The wait is
+    // only for a coach who is still speaking; otherwise the message goes at once.
+    if (_voice.speaking.value) {
+      await _stopVoice();
+    } else {
+      unawaited(_stopVoice());
+    }
+    // Left the chat while waiting: leaving stops a reply, so nothing is sent. Typed text is still in the composer; what
+    // was said is put there too.
+    if (!mounted || !widget.active) {
+      if (mounted && fromVoice) _keepTranscript(text, note: false);
+      return;
+    }
     final sent = await _state.sendMessage(text, onAccepted: () {
       if (fromComposer && mounted && _input.text == text) _input.clear();
+      _justSent = true;
+      _justSentTimer?.cancel();
+      _justSentTimer = Timer(stopGuard, () => _justSent = false);
+      // The user's message and the reply appear at the bottom: show them even if the list was scrolled up.
+      if (mounted) _showNewest();
     });
     if (!sent && fromVoice && mounted) _keepTranscript(text, note: _state.canChat);
   }
@@ -336,9 +386,19 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       _partial = '';
     });
     HapticFeedback.lightImpact();
-    await _voice.stop();
-    if (!mounted || gen != _listenGen) return;
+    // Starting from here: a release during the wait below finishes once recognition has started, instead of
+    // stopping a recognizer that is not listening yet. The wait is only for a coach who is still speaking (so the
+    // microphone does not hear the coach); otherwise recognition starts at once.
     _starting = true;
+    if (_voice.speaking.value) {
+      await _stopVoice();
+    } else {
+      unawaited(_stopVoice());
+    }
+    if (!mounted || gen != _listenGen) {
+      _starting = false;
+      return;
+    }
     // The coach's language, or the other one if the user's last message was
     // in it; each with its regional fallbacks (es-MX → es-US → es-ES → es).
     final micLanguage = ReplyLanguage.forMic(_state.selectedCoach, _state.activeThread?.messages ?? const []);
@@ -444,9 +504,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Future<void> _finishListening(int gen) async {
     if (!_listening || gen != _listenGen) return;
-    _listenGen++;
-    final words = await _speech.stop();
-    if (!mounted) return;
+    final mine = ++_listenGen;
+    // A recognizer that never reports its result must not swallow what was said: after [stopWait] what was heard so
+    // far is used, and recognition is canceled.
+    final words = await _speech.stop().timeout(stopWait, onTimeout: () {
+      _speech.cancel();
+      return '';
+    });
+    // The session was ended meanwhile (voice closed, data deleted, a new press): nothing is sent or shown.
+    if (!mounted || mine != _listenGen) return;
     final text = words.isNotEmpty ? words : _partial;
     setState(() {
       _listening = false;
@@ -757,6 +823,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             Expanded(
               child: entitled || readOnly
                   ? _MessageList(
+                      controller: _scroll,
                       coach: coach,
                       compact: _voiceMode,
                       onStarter: _send,
@@ -799,7 +866,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         hint: context.l10n.messageHint(coach.name),
                         busy: state.isResponding,
                         onSend: () => _send(_input.text, fromComposer: true),
-                        onStop: _state.cancelReply,
+                        onStop: _stopReply,
                         onVoice: _speech.available ? _enterVoice : null,
                       ),
               ),
@@ -1145,6 +1212,7 @@ class _SubtitleState extends State<_Subtitle> {
 
 class _MessageList extends StatelessWidget {
   const _MessageList({
+    required this.controller,
     required this.coach,
     required this.compact,
     required this.onStarter,
@@ -1154,6 +1222,7 @@ class _MessageList extends StatelessWidget {
     this.readOnly = false,
   });
 
+  final ScrollController controller;
   final Coach coach;
   final bool compact;
   final ValueChanged<String> onStarter;
@@ -1174,8 +1243,9 @@ class _MessageList extends StatelessWidget {
     final messages = thread?.messages ??
         [ChatMessage(id: 'greeting', role: MessageRole.coach, text: coach.greeting, createdAt: DateTime(2026))];
     final hasUser = messages.any((m) => m.isUser);
-    // First-date plans: "Find a table" under the coach's latest reply.
-    final datePlan = FindTableLink.available && FindTableLink.isDatePlan(messages);
+    // Date plans and restaurant questions: "Find a table" under the coach's
+    // latest reply (text chat and voice, every platform).
+    final datePlan = FindTableLink.wantsTable(messages);
 
     final items = <Widget>[
       if (showIntro) _IntroCard(coach: coach),
@@ -1201,8 +1271,11 @@ class _MessageList extends StatelessWidget {
         child: SelectionArea(
           child: ListView.builder(
             key: ValueKey('messages-${coach.id}'),
+            controller: controller,
             reverse: true,
             shrinkWrap: true,
+            // Dragging the conversation lowers the keyboard, so a reply is never stuck behind it.
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
             itemCount: items.length,
             itemBuilder: (_, i) => items[items.length - 1 - i],

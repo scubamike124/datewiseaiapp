@@ -178,8 +178,8 @@ namespace_id = "740221"
 [env.staging.vars]
 # Test-sized budgets. DAILY_NEURON_BUDGET stays well under the account's free
 # 10,000-neuron daily allowance (at most 4000 here), so a run cannot spend money
-# on Workers Free. The full live plan needs about 2,019 neurons (worst case
-# stopped by SANDBOX_NEURON_BUDGET at 3,000).
+# on Workers Free. The full live plan needs about 2,566 neurons (worst case
+# stopped by SANDBOX_NEURON_BUDGET at 3,300).
 DAILY_NEURON_BUDGET = "4000"
 # No v1 traffic on staging: no anonymous slice.
 ANON_NEURON_BUDGET = "0"
@@ -208,7 +208,7 @@ APPLE_PRODUCT_ID = "datewise_premium_monthly"
 ALLOW_SANDBOX = "1"
 # Test-sized: the full live plan admits 30 requests per Sandbox subscriber.
 SANDBOX_DAILY_LIMIT = "40"
-SANDBOX_NEURON_BUDGET = "3000"
+SANDBOX_NEURON_BUDGET = "3300"
 EXPIRY_LEEWAY_MINUTES = "60"
 BILLING_GRACE_DAYS = "0"
 ASSN_ENABLED = "0"
