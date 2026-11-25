@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+
+import '../avatar/kokoro_audio_backend.dart';
+import '../avatar/kokoro_video_clip.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
 import '../avatar/lip_sync.dart';
@@ -135,6 +138,9 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
   /// flutter_tts path; TestFlight builds turn it on to test it
   /// (docs/avatar/TALKING_AVATARS.md).
   static bool useAudioPath = const bool.fromEnvironment('DW_AVATAR_AUDIO_PATH');
+  /// Base URL of the server-rendered Kokoro speech service (lib/avatar/kokoro_audio_backend.dart). Empty (the default): the
+  /// native audio path or the device voice is used. Set with --dart-define=DW_KOKORO_SPEECH_URL=https://... on iOS only.
+  static const String kokoroSpeechUrl = String.fromEnvironment('DW_KOKORO_SPEECH_URL');
 
   /// How long to wait for the native path to start playing before giving
   /// up and speaking through flutter_tts instead.
@@ -282,10 +288,15 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
           for (final v in raw)
             if (v is Map) {for (final e in v.entries) '${e.key}': '${e.value}'},
       ];
-      final service = DeviceVoiceService._(
-          tts, voices, defaultTargetPlatform == TargetPlatform.iOS && DeviceVoiceService.useAudioPath
+      final SpeechAudioBackend? audio = defaultTargetPlatform == TargetPlatform.iOS && DeviceVoiceService.useAudioPath
+          ? (DeviceVoiceService.kokoroSpeechUrl.isEmpty
               ? ChannelSpeechAudioBackend()
-              : null);
+              : KokoroSpeechAudioBackend(
+                  baseUrl: Uri.parse(DeviceVoiceService.kokoroSpeechUrl),
+                  player: VideoPlayerClipPlayer(),
+                ))
+          : null;
+      final service = DeviceVoiceService._(tts, voices, audio);
       return service;
     } catch (_) {
       return NoVoiceService();

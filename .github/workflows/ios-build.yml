@@ -45,6 +45,8 @@ on:
       # Same reason: the Worker deploy workflow is a release file, and a PR that only changes it
       # (and docs) would otherwise never get the required check and could not merge.
       - '.github/workflows/deploy-worker.yml'
+      # The DateWise handoff is part of the release record; a docs-only PR must still get the required check.
+      - 'docs/RESUME.md'
   workflow_dispatch:
     inputs:
       run_tests:

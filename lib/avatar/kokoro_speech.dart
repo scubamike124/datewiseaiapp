@@ -63,15 +63,21 @@ class KokoroTimeline {
     final list = j['sentences'];
     if (list is! List) throw const FormatException('kokoro timeline: sentences is required');
     final fpsRaw = j['fps'];
-    if (fpsRaw != null && (fpsRaw is! num || !fpsRaw.isFinite || fpsRaw <= 0)) {
-      throw const FormatException('kokoro timeline: fps must be a positive finite number');
+    if (fpsRaw != null &&
+        (fpsRaw is! num || !fpsRaw.isFinite || fpsRaw <= 0 || fpsRaw != fpsRaw.toInt() || fpsRaw > 100)) {
+      throw const FormatException('kokoro timeline: fps must be a whole number from 1 to 100');
     }
     final fps = fpsRaw == null ? 10 : (fpsRaw as num).toInt();
-    if (fps <= 0) throw const FormatException('kokoro timeline: fps must be positive');
     final sentences = <KokoroSentence>[];
+    var previousStart = 0.0;
     for (final s in list) {
       if (s is! Map<String, dynamic>) throw const FormatException('kokoro timeline: each sentence must be an object');
-      sentences.add(KokoroSentence.fromJson(s));
+      final sentence = KokoroSentence.fromJson(s);
+      if (sentence.start < previousStart) {
+        throw const FormatException('kokoro timeline: sentences must be in order by start_s');
+      }
+      previousStart = sentence.start;
+      sentences.add(sentence);
     }
     return KokoroTimeline(sentences: sentences, fps: fps);
   }

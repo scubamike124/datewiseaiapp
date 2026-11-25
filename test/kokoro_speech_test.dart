@@ -175,7 +175,7 @@ void main() {
     expect(driver.timeline, isNotNull);
     expect(driver.hasAudio, isTrue, reason: 'the loudness of the rendered audio reached the driver');
 
-    // Speaking: the plan advances with the clock, and the mouth is not closed mid-sentence.
+    // Speaking: the plan advances with the clock, never backwards.
     final times = <double>[];
     for (var ms = 0; ms <= 2500; ms += 250) {
       now = Duration(milliseconds: ms);
@@ -191,4 +191,39 @@ void main() {
     now = const Duration(milliseconds: 4000);
     expect(driver.sample().viseme, Viseme.rest);
   });
+  test('fps must be a whole number from 1 to 100; sentences must be in start order', () {
+    Map<String, dynamic> base({Object? fps = 10}) => {
+          'fps': fps,
+          'sentences': [
+            {'text': 'Hi', 'start_s': 0, 'duration_s': 1, 'mouth': [0.5]},
+            {'text': 'Yo', 'start_s': 1, 'duration_s': 1, 'mouth': [0.5]},
+          ],
+        };
+    expect(() => KokoroTimeline.fromJson(base(fps: 1.9)), throwsFormatException);
+    expect(() => KokoroTimeline.fromJson(base(fps: 101)), throwsFormatException);
+    expect(KokoroTimeline.fromJson(base(fps: 12)).fps, 12);
+    final backwards = base();
+    ((backwards['sentences'] as List)[1] as Map)['start_s'] = 0.5;
+    ((backwards['sentences'] as List)[0] as Map)['start_s'] = 1.0;
+    expect(() => KokoroTimeline.fromJson(backwards), throwsFormatException);
+  });
+
+  test('the feed sends levels only: no word markers reach the driver', () {
+    final t = KokoroTimeline.fromJson(jsonDecode(_fixture) as Map<String, dynamic>);
+    final driver = _MarkerCountingDriver(clock: () => Duration.zero);
+    feedKokoroUtterance(driver, t, _text, CoachLanguage.en);
+    expect(driver.markers, 0, reason: 'estimated word times must not replace the measured loudness');
+    expect(driver.hasAudio, isTrue);
+  });
+}
+
+class _MarkerCountingDriver extends LipSyncDriver {
+  _MarkerCountingDriver({required super.clock});
+  int markers = 0;
+
+  @override
+  void addMarker(int charStart, double t) {
+    markers++;
+    super.addMarker(charStart, t);
+  }
 }
