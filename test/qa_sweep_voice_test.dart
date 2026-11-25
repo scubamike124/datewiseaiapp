@@ -12,6 +12,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:speech_to_text/speech_recognition_error.dart';
+import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 import 'package:datewise_ai/screens/paywall_screen.dart';
@@ -32,6 +33,9 @@ class _Stt implements SpeechToText {
   int stops = 0;
   int cancels = 0;
 
+  /// Words the next listen() hears, delivered as a result at once.
+  String? heard;
+
   Future<T> _answer<T>(Object v) => v is T ? Future<T>.value(v as T) : Future<T>.error(v);
 
   @override
@@ -48,6 +52,9 @@ class _Stt implements SpeechToText {
       case #locales:
         return Future<List<LocaleName>>.value([LocaleName('en_US', 'English')]);
       case #listen:
+        final onResult = i.namedArguments[#onResult] as void Function(SpeechRecognitionResult)?;
+        final w = heard;
+        if (onResult != null && w != null) onResult(SpeechRecognitionResult([SpeechRecognitionWords(w, null, 1)], ResultType.finalResult.value));
         return Future<void>.value();
       case #stop:
         stops++;
@@ -160,6 +167,15 @@ void main() {
   group('DeviceSpeechService', () {
     Future<SpeechStart> start(DeviceSpeechService s, {void Function(String)? onEnded, void Function()? onUnsupported}) =>
         s.start(localeId: 'en-US', onWords: (_) {}, onEnded: onEnded, onUnsupported: onUnsupported);
+
+    test('stop returns the words of the session it ends, and nothing when no session started since', () async {
+      final stt = _Stt()..heard = 'Where should we go for dinner';
+      final s = DeviceSpeechService.withRecognizer(stt);
+      expect(await start(s), SpeechStart.started);
+      expect(await s.stop(), 'Where should we go for dinner');
+      // A quick tap: stop before a new session started must not send the last words again.
+      expect(await s.stop(), '');
+    });
 
     test('initialize false and hasPermission false: voice is hidden as a permission denial', () async {
       final s = DeviceSpeechService.withRecognizer(_Stt(init: false, permission: false));
