@@ -1,0 +1,229 @@
+import 'dart:convert';
+
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:datewise_ai/avatar/kokoro_speech.dart';
+import 'package:datewise_ai/avatar/lip_sync.dart';
+import 'package:datewise_ai/avatar/viseme.dart';
+import 'package:datewise_ai/models/coach.dart';
+
+/// The shape tool/tts/kokoro_sentences.py writes (timeline.json), reduced to two sentences.
+const _fixture = '''
+{
+ "voice": "af_bella", "lang": "en-us", "speed": 0.95, "fps": 10,
+ "sentences": [
+  {"index": 1, "text": "Hi, I'm Ava.", "start_s": 0.0, "duration_s": 1.2,
+   "mouth": [0.0, 0.4, 0.9, 0.7, 0.2, 0.0, 0.0, 0.5, 0.8, 0.3, 0.0, 0.0]},
+  {"index": 2, "text": "Take your time now.", "start_s": 1.2, "duration_s": 1.6,
+   "mouth": [0.0, 0.6, 0.9, 0.5, 0.0, 0.0, 0.7, 0.9, 0.4, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}
+ ]
+}
+''';
+
+const _text = "Hi, I'm Ava. Take your time now.";
+
+void main() {
+  test('parses the timeline the server writes', () {
+    final t = KokoroTimeline.fromJson(jsonDecode(_fixture) as Map<String, dynamic>);
+    expect(t.fps, 10);
+    expect(t.sentences, hasLength(2));
+    expect(t.sentences.first.text, "Hi, I'm Ava.");
+    expect(t.sentences.first.start, 0.0);
+    expect(t.sentences.last.duration, 1.6);
+    expect(t.duration, closeTo(2.8, 1e-9));
+  });
+
+  test('rejects a sentence without its timing', () {
+    expect(
+      () => KokoroSentence.fromJson({'text': 'Hi', 'start_s': 0}),
+      throwsFormatException,
+    );
+  });
+
+  test('malformed input is refused with a FormatException, never a TypeError', () {
+    Map<String, dynamic> one(Object? mouth, {Object? start = 0, Object? duration = 1}) => {
+          'fps': 10,
+          'sentences': [
+            {'text': 'Hi', 'start_s': start, 'duration_s': duration, 'mouth': mouth},
+          ],
+        };
+    expect(() => KokoroTimeline.fromJson(one([null])), throwsFormatException);
+    expect(() => KokoroTimeline.fromJson(one(['x'])), throwsFormatException);
+    expect(() => KokoroTimeline.fromJson(one([double.infinity])), throwsFormatException);
+    expect(() => KokoroTimeline.fromJson(one([0.5], duration: 0)), throwsFormatException);
+    expect(() => KokoroTimeline.fromJson({'fps': 10, 'sentences': [1]}), throwsFormatException);
+    expect(() => KokoroTimeline.fromJson({'fps': 10, 'sentences': 'x'}), throwsFormatException);
+  });
+
+  test('every guard refuses with a FormatException: fps, start, duration and value types', () {
+    Map<String, dynamic> base() => {
+          'fps': 10,
+          'sentences': [
+            {'text': 'Hi', 'start_s': 0, 'duration_s': 1, 'mouth': [0.5]},
+          ],
+        };
+    expect(() => KokoroTimeline.fromJson({...base(), 'fps': 0}), throwsFormatException);
+    expect(() => KokoroTimeline.fromJson({...base(), 'fps': -5}), throwsFormatException);
+    expect(() => KokoroTimeline.fromJson({...base(), 'fps': 'ten'}), throwsFormatException);
+    expect(() => KokoroTimeline.fromJson({...base(), 'fps': double.infinity}), throwsFormatException);
+    expect(() => KokoroTimeline.fromJson({...base(), 'fps': double.nan}), throwsFormatException);
+    final negStart = base();
+    ((negStart['sentences'] as List).first as Map)['start_s'] = -1;
+    expect(() => KokoroTimeline.fromJson(negStart), throwsFormatException);
+    final infDuration = base();
+    ((infDuration['sentences'] as List).first as Map)['duration_s'] = double.infinity;
+    expect(() => KokoroTimeline.fromJson(infDuration), throwsFormatException);
+    final textNotString = base();
+    ((textNotString['sentences'] as List).first as Map)['text'] = 42;
+    expect(() => KokoroTimeline.fromJson(textNotString), throwsFormatException);
+    final startNotNum = base();
+    ((startNotNum['sentences'] as List).first as Map)['start_s'] = 'zero';
+    expect(() => KokoroTimeline.fromJson(startNotNum), throwsFormatException);
+  });
+
+  test('the remaining guards: non-finite start, a mouth that is not a list, fps between 0 and 1, mouth out of range', () {
+    Map<String, dynamic> base() => {
+          'fps': 10,
+          'sentences': [
+            {'text': 'Hi', 'start_s': 0, 'duration_s': 1, 'mouth': [0.5]},
+          ],
+        };
+    final infStart = base();
+    ((infStart['sentences'] as List).first as Map)['start_s'] = double.infinity;
+    expect(() => KokoroTimeline.fromJson(infStart), throwsFormatException);
+    final mouthNotList = base();
+    ((mouthNotList['sentences'] as List).first as Map)['mouth'] = 'open';
+    expect(() => KokoroTimeline.fromJson(mouthNotList), throwsFormatException);
+    expect(() => KokoroTimeline.fromJson({...base(), 'fps': 0.5}), throwsFormatException);
+    final mouthOver = base();
+    ((mouthOver['sentences'] as List).first as Map)['mouth'] = [1.5];
+    expect(() => KokoroTimeline.fromJson(mouthOver), throwsFormatException);
+    final overflow = base();
+    ((overflow['sentences'] as List).first as Map)['duration_s'] = 1e300;
+    expect(() => KokoroTimeline.fromJson(overflow), throwsFormatException);
+  });
+
+  test('a negative mouth value and a non-numeric duration are refused', () {
+    Map<String, dynamic> base() => {
+          'fps': 10,
+          'sentences': [
+            {'text': 'Hi', 'start_s': 0, 'duration_s': 1, 'mouth': [0.5]},
+          ],
+        };
+    final negMouth = base();
+    ((negMouth['sentences'] as List).first as Map)['mouth'] = [-0.5];
+    expect(() => KokoroTimeline.fromJson(negMouth), throwsFormatException);
+    final textDuration = base();
+    ((textDuration['sentences'] as List).first as Map)['duration_s'] = 'x';
+    expect(() => KokoroTimeline.fromJson(textDuration), throwsFormatException);
+  });
+
+  test('word timings: one per word, in order, with the exact character positions', () {
+    final t = KokoroTimeline.fromJson(jsonDecode(_fixture) as Map<String, dynamic>);
+    final words = t.wordTimings(_text);
+    final spoken = [for (final (cs, ce, _, _) in words) _text.substring(cs, ce)];
+    expect(spoken, ["Hi", "I'm", "Ava", "Take", "your", "time", "now"]);
+    for (var k = 1; k < words.length; k++) {
+      expect(words[k].$3, greaterThanOrEqualTo(words[k - 1].$3), reason: 'starts never go backwards');
+    }
+  });
+
+  test('each sentence keeps its own span: its words start and end inside it', () {
+    final t = KokoroTimeline.fromJson(jsonDecode(_fixture) as Map<String, dynamic>);
+    final words = t.wordTimings(_text);
+    // The first three words belong to the first sentence (0.0-1.2 s), the rest to the second (1.2-2.8 s).
+    for (final (i, (_, _, s, e)) in words.indexed) {
+      final sentence = i < 3 ? t.sentences[0] : t.sentences[1];
+      expect(s, greaterThanOrEqualTo(sentence.start - 1e-9));
+      expect(e, lessThanOrEqualTo(sentence.start + sentence.duration + 1e-9));
+    }
+    // The last word of each sentence ends exactly where its sentence ends.
+    expect(words[2].$4, closeTo(1.2, 1e-9));
+    expect(words.last.$4, closeTo(2.8, 1e-9));
+  });
+
+  test('a longer word takes a longer share of its sentence', () {
+    final t = KokoroTimeline.fromJson({
+      'fps': 10,
+      'sentences': [
+        {'text': 'Hi yes', 'start_s': 0.0, 'duration_s': 1.0, 'mouth': []},
+      ],
+    });
+    final words = t.wordTimings('Hi yes');
+    final short = words[0].$4 - words[0].$3;
+    final long = words[1].$4 - words[1].$3;
+    expect(long, greaterThan(short));
+    expect(short / long, closeTo(2 / 3, 1e-9));
+  });
+
+  test('a sentence that is not in the text throws instead of misaligning the timing', () {
+    final t = KokoroTimeline.fromJson({
+      'fps': 10,
+      'sentences': [
+        {'text': 'Not in the text', 'start_s': 0.0, 'duration_s': 1.0, 'mouth': []},
+      ],
+    });
+    expect(() => t.wordTimings(_text), throwsFormatException);
+  });
+
+  test('feeding an utterance drives the real lip-sync driver: speaking, then closed after the audio', () {
+    final t = KokoroTimeline.fromJson(jsonDecode(_fixture) as Map<String, dynamic>);
+    var now = Duration.zero;
+    final driver = LipSyncDriver(clock: () => now);
+    feedKokoroUtterance(driver, t, _text, CoachLanguage.en);
+
+    expect(driver.timeline, isNotNull);
+    expect(driver.hasAudio, isTrue, reason: 'the loudness of the rendered audio reached the driver');
+
+    // Speaking: the plan advances with the clock, never backwards.
+    final times = <double>[];
+    for (var ms = 0; ms <= 2500; ms += 250) {
+      now = Duration(milliseconds: ms);
+      final p = driver.planTime();
+      if (p != null) times.add(p);
+    }
+    expect(times, isNotEmpty);
+    for (var k = 1; k < times.length; k++) {
+      expect(times[k], greaterThanOrEqualTo(times[k - 1]), reason: 'plan time never goes backwards');
+    }
+
+    // After the audio ends the mouth is closed (rest). Lips close between sentences and at the end.
+    now = const Duration(milliseconds: 4000);
+    expect(driver.sample().viseme, Viseme.rest);
+  });
+  test('fps must be a whole number from 1 to 100; sentences must be in start order', () {
+    Map<String, dynamic> base({Object? fps = 10}) => {
+          'fps': fps,
+          'sentences': [
+            {'text': 'Hi', 'start_s': 0, 'duration_s': 1, 'mouth': [0.5]},
+            {'text': 'Yo', 'start_s': 1, 'duration_s': 1, 'mouth': [0.5]},
+          ],
+        };
+    expect(() => KokoroTimeline.fromJson(base(fps: 1.9)), throwsFormatException);
+    expect(() => KokoroTimeline.fromJson(base(fps: 101)), throwsFormatException);
+    expect(KokoroTimeline.fromJson(base(fps: 12)).fps, 12);
+    final backwards = base();
+    ((backwards['sentences'] as List)[1] as Map)['start_s'] = 0.5;
+    ((backwards['sentences'] as List)[0] as Map)['start_s'] = 1.0;
+    expect(() => KokoroTimeline.fromJson(backwards), throwsFormatException);
+  });
+
+  test('the feed sends levels only: no word markers reach the driver', () {
+    final t = KokoroTimeline.fromJson(jsonDecode(_fixture) as Map<String, dynamic>);
+    final driver = _MarkerCountingDriver(clock: () => Duration.zero);
+    feedKokoroUtterance(driver, t, _text, CoachLanguage.en);
+    expect(driver.markers, 0, reason: 'estimated word times must not replace the measured loudness');
+    expect(driver.hasAudio, isTrue);
+  });
+}
+
+class _MarkerCountingDriver extends LipSyncDriver {
+  _MarkerCountingDriver({required super.clock});
+  int markers = 0;
+
+  @override
+  void addMarker(int charStart, double t) {
+    markers++;
+    super.addMarker(charStart, t);
+  }
+}

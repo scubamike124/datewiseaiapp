@@ -32,21 +32,11 @@ name: iOS build
 #     certificate. For a key whose role may manage certificates and profiles
 #     but not cloud-managed signing (App Manager). See section 2.1 too.
 on:
+  # No paths filter: "Unsigned release build" is a required check on main, and a path filter leaves it
+  # unreported for PRs that touch no listed path (backend/, assets/, tool/, test/...), so they could never merge.
+  # macOS runs are free on this public repository. The only job that runs on pull_request is unsigned; the
+  # signed job is workflow_dispatch only.
   pull_request:
-    paths:
-      - 'ios/**'
-      - 'lib/**'
-      - 'pubspec.yaml'
-      - 'pubspec.lock'
-      - '.github/workflows/ios-build.yml'
-      # The production Worker config ships with a release, and "Unsigned release build" is a required check on
-      # main: without this a wrangler.toml-only PR could never get the check and could not merge.
-      - 'backend/wrangler.toml'
-      # Same reason: the Worker deploy workflow is a release file, and a PR that only changes it
-      # (and docs) would otherwise never get the required check and could not merge.
-      - '.github/workflows/deploy-worker.yml'
-      # The DateWise handoff is part of the release record; a docs-only PR must still get the required check.
-      - 'docs/RESUME.md'
   workflow_dispatch:
     inputs:
       run_tests:
@@ -278,7 +268,7 @@ jobs:
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
           security set-keychain-settings -lut 21600 "$KEYCHAIN"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          security import "$RUNNER_TEMP/dist.p12" -P "$IOS_DIST_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security import "$RUNNER_TEMP/dist.p12" -P "$IOS_DIST_CERT_PASSWORD" -t cert -f pkcs12 -k "$KEYCHAIN"
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
           security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
           rm "$RUNNER_TEMP/dist.p12"
@@ -337,7 +327,7 @@ jobs:
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
           security set-keychain-settings -lut 21600 "$KEYCHAIN"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          security import "$W/dist.p12" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security import "$W/dist.p12" -P "$P12_PASSWORD" -t cert -f pkcs12 -k "$KEYCHAIN"
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
           security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
           rm -f "$W/dist.p12"
@@ -421,6 +411,9 @@ jobs:
         if: steps.secrets.outputs.ready == 'true'
         env:
           AVATAR_AUDIO_PATH: ${{ inputs.avatar_audio_path && 'true' || 'false' }}
+          # Server-rendered Kokoro speech (https only, checked in the app). Empty unless the audio-path test build is
+          # ticked and the repository variable is set; empty means the app uses the native path or the device voice.
+          KOKORO_SPEECH_URL: ${{ inputs.avatar_audio_path && vars.DW_KOKORO_SPEECH_URL || '' }}
           COACH_BACKEND: ${{ inputs.coach_backend }}
           OWNER_ACCESS: ${{ inputs.owner_access && 'true' || 'false' }}
           SIGNING: ${{ inputs.signing }}
@@ -431,7 +424,7 @@ jobs:
           # section 9); production builds pass no define and keep
           # AIConfig.productionUrl.
           STAGING_COACH_URL="https://datewise-coach-staging.scubamike124.workers.dev"
-          DEFINES=(--dart-define=DW_AVATAR_AUDIO_PATH="$AVATAR_AUDIO_PATH")
+          DEFINES=(--dart-define=DW_AVATAR_AUDIO_PATH="$AVATAR_AUDIO_PATH" --dart-define=DW_KOKORO_SPEECH_URL="$KOKORO_SPEECH_URL")
           if [ "$OWNER_ACCESS" = "true" ]; then DEFINES+=(--dart-define=DW_OWNER_ACCESS=true); fi
           case "$COACH_BACKEND" in
             production|"") COACH_BACKEND=production ;;

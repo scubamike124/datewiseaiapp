@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+
+import '../avatar/kokoro_audio_backend.dart';
+import '../avatar/kokoro_video_clip.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
 import '../avatar/lip_sync.dart';
@@ -48,6 +51,7 @@ class CoachVoiceProfile {
     required this.otherGenderNames,
     required this.pitch,
     required this.rate,
+    required this.kokoroVoice,
   });
 
   final List<String> locales;
@@ -58,6 +62,11 @@ class CoachVoiceProfile {
   final List<String> otherGenderNames;
   final double pitch;
   final double rate;
+
+  /// The server-rendered Kokoro voice of this coach (the Kokoro path sends
+  /// this name, never an Apple voice identifier). Spanish coaches use the
+  /// Spanish Kokoro voices, so the phonemes match the Spanish text.
+  final String kokoroVoice;
 
   static const _enFemale = ['Ava', 'Samantha', 'Allison', 'Susan', 'Zoe', 'Nicky', 'Joelle', 'Noelle'];
   static const _enMale = ['Evan', 'Nathan', 'Alex', 'Tom', 'Aaron', 'Daniel', 'Fred', 'Reed'];
@@ -84,13 +93,33 @@ class CoachVoiceProfile {
   // semitone), Sofia 1.05 (+0.8), Diego 0.92 (-1.4), instead of the old
   // +-2 semitone shifts.
   static const ava = CoachVoiceProfile(
-      locales: _enLocales, preferredNames: _enFemale, otherGenderNames: _enMale, pitch: 1.0, rate: 0.45);
+      locales: _enLocales,
+      preferredNames: _enFemale,
+      otherGenderNames: _enMale,
+      pitch: 1.0,
+      rate: 0.45,
+      kokoroVoice: 'af_bella');
   static const ethan = CoachVoiceProfile(
-      locales: _enLocales, preferredNames: _enMale, otherGenderNames: _enFemale, pitch: 0.97, rate: 0.44);
+      locales: _enLocales,
+      preferredNames: _enMale,
+      otherGenderNames: _enFemale,
+      pitch: 0.97,
+      rate: 0.44,
+      kokoroVoice: 'am_michael');
   static const sofia = CoachVoiceProfile(
-      locales: _esLocales, preferredNames: _esFemale, otherGenderNames: _esMale, pitch: 1.05, rate: 0.455);
+      locales: _esLocales,
+      preferredNames: _esFemale,
+      otherGenderNames: _esMale,
+      pitch: 1.05,
+      rate: 0.455,
+      kokoroVoice: 'ef_dora');
   static const diego = CoachVoiceProfile(
-      locales: _esLocales, preferredNames: _esMale, otherGenderNames: _esFemale, pitch: 0.92, rate: 0.445);
+      locales: _esLocales,
+      preferredNames: _esMale,
+      otherGenderNames: _esFemale,
+      pitch: 0.92,
+      rate: 0.445,
+      kokoroVoice: 'em_alex');
 
   /// The voice (locales and names) for [coach] speaking [language]: their
   /// own profile, or for the other language the profile of the same-gender
@@ -135,10 +164,17 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
   /// flutter_tts path; TestFlight builds turn it on to test it
   /// (docs/avatar/TALKING_AVATARS.md).
   static bool useAudioPath = const bool.fromEnvironment('DW_AVATAR_AUDIO_PATH');
+  /// Base URL of the server-rendered Kokoro speech service (lib/avatar/kokoro_audio_backend.dart). Empty (the default): the
+  /// native audio path or the device voice is used. Set with --dart-define=DW_KOKORO_SPEECH_URL=https://... on iOS only.
+  static const String kokoroSpeechUrl = String.fromEnvironment('DW_KOKORO_SPEECH_URL');
 
   /// How long to wait for the native path to start playing before giving
   /// up and speaking through flutter_tts instead.
   static Duration audioStartTimeout = const Duration(seconds: 3);
+
+  /// The Kokoro path renders the whole reply on the server before it plays, so its start
+  /// timeout is much longer than [audioStartTimeout]. It also bounds a request that never answers.
+  static Duration kokoroStartTimeout = const Duration(seconds: 20);
   Timer? _audioWatchdog;
 
   /// Consecutive replies whose playback did not start in time. A cold
@@ -164,6 +200,8 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
   Future<void> dispose() async {
     _audioWatchdog?.cancel();
     await _audioSub?.cancel();
+    final audio = _audio;
+    if (audio is KokoroSpeechAudioBackend) await audio.dispose();
   }
 
   void _wireTts() {
@@ -282,14 +320,36 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
           for (final v in raw)
             if (v is Map) {for (final e in v.entries) '${e.key}': '${e.value}'},
       ];
-      final service = DeviceVoiceService._(
-          tts, voices, defaultTargetPlatform == TargetPlatform.iOS && DeviceVoiceService.useAudioPath
-              ? ChannelSpeechAudioBackend()
-              : null);
+      final SpeechAudioBackend? audio = defaultTargetPlatform == TargetPlatform.iOS && DeviceVoiceService.useAudioPath
+          ? audioBackendFor(DeviceVoiceService.kokoroSpeechUrl)
+          : null;
+      final service = DeviceVoiceService._(tts, voices, audio);
       return service;
     } catch (_) {
       return NoVoiceService();
     }
+  }
+
+  /// The https base URL of the Kokoro speech service, or null when [raw] is empty, not a URL, or not https with a host.
+  @visibleForTesting
+  static Uri? kokoroBaseUrl(String raw) {
+    if (raw.isEmpty) return null;
+    final uri = Uri.tryParse(raw);
+    if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) return null;
+    return uri;
+  }
+
+  /// The native speech-audio backend for [kokoroUrl]: the Kokoro service when it is a valid https URL, else the
+  /// platform channel. An invalid URL is logged and does not disable the audio path.
+  @visibleForTesting
+  static SpeechAudioBackend audioBackendFor(String kokoroUrl) {
+    if (kokoroUrl.isEmpty) return ChannelSpeechAudioBackend();
+    final base = kokoroBaseUrl(kokoroUrl);
+    if (base == null) {
+      debugPrint('DW_KOKORO_SPEECH_URL is not a valid https URL; using the native audio path instead of Kokoro.');
+      return ChannelSpeechAudioBackend();
+    }
+    return KokoroSpeechAudioBackend(baseUrl: base, player: VideoPlayerClipPlayer());
   }
 
   @override
@@ -430,26 +490,28 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
     await _tts.setSpeechRate(profile.rate);
     if (gen != _generation) return;
     // The first sentence starts now; the rest follow with a pause between.
-    await _speakChunk(gen, chunks, 0, voice, language, profile);
-    if (chunks.length > 1) unawaited(_continueChunks(gen, chunks, voice, language, profile));
+    // The Kokoro voice follows the language of the text, like the device voice does.
+    final kokoroVoice = CoachVoiceProfile.forLanguage(coach, language).kokoroVoice;
+    await _speakChunk(gen, chunks, 0, voice, language, profile, kokoroVoice);
+    if (chunks.length > 1) unawaited(_continueChunks(gen, chunks, voice, language, profile, kokoroVoice));
   }
 
-  Future<void> _continueChunks(
-      int gen, List<SpeechChunk> chunks, Map<String, String>? voice, CoachLanguage language, CoachVoiceProfile profile) async {
+  Future<void> _continueChunks(int gen, List<SpeechChunk> chunks, Map<String, String>? voice, CoachLanguage language,
+      CoachVoiceProfile profile, String kokoroVoice) async {
     for (var i = 0; i < chunks.length - 1; i++) {
       final completer = _chunkDone;
       final ok = completer == null ? false : await completer.future;
       if (!ok || gen != _generation) return;
       await pauseFor(chunks[i].pause);
       if (gen != _generation) return;
-      await _speakChunk(gen, chunks, i + 1, voice, language, profile);
+      await _speakChunk(gen, chunks, i + 1, voice, language, profile, kokoroVoice);
     }
   }
 
   /// Starts chunk [i] (returns once it has been handed to the synthesizer;
   /// its end arrives through [_chunkEnded]).
   Future<void> _speakChunk(int gen, List<SpeechChunk> chunks, int i, Map<String, String>? voice, CoachLanguage language,
-      CoachVoiceProfile profile) async {
+      CoachVoiceProfile profile, String kokoroVoice) async {
     final text = chunks[i].text;
     _lastChunk = i == chunks.length - 1;
     _chunkDone = Completer<bool>();
@@ -465,15 +527,18 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
     if (_audioPathOn) {
       _audioGeneration = gen;
       _fallback = viaTts;
-      // Nothing heard within the timeout (a silent failure): fall back.
+      // Nothing heard within the timeout (a silent failure): fall back. Kokoro renders the whole reply first, so it
+      // gets the longer timeout; the native path sends the Apple voice identifier, Kokoro the Kokoro voice name.
+      final audio = _audio!;
+      final isKokoro = audio is KokoroSpeechAudioBackend;
       _audioWatchdog?.cancel();
-      _audioWatchdog = Timer(audioStartTimeout, () {
+      _audioWatchdog = Timer(isKokoro ? kokoroStartTimeout : audioStartTimeout, () {
         if (_audioGeneration == _generation && _fallback != null) _audioFailure(replay: true, timeout: true);
       });
       try {
-        await _audio!.speak(
+        await audio.speak(
           text: text,
-          voice: voice?['identifier'],
+          voice: isKokoro ? kokoroVoice : voice?['identifier'],
           language: voice?['locale'] ?? language.locale,
           rate: profile.rate,
           pitch: profile.pitch,
