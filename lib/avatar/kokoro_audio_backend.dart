@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'kokoro_speech.dart';
@@ -60,7 +61,7 @@ class KokoroSpeechAudioBackend implements SpeechAudioBackend {
       final response = await _client.post(
         baseUrl.resolve('/v1/speech'),
         headers: {'content-type': 'application/json'},
-        body: jsonEncode({'text': text, 'voice': voice, 'lang': lang, 'speed': _speedFor(rate)}),
+        body: jsonEncode({'text': text, 'voice': voice, 'lang': lang, 'speed': speedFor(rate)}),
       );
       if (gen != _generation) return;
       if (response.statusCode != 200) {
@@ -129,8 +130,12 @@ class KokoroSpeechAudioBackend implements SpeechAudioBackend {
     if (wasSpeaking) _events.add(const SpeechAudioDone(interrupted: true));
   }
 
-  /// flutter_tts rate 0.5 is the app's normal pace; the Kokoro speed is 0.95 at that pace (SPEECH_PACING.md).
-  static double _speedFor(double rate) => (0.95 * (rate / 0.5)).clamp(0.6, 1.3).toDouble();
+  /// Kokoro speed for a coach's flutter_tts rate. The map is linear, like the device voice's rate (SpeechPace treats
+  /// 0.5 as about 170 wpm, 3 wpm per 0.01), so each coach keeps the same pace ratio on both paths. The constant 0.95 is
+  /// the assumed Kokoro speed for rate 0.5; it is not measured yet, so it is a tuning point. The coach rates 0.44-0.455
+  /// (CoachVoiceProfile) therefore give speeds of about 0.84-0.87. The clamp is a safety bound for a bad rate only.
+  @visibleForTesting
+  static double speedFor(double rate) => (0.95 * (rate / 0.5)).clamp(0.6, 1.3).toDouble();
 
   Future<void> dispose() async {
     _generation++;
