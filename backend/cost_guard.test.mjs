@@ -123,8 +123,10 @@ test('the client system prompt is ignored; the server builds the coach prompt', 
   assert.match(sent[0].content, /ONLY coach on dating/);
   assert.match(sent[0].content, /communication and date planning \(places, activities, itineraries\)/);
   assert.match(sent[0].content, /you cannot see availability or book/);
-  assert.match(sent[0].content, /or present an invented venue as real/);
-  assert.match(sent[0].content, /Never say a table is available, held or booked/);
+  assert.match(sent[0].content, /Never say a table is available, held or booked, or invent a confirmation/);
+  assert.match(sent[0].content, /name a specific venue only if the user did/);
+  // The button's label in both UI languages, and the honest alternatives.
+  assert.match(sent[0].content, /Suggest "Find a table" \("Buscar mesa"\) below your reply, or the restaurant's own booking page or phone\./);
   assert.match(sent[0].content, /more confidence/);
   assert.ok(!sent.some((m) => m.content.includes('general assistant')));
   assert.ok(!sent[0].content.includes('bogus'));

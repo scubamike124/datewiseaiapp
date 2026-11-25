@@ -824,10 +824,105 @@ class AppLocalizationsEs extends AppLocalizations {
   String get findTable => 'Buscar mesa';
 
   @override
-  String get findTableSemantics => 'Buscar mesa cerca. Abre Apple Maps.';
+  String get findTableSemantics =>
+      'Buscar mesa. Abre un planificador de búsqueda de restaurantes.';
 
   @override
-  String get findTableQuery => 'restaurantes';
+  String get planTableTitle => 'Planea tu mesa';
+
+  @override
+  String get planTableHonest =>
+      'DateWise no puede ver la disponibilidad ni reservar. La página de OpenTable muestra las mesas disponibles y ahí reservas. Solo se envía lo que escribas aquí, cuando tocas una búsqueda.';
+
+  @override
+  String get planTableArea => 'Zona o ciudad';
+
+  @override
+  String get planTableAreaHint => 'p. ej. Polanco, Ciudad de México';
+
+  @override
+  String get planTableCuisine => 'Tipo de comida (opcional)';
+
+  @override
+  String get planTableCuisineHint => 'p. ej. italiana';
+
+  @override
+  String get planTableBudget => 'Presupuesto (opcional)';
+
+  @override
+  String planTableBudgetLevel(String level) {
+    String _temp0 = intl.Intl.selectLogic(level, {
+      '1': 'Económico',
+      '2': 'Moderado',
+      '3': 'Elegante',
+      'other': 'Alta cocina',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String planTableBudgetQuery(String level) {
+    String _temp0 = intl.Intl.selectLogic(level, {
+      '1': 'económicos',
+      '2': 'de precio medio',
+      '3': 'elegantes',
+      'other': 'de alta cocina',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get planTableDate => 'Fecha';
+
+  @override
+  String get planTableTime => 'Hora';
+
+  @override
+  String get planTableParty => 'Número de personas';
+
+  @override
+  String planTablePeople(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count personas',
+      one: '1 persona',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get planTableFewer => 'Menos personas';
+
+  @override
+  String get planTableMore => 'Más personas';
+
+  @override
+  String get planTableSearchOn => 'Buscar en';
+
+  @override
+  String get planTableOpenTable => 'OpenTable';
+
+  @override
+  String get planTableGoogleMaps => 'Google Maps';
+
+  @override
+  String get planTableAppleMaps => 'Apple Maps';
+
+  @override
+  String planTableOpensOutside(String site) {
+    return 'Buscar en $site. Abre $site fuera de DateWise.';
+  }
+
+  @override
+  String planTableMapsWhat(String budget, String cuisine) {
+    return 'restaurantes $cuisine $budget';
+  }
+
+  @override
+  String planTableMapsWhere(String what, String area) {
+    return '$what en $area';
+  }
 
   @override
   String get settingsFootnote =>

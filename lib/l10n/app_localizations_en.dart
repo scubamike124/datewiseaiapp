@@ -802,10 +802,105 @@ class AppLocalizationsEn extends AppLocalizations {
   String get findTable => 'Find a table';
 
   @override
-  String get findTableSemantics => 'Find a table nearby. Opens Apple Maps.';
+  String get findTableSemantics =>
+      'Find a table. Opens a restaurant search planner.';
 
   @override
-  String get findTableQuery => 'restaurants';
+  String get planTableTitle => 'Plan a table';
+
+  @override
+  String get planTableHonest =>
+      'DateWise can\'t see availability or book. OpenTable\'s page shows live tables and you book there. Only what you type here is sent, when you tap a search.';
+
+  @override
+  String get planTableArea => 'Area or city';
+
+  @override
+  String get planTableAreaHint => 'e.g. Wicker Park, Chicago';
+
+  @override
+  String get planTableCuisine => 'Cuisine (optional)';
+
+  @override
+  String get planTableCuisineHint => 'e.g. Italian';
+
+  @override
+  String get planTableBudget => 'Budget (optional)';
+
+  @override
+  String planTableBudgetLevel(String level) {
+    String _temp0 = intl.Intl.selectLogic(level, {
+      '1': 'Inexpensive',
+      '2': 'Moderate',
+      '3': 'Upscale',
+      'other': 'Fine dining',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String planTableBudgetQuery(String level) {
+    String _temp0 = intl.Intl.selectLogic(level, {
+      '1': 'cheap',
+      '2': 'moderately priced',
+      '3': 'upscale',
+      'other': 'fine dining',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get planTableDate => 'Date';
+
+  @override
+  String get planTableTime => 'Time';
+
+  @override
+  String get planTableParty => 'Party size';
+
+  @override
+  String planTablePeople(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count people',
+      one: '1 person',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get planTableFewer => 'Fewer people';
+
+  @override
+  String get planTableMore => 'More people';
+
+  @override
+  String get planTableSearchOn => 'Search on';
+
+  @override
+  String get planTableOpenTable => 'OpenTable';
+
+  @override
+  String get planTableGoogleMaps => 'Google Maps';
+
+  @override
+  String get planTableAppleMaps => 'Apple Maps';
+
+  @override
+  String planTableOpensOutside(String site) {
+    return 'Search $site. Opens $site outside DateWise.';
+  }
+
+  @override
+  String planTableMapsWhat(String budget, String cuisine) {
+    return '$budget $cuisine restaurants';
+  }
+
+  @override
+  String planTableMapsWhere(String what, String area) {
+    return '$what in $area';
+  }
 
   @override
   String get settingsFootnote =>

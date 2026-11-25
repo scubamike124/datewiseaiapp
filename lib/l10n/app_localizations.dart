@@ -1375,7 +1375,7 @@ abstract class AppLocalizations {
   /// **'Could not open {url}'**
   String couldNotOpen(String url);
 
-  /// Compact link-out button under the coach's reply on first-date plans. Opens Apple Maps; no in-app booking.
+  /// Compact button under the coach's reply on date plans and restaurant questions. Opens the Plan a table sheet; no in-app booking.
   ///
   /// In en, this message translates to:
   /// **'Find a table'**
@@ -1384,14 +1384,140 @@ abstract class AppLocalizations {
   /// No description provided for @findTableSemantics.
   ///
   /// In en, this message translates to:
-  /// **'Find a table nearby. Opens Apple Maps.'**
+  /// **'Find a table. Opens a restaurant search planner.'**
   String get findTableSemantics;
 
-  /// The Apple Maps search term the Find a table button opens (searched near the phone).
+  /// No description provided for @planTableTitle.
   ///
   /// In en, this message translates to:
-  /// **'restaurants'**
-  String get findTableQuery;
+  /// **'Plan a table'**
+  String get planTableTitle;
+
+  /// Honest note at the top of the Plan a table sheet: no availability or booking in DateWise.
+  ///
+  /// In en, this message translates to:
+  /// **'DateWise can\'t see availability or book. OpenTable\'s page shows live tables and you book there. Only what you type here is sent, when you tap a search.'**
+  String get planTableHonest;
+
+  /// No description provided for @planTableArea.
+  ///
+  /// In en, this message translates to:
+  /// **'Area or city'**
+  String get planTableArea;
+
+  /// No description provided for @planTableAreaHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. Wicker Park, Chicago'**
+  String get planTableAreaHint;
+
+  /// No description provided for @planTableCuisine.
+  ///
+  /// In en, this message translates to:
+  /// **'Cuisine (optional)'**
+  String get planTableCuisine;
+
+  /// No description provided for @planTableCuisineHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. Italian'**
+  String get planTableCuisineHint;
+
+  /// No description provided for @planTableBudget.
+  ///
+  /// In en, this message translates to:
+  /// **'Budget (optional)'**
+  String get planTableBudget;
+
+  /// What VoiceOver reads for the $ to $$$$ budget chips (level 1 to 4).
+  ///
+  /// In en, this message translates to:
+  /// **'{level, select, 1{Inexpensive} 2{Moderate} 3{Upscale} other{Fine dining}}'**
+  String planTableBudgetLevel(String level);
+
+  /// The budget words put into the map search (level 1 to 4), e.g. 'cheap Italian restaurants in Chicago'.
+  ///
+  /// In en, this message translates to:
+  /// **'{level, select, 1{cheap} 2{moderately priced} 3{upscale} other{fine dining}}'**
+  String planTableBudgetQuery(String level);
+
+  /// No description provided for @planTableDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Date'**
+  String get planTableDate;
+
+  /// No description provided for @planTableTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Time'**
+  String get planTableTime;
+
+  /// No description provided for @planTableParty.
+  ///
+  /// In en, this message translates to:
+  /// **'Party size'**
+  String get planTableParty;
+
+  /// No description provided for @planTablePeople.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 person} other{{count} people}}'**
+  String planTablePeople(int count);
+
+  /// No description provided for @planTableFewer.
+  ///
+  /// In en, this message translates to:
+  /// **'Fewer people'**
+  String get planTableFewer;
+
+  /// No description provided for @planTableMore.
+  ///
+  /// In en, this message translates to:
+  /// **'More people'**
+  String get planTableMore;
+
+  /// No description provided for @planTableSearchOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Search on'**
+  String get planTableSearchOn;
+
+  /// No description provided for @planTableOpenTable.
+  ///
+  /// In en, this message translates to:
+  /// **'OpenTable'**
+  String get planTableOpenTable;
+
+  /// No description provided for @planTableGoogleMaps.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Maps'**
+  String get planTableGoogleMaps;
+
+  /// No description provided for @planTableAppleMaps.
+  ///
+  /// In en, this message translates to:
+  /// **'Apple Maps'**
+  String get planTableAppleMaps;
+
+  /// No description provided for @planTableOpensOutside.
+  ///
+  /// In en, this message translates to:
+  /// **'Search {site}. Opens {site} outside DateWise.'**
+  String planTableOpensOutside(String site);
+
+  /// The map search for the planner's criteria; empty parts are dropped (extra spaces removed).
+  ///
+  /// In en, this message translates to:
+  /// **'{budget} {cuisine} restaurants'**
+  String planTableMapsWhat(String budget, String cuisine);
+
+  /// No description provided for @planTableMapsWhere.
+  ///
+  /// In en, this message translates to:
+  /// **'{what} in {area}'**
+  String planTableMapsWhere(String what, String area);
 
   /// No description provided for @settingsFootnote.
   ///

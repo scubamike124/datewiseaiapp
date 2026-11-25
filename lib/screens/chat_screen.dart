@@ -1206,8 +1206,9 @@ class _MessageList extends StatelessWidget {
     final messages = thread?.messages ??
         [ChatMessage(id: 'greeting', role: MessageRole.coach, text: coach.greeting, createdAt: DateTime(2026))];
     final hasUser = messages.any((m) => m.isUser);
-    // First-date plans: "Find a table" under the coach's latest reply.
-    final datePlan = FindTableLink.available && FindTableLink.wantsTable(messages);
+    // Date plans and restaurant questions: "Find a table" under the coach's
+    // latest reply (text chat and voice, every platform).
+    final datePlan = FindTableLink.wantsTable(messages);
 
     final items = <Widget>[
       if (showIntro) _IntroCard(coach: coach),

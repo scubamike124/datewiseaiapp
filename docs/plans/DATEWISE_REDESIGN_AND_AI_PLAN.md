@@ -103,6 +103,12 @@ Two visual tracks exist:
   opens an Apple Maps search for restaurants (`https://maps.apple.com/?q=restaurants`, `restaurantes` in Spanish), on
   tap only. No accounts, no partner APIs, no API costs, no location permission, no chat content sent. iPhone/iPad only;
   hidden on the web and Android. Booking partners (A5) stay undecided.
+- **Update 2026-11-25 (reservation planner).** "Find a table" / "Buscar mesa" now also appears when the user's latest
+  message asks about a restaurant or reservation, in text chat and the voice conversation, on every platform. It opens a
+  "Plan a table" sheet (area, cuisine, budget, date, time, party size) whose results are search links carrying only what
+  the user typed: OpenTable (`/s/?covers=&dateTime=&term=`, unverified against OpenTable docs, see
+  `lib/app_links.dart`), Google Maps (`/maps/search/?api=1&query=`, documented) and Apple Maps where it exists. DateWise
+  still cannot see availability or book; still no accounts, partner APIs, costs or location permission.
 
 ## 6. Not claimed
 

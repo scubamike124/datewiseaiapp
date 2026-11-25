@@ -1,31 +1,25 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
-import '../app_links.dart';
 import '../l10n/l10n.dart';
 import '../models/chat_message.dart';
 import '../models/coach.dart';
 import 'dw.dart';
+import 'plan_table_sheet.dart';
 
-/// "Find a table": the v1 booking option (owner decision, 2026-11-23). On a
-/// first-date-plan conversation, a compact link under the coach's latest
-/// reply opens an Apple Maps search for restaurants near the phone. No
-/// accounts, no partner APIs, no in-app booking and no location permission:
-/// Apple Maps uses its own location setting. Nothing from the chat is sent;
-/// the link carries only the generic search term, and only on tap.
+/// "Find a table" / "Buscar mesa": the v1 restaurant option (owner decisions,
+/// 2026-11-23 and 2026-11-25). Under the coach's latest reply on a date-plan
+/// conversation, or when the user's latest message asks about a restaurant or
+/// a reservation, a compact button opens the "Plan a table" sheet
+/// (plan_table_sheet.dart): area, cuisine, budget, date, time and party size,
+/// then search links that open outside the app (OpenTable, Google Maps, and
+/// Apple Maps where it exists). It works the same in text chat and in the
+/// voice conversation (the message list is shown in both), on every platform.
+///
+/// No accounts, no partner APIs, no in-app booking and no location
+/// permission. Nothing from the chat is sent: the links carry only what the
+/// user typed into the sheet, and open only on tap.
 class FindTableLink extends StatelessWidget {
   const FindTableLink({super.key});
-
-  /// Opens [uri] outside the app. Tests replace it to record the launch.
-  @visibleForTesting
-  static Future<bool> Function(Uri uri) launch =
-      (uri) => launchUrl(uri, mode: LaunchMode.externalApplication);
-
-  /// Where Apple Maps exists: iPhone / iPad (and a Mac). Hidden on the web,
-  /// where a map search could ask the browser for location, and on Android.
-  static bool get available =>
-      !kIsWeb && (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.macOS);
 
   /// The prompts that start the first-date-plan path: Home's "Prepare for a
   /// date" quick action, the weekly plan's "Plan a first date" prompt (both in
@@ -51,9 +45,18 @@ class FindTableLink extends StatelessWidget {
     return false;
   }
 
-  /// Restaurant or reservation words, English and Spanish, whole words only.
+  /// Restaurant, meal or reservation words, English and Spanish, as whole
+  /// words. Dart's `\b` is ASCII-only (it fails next to the "ó" of
+  /// "reservación"), so the word edges are Unicode lookarounds: no letter,
+  /// digit or underscore on either side. A false positive only shows a
+  /// harmless button.
   static final RegExp _tableWords = RegExp(
-    r"\b(reservations?|reserve|book(ing)? a table|restaurants?|dinner|table for|reservas?|reservar|restaurantes?|cena|cenar|mesa para)\b",
+    r'(?<![\p{L}\p{N}_])('
+    r'reservations?|reserve|book(ing)?( us)? a table|get us a table|a table|table for'
+    r'|restaurants?|dinner|brunch|lunch|drinks'
+    r'|reservas?|reservar|reservación|reservaciones|mesa|restaurantes?'
+    r'|cena|cenar|cenamos|almuerzo|almorzar|comida'
+    r')(?![\p{L}\p{N}_])',
     caseSensitive: false,
     unicode: true,
   );
@@ -69,34 +72,25 @@ class FindTableLink extends StatelessWidget {
     return false;
   }
 
-  Future<void> _open(BuildContext context) async {
-    final uri = AppLinks.findTableUri(context.l10n.findTableQuery);
-    final ok = await launch(uri).catchError((_) => false);
-    if (!ok && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.couldNotOpen(uri.host))));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
     // Its own node (container), not merged into the coach's reply above it.
     return Semantics(
       container: true,
-      link: true,
+      button: true,
       label: l.findTableSemantics,
-      onTap: () => _open(context),
+      onTap: () => showPlanTableSheet(context),
       excludeSemantics: true,
       child: DwButton(
         key: const ValueKey('find-table'),
         label: l.findTable,
         leading: Icons.restaurant_outlined,
-        trailing: Icons.north_east_rounded,
         style: DwButtonStyle.ghost,
         height: 44,
         fontSize: 14,
         padding: 16,
-        onPressed: () => _open(context),
+        onPressed: () => showPlanTableSheet(context),
       ),
     );
   }
