@@ -101,4 +101,24 @@ void main() {
     final done = events.whereType<SpeechAudioDone>().single;
     expect(done.interrupted, isTrue);
   });
+  test('audio from another host is refused: the app never loads media the speech service did not name', () async {
+    final player = _FakePlayer();
+    final body = jsonEncode({'timeline': _timeline(), 'audio_url': 'https://attacker.example.test/x.wav'});
+    final backend = KokoroSpeechAudioBackend(baseUrl: base, player: player, client: _client(body: body));
+    final events = await _collect(backend.events, () => backend.speak(text: 'Hi. Now.', language: 'en', rate: 0.5, pitch: 1, voice: 'af_bella'));
+    expect(player.loaded, isNull);
+    expect(events.last, isA<SpeechAudioError>());
+  });
+
+  test('stopping before the reply arrives still reports the reply as interrupted', () async {
+    final player = _FakePlayer();
+    final backend = KokoroSpeechAudioBackend(baseUrl: base, player: player, client: _client());
+    final events = await _collect(backend.events, () async {
+      final pending = backend.speak(text: 'Hi. Now.', language: 'en', rate: 0.5, pitch: 1, voice: 'af_bella');
+      await backend.stop();
+      await pending;
+    });
+    expect(events.whereType<SpeechAudioDone>().map((e) => e.interrupted), contains(true));
+    expect(player.plays, 0, reason: 'a stopped reply must not start playing');
+  });
 }

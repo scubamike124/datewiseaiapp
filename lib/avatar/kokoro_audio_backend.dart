@@ -42,6 +42,8 @@ class KokoroSpeechAudioBackend implements SpeechAudioBackend {
   final _events = StreamController<SpeechAudioEvent>.broadcast();
   StreamSubscription<bool>? _playingSub;
   int _generation = 0;
+  /// True from speak() until its reply ends, fails or is stopped; a stop before playback still reports interrupted.
+  bool _busy = false;
 
   @override
   Stream<SpeechAudioEvent> get events => _events.stream;
@@ -50,6 +52,7 @@ class KokoroSpeechAudioBackend implements SpeechAudioBackend {
   @override
   Future<void> speak({required String text, String? voice, required String language, required double rate, required double pitch}) async {
     final gen = ++_generation;
+    _busy = true;
     await _playingSub?.cancel();
     _playingSub = null;
     final String lang = language.toLowerCase().startsWith('es') ? 'es' : 'en-us';
@@ -61,11 +64,13 @@ class KokoroSpeechAudioBackend implements SpeechAudioBackend {
       );
       if (gen != _generation) return;
       if (response.statusCode != 200) {
+        _busy = false;
         _events.add(SpeechAudioError('speech service answered ${response.statusCode}'));
         return;
       }
       final body = jsonDecode(response.body);
       if (body is! Map<String, dynamic> || body['timeline'] is! Map<String, dynamic> || body['audio_url'] is! String) {
+        _busy = false;
         _events.add(const SpeechAudioError('speech service reply is not a timeline and audio url'));
         return;
       }
@@ -75,7 +80,15 @@ class KokoroSpeechAudioBackend implements SpeechAudioBackend {
         if (s.mouth.isNotEmpty) _events.add(SpeechAudioLevels(s.start, hop, s.mouth));
       }
       _events.add(const SpeechAudioSynthesized());
-      await _player.load(baseUrl.resolve(body['audio_url'] as String));
+      // The audio must come from the same origin as the speech service, over the same scheme. A reply that points
+      // elsewhere is refused, so the app never loads media from a host the server did not name.
+      final audio = baseUrl.resolve(body['audio_url'] as String);
+      if (audio.scheme != baseUrl.scheme || audio.host != baseUrl.host || audio.port != baseUrl.port) {
+        _busy = false;
+        _events.add(const SpeechAudioError('speech service audio must come from the speech service itself'));
+        return;
+      }
+      await _player.load(audio);
       if (gen != _generation) return;
       var started = false;
       _playingSub = _player.playing.listen((isPlaying) {
@@ -84,6 +97,7 @@ class KokoroSpeechAudioBackend implements SpeechAudioBackend {
           started = true;
           _events.add(const SpeechAudioStarted());
         } else if (!isPlaying && started) {
+          _busy = false;
           _events.add(const SpeechAudioDone());
           _playingSub?.cancel();
           _playingSub = null;
@@ -91,16 +105,23 @@ class KokoroSpeechAudioBackend implements SpeechAudioBackend {
       });
       await _player.play();
     } on FormatException catch (e) {
-      if (gen == _generation) _events.add(SpeechAudioError('speech service reply was not valid: ${e.message}'));
+      if (gen == _generation) {
+        _busy = false;
+        _events.add(SpeechAudioError('speech service reply was not valid: ${e.message}'));
+      }
     } catch (e) {
-      if (gen == _generation) _events.add(SpeechAudioError('speech could not be played (${e.runtimeType})'));
+      if (gen == _generation) {
+        _busy = false;
+        _events.add(SpeechAudioError('speech could not be played (${e.runtimeType})'));
+      }
     }
   }
 
   /// Stops the current reply. Listeners get a [SpeechAudioDone] marked interrupted.
   @override
   Future<void> stop() async {
-    final wasSpeaking = _playingSub != null;
+    final wasSpeaking = _busy;
+    _busy = false;
     _generation++;
     await _playingSub?.cancel();
     _playingSub = null;
@@ -112,7 +133,10 @@ class KokoroSpeechAudioBackend implements SpeechAudioBackend {
   static double _speedFor(double rate) => (0.95 * (rate / 0.5)).clamp(0.6, 1.3).toDouble();
 
   Future<void> dispose() async {
+    _generation++;
+    _busy = false;
     await _playingSub?.cancel();
+    await _player.stop();
     await _events.close();
     _client.close();
   }
