@@ -56,6 +56,16 @@ void main() {
     await _bridge.invokeMethod<void>('done', {'results': _results});
   });
 
+  // Harness warm-up, not an assertion: the first purchase in a StoreKit Test session gets transaction id 0,
+  // which in_app_purchase_storekit 0.4.17 cannot finish (see store_service.dart `_complete`). This scenario takes
+  // that first purchase, so every scenario below starts with a normal transaction id. Production verification is
+  // unchanged: this only changes which purchase the harness makes first, and no scenario, assertion or JWS check is removed.
+  _scenario('warm-up: the first StoreKit Test purchase absorbs transaction id 0 (no assertions)', (t) async {
+    final app = await _launch(t);
+    await _subscribe(t, app);
+    await _settle(t, const Duration(seconds: 3));
+  });
+
   _scenario('catalog: only the monthly subscription exists, with the StoreKit price', (t) async {
     final app = await _launch(t);
     expect(app.store, isA<AppStoreService>(), reason: 'the real StoreKit store, not FakeStoreService');
