@@ -103,6 +103,21 @@ void main() {
     expect(() => KokoroTimeline.fromJson(overflow), throwsFormatException);
   });
 
+  test('a negative mouth value and a non-numeric duration are refused', () {
+    Map<String, dynamic> base() => {
+          'fps': 10,
+          'sentences': [
+            {'text': 'Hi', 'start_s': 0, 'duration_s': 1, 'mouth': [0.5]},
+          ],
+        };
+    final negMouth = base();
+    ((negMouth['sentences'] as List).first as Map)['mouth'] = [-0.5];
+    expect(() => KokoroTimeline.fromJson(negMouth), throwsFormatException);
+    final textDuration = base();
+    ((textDuration['sentences'] as List).first as Map)['duration_s'] = 'x';
+    expect(() => KokoroTimeline.fromJson(textDuration), throwsFormatException);
+  });
+
   test('word timings: one per word, in order, with the exact character positions', () {
     final t = KokoroTimeline.fromJson(jsonDecode(_fixture) as Map<String, dynamic>);
     final words = t.wordTimings(_text);
