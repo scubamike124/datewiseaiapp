@@ -320,6 +320,35 @@ void main() {
   // ---------------------------------------------------------------------------
   // 3. The talking avatar with each coach, through the native speech path.
 
+  // Measurement, not part of the app's behavior: how long the very first native
+  // utterance of the process takes to produce audio. The app gives it
+  // DeviceVoiceService.audioStartTimeout (3 s) before it falls back to
+  // flutter_tts; here it gets 20 s, so the real cold-start time is seen.
+  _scenario('native audio cold start: time to the first audio of the first utterance', (t, r) async {
+    final saved = DeviceVoiceService.audioStartTimeout;
+    DeviceVoiceService.audioStartTimeout = const Duration(seconds: 20);
+    try {
+      _audio.reset();
+      final clock = Stopwatch()..start();
+      await _voice.speak('Hi, I am Ava. Tell me what you would like to work on.', Coaches.byId('ava'));
+      while (_audio.starts == 0 && _audio.errors.isEmpty && clock.elapsed < const Duration(seconds: 21)) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      r['firstAudioMs'] = _audio.starts > 0 ? clock.elapsedMilliseconds : null;
+      final until = DateTime.now().add(const Duration(seconds: 20));
+      while (_voice.speaking.value && DateTime.now().isBefore(until)) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      r['nativeTimeline'] = [..._audio.timeline];
+      r['chunksPlayedNatively'] = '${_audio.playedNatively.where((b) => b).length}/${_audio.playedNatively.length}';
+      r['errors'] = [..._audio.errors];
+      _log('cold start: $r');
+      expect(_audio.starts, greaterThan(0), reason: 'the first native utterance never produced audio within 20 s');
+    } finally {
+      DeviceVoiceService.audioStartTimeout = saved;
+    }
+  });
+
   for (final id in ['ava', 'ethan', 'sofia', 'diego']) {
     _scenario('avatar ($id): voice conversation, reply read aloud through the native audio path', (t, r) async {
       final coach = Coaches.byId(id);
