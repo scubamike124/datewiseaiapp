@@ -194,6 +194,13 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
   int _startTimeouts = 0;
   static const int maxStartTimeouts = 2;
 
+  /// Before the native path has started even once this session, a slow start is a cold engine (measured on the iOS
+  /// simulator: 6.4 s, then 2.7 s, for the first two utterances; warm ones 63-420 ms), not a broken path. So until the
+  /// first start it may miss [audioStartTimeout] up to this many times in a row (each such reply is still spoken at once
+  /// through flutter_tts) before it is turned off; after that, [maxStartTimeouts] applies.
+  static const int maxColdStartTimeouts = 4;
+  bool _audioEverStarted = false;
+
   final SpeechAudioBackend? _audio;
   StreamSubscription<SpeechAudioEvent>? _audioSub;
   bool _audioFailed = false;
@@ -274,6 +281,7 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
       case SpeechAudioStarted(:final latency):
         _audioWatchdog?.cancel();
         _startTimeouts = 0;
+        _audioEverStarted = true;
         _fallback = null;
         _speaking.value = true;
         lipSync.started(latency: latency);
@@ -622,7 +630,7 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
     _audioGeneration = -1;
     if (timeout) {
       _startTimeouts++;
-      if (_startTimeouts >= maxStartTimeouts) _audioFailed = true;
+      if (_startTimeouts >= (_audioEverStarted ? maxStartTimeouts : maxColdStartTimeouts)) _audioFailed = true;
     } else {
       _audioFailed = true;
     }
