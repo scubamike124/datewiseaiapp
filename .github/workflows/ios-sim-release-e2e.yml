@@ -90,12 +90,37 @@ jobs:
             > "$OUT/simulator.log" 2>&1 &
           LOGS=$!
           trap 'kill $SHOTS $LOGS 2>/dev/null || true' EXIT
-          flutter test integration_test/release_e2e_test.dart -d "$UDID" -r expanded \
-            --dart-define=DW_AVATAR_AUDIO_PATH=true \
-            --dart-define=DW_MOCK_AI=true \
-            --dart-define=DW_FAKE_STORE=true \
-            --dart-define=E2E_OUT_DIR="$OUT" \
-            2>&1 | tee "$OUT/flutter-test.log"
+          # flutter test sometimes never attaches to the app it launched (the app's VM service is up, the tool waits
+          # forever; seen in run 45727766889). Each attempt is watched: no test output within 5 minutes of the Xcode
+          # build finishing ends it, and it is tried once more (the second build is incremental).
+          for attempt in 1 2; do
+            LOG="$OUT/flutter-test-$attempt.log"
+            : > "$LOG"
+            flutter test integration_test/release_e2e_test.dart -d "$UDID" -r expanded \
+              --dart-define=DW_AVATAR_AUDIO_PATH=true \
+              --dart-define=DW_MOCK_AI=true \
+              --dart-define=DW_FAKE_STORE=true \
+              --dart-define=E2E_OUT_DIR="$OUT" \
+              > "$LOG" 2>&1 &
+            PID=$!
+            BUILT=""
+            while kill -0 $PID 2>/dev/null; do
+              sleep 10
+              if [ -z "$BUILT" ] && grep -q "Xcode build done" "$LOG"; then BUILT=$(date +%s); fi
+              if [ -n "$BUILT" ] && ! grep -q "\[release-e2e\]" "$LOG" && [ $(( $(date +%s) - BUILT )) -gt 300 ]; then
+                echo "::warning::attempt $attempt: flutter test did not attach to the app within 5 minutes; retrying"
+                kill $PID 2>/dev/null || true; sleep 5; kill -9 $PID 2>/dev/null || true
+                xcrun simctl terminate "$UDID" com.datewise.datewiseAi 2>/dev/null || true
+                break
+              fi
+            done
+            STATUS=0; wait $PID || STATUS=$?
+            cat "$LOG"
+            cp "$LOG" "$OUT/flutter-test.log"
+            if grep -q "\[release-e2e\]" "$LOG"; then exit $STATUS; fi
+          done
+          echo "::error::flutter test never ran the tests on the simulator (two attempts)"
+          exit 1
 
       - name: Collect evidence from the app's container
         if: always()
