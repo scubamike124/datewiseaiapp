@@ -143,13 +143,64 @@ void main() {
       expect(think.rotation.abs(), greaterThan(0.005), reason: 'slight head tilt while thinking');
     });
 
-    test('no forward-eye blink frames while thinking; the glance stays put', () {
+    test('no forward-eye blink frames over the thinking glance; the glance stays put', () {
       for (final seed in [1, 2, 3, 7, 42]) {
         final a = AvatarAnimator(seed: seed);
         for (var t = 0.0; t < 12; t += 1 / 60) {
           final eyes = a.frame(t, AvatarMood.thinking, VisemeSample.rest).layers.map((l) => l.patch).toList();
-          expect(eyes.where((p) => p.startsWith('blink')), isEmpty, reason: 'blink at $t s while thinking (seed $seed)');
-          if (t >= AvatarAnimator.glanceDelay) expect(eyes, contains('gaze'), reason: 'glance lost at $t s (seed $seed)');
+          if (t >= AvatarAnimator.glanceDelay) {
+            expect(eyes.where((p) => p.startsWith('blink')), isEmpty, reason: 'blink at $t s while thinking (seed $seed)');
+            expect(eyes, contains('gaze'), reason: 'glance lost at $t s (seed $seed)');
+          }
+        }
+      }
+    });
+
+    test('the eyes leave for the thinking glance through a blink, which ends as the glance appears', () {
+      expect(AvatarAnimator.blinkLength, lessThanOrEqualTo(AvatarAnimator.glanceDelay));
+      var checked = 0;
+      for (var seed = 0; seed < 20; seed++) {
+        final a = AvatarAnimator(seed: seed);
+        var lastBlink = -10.0;
+        var was = false;
+        for (var t = 0.0; t < 6; t += 1 / 60) {
+          final b = a.frame(t, AvatarMood.listening, VisemeSample.rest).layers.any((l) => l.patch.startsWith('blink'));
+          if (b && !was) lastBlink = t;
+          was = b;
+        }
+        // A blink that just happened is not repeated.
+        if (6.0 - lastBlink < AvatarAnimator.onsetBlinkGap) continue;
+        checked++;
+        final eyes = <String?>[];
+        for (var t = 6.0; t < 6.3; t += 1 / 60) {
+          final e = a.frame(t, AvatarMood.thinking, VisemeSample.rest).layers.map((l) => l.patch).where((p) => p == 'gaze' || p.startsWith('blink'));
+          eyes.add(e.isEmpty ? null : e.first);
+        }
+        expect(eyes.first, 'blink_half', reason: 'seed $seed: $eyes');
+        expect(eyes, contains('blink_closed'));
+        expect(eyes.last, 'gaze');
+      }
+      expect(checked, greaterThan(5));
+    });
+
+    test('a slow reply: the avatar is never 6 s without a blink from listening through thinking into speech', () {
+      // The release E2E caught a 6.2 s stretch: the blink fell due early in a
+      // long think and waited for all of it. The longest gap by design is a
+      // listener's 3.2 + 3.2 s.
+      for (var seed = 0; seed < 200; seed++) {
+        final a = AvatarAnimator(seed: seed);
+        final starts = <double>[];
+        var was = false;
+        AvatarMood mood(double t) => t < 2 ? AvatarMood.idle : t < 3 ? AvatarMood.listening : t < 7 ? AvatarMood.thinking : AvatarMood.speaking;
+        for (var t = 0.0; t < 14; t += 1 / 60) {
+          final b = a.frame(t, mood(t), const VisemeSample(Viseme.rest, Viseme.a, 0.5)).layers.any((l) => l.patch.startsWith('blink'));
+          if (b && !was) starts.add(t);
+          was = b;
+        }
+        expect(starts, isNotEmpty, reason: 'seed $seed');
+        expect(starts.first, lessThan(4.1), reason: 'seed $seed: $starts');
+        for (var k = 1; k < starts.length; k++) {
+          expect(starts[k] - starts[k - 1], lessThan(6.45), reason: 'seed $seed: $starts');
         }
       }
     });
@@ -183,7 +234,8 @@ void main() {
 
     test('a short think with no blink due: the glance holds, then the eyes go forward', () {
       final a = AvatarAnimator(seed: 7);
-      // The first blink is at least 1.5 s away; think 0.2-0.8 s, speak at 0.8 s.
+      // Think 0.2-0.8 s (its onset blink is over by 0.35 s; the next is
+      // seconds away), speak at 0.8 s.
       for (var t = 0.2; t < 0.8; t += 1 / 60) {
         a.frame(t, AvatarMood.thinking, VisemeSample.rest);
       }

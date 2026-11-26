@@ -185,6 +185,9 @@ class AvatarAnimator {
   /// snap forward on the same frame the mouth starts moving.
   static const double gazeHold = 0.12;
 
+  /// A think starts with a blink unless the last one began this recently.
+  static const double onsetBlinkGap = 1.2;
+
   /// Eye patch for [s] seconds into a blink: null, `blink_half` or `blink_closed`.
   static String? blinkFrame(double s) {
     if (s < 0 || s >= blinkLength) return null;
@@ -222,6 +225,16 @@ class AvatarAnimator {
     _nextNod = t + 0.5;
     if (mood == AvatarMood.thinking) {
       _gesture(t, 0.6, 1.5, 0);
+      // The eyes leave through a blink, as people's do on a large gaze shift.
+      // The blink (150 ms) is over just as the glance frame appears
+      // ([glanceDelay]), so no forward-eye frame plays over the glance. Without
+      // it, a blink falling due while thinking waits for the whole think: on a
+      // slow reply that was 4-6 s without a blink.
+      if (t - _blinkStart >= onsetBlinkGap) {
+        _blinkStart = t;
+        _secondOfDouble = false;
+        _nextBlink = t + 2.8 + _style.nextDouble() * 3.2;
+      }
       _thinkTilt = (_style.nextBool() ? 1 : -1) * _range(0.010, 0.013);
     }
     if (mood == AvatarMood.listening) {

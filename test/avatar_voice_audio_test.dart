@@ -192,13 +192,32 @@ void main() {
     audio.controller.add(const SpeechAudioStarted());
     expect(s.speaking.value, isFalse);
     expect(s.lipSync.hasAudio, isFalse);
-    // One timeout does not turn the native path off (a cold voice can be slow)...
-    await s.speak('Second reply.', Coaches.ava);
-    expect(audio.spoken, hasLength(2));
-    // ...but a second one in a row does.
+    // A cold engine may miss the window a few times (each reply still speaks at once through flutter_tts)...
+    for (var i = 2; i <= DeviceVoiceService.maxColdStartTimeouts; i++) {
+      await s.speak('Reply $i.', Coaches.ava);
+      expect(audio.spoken, hasLength(i), reason: 'cold start $i still tries the native path');
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+    }
+    // ...but a path that never starts is turned off after maxColdStartTimeouts in a row.
+    await s.speak('One more.', Coaches.ava);
+    expect(audio.spoken, hasLength(DeviceVoiceService.maxColdStartTimeouts), reason: 'off after the cold-start allowance');
+    await s.dispose();
+  });
+
+  test('once the native path has worked, two start timeouts in a row turn it off', () async {
+    DeviceVoiceService.audioStartTimeout = const Duration(milliseconds: 50);
+    addTearDown(() => DeviceVoiceService.audioStartTimeout = const Duration(seconds: 3));
+    final audio = FakeAudio();
+    final s = DeviceVoiceService.forTesting(FlutterTts(), voices, audio: audio);
+    await s.speak('Warm.', Coaches.ava);
+    audio.controller.add(const SpeechAudioStarted());
+    audio.controller.add(const SpeechAudioDone());
+    await s.speak('One.', Coaches.ava);
     await Future<void>.delayed(const Duration(milliseconds: 120));
-    await s.speak('Third reply.', Coaches.ava);
-    expect(audio.spoken, hasLength(2), reason: 'off after two consecutive timeouts');
+    await s.speak('Two.', Coaches.ava);
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    await s.speak('Three.', Coaches.ava);
+    expect(audio.spoken, hasLength(3), reason: 'off after two consecutive timeouts once warm');
     await s.dispose();
   });
 
@@ -333,14 +352,16 @@ void main() {
     audio.controller.add(SpeechAudioEvent.parse({'e': 'done', 'interrupted': 'engine'})!);
     await Future<void>.delayed(Duration.zero);
     expect(calls.where((c) => c == 'speak'), hasLength(1), reason: 'not a silent reply');
-    // Counted like a start timeout: the native path stays on for the next reply...
-    await s.speak('Second.', Coaches.ava);
-    expect(audio.spoken, hasLength(2));
-    // ...and a second one in a row turns it off.
-    audio.controller.add(SpeechAudioEvent.parse({'e': 'done', 'interrupted': 'engine'})!);
-    await Future<void>.delayed(Duration.zero);
-    await s.speak('Third.', Coaches.ava);
-    expect(audio.spoken, hasLength(2));
+    // Counted like a start timeout: the native path stays on for the next replies (a cold engine)...
+    for (var i = 2; i <= DeviceVoiceService.maxColdStartTimeouts; i++) {
+      await s.speak('Reply $i.', Coaches.ava);
+      expect(audio.spoken, hasLength(i));
+      audio.controller.add(SpeechAudioEvent.parse({'e': 'done', 'interrupted': 'engine'})!);
+      await Future<void>.delayed(Duration.zero);
+    }
+    // ...and once the cold-start allowance is used up, it is turned off.
+    await s.speak('One more.', Coaches.ava);
+    expect(audio.spoken, hasLength(DeviceVoiceService.maxColdStartTimeouts));
     // After playback started, an engine reset ends the reply without a replay.
     await s.dispose();
   });

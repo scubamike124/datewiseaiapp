@@ -194,6 +194,13 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
   int _startTimeouts = 0;
   static const int maxStartTimeouts = 2;
 
+  /// Before the native path has started even once this session, a slow start is a cold engine (measured on the iOS
+  /// simulator: 6.4 s, then 2.7 s, for the first two utterances; warm ones 63-420 ms), not a broken path. So until the
+  /// first start it may miss [audioStartTimeout] up to this many times in a row (each such reply is still spoken at once
+  /// through flutter_tts) before it is turned off; after that, [maxStartTimeouts] applies.
+  static const int maxColdStartTimeouts = 4;
+  bool _audioEverStarted = false;
+
   final SpeechAudioBackend? _audio;
   StreamSubscription<SpeechAudioEvent>? _audioSub;
   bool _audioFailed = false;
@@ -274,6 +281,7 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
       case SpeechAudioStarted(:final latency):
         _audioWatchdog?.cancel();
         _startTimeouts = 0;
+        _audioEverStarted = true;
         _fallback = null;
         _speaking.value = true;
         lipSync.started(latency: latency);
@@ -496,7 +504,13 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
     }
 
     bool free(Map<String, String> v) => !avoid.contains(v['identifier'] ?? '${v['name']}|${v['locale']}');
-    return best((v) => genderMatch(v) == true && free(v)) ??
+    // The old novelty voices (Fred, Albert...) only as a last resort: a real voice of the coach's gender in a later
+    // locale (en-GB Daniel) beats one in the first locale. Seen on the iOS simulator, which has no other en-US male
+    // voice: Ethan spoke as Fred.
+    bool real(Map<String, String> v) => quality(v) > 0;
+    return best((v) => genderMatch(v) == true && real(v) && free(v)) ??
+        best((v) => genderMatch(v) == true && real(v)) ??
+        best((v) => genderMatch(v) == true && free(v)) ??
         best((v) => genderMatch(v) == true) ??
         best((v) => genderMatch(v) == null && free(v)) ??
         best((v) => genderMatch(v) == null) ??
@@ -616,7 +630,7 @@ class DeviceVoiceService implements VoiceService, LipSyncSource {
     _audioGeneration = -1;
     if (timeout) {
       _startTimeouts++;
-      if (_startTimeouts >= maxStartTimeouts) _audioFailed = true;
+      if (_startTimeouts >= (_audioEverStarted ? maxStartTimeouts : maxColdStartTimeouts)) _audioFailed = true;
     } else {
       _audioFailed = true;
     }

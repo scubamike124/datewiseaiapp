@@ -211,8 +211,11 @@ void main() {
         expect(rot.abs(), inInclusiveRange(0.0075, 0.0145), reason: 'seed $seed');
         for (final (t, p) in poses) {
           expect(p.rotation.abs(), lessThanOrEqualTo(AvatarPose.maxRotation));
-          expect(_patches(p).where((n) => n.startsWith('blink')), isEmpty, reason: 'blink at $t');
-          if (t >= 4 + AvatarAnimator.glanceDelay) expect(_patches(p), contains('gaze'));
+          // The onset blink ends as the glance appears; none over the glance.
+          if (t >= 4 + AvatarAnimator.glanceDelay) {
+            expect(_patches(p).where((n) => n.startsWith('blink')), isEmpty, reason: 'blink at $t');
+            expect(_patches(p), contains('gaze'));
+          }
           if (t > 4.5) expect(_patches(p).contains('i2'), isFalse, reason: 'no smile while thinking');
         }
       }

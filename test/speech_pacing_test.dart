@@ -222,6 +222,22 @@ void main() {
       expect(pick(voices, Coaches.ethan), 'Evan', reason: 'a novelty voice never beats a real one');
     });
 
+    test('a novelty voice never beats a real one in a later locale (the iOS simulator: Ethan spoke as Fred)', () {
+      // The en voices of the iOS 26 simulator (ios-sim-release-e2e.yml): no real en-US male voice.
+      final voices = [
+        v('Samantha', 'en-US', gender: 'female', id: 'com.apple.voice.super-compact.en-US.Samantha'),
+        v('Fred', 'en-US', gender: 'male', id: 'com.apple.speech.synthesis.voice.Fred'),
+        v('Ralph', 'en-US', gender: 'male', id: 'com.apple.speech.synthesis.voice.Ralph'),
+        v('Daniel', 'en-GB', gender: 'male', id: 'com.apple.voice.super-compact.en-GB.Daniel'),
+        v('Karen', 'en-AU', gender: 'female', id: 'com.apple.voice.super-compact.en-AU.Karen'),
+      ];
+      expect(pick(voices, Coaches.ethan), 'Daniel');
+      expect(pick(voices, Coaches.ava), 'Samantha', reason: 'the first locale still wins among real voices');
+      // Only novelty voices of his gender: one of them, rather than no voice at all.
+      final noveltyOnly = voices.where((x) => x['name'] != 'Daniel').toList();
+      expect(pick(noveltyOnly, Coaches.ethan), anyOf('Fred', 'Ralph'));
+    });
+
     test('es-MX over any other Spanish, even a better-quality es-ES; es-ES only as a last resort', () {
       final voices = [
         v('Mónica', 'es-ES', gender: 'female', quality: 'premium'),
